@@ -1,0 +1,294 @@
+// prisma/schema.prisma — ЦЕЛЕВАЯ схема: B2C (как в проде) + B2B-расширение «Тихий дом для агентов».
+//
+// Источник истины B2C-части: _reference/frontend/prisma/schema.prisma (read-only, не трогаем).
+// Этот файл — кандидат на МЕРЖ в реальную схему. Применять ТОЛЬКО аддитивной миграцией
+// против общей PostgreSQL-БД. Никаких изменений типов существующих полей.
+//
+// Допущение: модель агента — ВНУТРЕННЯЯ (агент = представитель ТД, оплата идёт ТД).
+//   Решения собственника пока нет — все B2B-сущности помечены как требующие подтверждения.
+//   Структура данных при этом почти модель-агностична; при маркетплейс-модели меняется
+//   семантика (кто получатель Payment, кто формирует чек), но не форма таблиц.
+//
+// Команда миграции (dev): npx prisma migrate dev --name b2b_platform_init
+// Для prod:               npx prisma migrate deploy   (предварительно бэкап БД)
+// НИКОГДА не db push на prod.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// B2C — существующие модели (НЕ МЕНЯТЬ типы; только добавлены relation-поля под B2B)
+// ============================================================
+
+model User {
+  id     Int     @id @default(autoincrement())
+  email  String  @unique
+  name   String?
+  orders Order[]
+
+  agent  Agent?  // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+
+  // внешний id для фронта/платежки
+  publicId    String   @unique
+
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+
+  // CHANGED: НЕ мигрируем на enum — B2C-код читает строку. Допустимые значения теперь:
+  // PENDING | PAID | CANCELED | SIGNED | PARTIALLY_PAID | IN_PROCESS | COMPLETED
+  status      String   @default("PENDING")
+  serviceType String
+  totalAmount Int      // копейки
+  customerEmail String?
+  paymentMethod String?
+  paymentLink  String?
+  meta        String
+
+  payments    Payment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // CHANGED: поля B2B-сделки (все nullable — B2C-заказы их не заполняют)
+  agentId         Int?            // NEW
+  agent           Agent?          @relation(fields: [agentId], references: [id]) // NEW
+  meetingId       Int?            // NEW
+  meeting         Meeting?        @relation(fields: [meetingId], references: [id]) // NEW
+  signedAt        DateTime?       // NEW
+  signatureMethod SignatureMethod? // NEW
+  signature       Signature?      // NEW
+  commission      Commission?     // NEW
+  quote           Quote?          // NEW
+  depositPaid     Boolean  @default(false) // NEW
+  cancelledAt     DateTime?       // NEW
+  cancelReason    String?         // NEW
+
+  @@index([publicId])
+  @@index([agentId])    // NEW
+  @@index([meetingId])  // NEW
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  // CHANGED: для наличных провайдера нет → допускаем "cash"/"sbp" как значение
+  provider          String
+  providerPaymentId String   @unique
+
+  orderId           Int
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  orderPublicId     String
+
+  amount            Int      // К ОПЛАТЕ СЕЙЧАС (full/deposit), копейки
+  currency          String   @default("RUB")
+  status            String   // pending|succeeded|canceled|failed
+  confirmationUrl   String?
+  createRaw         String?
+  webhookRaw        String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // CHANGED: расширение под полевую оплату B2B
+  method      PaymentMethod? // NEW: CASH | SBP_QR | CARD | BANK_TRANSFER
+  isDeposit   Boolean  @default(false) // NEW
+  fiscalUrl   String?  // NEW: ссылка на чек ОФД
+  fiscalSign  String?  // NEW: фискальный признак (54-ФЗ)
+  confirmedAt DateTime? // NEW: момент подтверждения (вебхук СБП / факт чека)
+  meetingId   Int?     // NEW
+  meeting     Meeting? @relation(fields: [meetingId], references: [id]) // NEW
+
+  @@index([orderId])
+  @@index([orderPublicId])
+  @@index([meetingId]) // NEW
+}
+
+// ============================================================
+// B2B — новые модели (все NEW). Требуют подтверждения модели собственником.
+// ============================================================
+
+model Agent {
+  id           Int          @id @default(autoincrement()) // NEW: Int — единообразно с User/Order
+  userId       Int          @unique
+  user         User         @relation(fields: [userId], references: [id])
+  status       AgentStatus  @default(PENDING)
+  tierId       Int
+  tier         AgentTier    @relation(fields: [tierId], references: [id])
+  inn          String?      // ИНН ИП/самозанятого
+  selfEmployed Boolean      @default(true)
+
+  leads        ClientLead[]
+  meetings     Meeting[]
+  orders       Order[]
+  commissions  Commission[]
+  payouts      Payout[]
+
+  createdAt    DateTime     @default(now())
+
+  @@index([userId])
+}
+
+model AgentTier {
+  id            Int     @id @default(autoincrement())
+  name          String  @unique // Junior | Senior | Top
+  commissionPct Decimal @db.Decimal(5, 2) // % от МАРЖИ (см. Блок 3.1), не от чека
+  agents        Agent[]
+}
+
+model ClientLead {
+  id        Int       @id @default(autoincrement())
+  agentId   Int
+  agent     Agent     @relation(fields: [agentId], references: [id])
+  name      String
+  phone     String
+  context   String?   // сведения об усопшем, бюджетные ожидания (ПДн — шифровать на уровне приложения)
+  source    String    // telegram | form | agent
+  meetings  Meeting[]
+  createdAt DateTime  @default(now())
+
+  @@index([agentId])
+}
+
+model Meeting {
+  id           Int           @id @default(autoincrement())
+  leadId       Int
+  lead         ClientLead    @relation(fields: [leadId], references: [id])
+  agentId      Int
+  agent        Agent         @relation(fields: [agentId], references: [id])
+  status       MeetingStatus @default(SCHEDULED)
+  cobrowseCode String?       @unique // короткий код для «зеркала сметы» у клиента
+
+  orders       Order[]
+  payments     Payment[]
+  quotes       Quote[]
+  session      AgentSession?
+
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+
+  @@index([agentId])
+  @@index([leadId])
+}
+
+model Quote {
+  id        Int            @id @default(autoincrement())
+  meetingId Int
+  meeting   Meeting        @relation(fields: [meetingId], references: [id])
+  versions  QuoteVersion[]
+  orderId   Int?           @unique
+  order     Order?         @relation(fields: [orderId], references: [id])
+
+  @@index([meetingId])
+}
+
+model QuoteVersion {
+  id        Int      @id @default(autoincrement())
+  quoteId   Int
+  quote     Quote    @relation(fields: [quoteId], references: [id])
+  payload   String   // снимок сметы (JSON-строкой — единообразно с Order.meta)
+  total     Int      // копейки
+  createdAt DateTime @default(now())
+
+  @@index([quoteId])
+}
+
+model Signature {
+  id       Int             @id @default(autoincrement())
+  orderId  Int             @unique
+  order    Order           @relation(fields: [orderId], references: [id])
+  method   SignatureMethod
+  docHash  String          // sha256 подписанного PDF
+  smsHash  String?         // хэш SMS-кода (НЕ сам код)
+  signedAt DateTime        @default(now())
+}
+
+model Commission {
+  id       Int              @id @default(autoincrement())
+  agentId  Int
+  agent    Agent            @relation(fields: [agentId], references: [id])
+  orderId  Int              @unique
+  order    Order            @relation(fields: [orderId], references: [id])
+  amount   Int              // копейки
+  status   CommissionStatus @default(ACCRUED)
+  payoutId Int?
+  payout   Payout?          @relation(fields: [payoutId], references: [id])
+
+  @@index([agentId])
+}
+
+model Payout {
+  id          Int          @id @default(autoincrement())
+  agentId     Int
+  agent       Agent        @relation(fields: [agentId], references: [id])
+  status      PayoutStatus @default(PENDING)
+  amount      Int          // копейки
+  commissions Commission[]
+  paidAt      DateTime?
+
+  @@index([agentId])
+}
+
+model AgentSession {
+  id        Int      @id @default(autoincrement())
+  meetingId Int      @unique
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  state     String   // текущая смета co-browse (JSON-строкой; шифровать на уровне приложения, ФЗ-152)
+  expiresAt DateTime // авто-удаление после встречи (cron, см. Блок 2.7)
+  createdAt DateTime @default(now())
+}
+
+// ============================================================
+// Enums (все NEW). Order.status намеренно оставлен String — см. выше.
+// ============================================================
+
+enum AgentStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  SBP_QR
+  CARD
+  BANK_TRANSFER
+}
+
+enum CommissionStatus {
+  ACCRUED
+  APPROVED
+  PAID
+  REVERSED
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum SignatureMethod {
+  SMS_CODE
+  PASSPORT_SCAN
+  SIMPLE_ESIGN
+}
