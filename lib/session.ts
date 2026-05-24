@@ -24,7 +24,7 @@ function toB64url(bytes: ArrayBuffer | Uint8Array): string {
 }
 
 function fromB64url(s: string): Uint8Array<ArrayBuffer> {
-  const pad = "===".slice((4 - (s.length % 4)) % 4);
+  const pad = "=".repeat((4 - (s.length % 4)) % 4);
   const raw = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
