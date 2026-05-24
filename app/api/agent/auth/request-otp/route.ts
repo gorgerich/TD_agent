@@ -9,8 +9,9 @@ export async function POST(req: NextRequest) {
 
   const { phone } = parsed.data;
 
-  if (process.env.NODE_ENV === "development") {
-    return NextResponse.json({ ok: true, devCode: "0000", phone });
+  if (process.env.NODE_ENV === "development" || process.env.DEMO_MODE === "1") {
+    // Демо-режим: код не отправляется, показываем его прямо в ответе.
+    return NextResponse.json({ ok: true, devCode: "0000", demo: process.env.DEMO_MODE === "1", phone });
   }
 
   // Production: lookup user by phone, generate OTP, send SMS

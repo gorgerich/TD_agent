@@ -6,3 +6,6 @@ node_modules/
 next-env.d.ts
 tsconfig.tsbuildinfo
 taste-skill/
+.DS_Store
+.vercel
+.vercel
