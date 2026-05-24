@@ -181,17 +181,21 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             <p className={s.cardTitle}>Пакет</p>
             <div className={s.packageGrid}>
               {/* "No package" card */}
-              <div
+              <button
+                type="button"
+                aria-pressed={form.packageType === "custom"}
                 className={`${s.pkgCard} ${s.pkgCardCustom} ${form.packageType === "custom" ? s.pkgCardActive : ""}`}
                 onClick={() => setField("packageType", "custom")}
               >
                 <div className={s.pkgName}>Без пакета</div>
                 <div className={s.pkgCustomLabel}>позиционно</div>
-              </div>
+              </button>
 
               {relevantPackages.map((p) => (
-                <div
+                <button
+                  type="button"
                   key={p.id}
+                  aria-pressed={form.packageType === p.id}
                   className={`${s.pkgCard} ${form.packageType === p.id ? s.pkgCardActive : ""}`}
                   onClick={() => setField("packageType", p.id)}
                 >
@@ -200,7 +204,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   )}
                   <div className={s.pkgName}>{p.name}</div>
                   <div className={s.pkgPrice}>{formatCurrency(p.price)}</div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -365,17 +369,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               {ADDITIONAL_SERVICES.map((svc) => {
                 const on = form.selectedAdditionalServices.includes(svc.id);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={svc.id}
+                    role="checkbox"
+                    aria-checked={on}
                     className={`${s.svcItem} ${on ? s.svcItemActive : ""}`}
                     onClick={() => toggleService(svc.id)}
                   >
-                    <div className={`${s.svcCheck} ${on ? s.svcCheckOn : ""}`}>
+                    <span className={`${s.svcCheck} ${on ? s.svcCheckOn : ""}`} aria-hidden="true">
                       {on && "✓"}
-                    </div>
+                    </span>
                     <span className={s.svcName}>{svc.name}</span>
                     <span className={s.svcPrice}>{formatCurrency(svc.price)}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
