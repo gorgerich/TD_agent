@@ -1,0 +1,117 @@
+.root {
+  min-height: 100vh;
+  background: #f1f5f9;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+.header {
+  background: #0f172a;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.headerLeft { display: flex; align-items: center; gap: 12px; }
+.logoIcon { font-size: 20px; }
+.logoText {}
+.logoMark { font-size: 10px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: #475569; }
+.logoTitle { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+
+.liveIndicator {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.liveDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* ── Content ─────────────────────────────────────────── */
+.content { flex: 1; padding: 32px 24px; max-width: 760px; margin: 0 auto; width: 100%; }
+
+.waitingCard {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 60px 40px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.waitingIcon { font-size: 40px; margin-bottom: 16px; }
+.waitingTitle { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+.waitingText { font-size: 14px; color: #64748b; line-height: 1.6; }
+
+/* ── Quote view ──────────────────────────────────────── */
+.quoteCard {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  margin-bottom: 16px;
+}
+
+.quoteHeader {
+  background: #0f172a;
+  padding: 20px 24px;
+}
+
+.quoteHeaderLabel { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #475569; margin-bottom: 6px; }
+.quoteHeaderTitle { font-size: 18px; font-weight: 800; color: #f1f5f9; }
+
+.quoteBody { padding: 24px; }
+
+.quoteSection { margin-bottom: 20px; }
+.quoteSectionTitle { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; }
+
+.quoteItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 14px;
+}
+.quoteItem:last-child { border-bottom: none; }
+.quoteItemName { color: #0f172a; }
+.quoteItemPrice { color: #475569; font-variant-numeric: tabular-nums; }
+
+.quoteTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+
+.quoteTotalLabel { font-size: 14px; font-weight: 700; color: #0f172a; }
+.quoteTotalValue { font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
+
+.updateInfo {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: center;
+  padding: 12px;
+}
