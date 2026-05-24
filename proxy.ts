@@ -1,30 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-export async function proxy(req: NextRequest) {
-  const { pathname } = req.nextUrl;
-
-  if (pathname === "/agent/login") return NextResponse.next();
-
-  // Dev bypass: skip session check entirely
-  if (process.env.NODE_ENV === "development") return NextResponse.next();
-
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return redirect(req, "/agent/login");
-
-  const session = await verifySession(token);
-  if (!session) return redirect(req, "/agent/login");
-
-  return NextResponse.next();
-}
-
-function redirect(req: NextRequest, to: string) {
-  const url = req.nextUrl.clone();
-  url.pathname = to;
-  return NextResponse.redirect(url);
+/*
+  Лёгкий middleware: только заголовок noindex для B2B-раздела.
+  Проверку сессии делаем в Node-рантайме (layout кабинета), а не здесь —
+  Edge-рантайм ненадёжно отдаёт секрет APP_ENCRYPTION_KEY, из-за чего
+  подпись сессии не сходилась и любой вход отбрасывало на /agent/login.
+*/
+export function proxy(req: NextRequest) {
+  const res = NextResponse.next();
+  res.headers.set("X-Robots-Tag", "noindex, nofollow");
+  return res;
 }
 
 export const config = {
-  matcher: ["/agent/:path*"],
+  matcher: ["/agent/:path*", "/co/:path*"],
 };
