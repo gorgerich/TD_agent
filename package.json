@@ -5,8 +5,9 @@
   "description": "B2B-платформа «Тихий дом для агентов». Версии выровнены под прод-репозиторий frontend (Next 16, React 19, Prisma 5).",
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start -p 3001",
+    "postinstall": "prisma generate",
     "lint": "eslint .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name b2b_platform_init",
