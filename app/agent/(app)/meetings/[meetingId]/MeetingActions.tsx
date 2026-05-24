@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 
 const TRANSITIONS: Record<string, { label: string; next: string; cls: string }[]> = {
   SCHEDULED: [
-    { label: "Начать встречу", next: "IN_PROGRESS", cls: "bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border-amber-600/30" },
-    { label: "Отменить", next: "CANCELLED", cls: "bg-white/[0.04] hover:bg-white/[0.07] text-slate-500 border-white/[0.08]" },
+    { label: "Начать встречу", next: "IN_PROGRESS", cls: "bg-accent text-on-accent hover:bg-accent-hover border-transparent" },
+    { label: "Отменить", next: "CANCELLED", cls: "bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger border-line" },
   ],
   IN_PROGRESS: [
-    { label: "Завершить встречу", next: "COMPLETED", cls: "bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-600/30" },
-    { label: "Отменить", next: "CANCELLED", cls: "bg-white/[0.04] hover:bg-white/[0.07] text-slate-500 border-white/[0.08]" },
+    { label: "Завершить встречу", next: "COMPLETED", cls: "bg-success text-on-accent hover:opacity-90 border-transparent" },
+    { label: "Отменить", next: "CANCELLED", cls: "bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger border-line" },
   ],
   COMPLETED: [],
   CANCELLED: [],
@@ -38,15 +38,15 @@ export default function MeetingActions({ meetingId, currentStatus }: { meetingId
   if (transitions.length === 0) return null;
 
   return (
-    <div className="border-t border-white/[0.06] pt-5">
-      <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 mb-3">Изменить статус</p>
-      <div className="flex gap-2">
+    <div className="rise rise-3 border-t border-line pt-5">
+      <p className="mb-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Изменить статус</p>
+      <div className="flex flex-wrap gap-2.5">
         {transitions.map((t) => (
           <button
             key={t.next}
             onClick={() => changeStatus(t.next)}
             disabled={loading}
-            className={`flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold rounded-lg border transition-all disabled:opacity-50 ${t.cls}`}
+            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13.5px] font-semibold transition-colors disabled:opacity-50 ${t.cls}`}
           >
             {t.label}
           </button>

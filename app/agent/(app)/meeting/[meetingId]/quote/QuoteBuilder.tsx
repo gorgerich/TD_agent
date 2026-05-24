@@ -170,7 +170,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                     }))
                   }
                 >
-                  <span className={s.serviceIcon}>{t === "burial" ? "⚰" : "🔥"}</span>
                   {t === "burial" ? "Погребение" : "Кремация"}
                 </button>
               ))}
@@ -234,9 +233,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
             <div className={s.divider} />
 
-            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              Тип церемонии
-            </p>
+            <p className={s.subLabel}>Тип церемонии</p>
             <div className={s.pills}>
               {(
                 [
@@ -334,10 +331,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </select>
 
             {form.cemetery && (
-              <div style={{ marginTop: 12 }}>
-                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  Категория места
-                </p>
+              <div style={{ marginTop: 14 }}>
+                <p className={s.subLabel}>Категория места</p>
                 <div className={s.pills}>
                   {(
                     [
@@ -401,8 +396,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             <div className={s.panelSections}>
               {result.sections.length === 0 ? (
                 <div className={s.panelEmpty}>
-                  <span className={s.panelEmptyIcon}>📋</span>
-                  Добавьте услуги
+                  Выберите услуги слева — смета появится здесь
                 </div>
               ) : (
                 result.sections.map((section: CalculationSection) => (

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -8,7 +9,8 @@ import {
   CalendarDots,
   CurrencyDollar,
   SignOut,
-  Circle,
+  List,
+  X,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
 
@@ -27,9 +29,94 @@ const ROLE_LABELS: Record<string, string> = {
   SUPPORT: "Поддержка",
 };
 
+function Brand() {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] bg-accent text-on-accent">
+        <span className="block h-2 w-2 rounded-full bg-on-accent" />
+      </span>
+      <span className="leading-tight">
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">
+          Тихий дом
+        </span>
+        <span className="block font-serif text-[15px] text-ink">Кабинет агента</span>
+      </span>
+    </div>
+  );
+}
+
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
+    <div className="space-y-1">
+      {NAV.map(({ href, icon: Icon, label }) => {
+        const active = pathname === href || (href !== "/agent/dashboard" && pathname.startsWith(href));
+        return (
+          <Link
+            key={href}
+            href={href}
+            onClick={onNavigate}
+            className={[
+              "group relative flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[14px] font-medium transition-colors",
+              active
+                ? "bg-accent-soft text-accent"
+                : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+            ].join(" ")}
+          >
+            {active && (
+              <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
+            )}
+            <Icon size={18} weight={active ? "fill" : "regular"} />
+            {label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+function UserBlock({ session, onLogout }: { session: AgentSession | null; onLogout: () => void }) {
+  const initials = session?.name
+    ? session.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "А";
+  return (
+    <div className="space-y-2">
+      {session && (
+        <div className="flex items-center gap-3 rounded-[10px] bg-surface-2 px-3 py-2.5">
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent text-[12px] font-semibold text-on-accent">
+            {initials}
+          </span>
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[13px] font-semibold text-ink">{session.name ?? "Агент"}</span>
+            <span className="block text-[11.5px] text-ink-3">{ROLE_LABELS[session.role] ?? session.role}</span>
+          </span>
+        </div>
+      )}
+      <button
+        onClick={onLogout}
+        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13px] font-medium text-ink-2 transition-colors hover:bg-danger-soft hover:text-danger"
+      >
+        <SignOut size={16} />
+        Выйти
+      </button>
+    </div>
+  );
+}
+
 export default function AgentSidebar({ session }: { session: AgentSession | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   async function logout() {
     await fetch("/api/agent/auth/logout", { method: "POST" });
@@ -37,78 +124,66 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
     router.refresh();
   }
 
-  const initials = session?.name
-    ? session.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-    : "А";
-
   return (
-    <nav className="w-[240px] bg-[#0a0f1c] flex flex-col fixed inset-y-0 left-0 z-50 border-r border-white/[0.05]">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/[0.05]">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
-            <Circle size={10} weight="fill" className="text-white" />
-          </div>
-          <div>
-            <div className="text-[9px] font-bold tracking-[0.14em] uppercase text-slate-600 leading-none mb-0.5">
-              Тихий дом
-            </div>
-            <div className="text-[13px] font-semibold text-slate-200 leading-none">
-              Кабинет агента
-            </div>
-          </div>
+    <>
+      {/* Desktop sidebar */}
+      <nav className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-line bg-surface lg:flex">
+        <div className="border-b border-line px-5 py-5">
+          <Brand />
         </div>
-      </div>
-
-      {/* Nav */}
-      <div className="flex-1 px-2.5 py-3 overflow-y-auto">
-        <div className="space-y-0.5">
-          {NAV.map(({ href, icon: Icon, label }) => {
-            const active = pathname === href || (href !== "/agent/dashboard" && pathname.startsWith(href));
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={[
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] font-medium transition-all duration-100",
-                  active
-                    ? "bg-blue-600/[0.16] text-blue-400"
-                    : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300",
-                ].join(" ")}
-              >
-                <Icon
-                  size={16}
-                  weight={active ? "fill" : "regular"}
-                  className={active ? "text-blue-400" : "text-slate-600"}
-                />
-                {label}
-              </Link>
-            );
-          })}
+        <div className="flex-1 overflow-y-auto px-3 py-4">
+          <NavLinks pathname={pathname} />
         </div>
-      </div>
+        <div className="border-t border-line px-3 py-4">
+          <UserBlock session={session} onLogout={logout} />
+        </div>
+      </nav>
 
-      {/* Footer */}
-      <div className="px-3 pb-4 border-t border-white/[0.05] pt-3">
-        {session && (
-          <div className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-white/[0.03] mb-2">
-            <div className="w-7 h-7 rounded-full bg-blue-900 flex items-center justify-center text-[11px] font-bold text-blue-300 flex-shrink-0">
-              {initials}
-            </div>
-            <div className="min-w-0">
-              <div className="text-[12.5px] font-semibold text-slate-200 truncate">{session.name ?? "Агент"}</div>
-              <div className="text-[11px] text-slate-600">{ROLE_LABELS[session.role] ?? session.role}</div>
-            </div>
-          </div>
-        )}
+      {/* Mobile top bar */}
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-line bg-surface/90 px-4 backdrop-blur-md lg:hidden">
+        <Brand />
         <button
-          onClick={logout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-slate-600 hover:text-slate-400 hover:bg-white/[0.04] transition-all duration-100 font-medium"
+          onClick={() => setOpen(true)}
+          aria-label="Открыть меню"
+          className="grid h-10 w-10 place-items-center rounded-[10px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
         >
-          <SignOut size={14} />
-          Выйти
+          <List size={22} />
         </button>
+      </header>
+
+      {/* Mobile drawer */}
+      <div
+        className={[
+          "fixed inset-0 z-50 lg:hidden transition-opacity duration-200",
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        ].join(" ")}
+        aria-hidden={!open}
+      >
+        <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
+        <nav
+          className={[
+            "absolute inset-y-0 left-0 flex w-[280px] max-w-[82vw] flex-col border-r border-line bg-surface shadow-pop transition-transform duration-200 ease-out",
+            open ? "translate-x-0" : "-translate-x-full",
+          ].join(" ")}
+        >
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
+            <Brand />
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Закрыть меню"
+              className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-4">
+            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
+          </div>
+          <div className="border-t border-line px-3 py-4">
+            <UserBlock session={session} onLogout={logout} />
+          </div>
+        </nav>
       </div>
-    </nav>
+    </>
   );
 }

@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import QuoteBuilder from "./QuoteBuilder";
-import s from "./QuoteBuilder.module.css";
 
 export default async function QuoteBuilderPage({
   params,
@@ -35,15 +36,19 @@ export default async function QuoteBuilderPage({
     // DB not configured in local dev — proceed with nulls
   }
 
-  const clientName = meeting?.lead?.name ?? `Клиент`;
+  const clientName = meeting?.lead?.name ?? "Клиент";
 
   return (
-    <div className={s.page}>
-      <nav className={s.pageNav}>
-        <a href="/agent/dashboard" className={s.backLink}>
-          ← Дашборд
-        </a>
-        <h1 className={s.pageTitle}>Конструктор сметы</h1>
+    <div>
+      <nav className="mx-auto flex max-w-[1180px] items-center gap-3 px-4 pt-7 sm:px-7 sm:pt-9">
+        <Link
+          href={`/agent/meetings/${meetingId}`}
+          className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink"
+        >
+          <ArrowLeft size={14} /> К встрече
+        </Link>
+        <span className="text-ink-3">·</span>
+        <span className="text-[12.5px] font-medium text-ink-3">Конструктор сметы</span>
       </nav>
 
       <QuoteBuilder

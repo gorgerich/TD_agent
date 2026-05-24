@@ -4,12 +4,12 @@ import NewLeadForm from "./NewLeadForm";
 
 export default function NewLeadPage() {
   return (
-    <div className="p-7 max-w-[1100px]">
-      <Link href="/agent/leads" className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-400 transition-colors mb-6">
-        <ArrowLeft size={13} /> Все лиды
+    <div className="mx-auto max-w-[1100px] px-4 py-7 sm:px-7 sm:py-9">
+      <Link href="/agent/leads" className="mb-6 inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink">
+        <ArrowLeft size={14} /> Все лиды
       </Link>
-      <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-1">CRM</p>
-      <h1 className="text-2xl font-bold text-slate-100 tracking-tight mb-7">Новый лид</h1>
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">CRM</p>
+      <h1 className="mb-7 font-serif text-[26px] text-ink sm:text-[30px]">Новый лид</h1>
       <NewLeadForm />
     </div>
   );

@@ -4,25 +4,24 @@ export default async function CoPage({ params }: { params: Promise<{ code: strin
   const { code } = await params;
 
   return (
-    <div className="min-h-screen bg-[#060a12]">
-      {/* Top bar */}
-      <header className="border-b border-white/[0.05] px-6 py-4 flex items-center justify-between">
+    <div className="min-h-[100dvh]">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface/90 px-5 py-3.5 backdrop-blur-md sm:px-7">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center flex-shrink-0">
-            <div className="w-2 h-2 rounded-full bg-white/90" />
-          </div>
-          <div>
-            <div className="text-[9px] font-bold tracking-[0.14em] uppercase text-slate-600 leading-none">Тихий дом</div>
-            <div className="text-[12px] font-semibold text-slate-300 leading-none mt-0.5">Смета онлайн</div>
-          </div>
+          <span className="grid h-8 w-8 place-items-center rounded-[9px] bg-accent text-on-accent">
+            <span className="block h-2 w-2 rounded-full bg-on-accent" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-[9.5px] font-semibold uppercase tracking-[0.16em] text-ink-3">Тихий дом</span>
+            <span className="block text-[13px] font-semibold text-ink">Смета онлайн</span>
+          </span>
         </div>
-        <div className="flex items-center gap-2 bg-blue-600/[0.1] border border-blue-600/20 rounded-full px-3 py-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-[11px] font-semibold text-blue-300">Прямой эфир</span>
+        <div className="flex items-center gap-2 rounded-full border border-success/25 bg-success-soft px-3 py-1.5">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+          <span className="text-[11.5px] font-semibold text-success">Обновляется</span>
         </div>
       </header>
 
-      <main className="px-6 py-10">
+      <main className="px-5 py-8 sm:px-7 sm:py-12">
         <CoView code={code} />
       </main>
     </div>

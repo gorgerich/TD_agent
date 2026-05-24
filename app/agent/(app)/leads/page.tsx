@@ -18,9 +18,9 @@ async function getLeads(agentId: number): Promise<Lead[]> {
 }
 
 function getStatus(meetings: { status: string }[]) {
-  if (meetings.length === 0) return { label: "Новый", dot: "bg-slate-500" };
-  if (meetings.some((m) => m.status === "COMPLETED")) return { label: "Завершён", dot: "bg-emerald-500" };
-  return { label: "В работе", dot: "bg-amber-400" };
+  if (meetings.length === 0) return { label: "Новый", dot: "bg-info" };
+  if (meetings.some((m) => m.status === "COMPLETED")) return { label: "Завершён", dot: "bg-success" };
+  return { label: "В работе", dot: "bg-warning" };
 }
 
 function formatDate(d: Date) {
@@ -39,80 +39,105 @@ export default async function LeadsPage() {
   const leads = await getLeads(session?.agentId ?? 0);
 
   return (
-    <div className="p-7 max-w-[1100px]">
-      <div className="flex items-start justify-between mb-8">
+    <div className="mx-auto max-w-[1100px] px-4 py-7 sm:px-7 sm:py-9">
+      <header className="rise mb-8 flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-1">CRM</p>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Лиды</h1>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">CRM</p>
+          <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">Лиды</h1>
         </div>
         <Link
           href="/agent/leads/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold rounded-lg transition-colors"
+          className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
         >
-          <Plus size={14} weight="bold" /> Новый лид
+          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый лид</span><span className="sm:hidden">Лид</span>
         </Link>
-      </div>
+      </header>
 
-      <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+      <div className="rise rise-1 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
         {leads.length === 0 ? (
-          <div className="py-16 text-center">
-            <Users size={36} className="text-slate-700 mx-auto mb-3" />
-            <p className="text-[13px] text-slate-500">
+          <div className="px-6 py-16 text-center">
+            <Users size={34} className="mx-auto mb-3 text-ink-3" />
+            <p className="text-[13.5px] text-ink-2">
               Лидов пока нет —{" "}
-              <Link href="/agent/leads/new" className="text-blue-500 hover:text-blue-400">добавьте первого</Link>
+              <Link href="/agent/leads/new" className="text-accent hover:text-accent-hover">добавьте первого</Link>
             </p>
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/[0.06]">
-                <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Клиент</th>
-                <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Телефон</th>
-                <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Источник</th>
-                <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Встречи</th>
-                <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Статус</th>
-                <th className="text-right text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Добавлен</th>
-                <th className="w-8" />
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            {/* Mobile cards */}
+            <ul className="divide-y divide-line md:hidden">
               {leads.map((lead) => {
                 const st = getStatus(lead.meetings);
                 return (
-                  <tr key={lead.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors group">
-                    <td className="px-5 py-3">
-                      <Link href={`/agent/leads/${lead.id}`} className="text-[13.5px] font-semibold text-slate-200 hover:text-white transition-colors">
-                        {lead.name}
-                      </Link>
-                      {lead.context && (
-                        <p className="text-[11px] text-slate-600 mt-0.5 truncate max-w-[200px]">{lead.context}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-[13px] text-slate-400 tabular-nums">{lead.phone}</td>
-                    <td className="px-3 py-3 text-[12px] text-slate-500">{SOURCE_LABELS[lead.source] ?? lead.source}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-[12px] text-slate-500">
-                        <CalendarBlank size={12} className="text-slate-600" />
-                        {lead.meetings.length}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                        {st.label}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right text-[12px] text-slate-600 tabular-nums">{formatDate(lead.createdAt)}</td>
-                    <td className="pr-4">
-                      <Link href={`/agent/leads/${lead.id}`}>
-                        <ArrowRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-colors" />
-                      </Link>
-                    </td>
-                  </tr>
+                  <li key={lead.id}>
+                    <Link href={`/agent/leads/${lead.id}`} className="block px-4 py-4 transition-colors active:bg-surface-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate text-[15px] font-semibold text-ink">{lead.name}</span>
+                        <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[11.5px] font-medium text-ink-2">
+                          <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
+                        </span>
+                      </div>
+                      <div className="tnum mt-1 text-[13px] text-ink-2">{lead.phone}</div>
+                      {lead.context && <p className="mt-1.5 line-clamp-2 text-[12.5px] text-ink-3">{lead.context}</p>}
+                      <div className="mt-2 flex items-center gap-3 text-[11.5px] text-ink-3">
+                        <span>{SOURCE_LABELS[lead.source] ?? lead.source}</span>
+                        <span className="inline-flex items-center gap-1"><CalendarBlank size={12} />{lead.meetings.length}</span>
+                        <span className="tnum ml-auto">{formatDate(lead.createdAt)}</span>
+                      </div>
+                    </Link>
+                  </li>
                 );
               })}
-            </tbody>
-          </table>
+            </ul>
+
+            {/* Desktop table */}
+            <table className="hidden w-full md:table">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Клиент</th>
+                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Телефон</th>
+                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Источник</th>
+                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Встречи</th>
+                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Статус</th>
+                  <th className="px-5 py-3 text-right text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Добавлен</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {leads.map((lead) => {
+                  const st = getStatus(lead.meetings);
+                  return (
+                    <tr key={lead.id} className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
+                      <td className="px-5 py-3.5">
+                        <Link href={`/agent/leads/${lead.id}`} className="text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">
+                          {lead.name}
+                        </Link>
+                        {lead.context && <p className="mt-0.5 max-w-[230px] truncate text-[11.5px] text-ink-3">{lead.context}</p>}
+                      </td>
+                      <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{lead.phone}</td>
+                      <td className="px-3 py-3.5 text-[12.5px] text-ink-2">{SOURCE_LABELS[lead.source] ?? lead.source}</td>
+                      <td className="px-3 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2">
+                          <CalendarBlank size={13} className="text-ink-3" />{lead.meetings.length}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3.5">
+                        <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+                          <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
+                        </span>
+                      </td>
+                      <td className="tnum px-5 py-3.5 text-right text-[12.5px] text-ink-3">{formatDate(lead.createdAt)}</td>
+                      <td className="pr-4">
+                        <Link href={`/agent/leads/${lead.id}`} aria-label="Открыть лид">
+                          <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
     </div>

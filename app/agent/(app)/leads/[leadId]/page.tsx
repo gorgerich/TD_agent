@@ -38,10 +38,10 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_DOT: Record<string, string> = {
-  SCHEDULED: "bg-blue-500",
-  IN_PROGRESS: "bg-amber-400",
-  COMPLETED: "bg-emerald-500",
-  CANCELLED: "bg-slate-600",
+  SCHEDULED: "bg-info",
+  IN_PROGRESS: "bg-warning",
+  COMPLETED: "bg-success",
+  CANCELLED: "bg-ink-3",
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -59,27 +59,26 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ lea
   if (!lead) notFound();
 
   return (
-    <div className="p-7 max-w-[900px]">
-      <Link href="/agent/leads" className="inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-slate-400 transition-colors mb-6">
-        <ArrowLeft size={13} /> Все лиды
+    <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
+      <Link href="/agent/leads" className="mb-6 inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink">
+        <ArrowLeft size={14} /> Все лиды
       </Link>
 
-      <div className="flex items-start justify-between mb-7">
+      <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-1">Лид #{lead.id}</p>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">{lead.name}</h1>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Лид №{lead.id}</p>
+          <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">{lead.name}</h1>
         </div>
         <Link
           href={`/agent/meetings/new?leadId=${lead.id}`}
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold rounded-lg transition-colors"
+          className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
         >
-          <Plus size={14} weight="bold" /> Назначить встречу
+          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Назначить встречу</span><span className="sm:hidden">Встреча</span>
         </Link>
-      </div>
+      </header>
 
-      {/* Info card */}
-      <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-6 mb-6">
-        <div className="grid grid-cols-2 gap-x-10 gap-y-5">
+      <div className="rise rise-1 mb-7 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-6">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-5">
           <InfoField label="Телефон" value={lead.phone} mono />
           <InfoField label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
           <InfoField label="Добавлен" value={formatDate(lead.createdAt)} />
@@ -92,63 +91,46 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ lea
         </div>
       </div>
 
-      {/* Meetings */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-slate-500">
-            Встречи
-          </p>
-          <Link href={`/agent/meetings/new?leadId=${lead.id}`} className="text-[12px] text-blue-500 hover:text-blue-400 flex items-center gap-1 transition-colors">
-            <Plus size={11} weight="bold" /> Добавить
+      <section className="rise rise-2">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Встречи</p>
+          <Link href={`/agent/meetings/new?leadId=${lead.id}`} className="inline-flex items-center gap-1 text-[12.5px] font-medium text-accent transition-colors hover:text-accent-hover">
+            <Plus size={12} weight="bold" /> Добавить
           </Link>
         </div>
 
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
           {lead.meetings.length === 0 ? (
-            <div className="py-10 text-center">
-              <CalendarDots size={28} className="text-slate-700 mx-auto mb-2" />
-              <p className="text-[13px] text-slate-600">
+            <div className="px-6 py-12 text-center">
+              <CalendarDots size={28} className="mx-auto mb-2 text-ink-3" />
+              <p className="text-[13px] text-ink-2">
                 Встреч нет —{" "}
-                <Link href={`/agent/meetings/new?leadId=${lead.id}`} className="text-blue-500 hover:text-blue-400">назначить</Link>
+                <Link href={`/agent/meetings/new?leadId=${lead.id}`} className="text-accent hover:text-accent-hover">назначить</Link>
               </p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Встреча</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Дата</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Статус</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {lead.meetings.map((m) => (
-                  <tr key={m.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors group">
-                    <td className="px-5 py-3">
-                      <Link href={`/agent/meetings/${m.id}`} className="text-[13.5px] font-medium text-slate-200 hover:text-white transition-colors">
-                        Встреча #{m.id}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-3 text-[12px] text-slate-500 tabular-nums">{formatShort(m.scheduledAt)}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-slate-600"}`} />
-                        {STATUS_LABELS[m.status] ?? m.status}
+            <ul className="divide-y divide-line">
+              {lead.meetings.map((m) => (
+                <li key={m.id}>
+                  <Link href={`/agent/meetings/${m.id}`} className="group flex items-center justify-between gap-3 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-5">
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-medium text-ink transition-colors group-hover:text-accent">Встреча №{m.id}</span>
+                      <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatShort(m.scheduledAt)}</span>
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-ink-3"}`} />
+                        <span className="hidden sm:inline">{STATUS_LABELS[m.status] ?? m.status}</span>
                       </span>
-                    </td>
-                    <td className="pr-4">
-                      <Link href={`/agent/meetings/${m.id}`}>
-                        <ArrowRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-colors" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -156,8 +138,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ lea
 function InfoField({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 mb-1">{label}</p>
-      <p className={`text-[13.5px] text-slate-300 ${mono ? "font-mono" : "font-medium"}`}>{value}</p>
+      <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</p>
+      <p className={`text-[14px] text-ink ${mono ? "font-mono tnum" : "font-medium"}`}>{value}</p>
     </div>
   );
 }

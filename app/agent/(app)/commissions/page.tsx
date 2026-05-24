@@ -34,125 +34,89 @@ function formatDate(d: Date | null | undefined) {
 }
 
 const STATUS_LABELS: Record<string, string> = { ACCRUED: "Начислено", APPROVED: "Подтверждено", PAID: "Выплачено" };
-const STATUS_DOT: Record<string, string> = { ACCRUED: "bg-amber-400", APPROVED: "bg-blue-500", PAID: "bg-emerald-500" };
+const STATUS_DOT: Record<string, string> = { ACCRUED: "bg-warning", APPROVED: "bg-info", PAID: "bg-success" };
 
 export default async function CommissionsPage() {
   const session = await getAgentSession();
   const { commissions, payouts, accrued, approved, paid } = await getCommissions(session?.agentId ?? 0);
 
   return (
-    <div className="p-7 max-w-[900px]">
-      <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-1">Финансы</p>
-      <h1 className="text-2xl font-bold text-slate-100 tracking-tight mb-8">Комиссии</h1>
+    <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
+      <header className="rise mb-8">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Финансы</p>
+        <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">Комиссии</h1>
+      </header>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <SumCard
-          icon={<CurrencyDollar size={18} weight="duotone" className="text-emerald-400" />}
-          label="К выплате"
-          value={money(accrued + approved)}
-          sub="начислено + подтверждено"
-          accent="emerald"
-        />
-        <SumCard
-          icon={<TrendUp size={18} weight="duotone" className="text-amber-400" />}
-          label="Ожидает"
-          value={money(accrued)}
-          sub="ожидает подтверждения"
-          accent="amber"
-        />
-        <SumCard
-          icon={<CheckCircle size={18} weight="duotone" className="text-blue-400" />}
-          label="Выплачено"
-          value={money(paid)}
-          sub="за всё время"
-          accent="blue"
-        />
-      </div>
+      <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <SumCard icon={<CurrencyDollar size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" />
+        <SumCard icon={<TrendUp size={18} weight="duotone" />} label="Ожидает" value={money(accrued)} sub="ожидает подтверждения" />
+        <SumCard icon={<CheckCircle size={18} weight="duotone" />} label="Выплачено" value={money(paid)} sub="за всё время" />
+      </section>
 
       {/* Commission history */}
-      <div className="mb-7">
-        <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-slate-500 mb-3">История начислений</p>
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+      <section className="rise rise-2 mb-7">
+        <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">История начислений</p>
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
           {commissions.length === 0 ? (
-            <div className="py-12 text-center">
-              <CurrencyDollar size={32} className="text-slate-700 mx-auto mb-2" />
-              <p className="text-[13px] text-slate-600">Начислений пока нет</p>
+            <div className="px-6 py-12 text-center">
+              <CurrencyDollar size={30} className="mx-auto mb-2 text-ink-3" />
+              <p className="text-[13px] text-ink-2">Начислений пока нет</p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Заказ</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Дата</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Статус</th>
-                  <th className="text-right text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Сумма</th>
-                </tr>
-              </thead>
-              <tbody>
-                {commissions.map((c) => (
-                  <tr key={c.id} className="border-b border-white/[0.04] last:border-0">
-                    <td className="px-5 py-3 text-[13px] font-medium text-slate-300 tabular-nums">#{c.orderId}</td>
-                    <td className="px-3 py-3 text-[12px] text-slate-500 tabular-nums">{formatDate(c.order?.createdAt)}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.status] ?? "bg-slate-600"}`} />
-                        {STATUS_LABELS[c.status] ?? c.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right text-[13.5px] font-semibold text-slate-200 tabular-nums">
-                      {money(c.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <ul className="divide-y divide-line">
+              {commissions.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+                  <span className="min-w-0">
+                    <span className="tnum block text-[14px] font-medium text-ink">Заказ №{c.orderId}</span>
+                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(c.order?.createdAt)}</span>
+                  </span>
+                  <span className="flex items-center gap-4">
+                    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[c.status] ?? "bg-ink-3"}`} />
+                      <span className="hidden sm:inline">{STATUS_LABELS[c.status] ?? c.status}</span>
+                    </span>
+                    <span className="tnum text-[14px] font-semibold text-ink">{money(c.amount)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Payouts */}
       {payouts.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-slate-500 mb-3">Выплаты</p>
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Выплата</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Дата</th>
-                  <th className="text-right text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Сумма</th>
-                </tr>
-              </thead>
-              <tbody>
-                {payouts.map((p) => (
-                  <tr key={p.id} className="border-b border-white/[0.04] last:border-0">
-                    <td className="px-5 py-3 text-[13px] font-medium text-slate-300 tabular-nums">#{p.id}</td>
-                    <td className="px-3 py-3 text-[12px] text-slate-500 tabular-nums">{formatDate(p.paidAt)}</td>
-                    <td className="px-5 py-3 text-right text-[13.5px] font-semibold text-emerald-400 tabular-nums">
-                      {money(p.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <section className="rise rise-3">
+          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Выплаты</p>
+          <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+            <ul className="divide-y divide-line">
+              {payouts.map((p) => (
+                <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+                  <span className="min-w-0">
+                    <span className="tnum block text-[14px] font-medium text-ink">Выплата №{p.id}</span>
+                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(p.paidAt)}</span>
+                  </span>
+                  <span className="tnum text-[14px] font-semibold text-success">{money(p.amount)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
 }
 
-function SumCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: string; sub: string; accent: "emerald" | "amber" | "blue" }) {
-  const glow = { emerald: "shadow-[0_0_0_1px_rgba(16,185,129,0.1)]", amber: "shadow-[0_0_0_1px_rgba(245,158,11,0.1)]", blue: "shadow-[0_0_0_1px_rgba(59,130,246,0.1)]" }[accent];
+function SumCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub: string }) {
   return (
-    <div className={`bg-white/[0.035] border border-white/[0.07] rounded-xl p-5 ${glow}`}>
-      <div className="flex items-center gap-2 mb-4">
+    <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
+      <div className="mb-4 flex items-center gap-2 text-accent">
         {icon}
-        <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-slate-500">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
       </div>
-      <div className="text-2xl font-bold tracking-tight text-slate-100 tabular-nums leading-none mb-2">{value}</div>
-      <p className="text-[11px] text-slate-600">{sub}</p>
+      <div className="tnum mb-2 text-[24px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      <p className="text-[11.5px] text-ink-3">{sub}</p>
     </div>
   );
 }

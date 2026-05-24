@@ -3,6 +3,8 @@ import { CalendarDots, Users, CurrencyDollar, ArrowRight, Plus } from "@phosphor
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+type RecentMeeting = { id: number; status: string; scheduledAt: Date | null; lead: { name: string } };
+
 async function getStats(agentId: number): Promise<{ todayMeetings: number; activeLeads: number; accrued: number; recentMeetings: RecentMeeting[] }> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -11,19 +13,11 @@ async function getStats(agentId: number): Promise<{ todayMeetings: number; activ
 
   try {
     const [todayMeetings, activeLeads, commissionSum, recentMeetings] = await Promise.all([
-      prisma.meeting.count({
-        where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } },
-      }),
+      prisma.meeting.count({ where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } } }),
       prisma.clientLead.count({
-        where: {
-          agentId,
-          meetings: { none: { status: { in: ["COMPLETED", "CANCELLED"] } } },
-        },
+        where: { agentId, meetings: { none: { status: { in: ["COMPLETED", "CANCELLED"] } } } },
       }),
-      prisma.commission.aggregate({
-        where: { agentId, status: "ACCRUED" },
-        _sum: { amount: true },
-      }),
+      prisma.commission.aggregate({ where: { agentId, status: "ACCRUED" }, _sum: { amount: true } }),
       prisma.meeting.findMany({
         where: { agentId },
         orderBy: { scheduledAt: "desc" },
@@ -42,8 +36,6 @@ async function getStats(agentId: number): Promise<{ todayMeetings: number; activ
   }
 }
 
-type RecentMeeting = { id: number; status: string; scheduledAt: Date | null; lead: { name: string } };
-
 function formatMoney(rubles: number) {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(rubles);
 }
@@ -61,11 +53,20 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_DOT: Record<string, string> = {
-  SCHEDULED: "bg-blue-500",
-  IN_PROGRESS: "bg-amber-400",
-  COMPLETED: "bg-emerald-500",
-  CANCELLED: "bg-slate-600",
+  SCHEDULED: "bg-info",
+  IN_PROGRESS: "bg-warning",
+  COMPLETED: "bg-success",
+  CANCELLED: "bg-ink-3",
 };
+
+function StatusPill({ status }: { status: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
+      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status] ?? "bg-ink-3"}`} />
+      {STATUS_LABELS[status] ?? status}
+    </span>
+  );
+}
 
 export default async function DashboardPage() {
   const session = await getAgentSession();
@@ -77,155 +78,140 @@ export default async function DashboardPage() {
   const today = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
-    <div className="p-7 max-w-[1200px]">
+    <div className="mx-auto max-w-[1180px] px-4 py-7 sm:px-7 sm:py-9">
       {/* Header */}
-      <div className="mb-8">
-        <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-slate-600 mb-1">{today}</p>
-        <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
+      <header className="rise mb-8">
+        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{today}</p>
+        <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">
           {greeting}{session?.name ? `, ${session.name.split(" ")[0]}` : ""}
         </h1>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard
-          icon={<CalendarDots size={18} weight="duotone" className="text-blue-400" />}
+          icon={<CalendarDots size={18} weight="duotone" />}
           label="Встречи сегодня"
-          value={todayMeetings}
-          sub={today.split(",").slice(-1)[0]?.trim()}
-          color="blue"
+          value={String(todayMeetings)}
+          sub="на сегодня"
         />
         <StatCard
-          icon={<Users size={18} weight="duotone" className="text-violet-400" />}
+          icon={<Users size={18} weight="duotone" />}
           label="Лиды в работе"
-          value={activeLeads}
+          value={String(activeLeads)}
           sub="без завершённой встречи"
-          color="violet"
         />
         <StatCard
-          icon={<CurrencyDollar size={18} weight="duotone" className="text-emerald-400" />}
+          icon={<CurrencyDollar size={18} weight="duotone" />}
           label="К выплате"
           value={formatMoney(accrued)}
           sub="начислено, ожидает выплаты"
-          color="emerald"
-          isText
         />
-      </div>
+      </section>
 
       {/* Quick actions */}
-      <div className="flex gap-3 mb-8">
+      <section className="rise rise-2 mb-9 flex flex-wrap gap-2.5">
         <Link
           href="/agent/leads/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-semibold rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
         >
-          <Plus size={15} weight="bold" />
-          Новый лид
+          <Plus size={16} weight="bold" /> Новый лид
         </Link>
         <Link
           href="/agent/meetings/new"
-          className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.06] hover:bg-white/[0.09] text-slate-300 text-[13px] font-semibold rounded-lg transition-colors border border-white/[0.07]"
+          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
         >
-          <CalendarDots size={15} />
-          Назначить встречу
+          <CalendarDots size={16} /> Назначить встречу
         </Link>
         <Link
           href="/agent/leads"
-          className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.06] hover:bg-white/[0.09] text-slate-300 text-[13px] font-semibold rounded-lg transition-colors border border-white/[0.07]"
+          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
         >
-          <Users size={15} />
-          Все лиды
+          <Users size={16} /> Все лиды
         </Link>
-      </div>
+      </section>
 
       {/* Recent meetings */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[13px] font-semibold text-slate-400 tracking-wide uppercase tracking-[0.06em]">
-            Последние встречи
-          </h2>
-          <Link href="/agent/meetings" className="flex items-center gap-1 text-[12px] text-blue-500 hover:text-blue-400 font-medium transition-colors">
-            Все встречи <ArrowRight size={12} />
+      <section className="rise rise-3">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Последние встречи</h2>
+          <Link href="/agent/meetings" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-accent transition-colors hover:text-accent-hover">
+            Все встречи <ArrowRight size={13} />
           </Link>
         </div>
 
-        <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
           {recentMeetings.length === 0 ? (
-            <div className="py-14 text-center">
-              <CalendarDots size={32} className="text-slate-700 mx-auto mb-3" />
-              <p className="text-[13px] text-slate-600">Встреч пока нет —{" "}
-                <Link href="/agent/meetings/new" className="text-blue-500 hover:text-blue-400">создайте первую</Link>
+            <div className="px-6 py-16 text-center">
+              <CalendarDots size={30} className="mx-auto mb-3 text-ink-3" />
+              <p className="text-[13.5px] text-ink-2">
+                Встреч пока нет —{" "}
+                <Link href="/agent/meetings/new" className="text-accent hover:text-accent-hover">создайте первую</Link>
               </p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-white/[0.06]">
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-5 py-3">Клиент</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Дата</th>
-                  <th className="text-left text-[10px] font-semibold tracking-[0.08em] uppercase text-slate-600 px-3 py-3">Статус</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {recentMeetings.map((m, i) => (
-                  <tr
-                    key={m.id}
-                    className={`border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors ${i % 2 === 0 ? "" : ""}`}
-                  >
-                    <td className="px-5 py-3">
-                      <Link href={`/agent/meetings/${m.id}`} className="text-[13.5px] font-medium text-slate-200 hover:text-white transition-colors">
-                        {m.lead.name}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-3 text-[12px] text-slate-500 tabular-nums">{formatDate(m.scheduledAt)}</td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-slate-600"}`} />
-                        {STATUS_LABELS[m.status] ?? m.status}
+            <>
+              {/* Mobile: stacked rows */}
+              <ul className="divide-y divide-line sm:hidden">
+                {recentMeetings.map((m) => (
+                  <li key={m.id}>
+                    <Link href={`/agent/meetings/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors active:bg-surface-2">
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14px] font-medium text-ink">{m.lead.name}</span>
+                        <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(m.scheduledAt)}</span>
                       </span>
-                    </td>
-                    <td className="pr-4 py-3">
-                      <Link href={`/agent/meetings/${m.id}`}>
-                        <ArrowRight size={14} className="text-slate-700 hover:text-slate-400 transition-colors" />
-                      </Link>
-                    </td>
-                  </tr>
+                      <StatusPill status={m.status} />
+                    </Link>
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+
+              {/* Desktop: table */}
+              <table className="hidden w-full sm:table">
+                <thead>
+                  <tr className="border-b border-line">
+                    <th className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Клиент</th>
+                    <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Дата</th>
+                    <th className="px-4 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Статус</th>
+                    <th className="w-10" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentMeetings.map((m) => (
+                    <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
+                      <td className="px-5 py-3.5">
+                        <Link href={`/agent/meetings/${m.id}`} className="text-[14px] font-medium text-ink transition-colors group-hover:text-accent">
+                          {m.lead.name}
+                        </Link>
+                      </td>
+                      <td className="tnum px-4 py-3.5 text-[12.5px] text-ink-2">{formatDate(m.scheduledAt)}</td>
+                      <td className="px-4 py-3.5"><StatusPill status={m.status} /></td>
+                      <td className="pr-4">
+                        <Link href={`/agent/meetings/${m.id}`} aria-label="Открыть встречу">
+                          <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
 
-function StatCard({
-  icon, label, value, sub, color, isText,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  color: "blue" | "violet" | "emerald";
-  isText?: boolean;
-}) {
-  const glow = {
-    blue: "shadow-[0_0_0_1px_rgba(59,130,246,0.12)]",
-    violet: "shadow-[0_0_0_1px_rgba(139,92,246,0.12)]",
-    emerald: "shadow-[0_0_0_1px_rgba(16,185,129,0.12)]",
-  }[color];
-
+function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
   return (
-    <div className={`bg-white/[0.035] border border-white/[0.07] rounded-xl p-5 ${glow}`}>
-      <div className="flex items-center gap-2 mb-4">
+    <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
+      <div className="mb-4 flex items-center gap-2 text-accent">
         {icon}
-        <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-slate-500">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
       </div>
-      <div className={`${isText ? "text-2xl" : "text-4xl"} font-bold tracking-tight text-slate-100 tabular-nums leading-none mb-2`}>
-        {value}
-      </div>
-      {sub && <p className="text-[11px] text-slate-600">{sub}</p>}
+      <div className="tnum text-[30px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      {sub && <p className="mt-2 text-[11.5px] text-ink-3">{sub}</p>}
     </div>
   );
 }

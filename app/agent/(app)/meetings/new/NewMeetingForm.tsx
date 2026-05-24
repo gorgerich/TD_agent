@@ -4,14 +4,15 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Warning } from "@phosphor-icons/react";
 
-const inputCls = "w-full bg-white/[0.05] border border-white/[0.09] rounded-lg px-3.5 py-2.5 text-[14px] text-slate-200 placeholder-slate-600 outline-none focus:border-blue-500/60 focus:bg-white/[0.07] transition-all font-[inherit]";
+const inputCls =
+  "w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent";
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] font-semibold tracking-[0.07em] uppercase text-slate-500 mb-2">{label}</label>
+      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</label>
       {children}
-      {hint && <p className="text-[11px] text-slate-600 mt-1.5">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[11.5px] text-ink-3">{hint}</p>}
     </div>
   );
 }
@@ -46,41 +47,28 @@ function FormInner() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[520px]">
-      <div className="bg-white/[0.03] border border-white/[0.07] rounded-xl p-7 space-y-5">
-        <Field label="ID лида" hint="Перейдите в раздел «Лиды», чтобы скопировать ID">
-          <input
-            type="number"
-            className={inputCls}
-            placeholder="Например: 1"
-            value={leadId}
-            onChange={(e) => setLeadId(e.target.value)}
-            required
-            min="1"
-          />
+    <form onSubmit={handleSubmit} className="max-w-[540px]">
+      <div className="space-y-5 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-7">
+        <Field label="ID лида" hint="Откройте раздел «Лиды», чтобы найти номер лида">
+          <input type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
         </Field>
 
         <Field label="Дата и время встречи">
-          <input
-            type="datetime-local"
-            className={inputCls}
-            value={scheduledAt}
-            onChange={(e) => setScheduledAt(e.target.value)}
-          />
+          <input type="datetime-local" className={inputCls} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
         </Field>
 
         {error && (
-          <p className="flex items-center gap-1.5 text-[12px] text-red-400">
-            <Warning size={13} /> {error}
+          <p className="flex items-center gap-1.5 text-[13px] text-danger">
+            <Warning size={14} /> {error}
           </p>
         )}
 
         <button
           type="submit"
           disabled={loading || !leadId}
-          className="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/40 disabled:cursor-default text-white font-semibold text-[14px] py-2.5 rounded-lg transition-colors"
+          className="flex w-full items-center justify-center rounded-xl bg-accent py-3 text-[14.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
         >
-          {loading ? "Создаю..." : "Создать встречу"}
+          {loading ? "Создаю…" : "Создать встречу"}
         </button>
       </div>
     </form>

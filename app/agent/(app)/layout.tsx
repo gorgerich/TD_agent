@@ -5,9 +5,9 @@ import AgentSidebar from "./AgentSidebar";
 export default async function AgentAppLayout({ children }: { children: ReactNode }) {
   const session = await getAgentSession();
   return (
-    <div className="flex min-h-screen bg-[#080d18]">
+    <div className="min-h-[100dvh]">
       <AgentSidebar session={session} />
-      <main className="ml-[240px] flex-1 min-h-screen min-w-0">{children}</main>
+      <main className="relative min-h-[100dvh] pt-14 lg:pl-[248px] lg:pt-0">{children}</main>
     </div>
   );
 }
