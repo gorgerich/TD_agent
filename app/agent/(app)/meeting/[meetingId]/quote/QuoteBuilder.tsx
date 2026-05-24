@@ -1,0 +1,500 @@
+"use client";
+
+import { useState, useMemo, useEffect, useRef } from "react";
+import s from "./QuoteBuilder.module.css";
+import {
+  type FormData,
+  type CalculationSection,
+  calculateOrder,
+  formatCurrency,
+  PRICES,
+  PACKAGES,
+  ADDITIONAL_SERVICES,
+  MOSCOW_CEMETERIES,
+  MO_CEMETERIES,
+  DEFAULT_CALCULATOR_CONFIG,
+} from "@/lib/calculationUtils";
+
+/* ─── Types ─────────────────────────────────────────────────────────── */
+
+interface Props {
+  meetingId: number;
+  cobrowseCode: string | null;
+  clientName: string;
+}
+
+const DEFAULT_FORM: FormData = {
+  serviceType: "burial",
+  hasHall: false,
+  hallDuration: 60,
+  ceremonyType: "civil",
+  packageType: "custom",
+  needsHearse: false,
+  needsFamilyTransport: false,
+  familyTransportSeats: 5,
+  needsPallbearers: false,
+  selectedAdditionalServices: [],
+  cemetery: "",
+};
+
+/* ─── Main component ─────────────────────────────────────────────────── */
+
+export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Props) {
+  const [form, setForm] = useState<FormData>(DEFAULT_FORM);
+  const [cemeteryCategory, setCemeteryCategory] = useState("standard");
+  const [saving, setSaving] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const result = useMemo(
+    () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
+    [form, cemeteryCategory],
+  );
+
+  const relevantPackages = PACKAGES.filter((p) =>
+    form.serviceType === "cremation"
+      ? p.id.startsWith("cremation")
+      : !p.id.startsWith("cremation"),
+  );
+
+  const visibleCemeteries =
+    form.serviceType === "cremation"
+      ? MOSCOW_CEMETERIES.filter((c) => c.type === "cremation")
+      : [
+          ...MOSCOW_CEMETERIES.filter((c) => c.type === "burial"),
+          ...MO_CEMETERIES,
+        ];
+
+  // Debounced co-browse sync: push form state 500ms after last change
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetch(`/api/agent/meeting/${meetingId}/session`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, cemeteryCategory }),
+      }).catch(() => {}); // fire-and-forget
+    }, 500);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [form, cemeteryCategory, meetingId]);
+
+  function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function toggleService(id: string) {
+    setForm((f) => ({
+      ...f,
+      selectedAdditionalServices: f.selectedAdditionalServices.includes(id)
+        ? f.selectedAdditionalServices.filter((x) => x !== id)
+        : [...f.selectedAdditionalServices, id],
+    }));
+  }
+
+  function copyCode() {
+    if (!cobrowseCode) return;
+    navigator.clipboard.writeText(cobrowseCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  async function saveVersion() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/agent/meeting/${meetingId}/quote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: form, total: result.total }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data.error ?? "Ошибка сохранения");
+      } else {
+        setSavedAt(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
+        setSavedCount((n) => n + 1);
+      }
+    } catch {
+      setSaveError("Сеть недоступна");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={s.root}>
+      {/* ── Meeting header ──────────────────────────────── */}
+      <div className={s.header}>
+        <div className={s.headerLeft}>
+          <span className={s.headerDot} />
+          <div>
+            <div className={s.headerTitle}>{clientName}</div>
+            <div className={s.headerSubtitle}>Встреча #{meetingId}</div>
+          </div>
+        </div>
+        {cobrowseCode && (
+          <div className={s.cobrowseBlock}>
+            <span className={s.cobrowseLabel}>Код клиента</span>
+            <button onClick={copyCode} className={s.cobrowseCode}>
+              {cobrowseCode}
+              {copied && <span className={s.copiedBadge}>скопировано</span>}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Main layout ────────────────────────────────── */}
+      <div className={s.layout}>
+
+        {/* ── Form ─────────────────────────────────────── */}
+        <div className={s.form}>
+
+          {/* Service type */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>Тип услуги</p>
+            <div className={s.serviceToggle}>
+              {(["burial", "cremation"] as const).map((t) => (
+                <button
+                  key={t}
+                  className={`${s.serviceBtn} ${form.serviceType === t ? s.serviceBtnActive : ""}`}
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      serviceType: t,
+                      packageType: "custom",
+                      cemetery: "",
+                    }))
+                  }
+                >
+                  <span className={s.serviceIcon}>{t === "burial" ? "⚰" : "🔥"}</span>
+                  {t === "burial" ? "Погребение" : "Кремация"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Package */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>Пакет</p>
+            <div className={s.packageGrid}>
+              {/* "No package" card */}
+              <div
+                className={`${s.pkgCard} ${s.pkgCardCustom} ${form.packageType === "custom" ? s.pkgCardActive : ""}`}
+                onClick={() => setField("packageType", "custom")}
+              >
+                <div className={s.pkgName}>Без пакета</div>
+                <div className={s.pkgCustomLabel}>позиционно</div>
+              </div>
+
+              {relevantPackages.map((p) => (
+                <div
+                  key={p.id}
+                  className={`${s.pkgCard} ${form.packageType === p.id ? s.pkgCardActive : ""}`}
+                  onClick={() => setField("packageType", p.id)}
+                >
+                  {"popular" in p && p.popular && (
+                    <span className={s.pkgBadge}>популярный</span>
+                  )}
+                  <div className={s.pkgName}>{p.name}</div>
+                  <div className={s.pkgPrice}>{formatCurrency(p.price)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Format */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>Формат</p>
+
+            <ToggleRow
+              label="Зал прощания"
+              price={form.hasHall ? PRICES.hallDuration[form.hallDuration as keyof typeof PRICES.hallDuration] : undefined}
+              checked={form.hasHall}
+              onChange={(v) => setField("hasHall", v)}
+            >
+              <div className={s.pills}>
+                {([30, 60, 90] as const).map((min) => (
+                  <button
+                    key={min}
+                    className={`${s.pill} ${form.hallDuration === min ? s.pillActive : ""}`}
+                    onClick={() => setField("hallDuration", min)}
+                  >
+                    {min} мин
+                    {PRICES.hallDuration[min] > 0
+                      ? ` · +${formatCurrency(PRICES.hallDuration[min])}`
+                      : " · базово"}
+                  </button>
+                ))}
+              </div>
+            </ToggleRow>
+
+            <div className={s.divider} />
+
+            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Тип церемонии
+            </p>
+            <div className={s.pills}>
+              {(
+                [
+                  { v: "civil", l: "Гражданская" },
+                  { v: "religious", l: "Религиозная", delta: 15000 },
+                  { v: "combined", l: "Комбинированная", delta: 20000 },
+                ] as { v: string; l: string; delta?: number }[]
+              ).map(({ v, l, delta }) => (
+                <button
+                  key={v}
+                  className={`${s.pill} ${form.ceremonyType === v ? s.pillActive : ""}`}
+                  onClick={() => setField("ceremonyType", v)}
+                >
+                  {l}
+                  {delta ? ` · +${formatCurrency(delta)}` : ""}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Logistics */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>Логистика</p>
+
+            <ToggleRow
+              label="Катафалк"
+              price={PRICES.hearse}
+              checked={form.needsHearse}
+              onChange={(v) => setField("needsHearse", v)}
+            />
+
+            <div className={s.divider} />
+
+            <ToggleRow
+              label="Транспорт для близких"
+              price={form.needsFamilyTransport ? PRICES.familyTransport[form.familyTransportSeats as keyof typeof PRICES.familyTransport] : undefined}
+              checked={form.needsFamilyTransport}
+              onChange={(v) => setField("needsFamilyTransport", v)}
+            >
+              <div className={s.pills}>
+                {([5, 10, 15] as const).map((n) => (
+                  <button
+                    key={n}
+                    className={`${s.pill} ${form.familyTransportSeats === n ? s.pillActive : ""}`}
+                    onClick={() => setField("familyTransportSeats", n)}
+                  >
+                    {n} мест · {formatCurrency(PRICES.familyTransport[n])}
+                  </button>
+                ))}
+              </div>
+            </ToggleRow>
+
+            <div className={s.divider} />
+
+            <ToggleRow
+              label="Носильщики"
+              price={PRICES.pallbearers}
+              checked={form.needsPallbearers}
+              onChange={(v) => setField("needsPallbearers", v)}
+            />
+          </div>
+
+          {/* Cemetery */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>
+              {form.serviceType === "cremation" ? "Крематорий" : "Место захоронения"}
+            </p>
+
+            <select
+              className={s.select}
+              value={form.cemetery}
+              onChange={(e) => setField("cemetery", e.target.value)}
+            >
+              <option value="">— не выбрано —</option>
+              {form.serviceType === "burial" ? (
+                <>
+                  <optgroup label="Москва">
+                    {MOSCOW_CEMETERIES.filter((c) => c.type === "burial").map((c) => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Московская область">
+                    {MO_CEMETERIES.map((c) => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                </>
+              ) : (
+                <optgroup label="Крематории Москвы">
+                  {MOSCOW_CEMETERIES.filter((c) => c.type === "cremation").map((c) => (
+                    <option key={c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+
+            {form.cemetery && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Категория места
+                </p>
+                <div className={s.pills}>
+                  {(
+                    [
+                      { v: "standard", l: "Стандарт" },
+                      { v: "comfort", l: "Комфорт" },
+                      { v: "premium", l: "Премиум" },
+                    ] as const
+                  ).map(({ v, l }) => {
+                    const cem = visibleCemeteries.find((c) => c.name === form.cemetery);
+                    const price = cem?.categories[v as keyof typeof cem.categories];
+                    return (
+                      <button
+                        key={v}
+                        className={`${s.pill} ${cemeteryCategory === v ? s.pillActive : ""}`}
+                        onClick={() => setCemeteryCategory(v)}
+                      >
+                        {l}{price ? ` · ${formatCurrency(price)}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Additional services */}
+          <div className={s.card}>
+            <p className={s.cardTitle}>Дополнительные услуги</p>
+            <div className={s.svcList}>
+              {ADDITIONAL_SERVICES.map((svc) => {
+                const on = form.selectedAdditionalServices.includes(svc.id);
+                return (
+                  <div
+                    key={svc.id}
+                    className={`${s.svcItem} ${on ? s.svcItemActive : ""}`}
+                    onClick={() => toggleService(svc.id)}
+                  >
+                    <div className={`${s.svcCheck} ${on ? s.svcCheckOn : ""}`}>
+                      {on && "✓"}
+                    </div>
+                    <span className={s.svcName}>{svc.name}</span>
+                    <span className={s.svcPrice}>{formatCurrency(svc.price)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+        </div>
+
+        {/* ── Quote panel ──────────────────────────────── */}
+        <aside className={s.panel}>
+          <div className={s.panelCard}>
+            <div className={s.panelHead}>
+              <span className={s.panelHeadTitle}>Смета</span>
+              {savedCount > 0 && (
+                <span className={s.panelVersions}>v{savedCount}</span>
+              )}
+            </div>
+
+            <div className={s.panelSections}>
+              {result.sections.length === 0 ? (
+                <div className={s.panelEmpty}>
+                  <span className={s.panelEmptyIcon}>📋</span>
+                  Добавьте услуги
+                </div>
+              ) : (
+                result.sections.map((section: CalculationSection) => (
+                  <div key={section.title} className={s.panelSection}>
+                    <div className={s.panelSectionHead}>
+                      <span>{section.title}</span>
+                      <span className={s.panelSectionAmt}>{formatCurrency(section.total)}</span>
+                    </div>
+                    {section.items?.map((item) => (
+                      <div key={item.label} className={s.panelItem}>
+                        <span>{item.label}</span>
+                        {item.price != null ? (
+                          <span>{formatCurrency(item.price)}</span>
+                        ) : (
+                          <span className={s.panelItemIncluded}>включено</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className={s.panelTotalBlock}>
+              <div className={s.panelTotalLabel}>Итого</div>
+              <div className={s.panelTotalAmount}>{formatCurrency(result.total)}</div>
+            </div>
+
+            <div className={s.panelActions}>
+              <button
+                className={s.saveBtn}
+                onClick={saveVersion}
+                disabled={saving}
+              >
+                {saving ? "Сохраняю..." : "Сохранить версию сметы"}
+              </button>
+
+              {savedAt && !saveError && (
+                <div className={s.savedMsg}>
+                  <span>✓</span>
+                  Сохранено в {savedAt}
+                </div>
+              )}
+              {saveError && (
+                <div className={s.errorMsg}>{saveError}</div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  );
+}
+
+/* ─── Toggle row component ───────────────────────────────────────────── */
+
+function ToggleRow({
+  label,
+  price,
+  checked,
+  onChange,
+  children,
+}: {
+  label: string;
+  price?: number;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={s.toggleRow}>
+      <div className={s.toggleRowMain}>
+        <div className={s.toggleRowText}>
+          <div className={s.toggleRowLabel}>{label}</div>
+          {price !== undefined && price > 0 && (
+            <div className={s.toggleRowPrice}>+{formatCurrency(price)}</div>
+          )}
+        </div>
+        <label className={s.switch}>
+          <input
+            type="checkbox"
+            className={s.switchInput}
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+          <span className={s.switchTrack} />
+        </label>
+      </div>
+      {checked && children && (
+        <div className={s.toggleRowSub}>{children}</div>
+      )}
+    </div>
+  );
+}

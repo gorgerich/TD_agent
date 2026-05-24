@@ -1,0 +1,666 @@
+/* ── Root ─────────────────────────────────────────────── */
+.root {
+  padding-bottom: 60px;
+}
+
+/* ── Meeting header ───────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  background: #0f172a;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headerDot {
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.headerTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.headerSubtitle {
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.cobrowseBlock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cobrowseLabel {
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.cobrowseCode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ffffff;
+  font-family: "SF Mono", "Fira Code", monospace;
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.cobrowseCode:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.copiedBadge {
+  font-size: 10px;
+  font-weight: 700;
+  background: #22c55e;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Two-column layout ────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Card ─────────────────────────────────────────────── */
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.cardTitle {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin: 0 0 14px;
+}
+
+.divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 14px 0;
+}
+
+/* ── Service type toggle ──────────────────────────────── */
+.serviceToggle {
+  display: flex;
+  gap: 8px;
+}
+
+.serviceBtn {
+  flex: 1;
+  padding: 11px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.serviceBtn:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.serviceBtnActive {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #ffffff;
+}
+
+.serviceIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ── Package grid ─────────────────────────────────────── */
+.packageGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.pkgCard {
+  padding: 14px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: #f8fafc;
+  position: relative;
+  text-align: center;
+}
+
+.pkgCard:hover {
+  border-color: #93c5fd;
+  background: #f0f9ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.pkgCardActive {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.pkgCardCustom {
+  border-style: dashed;
+}
+
+.pkgBadge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #3b82f6;
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pkgName {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 6px;
+  line-height: 1.35;
+}
+
+.pkgCardActive .pkgName {
+  color: #1e40af;
+}
+
+.pkgPrice {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.pkgCardActive .pkgPrice {
+  color: #1d4ed8;
+}
+
+.pkgCustomLabel {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+/* ── Toggle row (boolean option) ─────────────────────── */
+.toggleRow {
+  padding: 8px 0;
+}
+
+.toggleRowMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggleRowText {
+  flex: 1;
+  min-width: 0;
+}
+
+.toggleRowLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.toggleRowPrice {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+.toggleRowSub {
+  margin-top: 10px;
+  padding-left: 52px;
+}
+
+/* ── Toggle switch (CSS only) ─────────────────────────── */
+.switch {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switchInput {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.switchTrack {
+  position: absolute;
+  inset: 0;
+  background: #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.switchTrack::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.switchInput:checked + .switchTrack {
+  background: #3b82f6;
+}
+
+.switchInput:checked + .switchTrack::after {
+  transform: translateX(18px);
+}
+
+/* ── Pill selector (multiple options) ────────────────── */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  padding: 6px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+
+.pill:hover {
+  border-color: #93c5fd;
+  color: #1e293b;
+  background: #f0f9ff;
+}
+
+.pillActive {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+/* ── Styled select ────────────────────────────────────── */
+.select {
+  width: 100%;
+  padding: 9px 36px 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
+  background-color: #ffffff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2364748b' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* ── Additional services list ─────────────────────────── */
+.svcList {
+  display: flex;
+  flex-direction: column;
+}
+
+.svcItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.svcItem:hover {
+  background: #f8fafc;
+}
+
+.svcItemActive {
+  background: #eff6ff;
+}
+
+.svcCheck {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #cbd5e1;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.svcCheckOn {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.svcName {
+  flex: 1;
+  font-size: 14px;
+  color: #334155;
+}
+
+.svcItemActive .svcName {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.svcPrice {
+  font-size: 13px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.svcItemActive .svcPrice {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
+/* ── Quote panel ──────────────────────────────────────── */
+.panel {
+  position: sticky;
+  top: 24px;
+}
+
+.panelCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+}
+
+.panelHead {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelHeadTitle {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.panelVersions {
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.panelSections {
+  padding: 14px 20px;
+  min-height: 100px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.panelSections::-webkit-scrollbar {
+  width: 4px;
+}
+.panelSections::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panelSections::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+
+.panelEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  color: #cbd5e1;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.panelEmptyIcon {
+  font-size: 24px;
+}
+
+.panelSection {
+  margin-bottom: 10px;
+}
+
+.panelSectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 3px;
+}
+
+.panelSectionAmt {
+  font-variant-numeric: tabular-nums;
+}
+
+.panelItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11.5px;
+  color: #94a3b8;
+  padding-left: 8px;
+  margin-bottom: 2px;
+  line-height: 1.5;
+}
+
+.panelItemIncluded {
+  color: #bbf7d0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.panelTotalBlock {
+  padding: 14px 20px;
+  border-top: 2px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.panelTotalLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.panelTotalAmount {
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.panelActions {
+  padding: 14px 20px 18px;
+}
+
+.saveBtn {
+  width: 100%;
+  padding: 13px 0;
+  background: #0f172a;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: #1e3a5f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.3);
+}
+
+.saveBtn:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.saveBtn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.savedMsg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #16a34a;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.errorMsg {
+  text-align: center;
+  font-size: 13px;
+  color: #dc2626;
+  margin-top: 10px;
+}
+
+/* ── Page wrapper (from page.tsx) ─────────────────────── */
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 28px 0;
+}
+
+.pageNav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.backLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #64748b;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.12s;
+}
+
+.backLink:hover {
+  color: #0f172a;
+}
+
+.pageTitle {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
