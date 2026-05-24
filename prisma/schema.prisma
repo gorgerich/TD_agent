@@ -31,6 +31,7 @@ model User {
   id     Int     @id @default(autoincrement())
   email  String  @unique
   name   String?
+  phone  String? @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
   orders Order[]
 
   agent  Agent?  // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
@@ -291,4 +292,17 @@ enum SignatureMethod {
   SMS_CODE
   PASSPORT_SCAN
   SIMPLE_ESIGN
+}
+
+// NEW (B2B): хранит хэш одноразового кода для SMS-аутентификации агента.
+// Мигрировать отдельно от основной схемы: npx prisma migrate dev --name add_otp_token
+// Не хранить сам код — только sha256(code + salt).
+model OtpToken {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String   // sha256(code + salt), NOT the raw code
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
 }
