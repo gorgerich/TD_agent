@@ -30,6 +30,10 @@
   --color-accent-soft: #e4ede9;
   --color-on-accent: #f6f4ef;
 
+  /* Вторичный премиум-акцент — приглушённое брасс/золото (дозированно) */
+  --color-gold: #9a7b3f;
+  --color-gold-soft: #f0e9d8;
+
   /* Семантика (тёплая, приглушённая) */
   --color-success: #3f7d5c;
   --color-success-soft: #e6efe8;
@@ -40,10 +44,20 @@
   --color-info: #355e74;
   --color-info-soft: #e4edf1;
 
-  /* Радиусы и тени */
-  --radius-card: 14px;
-  --shadow-soft: 0 1px 2px rgba(34, 30, 24, 0.04), 0 4px 16px rgba(34, 30, 24, 0.05);
-  --shadow-pop: 0 8px 30px rgba(34, 30, 24, 0.12);
+  /* Радиусы и тени — утончённые, многослойные (премиум-глубина) */
+  --radius-card: 16px;
+  --shadow-soft:
+    0 1px 1px rgba(34, 30, 24, 0.04),
+    0 2px 4px rgba(34, 30, 24, 0.04),
+    0 8px 24px -12px rgba(34, 30, 24, 0.10);
+  --shadow-lift:
+    0 2px 4px rgba(34, 30, 24, 0.05),
+    0 8px 16px -6px rgba(34, 30, 24, 0.10),
+    0 20px 40px -16px rgba(34, 30, 24, 0.16);
+  --shadow-pop:
+    0 4px 8px rgba(34, 30, 24, 0.06),
+    0 16px 48px -12px rgba(34, 30, 24, 0.20);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -64,6 +78,25 @@ body {
 }
 
 select, button, input, textarea { font-family: inherit; }
+
+/* Премиальная типографика: лёгкая отрицательная трекинг-коррекция крупных серифов */
+.font-serif { letter-spacing: -0.01em; }
+
+/* Убираем серую вспышку тача, ускоряем нажатие, плавные состояния кнопок */
+button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
+button, a, [role="button"] { touch-action: manipulation; }
+button { transition: transform 0.12s var(--ease-out), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
+button:not(:disabled):active { transform: scale(0.985); }
+
+/* Утилиты премиум-глубины */
+.u-lift { transition: transform 0.26s var(--ease-out), box-shadow 0.26s var(--ease-out); }
+.u-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+.u-sheen { position: relative; overflow: hidden; }
+.u-sheen::after {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
+  pointer-events: none;
+}
 
 /* Числа, суммы, коды — табличные моноширинные */
 .tnum { font-variant-numeric: tabular-nums; }

@@ -106,6 +106,7 @@ export default async function DashboardPage() {
           label="К выплате"
           value={formatMoney(accrued)}
           sub="начислено, ожидает выплаты"
+          tone="gold"
         />
       </section>
 
@@ -203,15 +204,16 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
+function StatCard({ icon, label, value, sub, tone = "accent" }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: "accent" | "gold" }) {
+  const chip = tone === "gold" ? "bg-gold-soft text-gold" : "bg-accent-soft text-accent";
   return (
-    <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
-      <div className="mb-4 flex items-center gap-2 text-accent">
-        {icon}
+    <div className="u-sheen u-lift rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
+      <div className="mb-5 flex items-center gap-2.5">
+        <span className={`grid h-9 w-9 place-items-center rounded-[10px] ${chip}`}>{icon}</span>
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
       </div>
-      <div className="tnum text-[30px] font-semibold leading-none tracking-tight text-ink">{value}</div>
-      {sub && <p className="mt-2 text-[11.5px] text-ink-3">{sub}</p>}
+      <div className="tnum font-serif text-[34px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      {sub && <p className="mt-2.5 text-[11.5px] text-ink-3">{sub}</p>}
     </div>
   );
 }

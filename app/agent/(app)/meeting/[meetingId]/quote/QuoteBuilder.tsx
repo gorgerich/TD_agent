@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { Check } from "@phosphor-icons/react";
 import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
@@ -503,7 +504,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
               {savedAt && !saveError && (
                 <div className={s.savedMsg}>
-                  <span>✓</span>
+                  <Check size={14} weight="bold" />
                   Сохранено в {savedAt}
                 </div>
               )}

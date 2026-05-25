@@ -49,7 +49,7 @@ export default async function CommissionsPage() {
 
       {/* Summary */}
       <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <SumCard icon={<CurrencyDollar size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" />
+        <SumCard icon={<CurrencyDollar size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" tone="gold" />
         <SumCard icon={<TrendUp size={18} weight="duotone" />} label="Ожидает" value={money(accrued)} sub="ожидает подтверждения" />
         <SumCard icon={<CheckCircle size={18} weight="duotone" />} label="Выплачено" value={money(paid)} sub="за всё время" />
       </section>
@@ -108,14 +108,15 @@ export default async function CommissionsPage() {
   );
 }
 
-function SumCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub: string }) {
+function SumCard({ icon, label, value, sub, tone = "accent" }: { icon: React.ReactNode; label: string; value: string; sub: string; tone?: "accent" | "gold" }) {
+  const chip = tone === "gold" ? "bg-gold-soft text-gold" : "bg-accent-soft text-accent";
   return (
-    <div className="rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
-      <div className="mb-4 flex items-center gap-2 text-accent">
-        {icon}
+    <div className="u-sheen u-lift rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
+      <div className="mb-5 flex items-center gap-2.5">
+        <span className={`grid h-9 w-9 place-items-center rounded-[10px] ${chip}`}>{icon}</span>
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
       </div>
-      <div className="tnum mb-2 text-[24px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      <div className="tnum mb-2 font-serif text-[26px] font-semibold leading-none tracking-tight text-ink">{value}</div>
       <p className="text-[11.5px] text-ink-3">{sub}</p>
     </div>
   );
