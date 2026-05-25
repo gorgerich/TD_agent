@@ -354,3 +354,22 @@
   font-size: 12.5px; color: var(--color-success);
 }
 .errorMsg { margin-top: 12px; font-size: 12.5px; color: var(--color-danger); }
+
+/* Рендер сцены в панели */
+.renderWrap {
+  background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
+  border-bottom: 1px solid var(--color-line);
+  padding: 8px 10px 4px;
+}
+.renderSvg { display: block; width: 100%; height: auto; }
+
+/* Индикатор правки клиента */
+.clientPing {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-radius: 999px;
+  padding: 2px 9px;
+  animation: clientPing 0.4s ease;
+}
+@keyframes clientPing { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }

@@ -14,6 +14,9 @@ import {
   MO_CEMETERIES,
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
+import { DEFAULT_ATTRIBUTES, attributesTotal, type AttrSelection } from "@/lib/attributes";
+import AttributePicker from "@/components/AttributePicker";
+import AttributeRender from "@/components/AttributeRender";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -42,16 +45,20 @@ const DEFAULT_FORM: FormData = {
 export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Props) {
   const [form, setForm] = useState<FormData>(DEFAULT_FORM);
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
+  const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [clientEdited, setClientEdited] = useState(false);
 
   const result = useMemo(
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
     [form, cemeteryCategory],
   );
+  const attrTotal = useMemo(() => attributesTotal(attributes), [attributes]);
+  const grandTotal = result.total + attrTotal;
 
   const relevantPackages = PACKAGES.filter((p) =>
     form.serviceType === "cremation"
@@ -67,7 +74,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           ...MO_CEMETERIES,
         ];
 
-  // Debounced co-browse sync: push form state 500ms after last change
+  // Co-work sync. Окно подавления: после локальной правки не перетираем её
+  // тем, что вернёт опрос (избегаем гонки push↔poll), сравнение по содержимому.
+  const suppressUntil = useRef(0);
+  const attrJson = JSON.stringify(attributes);
+
+  // Push: общее состояние (форма + атрибутика) через 400мс после изменения.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -75,11 +87,36 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       fetch(`/api/agent/meeting/${meetingId}/session`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, cemeteryCategory }),
-      }).catch(() => {}); // fire-and-forget
-    }, 500);
+        body: JSON.stringify({ form, cemeteryCategory, attributes }),
+      }).catch(() => {});
+    }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [form, cemeteryCategory, meetingId]);
+  }, [form, cemeteryCategory, attributes, meetingId]);
+
+  // Poll: подхватываем правки атрибутики, сделанные клиентом на своём экране.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/agent/meeting/${meetingId}/session`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const remote = data?.state?.attributes;
+        if (!remote) return;
+        if (Date.now() < suppressUntil.current) return;
+        if (JSON.stringify(remote) !== attrJson) {
+          setAttributes(remote);
+          setClientEdited(true);
+          setTimeout(() => setClientEdited(false), 2500);
+        }
+      } catch { /* ignore */ }
+    }, 2500);
+    return () => clearInterval(id);
+  }, [meetingId, attrJson]);
+
+  function updateAttributes(next: AttrSelection) {
+    suppressUntil.current = Date.now() + 2000;
+    setAttributes(next);
+  }
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -109,7 +146,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       const res = await fetch(`/api/agent/meeting/${meetingId}/quote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: form, total: result.total }),
+        body: JSON.stringify({ payload: { form, attributes }, total: grandTotal }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -388,11 +425,25 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
           </div>
 
+          {/* Атрибутика */}
+          <div className={s.card}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
+              <p className={s.cardTitle} style={{ margin: 0 }}>Атрибутика</p>
+              {clientEdited && <span className={s.clientPing}>клиент изменил</span>}
+            </div>
+            <AttributePicker selection={attributes} onChange={updateAttributes} />
+          </div>
+
         </div>
 
         {/* ── Quote panel ──────────────────────────────── */}
         <aside className={s.panel}>
           <div className={s.panelCard}>
+            {/* Рендер сцены — то же, что видит клиент */}
+            <div className={s.renderWrap}>
+              <AttributeRender selection={attributes} className={s.renderSvg} />
+            </div>
+
             <div className={s.panelHead}>
               <span className={s.panelHeadTitle}>Смета</span>
               {savedCount > 0 && (
@@ -425,11 +476,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   </div>
                 ))
               )}
+
+              {attrTotal > 0 && (
+                <div className={s.panelSection}>
+                  <div className={s.panelSectionHead}>
+                    <span>Оформление</span>
+                    <span className={s.panelSectionAmt}>{formatCurrency(attrTotal)}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className={s.panelTotalBlock}>
               <div className={s.panelTotalLabel}>Итого</div>
-              <div className={s.panelTotalAmount}>{formatCurrency(result.total)}</div>
+              <div className={s.panelTotalAmount}>{formatCurrency(grandTotal)}</div>
             </div>
 
             <div className={s.panelActions}>

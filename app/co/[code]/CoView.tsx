@@ -1,53 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { calculateOrder, DEFAULT_CALCULATOR_CONFIG, type FormData, type CalculationResult } from "@/lib/calculationUtils";
-
-function money(n: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
-}
+import { useEffect, useRef, useState } from "react";
+import { calculateOrder, DEFAULT_CALCULATOR_CONFIG, formatCurrency, type FormData, type CalculationResult } from "@/lib/calculationUtils";
+import { DEFAULT_ATTRIBUTES, attributesTotal, normalizeSelection, type AttrSelection } from "@/lib/attributes";
+import AttributeRender from "@/components/AttributeRender";
+import AttributePicker from "@/components/AttributePicker";
 
 function formatTime(ts: number) {
   return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 }
 
 export default function CoView({ code }: { code: string }) {
+  const [form, setForm] = useState<FormData | null>(null);
+  const [cemeteryCategory, setCemeteryCategory] = useState("standard");
+  const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [started, setStarted] = useState(false);
+
+  const suppressUntil = useRef(0);
+  const attrJson = JSON.stringify(attributes);
 
   useEffect(() => {
     let alive = true;
     async function poll() {
       try {
-        const res = await fetch(`/api/co/${code}`);
+        const res = await fetch(`/api/co/${code}`, { cache: "no-store" });
         if (!res.ok || !alive) return;
         const data = await res.json();
-        if (data.state) {
-          const formData = data.state as FormData;
-          setResult(calculateOrder(formData, DEFAULT_CALCULATOR_CONFIG, data.state.cemeteryCategory ?? "standard"));
-          setUpdatedAt(data.updatedAt);
+        const state = data?.state;
+        if (!state) return;
+        setStarted(true);
+        if (data.updatedAt) setUpdatedAt(data.updatedAt);
+
+        // форма и расчёт — ведёт агент
+        if (state.form) {
+          setForm(state.form as FormData);
+          setCemeteryCategory(state.cemeteryCategory ?? "standard");
+          setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
+        }
+        // атрибутику может менять и клиент — не перетираем свежую локальную правку
+        if (state.attributes && Date.now() > suppressUntil.current) {
+          const norm = normalizeSelection(state.attributes);
+          if (JSON.stringify(norm) !== attrJson) setAttributes(norm);
         }
       } catch { /* ignore */ }
     }
     poll();
     const id = setInterval(poll, 2000);
     return () => { alive = false; clearInterval(id); };
-  }, [code]);
+  }, [code, attrJson]);
 
-  if (!result) {
+  function updateAttributes(next: AttrSelection) {
+    suppressUntil.current = Date.now() + 2500;
+    setAttributes(next);
+    fetch(`/api/co/${code}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attributes: next }),
+    }).catch(() => {});
+  }
+
+  const attrTotal = attributesTotal(attributes);
+  const grandTotal = (result?.total ?? 0) + attrTotal;
+  const sections = result?.sections.filter((s) => s.total > 0) ?? [];
+
+  if (!started) {
     return (
       <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-2 text-center">
         <h2 className="font-serif text-[22px] text-ink">Агент готовит вашу смету</h2>
         <p className="mt-3 text-[14.5px] leading-relaxed text-ink-2">
-          Страница обновится сама, как только агент начнёт составлять смету. Ничего нажимать не нужно.
+          Страница обновится сама, как только агент начнёт. Ничего нажимать не нужно.
         </p>
         <div className="mt-7 flex gap-1.5">
           {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="h-2 w-2 rounded-full bg-accent"
-              style={{ animation: `codot 1.4s ${i * 0.2}s ease-in-out infinite` }}
-            />
+            <span key={i} className="h-2 w-2 rounded-full bg-accent" style={{ animation: `codot 1.4s ${i * 0.2}s ease-in-out infinite` }} />
           ))}
         </div>
         <style>{`@keyframes codot { 0%,100% { opacity:0.25 } 50% { opacity:1 } }`}</style>
@@ -55,46 +82,59 @@ export default function CoView({ code }: { code: string }) {
     );
   }
 
-  const sections = result.sections.filter((s) => s.total > 0);
-
   return (
-    <div className="mx-auto max-w-[640px]">
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Ваша смета</h2>
-        {updatedAt && (
-          <span className="tnum text-[12px] text-ink-3">Обновлено в {formatTime(updatedAt)}</span>
-        )}
+    <div className="mx-auto max-w-[680px]">
+      {/* Рендер сцены */}
+      <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
+        <AttributeRender selection={attributes} className="block h-auto w-full" />
       </div>
 
-      <div className="mb-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
-        {sections.map((section, i) => {
-          const items = section.items?.filter((it) => !it.included && (it.price ?? 0) > 0) ?? [];
-          if (items.length === 0 && section.total === 0) return null;
-          return (
-            <div key={i} className={i > 0 ? "border-t border-line" : ""}>
-              <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
-                <span className="tnum text-[13px] font-semibold text-ink">{money(section.total)}</span>
-              </div>
-              {items.map((item, j) => (
-                <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
-                  <span className="text-[14.5px] text-ink-2">{item.label}</span>
-                  <span className="tnum flex-shrink-0 text-[14.5px] text-ink">{item.price != null ? money(item.price) : ""}</span>
+      {/* Итог */}
+      <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-6 py-5">
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-2">Предварительная сумма</div>
+          {updatedAt && <div className="tnum mt-0.5 text-[11.5px] text-ink-3">обновлено в {formatTime(updatedAt)}</div>}
+        </div>
+        <span className="tnum font-serif text-[30px] font-semibold tracking-tight text-accent sm:text-[34px]">{formatCurrency(grandTotal)}</span>
+      </div>
+
+      {/* Что входит (ведёт агент) */}
+      {sections.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
+          <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+            {sections.map((section, i) => (
+              <div key={i} className={i > 0 ? "border-t border-line" : ""}>
+                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
+                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
+                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(section.total)}</span>
                 </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
+                {section.items?.filter((it) => !it.included && (it.price ?? 0) > 0).map((item, j) => (
+                  <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
+                    <span className="text-[14px] text-ink-2">{item.label}</span>
+                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{item.price != null ? formatCurrency(item.price) : ""}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {attrTotal > 0 && (
+              <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-3">
+                <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Оформление</span>
+                <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(attrTotal)}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
-      <div className="flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-6 py-5">
-        <span className="text-[15px] font-semibold text-ink">Итого</span>
-        <span className="tnum font-serif text-[30px] font-semibold tracking-tight text-accent sm:text-[34px]">{money(result.total)}</span>
-      </div>
+      {/* Выбор оформления — клиент может менять сам */}
+      <section className="mt-7">
+        <h2 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Оформление</h2>
+        <p className="mb-4 text-[13px] text-ink-2">Выбирайте сами или вместе с агентом — рендер и сумма обновятся у вас обоих.</p>
+        <AttributePicker selection={attributes} onChange={updateAttributes} />
+      </section>
 
-      <p className="mt-5 text-center text-[12px] text-ink-3">
-        Смета обновляется в реальном времени · код {code}
-      </p>
+      <p className="mt-8 text-center text-[12px] text-ink-3">Обновляется автоматически · код {code}</p>
     </div>
   );
 }
