@@ -111,6 +111,10 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
   const grandTotal = result.total + estimateTotal + externalTotal;
+  const estimateItemCount = useMemo(
+    () => estimateItems.reduce((sum, item) => sum + item.quantity, 0),
+    [estimateItems],
+  );
   const filteredCatalogItems = useMemo(
     () => {
       const attributionItems = AGENT_ATTRIBUTION_CATALOG.filter((item) => ATTRIBUTION_CATEGORIES.includes(item.category));
@@ -181,6 +185,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         : budgetStatus.status === "near_limit"
           ? `Почти весь бюджет использован. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`
           : `В рамках бюджета. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`;
+  const budgetShort =
+    budgetStatus.status === "not_set"
+      ? "Не указан"
+      : budgetStatus.status === "exceeded"
+        ? `+${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
+        : formatCurrency(budgetStatus.budgetRemaining);
 
   const relevantPackages = PACKAGES.filter((p) =>
     form.serviceType === "cremation"
@@ -417,6 +427,33 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         )}
       </div>
 
+      <div className={s.dealBar} aria-label="Сводка текущей сметы">
+        <div className={s.dealMetric}>
+          <span>Итого</span>
+          <strong>{formatCurrency(grandTotal)}</strong>
+        </div>
+        <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
+          <span>{budgetStatus.status === "exceeded" ? "Сверх бюджета" : "Бюджет"}</span>
+          <strong>{budgetShort}</strong>
+        </div>
+        <div className={`${s.dealMetric} ${economics.orderMarginRub < 0 ? s.dealMetricDanger : ""}`}>
+          <span>Маржа</span>
+          <strong>{formatPercent(economics.orderMarginPercent)}%</strong>
+        </div>
+        <div className={s.dealMetric}>
+          <span>Позиции</span>
+          <strong>{estimateItemCount + externalExpenses.length}</strong>
+        </div>
+      </div>
+
+      <nav className={s.flowNav} aria-label="Этапы конструктора сметы">
+        <a href="#quote-basics">Основное</a>
+        <a href="#quote-logistics">Логистика</a>
+        <a href="#quote-attributes">Атрибутика</a>
+        <a href="#quote-memorial">Поминки</a>
+        <a href="#quote-expenses">Расходы</a>
+      </nav>
+
       {/* ── Main layout ────────────────────────────────── */}
       <div className={s.layout}>
 
@@ -424,7 +461,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         <div className={s.form}>
 
           {/* Service type */}
-          <div className={s.card}>
+          <div className={s.card} id="quote-basics">
             <p className={s.cardTitle}>Тип услуги</p>
             <div className={s.serviceToggle}>
               {(["burial", "cremation"] as const).map((t) => (
@@ -541,7 +578,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           </div>
 
           {/* Logistics */}
-          <div className={s.card}>
+          <div className={s.card} id="quote-logistics">
             <p className={s.cardTitle}>Логистика</p>
 
             <ToggleRow
@@ -645,7 +682,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           </div>
 
           {/* Additional services */}
-          <div className={s.card}>
+          <div className={s.card} id="quote-attributes">
             <p className={s.cardTitle}>Дополнительные услуги</p>
             <div className={s.svcList}>
               {ADDITIONAL_SERVICES.map((svc) => {
@@ -705,24 +742,28 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
           </div>
 
-          <MemorialBlock
-            data={memorialData}
-            onCommentChange={(comment) => setMemorialData((current) => ({ ...current, comment }))}
-            onGuestsChange={setMemorialGuests}
-            onIncludeCafeChange={setCafeAssistanceIncluded}
-            onStatusChange={setMemorialStatus}
-          />
+          <div id="quote-memorial">
+            <MemorialBlock
+              data={memorialData}
+              onCommentChange={(comment) => setMemorialData((current) => ({ ...current, comment }))}
+              onGuestsChange={setMemorialGuests}
+              onIncludeCafeChange={setCafeAssistanceIncluded}
+              onStatusChange={setMemorialStatus}
+            />
+          </div>
 
-          <ExternalExpensesBlock
-            draft={expenseDraft}
-            expenses={externalExpenses}
-            onAddDraft={() => addExternalExpense(expenseDraft)}
-            onAddPreset={addExpensePreset}
-            onDraftFieldChange={setExpenseDraftField}
-            onDraftMoneyChange={setExpenseDraftMoney}
-            onRemove={removeExternalExpense}
-            onUpdate={updateExternalExpense}
-          />
+          <div id="quote-expenses">
+            <ExternalExpensesBlock
+              draft={expenseDraft}
+              expenses={externalExpenses}
+              onAddDraft={() => addExternalExpense(expenseDraft)}
+              onAddPreset={addExpensePreset}
+              onDraftFieldChange={setExpenseDraftField}
+              onDraftMoneyChange={setExpenseDraftMoney}
+              onRemove={removeExternalExpense}
+              onUpdate={updateExternalExpense}
+            />
+          </div>
 
         </div>
 
@@ -1345,22 +1386,25 @@ function AgentEconomicsBlock({
       {marginWarning && <div className={s.marginWarning}>{marginWarning}</div>}
 
       {marginItems.length > 0 && (
-        <div className={s.marginList}>
-          {marginItems.slice(0, 8).map((item) => (
-            <div key={`${item.category}-${item.name}-${item.totalClientPrice}`} className={s.marginItem}>
-              <div className={s.marginItemMain}>
-                <span className={s.marginItemName}>{item.name}</span>
-                <span className={s.marginItemPrice}>{formatCurrency(item.totalClientPrice)}</span>
+        <details className={s.marginDetails}>
+          <summary>Внутренние позиции ({marginItems.length})</summary>
+          <div className={s.marginList}>
+            {marginItems.slice(0, 10).map((item) => (
+              <div key={`${item.category}-${item.name}-${item.totalClientPrice}`} className={s.marginItem}>
+                <div className={s.marginItemMain}>
+                  <span className={s.marginItemName}>{item.name}</span>
+                  <span className={s.marginItemPrice}>{formatCurrency(item.totalClientPrice)}</span>
+                </div>
+                <div className={s.marginItemMeta}>
+                  <span>Себестоимость {formatCurrency(item.totalCostPrice)}</span>
+                  <span>
+                    Маржа {formatCurrency(item.marginRub)} · {formatPercent(item.marginPercent)}%
+                  </span>
+                </div>
               </div>
-              <div className={s.marginItemMeta}>
-                <span>Себестоимость {formatCurrency(item.totalCostPrice)}</span>
-                <span>
-                  Маржа {formatCurrency(item.marginRub)} · {formatPercent(item.marginPercent)}%
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
