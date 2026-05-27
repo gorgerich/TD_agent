@@ -6,7 +6,11 @@ import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
   type CalculationSection,
+  type MarginItemInput,
+  type ItemMargin,
   calculateOrder,
+  calculateOrderEconomics,
+  calculateBudgetStatus,
   formatCurrency,
   PRICES,
   PACKAGES,
@@ -15,7 +19,7 @@ import {
   MO_CEMETERIES,
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
-import { DEFAULT_ATTRIBUTES, attributesTotal, type AttrSelection } from "@/lib/attributes";
+import { DEFAULT_ATTRIBUTES, attributesTotal, selectedAttributeMarginItems, type AttrSelection } from "@/lib/attributes";
 import AttributePicker from "@/components/AttributePicker";
 import AttributeRender from "@/components/AttributeRender";
 
@@ -39,6 +43,7 @@ const DEFAULT_FORM: FormData = {
   needsPallbearers: false,
   selectedAdditionalServices: [],
   cemetery: "",
+  clientBudget: null,
 };
 
 /* ─── Main component ─────────────────────────────────────────────────── */
@@ -60,6 +65,56 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   );
   const attrTotal = useMemo(() => attributesTotal(attributes), [attributes]);
   const grandTotal = result.total + attrTotal;
+  const marginItems = useMemo<MarginItemInput[]>(() => {
+    const sectionItems = result.sections.flatMap((section) => {
+      const pricedItems =
+        section.items
+          ?.filter((item) => !item.included && (item.price ?? 0) > 0)
+          .map((item) => ({
+            name: item.label,
+            category: item.category ?? section.title,
+            clientPrice: item.clientPrice ?? item.price ?? 0,
+            costPrice: item.costPrice ?? 0,
+            quantity: item.quantity ?? 1,
+          })) ?? [];
+
+      if (pricedItems.length > 0) return pricedItems;
+      if (section.total <= 0) return [];
+
+      return [
+        {
+          name: section.title,
+          category: section.title,
+          clientPrice: section.total,
+          costPrice: section.costTotal ?? 0,
+          quantity: 1,
+        },
+      ];
+    });
+
+    return [...sectionItems, ...selectedAttributeMarginItems(attributes)];
+  }, [result.sections, attributes]);
+  const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
+  const budgetStatus = useMemo(
+    () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
+    [economics.orderClientTotal, form.clientBudget],
+  );
+  const marginWarning =
+    economics.orderMarginRub < 0
+      ? "Внимание: цена ниже себестоимости"
+      : economics.orderMarginPercent < 5
+        ? "Критически низкая маржа: сделка почти без прибыли"
+        : economics.orderMarginPercent < 15
+          ? "Низкая маржа: проверьте цену или себестоимость"
+          : null;
+  const budgetMessage =
+    budgetStatus.status === "not_set"
+      ? "Бюджет не указан"
+      : budgetStatus.status === "exceeded"
+        ? `Превышение бюджета: ${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
+        : budgetStatus.status === "near_limit"
+          ? `Почти весь бюджет использован. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`
+          : `В рамках бюджета. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`;
 
   const relevantPackages = PACKAGES.filter((p) =>
     form.serviceType === "cremation"
@@ -121,6 +176,11 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function setBudgetValue(value: string) {
+    const normalized = value.replace(/[^\d]/g, "");
+    setField("clientBudget", normalized ? Number(normalized) : null);
   }
 
   function toggleService(id: string) {
@@ -211,6 +271,18 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   {t === "burial" ? "Погребение" : "Кремация"}
                 </button>
               ))}
+            </div>
+            <div className={s.budgetField}>
+              <label className={s.fieldLabel} htmlFor="client-budget">Бюджет клиента</label>
+              <input
+                id="client-budget"
+                className={s.moneyInput}
+                inputMode="numeric"
+                value={form.clientBudget ? String(form.clientBudget) : ""}
+                placeholder="Например, 130 000"
+                onChange={(event) => setBudgetValue(event.target.value)}
+              />
+              <div className={s.fieldHint}>Необязательно. Нужно только для внутреннего расчёта агента.</div>
             </div>
           </div>
 
@@ -493,6 +565,15 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               <div className={s.panelTotalAmount}>{formatCurrency(grandTotal)}</div>
             </div>
 
+            <AgentEconomicsBlock
+              budgetMessage={budgetMessage}
+              budgetStatus={budgetStatus.status}
+              clientBudget={budgetStatus.clientBudget}
+              economics={economics}
+              marginItems={economics.items}
+              marginWarning={marginWarning}
+            />
+
             <div className={s.panelActions}>
               <button
                 className={s.saveBtn}
@@ -518,6 +599,86 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       </div>
     </div>
   );
+}
+
+function AgentEconomicsBlock({
+  budgetMessage,
+  budgetStatus,
+  clientBudget,
+  economics,
+  marginItems,
+  marginWarning,
+}: {
+  budgetMessage: string;
+  budgetStatus: "not_set" | "within" | "near_limit" | "exceeded";
+  clientBudget: number | null;
+  economics: ReturnType<typeof calculateOrderEconomics>;
+  marginItems: ItemMargin[];
+  marginWarning: string | null;
+}) {
+  return (
+    <div className={s.economicsBlock}>
+      <div className={s.economicsHead}>
+        <span>Экономика сделки</span>
+        <span className={s.economicsTag}>внутренне</span>
+      </div>
+
+      <div className={s.economicsGrid}>
+        <Metric label="Бюджет клиента" value={clientBudget ? formatCurrency(clientBudget) : "Не указан"} />
+        <Metric label="Итог клиенту" value={formatCurrency(economics.orderClientTotal)} />
+        <Metric
+          label={budgetStatus === "exceeded" ? "Превышение" : "Остаток"}
+          value={budgetStatus === "not_set" ? "—" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
+        />
+        <Metric label="Себестоимость" value={formatCurrency(economics.orderCostTotal)} />
+        <Metric label="Маржа" value={formatCurrency(economics.orderMarginRub)} />
+        <Metric label="Маржа" value={`${formatPercent(economics.orderMarginPercent)}%`} />
+      </div>
+
+      <div className={`${s.budgetLine} ${budgetStatus === "exceeded" ? s.budgetLineWarn : ""}`}>
+        {budgetMessage}
+      </div>
+      {budgetStatus === "exceeded" && (
+        <div className={s.economicsHint}>Можно снизить цену, заменить позиции или убрать необязательные услуги.</div>
+      )}
+      {marginWarning && <div className={s.marginWarning}>{marginWarning}</div>}
+
+      {marginItems.length > 0 && (
+        <div className={s.marginList}>
+          {marginItems.slice(0, 8).map((item) => (
+            <div key={`${item.category}-${item.name}-${item.totalClientPrice}`} className={s.marginItem}>
+              <div className={s.marginItemMain}>
+                <span className={s.marginItemName}>{item.name}</span>
+                <span className={s.marginItemPrice}>{formatCurrency(item.totalClientPrice)}</span>
+              </div>
+              <div className={s.marginItemMeta}>
+                <span>Себестоимость {formatCurrency(item.totalCostPrice)}</span>
+                <span>
+                  Маржа {formatCurrency(item.marginRub)} · {formatPercent(item.marginPercent)}%
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={s.metric}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat("ru-RU", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 /* ─── Toggle row component ───────────────────────────────────────────── */

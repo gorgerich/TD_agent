@@ -115,6 +115,43 @@
   color: var(--color-accent);
 }
 
+.budgetField {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+.fieldLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.moneyInput {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.moneyInput:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+.fieldHint {
+  margin-top: 7px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink-3);
+}
+
 /* ── Packages ───────────────────────────────────────────── */
 .packageGrid {
   display: grid;
@@ -332,6 +369,121 @@
 .panelTotalAmount {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 24px; font-weight: 600; color: var(--color-ink);
+}
+
+.economicsBlock {
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-surface-2) 42%, var(--color-surface));
+}
+.economicsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.economicsTag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.economicsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.metric {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.metric span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.metric strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.budgetLine,
+.economicsHint,
+.marginWarning {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.budgetLine {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+.budgetLineWarn,
+.marginWarning {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.economicsHint {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+.marginList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.marginItem {
+  padding: 9px 0;
+  border-top: 1px solid var(--color-line);
+}
+.marginItemMain,
+.marginItemMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.marginItemName {
+  min-width: 0;
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.marginItemPrice {
+  flex-shrink: 0;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.marginItemMeta {
+  margin-top: 4px;
+  color: var(--color-ink-3);
+  font-size: 11px;
+}
+.marginItemMeta span:last-child {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .panelActions { padding: 16px 20px; }

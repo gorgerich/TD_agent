@@ -436,60 +436,70 @@ export const ADDITIONAL_SERVICES = [
     id: "morgue-storage",
     name: "Хранение в морге",
     price: 2500,
+    costPrice: 2500,
     description: "Резерв времени до церемонии",
   },
   {
     id: "sanitary-prep",
     name: "Санитарная подготовка и бальзамирование",
     price: 12000,
+    costPrice: 12000,
     description: "Аккуратный внешний вид",
   },
   {
     id: "makeup",
     name: "Косметическая подготовка",
     price: 8000,
+    costPrice: 4000,
     description: "Профессиональный макияж",
   },
   {
     id: "clothing",
     name: "Ритуальная одежда",
     price: 5000,
+    costPrice: 2500,
     description: "Подготовка одежды",
   },
   {
     id: "photography",
     name: "Фотосъемка церемонии",
     price: 15000,
+    costPrice: 7000,
     description: "Профессиональная съемка",
   },
   {
     id: "videography",
     name: "Видеосъемка церемонии",
     price: 25000,
+    costPrice: 12000,
     description: "Профессиональная видеосъемка",
   },
   {
     id: "music",
     name: "Музыкальное сопровождение",
     price: 10000,
+    costPrice: 4500,
     description: "Живая музыка или фон",
   },
   {
     id: "flowers-premium",
     name: "Премиум цветочная композиция",
     price: 20000,
+    costPrice: 8000,
     description: "Эксклюзивная композиция",
   },
   {
     id: "catering",
     name: "Поминальный обед",
     price: 30000,
+    costPrice: 22000,
     description: "Организация поминального обеда",
   },
   {
     id: "memorial-plaque",
     name: "Памятная табличка",
     price: 8000,
+    costPrice: 3500,
     description: "Временная табличка",
   },
 ];
@@ -827,12 +837,17 @@ export interface CalculatorSection {
 export type CalculationItem = {
   label: string;
   price?: number;
+  category?: string;
+  clientPrice?: number;
+  costPrice?: number;
+  quantity?: number;
   included?: boolean;
 };
 
 export type CalculationSection = {
   title: string;
   total: number;
+  costTotal?: number;
   items?: CalculationItem[];
 };
 
@@ -854,6 +869,16 @@ export type CalculatorConfig = {
     familyTransport: Record<number, number>;
     pallbearers: number;
   };
+  costs: {
+    base: number;
+    hallDuration: Record<number, number>;
+    ceremonyType: Record<string, number>;
+    hearse: number;
+    familyTransport: Record<number, number>;
+    pallbearers: number;
+    packageCostRatio: number;
+    cemeteryCostRatio: number;
+  };
   packages: {
     id: string;
     name: string;
@@ -864,6 +889,7 @@ export type CalculatorConfig = {
     id: string;
     name: string;
     price: number;
+    costPrice?: number;
   }[];
   cemeteries: {
     name: string;
@@ -901,7 +927,117 @@ export interface FormData {
   needsPallbearers: boolean;
   selectedAdditionalServices: string[];
   cemetery: string;
+  clientBudget?: number | null;
   [key: string]: any;
+}
+
+export type MarginItemInput = {
+  name?: string;
+  label?: string;
+  category?: string;
+  clientPrice?: number | null;
+  costPrice?: number | null;
+  price?: number | null;
+  amount?: number | null;
+  total?: number | null;
+  quantity?: number | null;
+};
+
+export type ItemMargin = {
+  name: string;
+  category: string;
+  clientPrice: number;
+  costPrice: number;
+  quantity: number;
+  totalClientPrice: number;
+  totalCostPrice: number;
+  marginRub: number;
+  marginPercent: number;
+};
+
+export type OrderEconomics = {
+  items: ItemMargin[];
+  orderClientTotal: number;
+  orderCostTotal: number;
+  orderMarginRub: number;
+  orderMarginPercent: number;
+};
+
+export type BudgetStatus = {
+  clientBudget: number | null;
+  budgetRemaining: number;
+  budgetExceeded: boolean;
+  budgetUsagePercent: number;
+  status: "not_set" | "within" | "near_limit" | "exceeded";
+};
+
+const toSafeNumber = (value: unknown) => {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const percentOf = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
+
+export function calculateItemMargin(item: MarginItemInput): ItemMargin {
+  const clientPrice = Math.max(0, toSafeNumber(item.clientPrice ?? item.price ?? item.amount ?? item.total));
+  const costPrice = Math.max(0, toSafeNumber(item.costPrice));
+  const quantity = Math.max(1, toSafeNumber(item.quantity || 1));
+  const totalClientPrice = clientPrice * quantity;
+  const totalCostPrice = costPrice * quantity;
+  const marginRub = totalClientPrice - totalCostPrice;
+
+  return {
+    name: item.name ?? item.label ?? "Позиция",
+    category: item.category ?? "Смета",
+    clientPrice,
+    costPrice,
+    quantity,
+    totalClientPrice,
+    totalCostPrice,
+    marginRub,
+    marginPercent: percentOf(marginRub, totalClientPrice),
+  };
+}
+
+export function calculateOrderEconomics(items: MarginItemInput[]): OrderEconomics {
+  const marginItems = items.map(calculateItemMargin);
+  const orderClientTotal = marginItems.reduce((sum, item) => sum + item.totalClientPrice, 0);
+  const orderCostTotal = marginItems.reduce((sum, item) => sum + item.totalCostPrice, 0);
+  const orderMarginRub = orderClientTotal - orderCostTotal;
+
+  return {
+    items: marginItems,
+    orderClientTotal,
+    orderCostTotal,
+    orderMarginRub,
+    orderMarginPercent: percentOf(orderMarginRub, orderClientTotal),
+  };
+}
+
+export function calculateBudgetStatus(orderClientTotal: number, clientBudget?: number | null): BudgetStatus {
+  const budget = toSafeNumber(clientBudget);
+  if (budget <= 0) {
+    return {
+      clientBudget: null,
+      budgetRemaining: 0,
+      budgetExceeded: false,
+      budgetUsagePercent: 0,
+      status: "not_set",
+    };
+  }
+
+  const safeOrderTotal = Math.max(0, toSafeNumber(orderClientTotal));
+  const budgetRemaining = budget - safeOrderTotal;
+  const budgetExceeded = safeOrderTotal > budget;
+  const budgetUsagePercent = percentOf(safeOrderTotal, budget);
+
+  return {
+    clientBudget: budget,
+    budgetRemaining,
+    budgetExceeded,
+    budgetUsagePercent,
+    status: budgetExceeded ? "exceeded" : budgetUsagePercent > 90 ? "near_limit" : "within",
+  };
 }
 
 const DEFAULT_BASE_PRICE = 25000;
@@ -925,6 +1061,29 @@ export const DEFAULT_CALCULATOR_CONFIG: CalculatorConfig = {
     familyTransport: PRICES.familyTransport,
     pallbearers: PRICES.pallbearers,
   },
+  // Temporary mock cost data for agent margin prototype.
+  costs: {
+    base: 0,
+    hallDuration: {
+      30: 0,
+      60: 5000,
+      90: 8000,
+    },
+    ceremonyType: {
+      civil: 0,
+      religious: 7000,
+      combined: 9000,
+    },
+    hearse: 12000,
+    familyTransport: {
+      5: 3000,
+      10: 5000,
+      15: 8000,
+    },
+    pallbearers: 8000,
+    packageCostRatio: 0.62,
+    cemeteryCostRatio: 1,
+  },
   packages: PACKAGES.map((pkg) => ({
     id: pkg.id,
     name: pkg.name,
@@ -935,6 +1094,7 @@ export const DEFAULT_CALCULATOR_CONFIG: CalculatorConfig = {
     id: s.id,
     name: s.name,
     price: s.price,
+    costPrice: s.costPrice,
   })),
   cemeteries: [...MOSCOW_CEMETERIES, ...MO_CEMETERIES].map((c) => ({
     name: c.name,
@@ -988,6 +1148,10 @@ export function calculateOrder(
         formatItems.push({
           label: `Дополнительное время зала${blocksLabel}`,
           price: extraCost,
+          category: "Формат",
+          clientPrice: extraCost,
+          costPrice: Math.max(0, config.costs.hallDuration[hallDuration] - config.costs.hallDuration[includedMinutes]),
+          quantity: 1,
         });
         formatTotal += extraCost;
       }
@@ -997,6 +1161,10 @@ export function calculateOrder(
       formatItems.push({
         label: hallDuration ? `Зал прощания (${hallDuration} мин)` : "Зал прощания",
         price: hallPrice,
+        category: "Формат",
+        clientPrice: hallPrice,
+        costPrice: config.costs.hallDuration[hallDuration] || 0,
+        quantity: 1,
       });
       formatTotal += hallPrice;
     }
@@ -1009,14 +1177,28 @@ export function calculateOrder(
       formData.ceremonyType === "religious"
         ? "Религиозная церемония"
         : "Комбинированная церемония";
-    formatItems.push({ label: ceremonyName, price: ceremonyPrice });
+    formatItems.push({
+      label: ceremonyName,
+      price: ceremonyPrice,
+      category: "Формат",
+      clientPrice: ceremonyPrice,
+      costPrice: config.costs.ceremonyType[formData.ceremonyType] || 0,
+      quantity: 1,
+    });
     formatTotal += ceremonyPrice;
   }
 
   const logisticsItems: CalculationItem[] = [];
   let logisticsTotal = 0;
   if (formData.needsHearse) {
-    logisticsItems.push({ label: "Катафалк", price: config.prices.hearse });
+    logisticsItems.push({
+      label: "Катафалк",
+      price: config.prices.hearse,
+      category: "Логистика",
+      clientPrice: config.prices.hearse,
+      costPrice: config.costs.hearse,
+      quantity: 1,
+    });
     logisticsTotal += config.prices.hearse;
   }
   if (formData.needsFamilyTransport) {
@@ -1026,11 +1208,22 @@ export function calculateOrder(
     logisticsItems.push({
       label: seats ? `Транспорт для близких (${seats} мест)` : "Транспорт для близких",
       price: tp,
+      category: "Логистика",
+      clientPrice: tp,
+      costPrice: config.costs.familyTransport[seats] || 0,
+      quantity: 1,
     });
     logisticsTotal += tp;
   }
   if (formData.needsPallbearers) {
-    logisticsItems.push({ label: "Носильщики", price: config.prices.pallbearers });
+    logisticsItems.push({
+      label: "Носильщики",
+      price: config.prices.pallbearers,
+      category: "Логистика",
+      clientPrice: config.prices.pallbearers,
+      costPrice: config.costs.pallbearers,
+      quantity: 1,
+    });
     logisticsTotal += config.prices.pallbearers;
   }
 
@@ -1040,7 +1233,14 @@ export function calculateOrder(
     for (const serviceId of formData.selectedAdditionalServices) {
       const service = config.additionalServices.find((s) => s.id === serviceId);
       if (!service) continue;
-      additionalItems.push({ label: service.name, price: service.price });
+      additionalItems.push({
+        label: service.name,
+        price: service.price,
+        category: "Дополнительные услуги",
+        clientPrice: service.price,
+        costPrice: service.costPrice ?? 0,
+        quantity: 1,
+      });
       additionalTotal += service.price;
     }
   }
@@ -1050,9 +1250,9 @@ export function calculateOrder(
   const coffinConfig = formData.coffinConfig as
     | {
         coffin?: {
-          wood?: { name?: string; price?: number };
-          lining?: { name?: string; price?: number };
-          hardware?: { name?: string; price?: number };
+          wood?: { name?: string; price?: number; costPrice?: number };
+          lining?: { name?: string; price?: number; costPrice?: number };
+          hardware?: { name?: string; price?: number; costPrice?: number };
           quantity?: number;
         };
         wreath?: {
@@ -1061,6 +1261,7 @@ export function calculateOrder(
           text?: string;
           quantity?: number;
           price?: number;
+          costPrice?: number;
         };
       }
     | undefined;
@@ -1071,19 +1272,40 @@ export function calculateOrder(
     const woodName = coffinConfig.coffin.wood?.name;
     const woodPrice = Number(coffinConfig.coffin.wood?.price || 0) * quantity;
     if (woodName) {
-      attributesItems.push({ label: `Гроб: ${woodName}${quantitySuffix}`, price: woodPrice });
+      attributesItems.push({
+        label: `Гроб: ${woodName}${quantitySuffix}`,
+        price: woodPrice,
+        category: "Атрибутика",
+        clientPrice: Number(coffinConfig.coffin.wood?.price || 0),
+        costPrice: Number(coffinConfig.coffin.wood?.costPrice || 0),
+        quantity,
+      });
       attributesTotal += woodPrice;
     }
     const liningName = coffinConfig.coffin.lining?.name;
     const liningPrice = Number(coffinConfig.coffin.lining?.price || 0) * quantity;
     if (liningName) {
-      attributesItems.push({ label: `Обивка: ${liningName}${quantitySuffix}`, price: liningPrice });
+      attributesItems.push({
+        label: `Обивка: ${liningName}${quantitySuffix}`,
+        price: liningPrice,
+        category: "Атрибутика",
+        clientPrice: Number(coffinConfig.coffin.lining?.price || 0),
+        costPrice: Number(coffinConfig.coffin.lining?.costPrice || 0),
+        quantity,
+      });
       attributesTotal += liningPrice;
     }
     const hardwareName = coffinConfig.coffin.hardware?.name;
     const hardwarePrice = Number(coffinConfig.coffin.hardware?.price || 0) * quantity;
     if (hardwareName) {
-      attributesItems.push({ label: `Фурнитура: ${hardwareName}${quantitySuffix}`, price: hardwarePrice });
+      attributesItems.push({
+        label: `Фурнитура: ${hardwareName}${quantitySuffix}`,
+        price: hardwarePrice,
+        category: "Атрибутика",
+        clientPrice: Number(coffinConfig.coffin.hardware?.price || 0),
+        costPrice: Number(coffinConfig.coffin.hardware?.costPrice || 0),
+        quantity,
+      });
       attributesTotal += hardwarePrice;
     }
   }
@@ -1100,7 +1322,14 @@ export function calculateOrder(
     if (text) wreathLabel += `, "${text}"`;
     if (wreathQuantity > 1) wreathLabel += ` ×${wreathQuantity}`;
     const wreathPrice = Number(coffinConfig.wreath.price || 0);
-    attributesItems.push({ label: wreathLabel, price: wreathPrice });
+    attributesItems.push({
+      label: wreathLabel,
+      price: wreathPrice,
+      category: "Атрибутика",
+      clientPrice: wreathQuantity > 0 ? wreathPrice / wreathQuantity : wreathPrice,
+      costPrice: Number(coffinConfig.wreath.costPrice || 0),
+      quantity: wreathQuantity,
+    });
     attributesTotal += wreathPrice;
   }
 
@@ -1108,6 +1337,7 @@ export function calculateOrder(
     sections.push({
       title: config.base.title,
       total: config.base.price,
+      costTotal: config.costs.base,
       items: config.base.items.map((name) => ({ label: name, included: true })),
     });
   }
@@ -1116,6 +1346,7 @@ export function calculateOrder(
     sections.push({
       title: `Пакет "${packageItem.name}"`,
       total: packageItem.price,
+      costTotal: Math.round(packageItem.price * config.costs.packageCostRatio),
       items: packageItem.features.map((feature) => ({ label: feature, included: true })),
     });
   }
@@ -1159,6 +1390,7 @@ export function calculateOrder(
         sections.push({
           title: config.cemeterySectionTitle(categoryLabel),
           total: price,
+          costTotal: Math.round(price * config.costs.cemeteryCostRatio),
           items: config.includeCemeteryCategoryItem
             ? [
                 { label: selectedCemetery?.name || "" },
