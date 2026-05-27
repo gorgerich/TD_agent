@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { normalizeSelection, type AttrSelection } from "./attributes";
-import type { PublicEstimateItem } from "./calculationUtils";
+import type { PublicEstimateItem, PublicExternalExpense } from "./calculationUtils";
 
 /*
   Общее состояние встречи (co-work) — хранится в БД (AgentSession), а не в памяти
@@ -17,6 +17,7 @@ export interface CoState {
   cemeteryCategory?: string;
   attributes?: AttrSelection;
   estimateItems?: PublicEstimateItem[];
+  externalExpenses?: PublicExternalExpense[];
   _ts?: number;
 }
 

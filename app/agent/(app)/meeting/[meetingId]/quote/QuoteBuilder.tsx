@@ -11,22 +11,37 @@ import {
   type CatalogCategory,
   type CatalogItem,
   type EstimateItem,
+  type MemorialData,
+  type MemorialStatus,
+  type ExternalExpense,
+  type ExternalExpenseCategory,
+  type EstimateSnapshot,
   calculateOrder,
   calculateOrderEconomics,
   calculateBudgetStatus,
   calculateEstimateItemsTotal,
+  calculateExternalExpensesClientTotal,
   addCatalogItemToEstimate,
+  addMemorialAssistanceItem,
+  removeMemorialAssistanceItem,
   updateEstimateItemQuantity,
   removeEstimateItem,
   updateEstimateItemClientPrice,
   estimateItemsToMarginInputs,
+  externalExpensesToMarginInputs,
   toPublicEstimateItems,
+  toPublicExternalExpenses,
+  createExternalExpense,
+  createEstimateSnapshot,
   formatCurrency,
   PRICES,
   PACKAGES,
   ADDITIONAL_SERVICES,
   AGENT_ATTRIBUTION_CATALOG,
   CATALOG_CATEGORIES,
+  DEFAULT_MEMORIAL_DATA,
+  EXTERNAL_EXPENSE_CATEGORIES,
+  EXTERNAL_EXPENSE_PRESETS,
   MOSCOW_CEMETERIES,
   MO_CEMETERIES,
   DEFAULT_CALCULATOR_CONFIG,
@@ -73,6 +88,16 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
   const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
+  const [memorialData, setMemorialData] = useState<MemorialData>(DEFAULT_MEMORIAL_DATA);
+  const [externalExpenses, setExternalExpenses] = useState<ExternalExpense[]>([]);
+  const [expenseDraft, setExpenseDraft] = useState<ExternalExpense>(
+    createExternalExpense({ id: "draft", name: "", category: "Морг", clientPrice: 0, costPrice: 0 }),
+  );
+  const [snapshots, setSnapshots] = useState<EstimateSnapshot[]>([]);
+  const [snapshotTitle, setSnapshotTitle] = useState("");
+  const [snapshotNote, setSnapshotNote] = useState("");
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
+  const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
 
   const result = useMemo(
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
@@ -80,7 +105,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   );
   const attrTotal = useMemo(() => attributesTotal(attributes), [attributes]);
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
-  const grandTotal = result.total + attrTotal + estimateTotal;
+  const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
+  const grandTotal = result.total + attrTotal + estimateTotal + externalTotal;
   const filteredCatalogItems = useMemo(
     () =>
       catalogCategory === "Все"
@@ -119,8 +145,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       ...sectionItems,
       ...selectedAttributeMarginItems(attributes),
       ...estimateItemsToMarginInputs(estimateItems),
+      ...externalExpensesToMarginInputs(externalExpenses),
     ];
-  }, [result.sections, attributes, estimateItems]);
+  }, [result.sections, attributes, estimateItems, externalExpenses]);
   const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
   const budgetStatus = useMemo(
     () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
@@ -182,11 +209,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           cemeteryCategory,
           attributes,
           estimateItems: toPublicEstimateItems(estimateItems),
+          externalExpenses: toPublicExternalExpenses(externalExpenses),
         }),
       }).catch(() => {});
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [form, cemeteryCategory, attributes, estimateItems, meetingId]);
+  }, [form, cemeteryCategory, attributes, estimateItems, externalExpenses, meetingId]);
 
   // Poll: подхватываем правки атрибутики, сделанные клиентом на своём экране.
   useEffect(() => {
@@ -254,6 +282,90 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   function changeEstimatePrice(id: string, value: string) {
     const normalized = value.replace(/[^\d]/g, "");
     setEstimateItems((current) => updateEstimateItemClientPrice(current, id, normalized ? Number(normalized) : 0));
+  }
+
+  function setMemorialStatus(status: MemorialStatus) {
+    setMemorialData((current) => ({
+      ...current,
+      status,
+      includeCafeAssistance: status === "agent_helps" ? current.includeCafeAssistance : false,
+    }));
+    if (status !== "agent_helps") {
+      setEstimateItems((current) => removeMemorialAssistanceItem(current));
+    }
+  }
+
+  function setMemorialGuests(value: string) {
+    const normalized = value.replace(/[^\d]/g, "");
+    setMemorialData((current) => ({ ...current, guestsCount: normalized ? Number(normalized) : null }));
+  }
+
+  function setCafeAssistanceIncluded(included: boolean) {
+    setMemorialData((current) => ({ ...current, includeCafeAssistance: included }));
+    setEstimateItems((current) => (included ? addMemorialAssistanceItem(current) : removeMemorialAssistanceItem(current)));
+  }
+
+  function setExpenseDraftField<K extends keyof ExternalExpense>(key: K, value: ExternalExpense[K]) {
+    setExpenseDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  function setExpenseDraftMoney(key: "clientPrice" | "costPrice", value: string) {
+    const normalized = value.replace(/[^\d]/g, "");
+    setExpenseDraft((current) => ({ ...current, [key]: normalized ? Number(normalized) : 0 }));
+  }
+
+  function addExternalExpense(expense: ExternalExpense) {
+    if (!expense.name.trim()) return;
+    setExternalExpenses((current) => [...current, createExternalExpense({ ...expense, id: undefined, name: expense.name.trim() })]);
+    setExpenseDraft(createExternalExpense({ id: "draft", name: "", category: "Морг", clientPrice: 0, costPrice: 0 }));
+  }
+
+  function addExpensePreset(preset: (typeof EXTERNAL_EXPENSE_PRESETS)[number]) {
+    setExternalExpenses((current) => [
+      ...current,
+      createExternalExpense({
+        ...preset,
+        includeInClientTotal: true,
+        includeInMarginCalculation: true,
+      }),
+    ]);
+  }
+
+  function removeExternalExpense(id: string) {
+    setExternalExpenses((current) => current.filter((expense) => expense.id !== id));
+  }
+
+  function updateExternalExpense(id: string, patch: Partial<ExternalExpense>) {
+    setExternalExpenses((current) => current.map((expense) => (expense.id === id ? { ...expense, ...patch } : expense)));
+  }
+
+  function fixSnapshot() {
+    setSnapshotError(null);
+    if (estimateItems.length === 0 && externalExpenses.length === 0) {
+      setSnapshotError("Добавьте хотя бы одну позицию или внешний расход, чтобы зафиксировать смету.");
+      return;
+    }
+
+    const number = snapshots.length + 1;
+    const snapshot = createEstimateSnapshot({
+      title: snapshotTitle.trim() || `Версия ${number}`,
+      note: snapshotNote.trim(),
+      items: estimateItems,
+      externalExpenses,
+      memorialData,
+      economics,
+      clientBudget: form.clientBudget,
+      budgetStatus,
+    });
+    setSnapshots((current) => [snapshot, ...current]);
+    setOpenSnapshotId(snapshot.id);
+    setSnapshotTitle("");
+    setSnapshotNote("");
+  }
+
+  function deleteSnapshot(id: string) {
+    setSnapshots((current) => current.filter((snapshot) => snapshot.id !== id));
+    setOpenSnapshotId((current) => (current === id ? null : current));
   }
 
   function copyCode() {
@@ -597,6 +709,25 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
           </div>
 
+          <MemorialBlock
+            data={memorialData}
+            onCommentChange={(comment) => setMemorialData((current) => ({ ...current, comment }))}
+            onGuestsChange={setMemorialGuests}
+            onIncludeCafeChange={setCafeAssistanceIncluded}
+            onStatusChange={setMemorialStatus}
+          />
+
+          <ExternalExpensesBlock
+            draft={expenseDraft}
+            expenses={externalExpenses}
+            onAddDraft={() => addExternalExpense(expenseDraft)}
+            onAddPreset={addExpensePreset}
+            onDraftFieldChange={setExpenseDraftField}
+            onDraftMoneyChange={setExpenseDraftMoney}
+            onRemove={removeExternalExpense}
+            onUpdate={updateExternalExpense}
+          />
+
           {/* Атрибутика */}
           <div className={s.card}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
@@ -640,6 +771,42 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                         onRemove={() => deleteEstimateItem(item.id)}
                       />
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {externalExpenses.length > 0 && (
+                <div className={s.panelSection}>
+                  <div className={s.panelSectionHead}>
+                    <span>Внешние расходы</span>
+                    <span className={s.panelSectionAmt}>{formatCurrency(externalTotal)}</span>
+                  </div>
+                  <div className={s.externalSummaryList}>
+                    {externalExpenses.map((expense) => {
+                      const expenseMargin = calculateOrderEconomics([
+                        {
+                          name: expense.name,
+                          category: expense.category,
+                          clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+                          costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
+                          quantity: 1,
+                        },
+                      ]).items[0];
+                      return (
+                        <div key={expense.id} className={s.externalSummaryItem}>
+                          <div>
+                            <span>{expense.category}</span>
+                            <strong>{expense.name}</strong>
+                            {expense.comment && <em>{expense.comment}</em>}
+                          </div>
+                          <div className={s.externalSummaryNumbers}>
+                            <span>Клиенту {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}</span>
+                            <span>Себестоимость {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)}</span>
+                            <span>Маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -693,6 +860,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               marginWarning={marginWarning}
             />
 
+            <SnapshotBlock
+              budgetStatus={budgetStatus}
+              error={snapshotError}
+              note={snapshotNote}
+              onDelete={deleteSnapshot}
+              onFix={fixSnapshot}
+              onNoteChange={setSnapshotNote}
+              onOpenChange={setOpenSnapshotId}
+              onTitleChange={setSnapshotTitle}
+              openSnapshotId={openSnapshotId}
+              snapshots={snapshots}
+              title={snapshotTitle}
+            />
+
             <div className={s.panelActions}>
               <button
                 className={s.saveBtn}
@@ -715,6 +896,215 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           </div>
         </aside>
 
+      </div>
+    </div>
+  );
+}
+
+function MemorialBlock({
+  data,
+  onCommentChange,
+  onGuestsChange,
+  onIncludeCafeChange,
+  onStatusChange,
+}: {
+  data: MemorialData;
+  onCommentChange: (comment: string) => void;
+  onGuestsChange: (value: string) => void;
+  onIncludeCafeChange: (included: boolean) => void;
+  onStatusChange: (status: MemorialStatus) => void;
+}) {
+  const showsGuests = data.status === "agent_helps" || data.status === "client_handles";
+
+  return (
+    <div className={s.card}>
+      <p className={s.cardTitle}>Поминки / кафе</p>
+      <p className={s.catalogSubtitle}>Отметьте, нужны ли поминки и будет ли агент помогать с подбором кафе.</p>
+
+      <div className={s.segmentGrid}>
+        {(
+          [
+            ["not_discussed", "Не обсуждали"],
+            ["not_needed", "Не нужны"],
+            ["client_handles", "Клиент сам"],
+            ["agent_helps", "Нужна помощь"],
+          ] as Array<[MemorialStatus, string]>
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={`${s.segmentBtn} ${data.status === value ? s.segmentBtnActive : ""}`}
+            onClick={() => onStatusChange(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {showsGuests && (
+        <label className={s.blockField}>
+          <span>Количество гостей</span>
+          <input
+            inputMode="numeric"
+            placeholder="Например, 20"
+            value={data.guestsCount ? String(data.guestsCount) : ""}
+            onChange={(event) => onGuestsChange(event.target.value)}
+          />
+        </label>
+      )}
+
+      <label className={s.blockField}>
+        <span>Комментарий по поминкам</span>
+        <textarea
+          placeholder="Например: нужно кафе рядом с кладбищем, без алкоголя, на 20 человек"
+          value={data.comment ?? ""}
+          onChange={(event) => onCommentChange(event.target.value)}
+        />
+      </label>
+
+      {data.status === "agent_helps" && (
+        <label className={s.inlineCheck}>
+          <input
+            type="checkbox"
+            checked={Boolean(data.includeCafeAssistance)}
+            onChange={(event) => onIncludeCafeChange(event.target.checked)}
+          />
+          <span>Добавить помощь с кафе в смету</span>
+        </label>
+      )}
+
+      {data.status === "agent_helps" && (
+        <div className={s.helperNote}>Можно предложить клиенту несколько вариантов кафе и меню, чтобы снять с семьи отдельную задачу.</div>
+      )}
+      {data.status === "client_handles" && (
+        <div className={s.helperNote}>Клиент организует поминки самостоятельно. Не включайте кафе в итоговую смету, если агент не помогает с подбором.</div>
+      )}
+    </div>
+  );
+}
+
+function ExternalExpensesBlock({
+  draft,
+  expenses,
+  onAddDraft,
+  onAddPreset,
+  onDraftFieldChange,
+  onDraftMoneyChange,
+  onRemove,
+  onUpdate,
+}: {
+  draft: ExternalExpense;
+  expenses: ExternalExpense[];
+  onAddDraft: () => void;
+  onAddPreset: (preset: (typeof EXTERNAL_EXPENSE_PRESETS)[number]) => void;
+  onDraftFieldChange: <K extends keyof ExternalExpense>(key: K, value: ExternalExpense[K]) => void;
+  onDraftMoneyChange: (key: "clientPrice" | "costPrice", value: string) => void;
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<ExternalExpense>) => void;
+}) {
+  return (
+    <div className={s.card}>
+      <p className={s.cardTitle}>Внешние расходы</p>
+      <p className={s.catalogSubtitle}>Расходы, которые зависят от морга, кладбища, крематория, церкви или других внешних условий.</p>
+
+      <div className={s.quickExpenseGrid}>
+        {EXTERNAL_EXPENSE_PRESETS.map((preset) => (
+          <button key={preset.name} type="button" className={s.quickExpenseBtn} onClick={() => onAddPreset(preset)}>
+            <span>{preset.name}</span>
+            <strong>{formatCurrency(preset.clientPrice)}</strong>
+          </button>
+        ))}
+      </div>
+
+      <div className={s.expenseDraftGrid}>
+        <label className={s.blockField}>
+          <span>Категория</span>
+          <select value={draft.category} onChange={(event) => onDraftFieldChange("category", event.target.value as ExternalExpenseCategory)}>
+            {EXTERNAL_EXPENSE_CATEGORIES.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className={s.blockField}>
+          <span>Название расхода</span>
+          <input value={draft.name} placeholder="Например, подготовка тела в морге" onChange={(event) => onDraftFieldChange("name", event.target.value)} />
+        </label>
+        <label className={s.blockField}>
+          <span>Сумма для клиента</span>
+          <input inputMode="numeric" value={draft.clientPrice || ""} onChange={(event) => onDraftMoneyChange("clientPrice", event.target.value)} />
+        </label>
+        <label className={s.blockField}>
+          <span>Себестоимость / передаваемая сумма</span>
+          <input inputMode="numeric" value={draft.costPrice || ""} onChange={(event) => onDraftMoneyChange("costPrice", event.target.value)} />
+        </label>
+      </div>
+      <div className={s.fieldHint}>Если деньги полностью передаются внешней стороне, укажите такую же сумму.</div>
+
+      <label className={s.blockField}>
+        <span>Комментарий</span>
+        <textarea value={draft.comment ?? ""} placeholder="Например: зависит от условий конкретного морга" onChange={(event) => onDraftFieldChange("comment", event.target.value)} />
+      </label>
+
+      <div className={s.checkRow}>
+        <label className={s.inlineCheck}>
+          <input type="checkbox" checked={draft.includeInClientTotal} onChange={(event) => onDraftFieldChange("includeInClientTotal", event.target.checked)} />
+          <span>Включить в итоговую сумму для клиента</span>
+        </label>
+        <label className={s.inlineCheck}>
+          <input type="checkbox" checked={draft.includeInMarginCalculation} onChange={(event) => onDraftFieldChange("includeInMarginCalculation", event.target.checked)} />
+          <span>Учитывать в расчёте маржи</span>
+        </label>
+      </div>
+
+      <button type="button" className={s.addCatalogBtn} onClick={onAddDraft}>Добавить внешний расход</button>
+
+      {expenses.length > 0 && (
+        <div className={s.externalList}>
+          {expenses.map((expense) => (
+            <ExternalExpenseRow key={expense.id} expense={expense} onRemove={() => onRemove(expense.id)} onUpdate={(patch) => onUpdate(expense.id, patch)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExternalExpenseRow({
+  expense,
+  onRemove,
+  onUpdate,
+}: {
+  expense: ExternalExpense;
+  onRemove: () => void;
+  onUpdate: (patch: Partial<ExternalExpense>) => void;
+}) {
+  const margin = calculateOrderEconomics([{
+    name: expense.name,
+    clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+    costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
+    quantity: 1,
+  }]).items[0];
+
+  return (
+    <div className={s.externalRow}>
+      <div className={s.externalRowHead}>
+        <div>
+          <span>{expense.category}</span>
+          <strong>{expense.name}</strong>
+        </div>
+        <button type="button" onClick={onRemove}>Удалить</button>
+      </div>
+      {expense.comment && <p>{expense.comment}</p>}
+      <div className={s.externalRowGrid}>
+        <label>
+          <span>Клиенту</span>
+          <input inputMode="numeric" value={expense.clientPrice} onChange={(event) => onUpdate({ clientPrice: Number(event.target.value.replace(/[^\d]/g, "")) || 0 })} />
+        </label>
+        <label>
+          <span>Себестоимость</span>
+          <input inputMode="numeric" value={expense.costPrice} onChange={(event) => onUpdate({ costPrice: Number(event.target.value.replace(/[^\d]/g, "")) || 0 })} />
+        </label>
+        <div className={s.externalMargin}>Маржа {formatCurrency(margin?.marginRub ?? 0)}</div>
       </div>
     </div>
   );
@@ -821,6 +1211,111 @@ function EstimateItemRow({
       </div>
     </div>
   );
+}
+
+function SnapshotBlock({
+  budgetStatus,
+  error,
+  note,
+  onDelete,
+  onFix,
+  onNoteChange,
+  onOpenChange,
+  onTitleChange,
+  openSnapshotId,
+  snapshots,
+  title,
+}: {
+  budgetStatus: ReturnType<typeof calculateBudgetStatus>;
+  error: string | null;
+  note: string;
+  onDelete: (id: string) => void;
+  onFix: () => void;
+  onNoteChange: (value: string) => void;
+  onOpenChange: (id: string | null) => void;
+  onTitleChange: (value: string) => void;
+  openSnapshotId: string | null;
+  snapshots: EstimateSnapshot[];
+  title: string;
+}) {
+  return (
+    <div className={s.snapshotBlock}>
+      <div className={s.economicsHead}>
+        <span>История версий</span>
+        <span className={s.economicsTag}>{snapshots.length}</span>
+      </div>
+      <input className={s.snapshotInput} value={title} placeholder="Название версии" onChange={(event) => onTitleChange(event.target.value)} />
+      <textarea className={s.snapshotTextarea} value={note} placeholder="Например: клиент попросил уложиться в 130 000 ₽, убрали отдельный катафалк" onChange={(event) => onNoteChange(event.target.value)} />
+      <button type="button" className={s.saveBtn} onClick={onFix}>Зафиксировать смету</button>
+      {error && <div className={s.errorMsg}>{error}</div>}
+
+      {snapshots.length > 0 && (
+        <div className={s.snapshotList}>
+          {snapshots.map((snapshot) => {
+            const open = openSnapshotId === snapshot.id;
+            return (
+              <div key={snapshot.id} className={s.snapshotItem}>
+                <div className={s.snapshotItemHead}>
+                  <button type="button" onClick={() => onOpenChange(open ? null : snapshot.id)}>
+                    <strong>{snapshot.title}</strong>
+                    <span>{formatSnapshotDate(snapshot.createdAt)}</span>
+                  </button>
+                  <button type="button" onClick={() => onDelete(snapshot.id)}>Удалить</button>
+                </div>
+                <div className={s.snapshotMetrics}>
+                  <span>{formatCurrency(snapshot.orderClientTotal)}</span>
+                  <span>Маржа {formatCurrency(snapshot.orderMarginRub)} · {formatPercent(snapshot.orderMarginPercent)}%</span>
+                  <span>{snapshot.budgetExceeded ? `Превышение ${formatCurrency(Math.abs(snapshot.budgetRemaining ?? 0))}` : budgetStatus.clientBudget ? "В бюджете" : "Без бюджета"}</span>
+                </div>
+                {open && (
+                  <div className={s.snapshotDetails}>
+                    {snapshot.note && <p>{snapshot.note}</p>}
+                    <SnapshotLine title="Позиции" items={snapshot.items.map((item) => `${item.name}${item.selectedColor ? `, цвет: ${item.selectedColor}` : ""} ×${item.quantity}`)} />
+                    <SnapshotLine title="Внешние расходы" items={snapshot.externalExpenses.map((expense) => `${expense.category}: ${expense.name} (${formatCurrency(expense.clientPrice)})`)} />
+                    <SnapshotLine title="Поминки" items={[memorialSummary(snapshot.memorialData)]} />
+                    <div className={s.snapshotTotals}>
+                      <span>Себестоимость {formatCurrency(snapshot.orderCostTotal)}</span>
+                      <span>Итог {formatCurrency(snapshot.orderClientTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SnapshotLine({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className={s.snapshotLine}>
+      <span>{title}</span>
+      {items.length > 0 ? items.map((item) => <em key={item}>{item}</em>) : <em>Нет</em>}
+    </div>
+  );
+}
+
+function memorialSummary(data: MemorialData) {
+  const status: Record<MemorialStatus, string> = {
+    not_discussed: "Не обсуждали",
+    not_needed: "Не нужны",
+    client_handles: "Клиент организует сам",
+    agent_helps: "Нужна помощь с кафе",
+  };
+  const guests = data.guestsCount ? `, гостей: ${data.guestsCount}` : "";
+  const comment = data.comment ? `, ${data.comment}` : "";
+  return `${status[data.status]}${guests}${comment}`;
+}
+
+function formatSnapshotDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function AgentEconomicsBlock({

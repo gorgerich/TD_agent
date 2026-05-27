@@ -9,6 +9,7 @@ import {
   type FormData,
   type CalculationResult,
   type PublicEstimateItem,
+  type PublicExternalExpense,
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, attributesTotal, normalizeSelection, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
@@ -23,6 +24,7 @@ export default function CoView({ code }: { code: string }) {
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [estimateItems, setEstimateItems] = useState<PublicEstimateItem[]>([]);
+  const [externalExpenses, setExternalExpenses] = useState<PublicExternalExpense[]>([]);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
@@ -51,6 +53,9 @@ export default function CoView({ code }: { code: string }) {
         if (Array.isArray(state.estimateItems)) {
           setEstimateItems(state.estimateItems as PublicEstimateItem[]);
         }
+        if (Array.isArray(state.externalExpenses)) {
+          setExternalExpenses(state.externalExpenses as PublicExternalExpense[]);
+        }
         // атрибутику может менять и клиент — не перетираем свежую локальную правку
         if (state.attributes && Date.now() > suppressUntil.current) {
           const norm = normalizeSelection(state.attributes);
@@ -75,7 +80,8 @@ export default function CoView({ code }: { code: string }) {
 
   const attrTotal = attributesTotal(attributes);
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
-  const grandTotal = (result?.total ?? 0) + attrTotal + estimateTotal;
+  const externalTotal = externalExpenses.reduce((sum, expense) => sum + expense.clientPrice, 0);
+  const grandTotal = (result?.total ?? 0) + attrTotal + estimateTotal + externalTotal;
   const sections = result?.sections.filter((s) => s.total > 0) ?? [];
 
   if (!started) {
@@ -112,7 +118,7 @@ export default function CoView({ code }: { code: string }) {
       </div>
 
       {/* Что входит (ведёт агент) */}
-      {sections.length > 0 && (
+      {(sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0 || attrTotal > 0) && (
         <section className="mt-6">
           <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
@@ -152,6 +158,20 @@ export default function CoView({ code }: { code: string }) {
               <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-3">
                 <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Оформление</span>
                 <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(attrTotal)}</span>
+              </div>
+            )}
+            {externalExpenses.length > 0 && (
+              <div className="border-t border-line">
+                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
+                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
+                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(externalTotal)}</span>
+                </div>
+                {externalExpenses.map((expense) => (
+                  <div key={expense.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
+                    <span className="text-[14px] text-ink-2">{expense.category}: {expense.name}</span>
+                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{formatCurrency(expense.clientPrice)}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -474,6 +474,198 @@
 }
 .addCatalogBtn:hover { background: var(--color-accent-hover); }
 
+/* ── Memorial and external expenses ───────────────────── */
+.segmentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.segmentBtn {
+  min-height: 38px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.segmentBtnActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.blockField {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.blockField span {
+  color: var(--color-ink-3);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.blockField input,
+.blockField select,
+.blockField textarea,
+.snapshotInput,
+.snapshotTextarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.blockField textarea,
+.snapshotTextarea { min-height: 72px; resize: vertical; }
+.blockField input:focus,
+.blockField select:focus,
+.blockField textarea:focus,
+.snapshotInput:focus,
+.snapshotTextarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+.inlineCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.inlineCheck input { margin-top: 2px; accent-color: var(--color-accent); }
+.helperNote {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.quickExpenseGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.quickExpenseBtn {
+  display: grid;
+  gap: 4px;
+  min-height: 56px;
+  padding: 9px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.quickExpenseBtn span { font-size: 12px; font-weight: 700; }
+.quickExpenseBtn strong { font-family: var(--font-mono); font-size: 11.5px; color: var(--color-ink-2); }
+.expenseDraftGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.checkRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+.externalList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.externalRow {
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.externalRowHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.externalRowHead span,
+.externalSummaryItem span {
+  display: block;
+  color: var(--color-ink-3);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.externalRowHead strong,
+.externalSummaryItem strong {
+  display: block;
+  color: var(--color-ink);
+  font-size: 13px;
+  margin-top: 2px;
+}
+.externalRowHead button {
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.externalRow p,
+.externalSummaryItem em {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--color-ink-3);
+  font-size: 12px;
+  font-style: normal;
+}
+.externalRowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+.externalRowGrid label {
+  display: grid;
+  gap: 4px;
+}
+.externalRowGrid label span {
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.externalRowGrid input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.externalMargin {
+  align-self: end;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
 /* ── Quote panel ────────────────────────────────────────── */
 .panel { min-width: 0; }
 @media (min-width: 980px) {
@@ -629,6 +821,28 @@
   border-color: var(--color-accent);
   box-shadow: 0 0 0 2px var(--color-accent-soft);
 }
+.externalSummaryList {
+  display: grid;
+  gap: 8px;
+}
+.externalSummaryItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.externalSummaryNumbers {
+  display: grid;
+  gap: 2px;
+  color: var(--color-ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 
 .panelTotalBlock {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
@@ -758,6 +972,103 @@
   flex-shrink: 0;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.snapshotBlock {
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.snapshotInput,
+.snapshotTextarea {
+  margin-bottom: 8px;
+}
+.snapshotList {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.snapshotItem {
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.snapshotItemHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+}
+.snapshotItemHead button {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.snapshotItemHead button:first-child {
+  min-width: 0;
+  color: var(--color-ink);
+}
+.snapshotItemHead button:last-child {
+  color: var(--color-danger);
+  font-size: 11px;
+  font-weight: 700;
+}
+.snapshotItemHead strong {
+  display: block;
+  font-size: 12.5px;
+}
+.snapshotItemHead span {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-ink-3);
+  font-size: 11px;
+}
+.snapshotMetrics {
+  display: grid;
+  gap: 3px;
+  padding: 0 10px 10px;
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.snapshotDetails {
+  border-top: 1px solid var(--color-line);
+  padding: 10px;
+  background: var(--color-surface-2);
+}
+.snapshotDetails p {
+  margin: 0 0 8px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.snapshotLine {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+}
+.snapshotLine span {
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.snapshotLine em {
+  color: var(--color-ink);
+  font-size: 12px;
+  font-style: normal;
+}
+.snapshotTotals {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .panelActions { padding: 16px 20px; }

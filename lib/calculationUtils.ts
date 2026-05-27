@@ -971,6 +971,61 @@ export type BudgetStatus = {
   status: "not_set" | "within" | "near_limit" | "exceeded";
 };
 
+export type MemorialStatus = "not_discussed" | "not_needed" | "client_handles" | "agent_helps";
+
+export type MemorialData = {
+  status: MemorialStatus;
+  guestsCount?: number | null;
+  comment?: string;
+  includeCafeAssistance?: boolean;
+};
+
+export type ExternalExpenseCategory =
+  | "Морг"
+  | "Кладбище"
+  | "Крематорий"
+  | "Церковь / отпевание"
+  | "Демонтаж / подготовка места"
+  | "Документы"
+  | "Доставка"
+  | "Другое";
+
+export type ExternalExpense = {
+  id: string;
+  name: string;
+  category: ExternalExpenseCategory;
+  clientPrice: number;
+  costPrice: number;
+  comment?: string;
+  includeInClientTotal: boolean;
+  includeInMarginCalculation: boolean;
+};
+
+export type PublicExternalExpense = {
+  id: string;
+  name: string;
+  category: ExternalExpenseCategory;
+  clientPrice: number;
+  comment?: string;
+};
+
+export type EstimateSnapshot = {
+  id: string;
+  createdAt: string;
+  title: string;
+  items: EstimateItem[];
+  externalExpenses: ExternalExpense[];
+  memorialData: MemorialData;
+  orderClientTotal: number;
+  orderCostTotal: number;
+  orderMarginRub: number;
+  orderMarginPercent: number;
+  clientBudget?: number | null;
+  budgetRemaining?: number | null;
+  budgetExceeded?: boolean;
+  note?: string;
+};
+
 export type CatalogCategory =
   | "Гробы"
   | "Постель / комплект в гроб"
@@ -1002,7 +1057,7 @@ export type EstimateItem = {
   id: string;
   catalogItemId: string;
   name: string;
-  category: CatalogCategory;
+  category: CatalogCategory | "Поминки / кафе";
   description: string;
   imagePlaceholder: string;
   clientPrice: number;
@@ -1011,13 +1066,15 @@ export type EstimateItem = {
   selectedColor?: string;
   isRequired?: boolean;
   isRecommended?: boolean;
+  isOptional?: boolean;
+  source?: string;
   tags?: string[];
 };
 
 export type PublicEstimateItem = {
   id: string;
   name: string;
-  category: CatalogCategory;
+  category: CatalogCategory | "Поминки / кафе";
   description: string;
   imagePlaceholder: string;
   clientPrice: number;
@@ -1035,6 +1092,73 @@ export const CATALOG_CATEGORIES: CatalogCategory[] = [
   "Урны",
   "Дополнительные услуги",
 ];
+
+export const DEFAULT_MEMORIAL_DATA: MemorialData = {
+  status: "not_discussed",
+  guestsCount: null,
+  comment: "",
+  includeCafeAssistance: false,
+};
+
+export const EXTERNAL_EXPENSE_CATEGORIES: ExternalExpenseCategory[] = [
+  "Морг",
+  "Кладбище",
+  "Крематорий",
+  "Церковь / отпевание",
+  "Демонтаж / подготовка места",
+  "Документы",
+  "Доставка",
+  "Другое",
+];
+
+// Temporary mock external expense presets for agent prototype. Not real official prices.
+export const EXTERNAL_EXPENSE_PRESETS: Omit<ExternalExpense, "id" | "includeInClientTotal" | "includeInMarginCalculation">[] = [
+  {
+    name: "Подготовка тела в морге",
+    category: "Морг",
+    clientPrice: 30000,
+    costPrice: 30000,
+    comment: "Зависит от условий конкретного морга",
+  },
+  {
+    name: "Крематорий",
+    category: "Крематорий",
+    clientPrice: 35000,
+    costPrice: 35000,
+  },
+  {
+    name: "Отпевание",
+    category: "Церковь / отпевание",
+    clientPrice: 8000,
+    costPrice: 3000,
+  },
+  {
+    name: "Демонтаж на кладбище",
+    category: "Демонтаж / подготовка места",
+    clientPrice: 15000,
+    costPrice: 12000,
+  },
+  {
+    name: "Дополнительные расходы кладбища",
+    category: "Кладбище",
+    clientPrice: 50000,
+    costPrice: 50000,
+  },
+];
+
+const MEMORIAL_ASSISTANCE_ITEM: EstimateItem = {
+  id: "memorial:cafe-assistance",
+  catalogItemId: "memorial-cafe-assistance",
+  name: "Помощь с подбором кафе / поминок",
+  category: "Поминки / кафе",
+  description: "Подбор вариантов кафе и меню для семьи",
+  imagePlaceholder: "ПК",
+  clientPrice: 10000,
+  costPrice: 0,
+  quantity: 1,
+  isOptional: true,
+  source: "memorial_block",
+};
 
 // Temporary mock catalog data for agent attribution prototype. Not real supplier prices.
 export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
@@ -1388,6 +1512,104 @@ export function toPublicEstimateItems(items: EstimateItem[]): PublicEstimateItem
     quantity: item.quantity,
     selectedColor: item.selectedColor,
   }));
+}
+
+export function addMemorialAssistanceItem(items: EstimateItem[]): EstimateItem[] {
+  if (items.some((item) => item.id === MEMORIAL_ASSISTANCE_ITEM.id)) return items;
+  return [...items, { ...MEMORIAL_ASSISTANCE_ITEM }];
+}
+
+export function removeMemorialAssistanceItem(items: EstimateItem[]): EstimateItem[] {
+  return items.filter((item) => item.id !== MEMORIAL_ASSISTANCE_ITEM.id);
+}
+
+export function normalizeExternalExpenseToEstimateItem(expense: ExternalExpense): MarginItemInput {
+  return {
+    name: expense.name,
+    category: `Внешние расходы · ${expense.category}`,
+    clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+    costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
+    quantity: 1,
+  };
+}
+
+export function calculateExternalExpenseEconomics(expenses: ExternalExpense[]): OrderEconomics {
+  return calculateOrderEconomics(expenses.map(normalizeExternalExpenseToEstimateItem));
+}
+
+export function externalExpensesToMarginInputs(expenses: ExternalExpense[]): MarginItemInput[] {
+  return expenses.map(normalizeExternalExpenseToEstimateItem);
+}
+
+export function calculateExternalExpensesClientTotal(expenses: ExternalExpense[]): number {
+  return expenses.reduce(
+    (sum, expense) => sum + (expense.includeInClientTotal ? Math.max(0, toSafeNumber(expense.clientPrice)) : 0),
+    0,
+  );
+}
+
+export function toPublicExternalExpenses(expenses: ExternalExpense[]): PublicExternalExpense[] {
+  return expenses
+    .filter((expense) => expense.includeInClientTotal)
+    .map((expense) => ({
+      id: expense.id,
+      name: expense.name,
+      category: expense.category,
+      clientPrice: expense.clientPrice,
+      comment: expense.comment,
+    }));
+}
+
+export function createExternalExpense(
+  input: Partial<ExternalExpense> & Pick<ExternalExpense, "name" | "category">,
+): ExternalExpense {
+  return {
+    id: input.id ?? `external-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: input.name,
+    category: input.category,
+    clientPrice: Math.max(0, toSafeNumber(input.clientPrice)),
+    costPrice: Math.max(0, toSafeNumber(input.costPrice)),
+    comment: input.comment ?? "",
+    includeInClientTotal: input.includeInClientTotal ?? true,
+    includeInMarginCalculation: input.includeInMarginCalculation ?? true,
+  };
+}
+
+export function createEstimateSnapshot({
+  title,
+  note,
+  items,
+  externalExpenses,
+  memorialData,
+  economics,
+  clientBudget,
+  budgetStatus,
+}: {
+  title: string;
+  note?: string;
+  items: EstimateItem[];
+  externalExpenses: ExternalExpense[];
+  memorialData: MemorialData;
+  economics: OrderEconomics;
+  clientBudget?: number | null;
+  budgetStatus: BudgetStatus;
+}): EstimateSnapshot {
+  return {
+    id: `snapshot-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    title,
+    items: items.map((item) => ({ ...item })),
+    externalExpenses: externalExpenses.map((expense) => ({ ...expense })),
+    memorialData: { ...memorialData },
+    orderClientTotal: economics.orderClientTotal,
+    orderCostTotal: economics.orderCostTotal,
+    orderMarginRub: economics.orderMarginRub,
+    orderMarginPercent: economics.orderMarginPercent,
+    clientBudget,
+    budgetRemaining: budgetStatus.clientBudget ? budgetStatus.budgetRemaining : null,
+    budgetExceeded: budgetStatus.clientBudget ? budgetStatus.budgetExceeded : false,
+    note,
+  };
 }
 
 const DEFAULT_BASE_PRICE = 25000;
