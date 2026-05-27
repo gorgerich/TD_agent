@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Warning } from "@phosphor-icons/react";
 
 const inputCls =
-  "w-full rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent";
+  "min-h-12 w-full rounded-[16px] border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent";
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</label>
+      <label htmlFor={id} className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</label>
       {children}
       {hint && <p className="mt-1.5 text-[11.5px] text-ink-3">{hint}</p>}
     </div>
@@ -47,18 +47,18 @@ function FormInner() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[540px]">
-      <div className="space-y-5 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-7">
-        <Field label="ID лида" hint="Откройте раздел «Лиды», чтобы найти номер лида">
-          <input type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
+    <form onSubmit={handleSubmit} className="max-w-[620px] td-shell" aria-busy={loading}>
+      <div className="td-core space-y-5 p-5 sm:p-7">
+        <Field id="meeting-lead-id" label="ID лида" hint="Откройте раздел «Лиды», чтобы найти номер лида">
+          <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
         </Field>
 
-        <Field label="Дата и время встречи">
-          <input type="datetime-local" className={inputCls} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <Field id="meeting-scheduled-at" label="Дата и время встречи">
+          <input id="meeting-scheduled-at" type="datetime-local" className={inputCls} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
         </Field>
 
         {error && (
-          <p className="flex items-center gap-1.5 text-[13px] text-danger">
+          <p role="alert" className="flex items-center gap-1.5 text-[13px] text-danger">
             <Warning size={14} /> {error}
           </p>
         )}
@@ -66,7 +66,7 @@ function FormInner() {
         <button
           type="submit"
           disabled={loading || !leadId}
-          className="flex w-full items-center justify-center rounded-xl bg-accent py-3 text-[14.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
+          className="flex min-h-14 w-full items-center justify-center rounded-full bg-accent py-3 text-[14.5px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
         >
           {loading ? "Создаю…" : "Создать встречу"}
         </button>

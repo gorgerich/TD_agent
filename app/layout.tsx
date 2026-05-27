@@ -26,13 +26,17 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Тихий дом — кабинет агента",
+  description: "Кабинет агента Тихого дома: лиды, встречи, сметы и комиссии.",
   robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ru" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <a href="#main-content" className="skip-link">К основному содержимому</a>
+        {children}
+      </body>
     </html>
   );
 }

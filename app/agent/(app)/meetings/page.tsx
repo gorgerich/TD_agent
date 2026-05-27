@@ -50,15 +50,15 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
   const meetings = await getMeetings(session?.agentId ?? 0, status);
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-7 sm:px-7 sm:py-9">
+    <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">CRM</p>
-          <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">Встречи</h1>
+          <span className="td-eyebrow">CRM</span>
+          <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Встречи</h1>
         </div>
         <Link
           href="/agent/meetings/new"
-          className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+          className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новая встреча</span><span className="sm:hidden">Встреча</span>
         </Link>
@@ -72,8 +72,9 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
             <Link
               key={f.value}
               href={f.value ? `/agent/meetings?status=${f.value}` : "/agent/meetings"}
+              aria-current={active ? "page" : undefined}
               className={[
-                "flex-shrink-0 rounded-full border px-3.5 py-1.5 text-[12.5px] font-medium transition-colors",
+                "flex min-h-10 flex-shrink-0 items-center rounded-full border px-4 py-1.5 text-[12.5px] font-semibold transition-colors",
                 active
                   ? "border-accent bg-accent text-on-accent"
                   : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
@@ -85,12 +86,13 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         })}
       </div>
 
-      <div className="rise rise-2 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+      <div className="rise rise-2 td-shell overflow-hidden">
+        <div className="td-core overflow-hidden">
         {meetings.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <CalendarDots size={34} className="mx-auto mb-3 text-ink-3" />
+            <CalendarDots size={36} className="mx-auto mb-3 text-accent" />
             <p className="text-[13.5px] text-ink-2">
-              Встреч нет —{" "}
+              Встреч нет,{" "}
               <Link href="/agent/meetings/new" className="text-accent hover:text-accent-hover">назначить</Link>
             </p>
           </div>
@@ -129,7 +131,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
               </thead>
               <tbody>
                 {meetings.map((m) => (
-                  <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
+                  <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-accent-soft/55">
                     <td className="px-5 py-3.5">
                       <Link href={`/agent/meetings/${m.id}`} className="text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">
                         {m.lead.name}
@@ -143,7 +145,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       </span>
                     </td>
                     <td className="pr-4">
-                      <Link href={`/agent/meetings/${m.id}`} aria-label="Открыть встречу">
+                      <Link
+                        href={`/agent/meetings/${m.id}`}
+                        aria-label={`Открыть встречу: ${m.lead.name}`}
+                        className="grid h-10 w-10 place-items-center rounded-[10px] transition-colors hover:bg-accent-soft"
+                      >
                         <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
                       </Link>
                     </td>
@@ -153,6 +159,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
             </table>
           </>
         )}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CalendarDots, Users, CurrencyDollar, ArrowRight, Plus } from "@phosphor-icons/react/dist/ssr";
+import { CalendarDots, Users, ArrowRight, Plus } from "@phosphor-icons/react/dist/ssr";
+import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -78,17 +79,47 @@ export default async function DashboardPage() {
   const today = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
-    <div className="mx-auto max-w-[1180px] px-4 py-7 sm:px-7 sm:py-9">
-      {/* Header */}
-      <header className="rise mb-8">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{today}</p>
-        <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">
-          {greeting}{session?.name ? `, ${session.name.split(" ")[0]}` : ""}
-        </h1>
+    <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
+      <header className="rise mb-7 td-shell">
+        <div className="td-core overflow-hidden">
+          <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
+            <div>
+              <span className="td-eyebrow">{today}</span>
+              <h1 className="mt-5 max-w-[620px] font-serif text-[34px] leading-[1.06] text-ink sm:text-[44px]">
+                {greeting}{session?.name ? `, ${session.name.split(" ")[0]}` : ""}
+              </h1>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Встречи сегодня: {todayMeetings}</span>
+                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Лиды в работе: {activeLeads}</span>
+                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">К выплате: {formatMoney(accrued)}</span>
+              </div>
+            </div>
+            <div className="grid content-between gap-4 rounded-[20px] bg-accent px-5 py-5 text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-accent/58">Быстро</p>
+                <p className="mt-2 font-serif text-[24px] leading-tight">Новая работа</p>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                <Link
+                  href="/agent/leads/new"
+                  className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-on-accent px-4 py-2 text-[13px] font-semibold text-accent transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98]"
+                >
+                  <Plus size={16} weight="bold" /> Новый лид
+                </Link>
+                <Link
+                  href="/agent/meetings/new"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-on-accent/12 px-4 py-2 text-[13px] font-semibold text-on-accent ring-1 ring-on-accent/16 transition-colors hover:bg-on-accent/18"
+                >
+                  <CalendarDots size={16} /> Встреча
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
       </header>
 
       {/* Stats */}
-      <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+      <section className="rise rise-1 mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           icon={<CalendarDots size={18} weight="duotone" />}
           label="Встречи сегодня"
@@ -102,7 +133,7 @@ export default async function DashboardPage() {
           sub="без завершённой встречи"
         />
         <StatCard
-          icon={<CurrencyDollar size={18} weight="duotone" />}
+          icon={<CurrencyRub size={18} weight="duotone" />}
           label="К выплате"
           value={formatMoney(accrued)}
           sub="начислено, ожидает выплаты"
@@ -114,19 +145,19 @@ export default async function DashboardPage() {
       <section className="rise rise-2 mb-9 flex flex-wrap gap-2.5">
         <Link
           href="/agent/leads/new"
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <Plus size={16} weight="bold" /> Новый лид
         </Link>
         <Link
           href="/agent/meetings/new"
-          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-5 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface"
         >
           <CalendarDots size={16} /> Назначить встречу
         </Link>
         <Link
           href="/agent/leads"
-          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-5 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface"
         >
           <Users size={16} /> Все лиды
         </Link>
@@ -135,18 +166,19 @@ export default async function DashboardPage() {
       {/* Recent meetings */}
       <section className="rise rise-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Последние встречи</h2>
-          <Link href="/agent/meetings" className="inline-flex items-center gap-1 text-[12.5px] font-medium text-accent transition-colors hover:text-accent-hover">
+          <h2 className="td-eyebrow">Последние встречи</h2>
+          <Link href="/agent/meetings" className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-[12.5px] font-semibold text-accent transition-colors hover:bg-accent-soft hover:text-accent-hover">
             Все встречи <ArrowRight size={13} />
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+        <div className="td-shell overflow-hidden">
+          <div className="td-core overflow-hidden">
           {recentMeetings.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <CalendarDots size={30} className="mx-auto mb-3 text-ink-3" />
-              <p className="text-[13.5px] text-ink-2">
-                Встреч пока нет —{" "}
+              <CalendarDots size={34} className="mx-auto mb-3 text-accent" />
+              <p className="text-[14px] text-ink-2">
+                Встреч пока нет,{" "}
                 <Link href="/agent/meetings/new" className="text-accent hover:text-accent-hover">создайте первую</Link>
               </p>
             </div>
@@ -156,7 +188,7 @@ export default async function DashboardPage() {
               <ul className="divide-y divide-line sm:hidden">
                 {recentMeetings.map((m) => (
                   <li key={m.id}>
-                    <Link href={`/agent/meetings/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-3.5 transition-colors active:bg-surface-2">
+                    <Link href={`/agent/meetings/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-surface-2">
                       <span className="min-w-0">
                         <span className="block truncate text-[14px] font-medium text-ink">{m.lead.name}</span>
                         <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(m.scheduledAt)}</span>
@@ -179,7 +211,7 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody>
                   {recentMeetings.map((m) => (
-                    <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
+                    <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-accent-soft/55">
                       <td className="px-5 py-3.5">
                         <Link href={`/agent/meetings/${m.id}`} className="text-[14px] font-medium text-ink transition-colors group-hover:text-accent">
                           {m.lead.name}
@@ -188,7 +220,11 @@ export default async function DashboardPage() {
                       <td className="tnum px-4 py-3.5 text-[12.5px] text-ink-2">{formatDate(m.scheduledAt)}</td>
                       <td className="px-4 py-3.5"><StatusPill status={m.status} /></td>
                       <td className="pr-4">
-                        <Link href={`/agent/meetings/${m.id}`} aria-label="Открыть встречу">
+                        <Link
+                          href={`/agent/meetings/${m.id}`}
+                          aria-label={`Открыть встречу: ${m.lead.name}`}
+                          className="grid h-10 w-10 place-items-center rounded-[10px] transition-colors hover:bg-accent-soft"
+                        >
                           <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
                         </Link>
                       </td>
@@ -198,6 +234,7 @@ export default async function DashboardPage() {
               </table>
             </>
           )}
+          </div>
         </div>
       </section>
     </div>
@@ -207,13 +244,15 @@ export default async function DashboardPage() {
 function StatCard({ icon, label, value, sub, tone = "accent" }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: "accent" | "gold" }) {
   const chip = tone === "gold" ? "bg-gold-soft text-gold" : "bg-accent-soft text-accent";
   return (
-    <div className="u-sheen u-lift rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
-      <div className="mb-5 flex items-center gap-2.5">
-        <span className={`grid h-9 w-9 place-items-center rounded-[10px] ${chip}`}>{icon}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
+    <div className="td-shell u-lift">
+      <div className="td-core p-5">
+      <div className="mb-6 flex items-center justify-between gap-2.5">
+        <span className={`grid h-11 w-11 place-items-center rounded-[14px] ${chip}`}>{icon}</span>
+        <span className="text-right text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</span>
       </div>
-      <div className="tnum font-serif text-[34px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      <div className="tnum font-serif text-[40px] font-semibold leading-none text-ink">{value}</div>
       {sub && <p className="mt-2.5 text-[11.5px] text-ink-3">{sub}</p>}
+      </div>
     </div>
   );
 }

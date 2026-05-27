@@ -39,26 +39,27 @@ export default async function LeadsPage() {
   const leads = await getLeads(session?.agentId ?? 0);
 
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-7 sm:px-7 sm:py-9">
-      <header className="rise mb-8 flex items-end justify-between gap-4">
+    <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
+      <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">CRM</p>
-          <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">Лиды</h1>
+          <span className="td-eyebrow">CRM</span>
+          <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Лиды</h1>
         </div>
         <Link
           href="/agent/leads/new"
-          className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+          className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый лид</span><span className="sm:hidden">Лид</span>
         </Link>
       </header>
 
-      <div className="rise rise-1 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+      <div className="rise rise-1 td-shell overflow-hidden">
+        <div className="td-core overflow-hidden">
         {leads.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <Users size={34} className="mx-auto mb-3 text-ink-3" />
+            <Users size={36} className="mx-auto mb-3 text-accent" />
             <p className="text-[13.5px] text-ink-2">
-              Лидов пока нет —{" "}
+              Лидов пока нет,{" "}
               <Link href="/agent/leads/new" className="text-accent hover:text-accent-hover">добавьте первого</Link>
             </p>
           </div>
@@ -107,7 +108,7 @@ export default async function LeadsPage() {
                 {leads.map((lead) => {
                   const st = getStatus(lead.meetings);
                   return (
-                    <tr key={lead.id} className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
+                    <tr key={lead.id} className="group border-b border-line last:border-0 transition-colors hover:bg-accent-soft/55">
                       <td className="px-5 py-3.5">
                         <Link href={`/agent/leads/${lead.id}`} className="text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">
                           {lead.name}
@@ -128,7 +129,11 @@ export default async function LeadsPage() {
                       </td>
                       <td className="tnum px-5 py-3.5 text-right text-[12.5px] text-ink-3">{formatDate(lead.createdAt)}</td>
                       <td className="pr-4">
-                        <Link href={`/agent/leads/${lead.id}`} aria-label="Открыть лид">
+                        <Link
+                          href={`/agent/leads/${lead.id}`}
+                          aria-label={`Открыть лид: ${lead.name}`}
+                          className="grid h-10 w-10 place-items-center rounded-[10px] transition-colors hover:bg-accent-soft"
+                        >
                           <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
                         </Link>
                       </td>
@@ -139,6 +144,7 @@ export default async function LeadsPage() {
             </table>
           </>
         )}
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
-import { CurrencyDollar, TrendUp, CheckCircle } from "@phosphor-icons/react/dist/ssr";
+import { TrendUp, CheckCircle } from "@phosphor-icons/react/dist/ssr";
+import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -41,26 +42,27 @@ export default async function CommissionsPage() {
   const { commissions, payouts, accrued, approved, paid } = await getCommissions(session?.agentId ?? 0);
 
   return (
-    <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
+    <div className="td-page mx-auto max-w-[1040px] px-4 py-7 sm:px-7 sm:py-10">
       <header className="rise mb-8">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Финансы</p>
-        <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">Комиссии</h1>
+        <span className="td-eyebrow">Финансы</span>
+        <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Комиссии</h1>
       </header>
 
       {/* Summary */}
       <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <SumCard icon={<CurrencyDollar size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" tone="gold" />
+        <SumCard icon={<CurrencyRub size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" tone="gold" />
         <SumCard icon={<TrendUp size={18} weight="duotone" />} label="Ожидает" value={money(accrued)} sub="ожидает подтверждения" />
         <SumCard icon={<CheckCircle size={18} weight="duotone" />} label="Выплачено" value={money(paid)} sub="за всё время" />
       </section>
 
       {/* Commission history */}
       <section className="rise rise-2 mb-7">
-        <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">История начислений</p>
-        <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+        <p className="mb-3 td-eyebrow">История начислений</p>
+        <div className="td-shell overflow-hidden">
+          <div className="td-core overflow-hidden">
           {commissions.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <CurrencyDollar size={30} className="mx-auto mb-2 text-ink-3" />
+              <CurrencyRub size={30} className="mx-auto mb-2 text-ink-3" />
               <p className="text-[13px] text-ink-2">Начислений пока нет</p>
             </div>
           ) : (
@@ -82,14 +84,16 @@ export default async function CommissionsPage() {
               ))}
             </ul>
           )}
+          </div>
         </div>
       </section>
 
       {/* Payouts */}
       {payouts.length > 0 && (
         <section className="rise rise-3">
-          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Выплаты</p>
-          <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
+          <p className="mb-3 td-eyebrow">Выплаты</p>
+          <div className="td-shell overflow-hidden">
+            <div className="td-core overflow-hidden">
             <ul className="divide-y divide-line">
               {payouts.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
@@ -101,6 +105,7 @@ export default async function CommissionsPage() {
                 </li>
               ))}
             </ul>
+            </div>
           </div>
         </section>
       )}
@@ -111,13 +116,15 @@ export default async function CommissionsPage() {
 function SumCard({ icon, label, value, sub, tone = "accent" }: { icon: React.ReactNode; label: string; value: string; sub: string; tone?: "accent" | "gold" }) {
   const chip = tone === "gold" ? "bg-gold-soft text-gold" : "bg-accent-soft text-accent";
   return (
-    <div className="u-sheen u-lift rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft">
-      <div className="mb-5 flex items-center gap-2.5">
-        <span className={`grid h-9 w-9 place-items-center rounded-[10px] ${chip}`}>{icon}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
+    <div className="td-shell u-lift">
+      <div className="td-core p-5">
+      <div className="mb-5 flex items-center justify-between gap-2.5">
+        <span className={`grid h-11 w-11 place-items-center rounded-[14px] ${chip}`}>{icon}</span>
+        <span className="text-right text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</span>
       </div>
-      <div className="tnum mb-2 font-serif text-[26px] font-semibold leading-none tracking-tight text-ink">{value}</div>
+      <div className="tnum mb-2 font-serif text-[30px] font-semibold leading-none text-ink">{value}</div>
       <p className="text-[11.5px] text-ink-3">{sub}</p>
+      </div>
     </div>
   );
 }

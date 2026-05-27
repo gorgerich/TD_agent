@@ -31,7 +31,7 @@ datasource db {
 
 model User {
   id     Int     @id @default(autoincrement())
-  email  String  @unique
+  email  String? @unique // B2C DB allows null emails; keep nullable so db push can apply B2B tables.
   name   String?
   phone  String? @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
   orders Order[]
