@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   calculateOrder,
   calculateEstimateItemsTotal,
@@ -11,17 +11,14 @@ import {
   type PublicEstimateItem,
   type PublicExternalExpense,
 } from "@/lib/calculationUtils";
-import { DEFAULT_ATTRIBUTES, attributesTotal, normalizeSelection, type AttrSelection } from "@/lib/attributes";
+import { DEFAULT_ATTRIBUTES, normalizeSelection, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
-import AttributePicker from "@/components/AttributePicker";
 
 function formatTime(ts: number) {
   return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 }
 
 export default function CoView({ code }: { code: string }) {
-  const [form, setForm] = useState<FormData | null>(null);
-  const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [estimateItems, setEstimateItems] = useState<PublicEstimateItem[]>([]);
   const [externalExpenses, setExternalExpenses] = useState<PublicExternalExpense[]>([]);
@@ -29,7 +26,6 @@ export default function CoView({ code }: { code: string }) {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
 
-  const suppressUntil = useRef(0);
   const attrJson = JSON.stringify(attributes);
 
   useEffect(() => {
@@ -46,8 +42,6 @@ export default function CoView({ code }: { code: string }) {
 
         // форма и расчёт — ведёт агент
         if (state.form) {
-          setForm(state.form as FormData);
-          setCemeteryCategory(state.cemeteryCategory ?? "standard");
           setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
         }
         if (Array.isArray(state.estimateItems)) {
@@ -56,8 +50,8 @@ export default function CoView({ code }: { code: string }) {
         if (Array.isArray(state.externalExpenses)) {
           setExternalExpenses(state.externalExpenses as PublicExternalExpense[]);
         }
-        // атрибутику может менять и клиент — не перетираем свежую локальную правку
-        if (state.attributes && Date.now() > suppressUntil.current) {
+        // Старый attributes payload читаем только как совместимый fallback для render-компонента.
+        if (state.attributes) {
           const norm = normalizeSelection(state.attributes);
           if (JSON.stringify(norm) !== attrJson) setAttributes(norm);
         }
@@ -68,20 +62,9 @@ export default function CoView({ code }: { code: string }) {
     return () => { alive = false; clearInterval(id); };
   }, [code, attrJson]);
 
-  function updateAttributes(next: AttrSelection) {
-    suppressUntil.current = Date.now() + 2500;
-    setAttributes(next);
-    fetch(`/api/co/${code}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attributes: next }),
-    }).catch(() => {});
-  }
-
-  const attrTotal = attributesTotal(attributes);
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
   const externalTotal = externalExpenses.reduce((sum, expense) => sum + expense.clientPrice, 0);
-  const grandTotal = (result?.total ?? 0) + attrTotal + estimateTotal + externalTotal;
+  const grandTotal = (result?.total ?? 0) + estimateTotal + externalTotal;
   const sections = result?.sections.filter((s) => s.total > 0) ?? [];
 
   if (!started) {
@@ -122,7 +105,7 @@ export default function CoView({ code }: { code: string }) {
       </div>
 
       {/* Что входит (ведёт агент) */}
-      {(sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0 || attrTotal > 0) && (
+      {(sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0) && (
         <section className="mt-6">
           <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
@@ -158,12 +141,6 @@ export default function CoView({ code }: { code: string }) {
                 ))}
               </div>
             )}
-            {attrTotal > 0 && (
-              <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-3">
-                <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Оформление</span>
-                <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(attrTotal)}</span>
-              </div>
-            )}
             {externalExpenses.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
@@ -181,13 +158,6 @@ export default function CoView({ code }: { code: string }) {
           </div>
         </section>
       )}
-
-      {/* Выбор оформления — клиент может менять сам */}
-      <section className="mt-7">
-        <h2 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Оформление</h2>
-        <p className="mb-4 text-[13px] text-ink-2">Выбирайте сами или вместе с агентом — рендер и сумма обновятся у вас обоих.</p>
-        <AttributePicker selection={attributes} onChange={updateAttributes} />
-      </section>
 
       <p className="mt-8 text-center text-[12px] text-ink-3">Обновляется автоматически · код {code}</p>
     </div>

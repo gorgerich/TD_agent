@@ -46,8 +46,7 @@ import {
   MO_CEMETERIES,
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
-import { DEFAULT_ATTRIBUTES, attributesTotal, selectedAttributeMarginItems, type AttrSelection } from "@/lib/attributes";
-import AttributePicker from "@/components/AttributePicker";
+import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
@@ -84,7 +83,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [clientEdited, setClientEdited] = useState(false);
   const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
   const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
@@ -103,10 +101,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
     [form, cemeteryCategory],
   );
-  const attrTotal = useMemo(() => attributesTotal(attributes), [attributes]);
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
-  const grandTotal = result.total + attrTotal + estimateTotal + externalTotal;
+  const grandTotal = result.total + estimateTotal + externalTotal;
   const filteredCatalogItems = useMemo(
     () =>
       catalogCategory === "Все"
@@ -143,11 +140,10 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
     return [
       ...sectionItems,
-      ...selectedAttributeMarginItems(attributes),
       ...estimateItemsToMarginInputs(estimateItems),
       ...externalExpensesToMarginInputs(externalExpenses),
     ];
-  }, [result.sections, attributes, estimateItems, externalExpenses]);
+  }, [result.sections, estimateItems, externalExpenses]);
   const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
   const budgetStatus = useMemo(
     () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
@@ -191,9 +187,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           ...MO_CEMETERIES,
         ];
 
-  // Co-work sync. Окно подавления: после локальной правки не перетираем её
-  // тем, что вернёт опрос (избегаем гонки push↔poll), сравнение по содержимому.
-  const suppressUntil = useRef(0);
+  // Co-work sync: атрибутика теперь ведётся через сметные позиции, старый
+  // attributes payload сохраняем только для совместимости с ранними сессиями.
   const attrJson = JSON.stringify(attributes);
 
   // Push: общее состояние (форма + атрибутика) через 400мс после изменения.
@@ -216,7 +211,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [form, cemeteryCategory, attributes, estimateItems, externalExpenses, meetingId]);
 
-  // Poll: подхватываем правки атрибутики, сделанные клиентом на своём экране.
+  // Poll: оставлен только для совместимости со старыми co-view сессиями.
   useEffect(() => {
     const id = setInterval(async () => {
       try {
@@ -225,21 +220,13 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         const data = await res.json();
         const remote = data?.state?.attributes;
         if (!remote) return;
-        if (Date.now() < suppressUntil.current) return;
         if (JSON.stringify(remote) !== attrJson) {
           setAttributes(remote);
-          setClientEdited(true);
-          setTimeout(() => setClientEdited(false), 2500);
         }
       } catch { /* ignore */ }
     }, 2500);
     return () => clearInterval(id);
   }, [meetingId, attrJson]);
-
-  function updateAttributes(next: AttrSelection) {
-    suppressUntil.current = Date.now() + 2000;
-    setAttributes(next);
-  }
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -677,8 +664,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           <div className={s.card}>
             <div className={s.catalogIntro}>
               <div>
-                <p className={s.cardTitle}>Каталог атрибутики</p>
-                <p className={s.catalogSubtitle}>Выберите позиции, которые нужно добавить в смету.</p>
+                <p className={s.cardTitle}>Атрибутика</p>
+                <p className={s.catalogSubtitle}>Единый каталог для сметы и предпросмотра комплекта.</p>
               </div>
               <span className={s.catalogCount}>{filteredCatalogItems.length}</span>
             </div>
@@ -727,15 +714,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             onRemove={removeExternalExpense}
             onUpdate={updateExternalExpense}
           />
-
-          {/* Атрибутика */}
-          <div className={s.card}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
-              <p className={s.cardTitle} style={{ margin: 0 }}>Атрибутика</p>
-              {clientEdited && <span className={s.clientPing}>клиент изменил</span>}
-            </div>
-            <AttributePicker selection={attributes} onChange={updateAttributes} />
-          </div>
 
         </div>
 
@@ -840,15 +818,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                     ))}
                   </div>
                 ))
-              )}
-
-              {attrTotal > 0 && (
-                <div className={s.panelSection}>
-                  <div className={s.panelSectionHead}>
-                    <span>Оформление</span>
-                    <span className={s.panelSectionAmt}>{formatCurrency(attrTotal)}</span>
-                  </div>
-                </div>
               )}
             </div>
 
