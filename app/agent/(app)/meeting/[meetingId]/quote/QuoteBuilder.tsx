@@ -744,7 +744,13 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           <div className={s.panelCard}>
             {/* Рендер сцены — то же, что видит клиент */}
             <div className={s.renderWrap}>
-              <AttributeRender selection={attributes} className={s.renderSvg} />
+              <div className={s.renderHead}>
+                <div>
+                  <span className={s.renderTitle}>Предпросмотр комплекта</span>
+                  <span className={s.renderSubtitle}>Визуализация обновляется при выборе атрибутики.</span>
+                </div>
+              </div>
+              <AttributeRender selection={attributes} selectedItems={estimateItems} className={s.renderSvg} />
             </div>
 
             <div className={s.panelHead}>

@@ -105,7 +105,11 @@ export default function CoView({ code }: { code: string }) {
     <div className="mx-auto max-w-[680px]">
       {/* Рендер сцены */}
       <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
-        <AttributeRender selection={attributes} className="block h-auto w-full" />
+        <div className="px-4 pt-4">
+          <div className="text-[13px] font-semibold text-ink">Предпросмотр комплекта</div>
+          <div className="mt-1 text-[12px] leading-snug text-ink-3">Визуализация обновляется при выборе атрибутики.</div>
+        </div>
+        <AttributeRender selection={attributes} selectedItems={estimateItems} className="block h-auto w-full" />
       </div>
 
       {/* Итог */}

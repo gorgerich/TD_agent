@@ -1094,11 +1094,35 @@
 
 /* Рендер сцены в панели */
 .renderWrap {
-  background: linear-gradient(180deg, var(--color-surface-2), var(--color-surface));
+  background: var(--color-surface);
   border-bottom: 1px solid var(--color-line);
-  padding: 8px 10px 4px;
+  padding: 12px 14px 10px;
 }
-.renderSvg { display: block; width: 100%; height: auto; }
+.renderHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.renderTitle {
+  display: block;
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.renderSubtitle {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-ink-3);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.renderSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
 
 /* Индикатор правки клиента */
 .clientPing {
