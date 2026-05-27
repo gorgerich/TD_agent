@@ -38,7 +38,6 @@ import {
   PACKAGES,
   ADDITIONAL_SERVICES,
   AGENT_ATTRIBUTION_CATALOG,
-  CATALOG_CATEGORIES,
   DEFAULT_MEMORIAL_DATA,
   EXTERNAL_EXPENSE_CATEGORIES,
   EXTERNAL_EXPENSE_PRESETS,
@@ -71,6 +70,14 @@ const DEFAULT_FORM: FormData = {
   cemetery: "",
   clientBudget: null,
 };
+
+const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
+  "Гробы",
+  "Постель / комплект в гроб",
+  "Венки",
+  "Кресты / таблички",
+  "Урны",
+];
 
 /* ─── Main component ─────────────────────────────────────────────────── */
 
@@ -105,10 +112,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
   const grandTotal = result.total + estimateTotal + externalTotal;
   const filteredCatalogItems = useMemo(
-    () =>
-      catalogCategory === "Все"
-        ? AGENT_ATTRIBUTION_CATALOG
-        : AGENT_ATTRIBUTION_CATALOG.filter((item) => item.category === catalogCategory),
+    () => {
+      const attributionItems = AGENT_ATTRIBUTION_CATALOG.filter((item) => ATTRIBUTION_CATEGORIES.includes(item.category));
+      return catalogCategory === "Все"
+        ? attributionItems
+        : attributionItems.filter((item) => item.category === catalogCategory);
+    },
     [catalogCategory],
   );
   const marginItems = useMemo<MarginItemInput[]>(() => {
@@ -665,13 +674,13 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             <div className={s.catalogIntro}>
               <div>
                 <p className={s.cardTitle}>Атрибутика</p>
-                <p className={s.catalogSubtitle}>Единый каталог для сметы и предпросмотра комплекта.</p>
+                <p className={s.catalogSubtitle}>Предметы комплекта: гроб, постель, венки, кресты, таблички и урны.</p>
               </div>
               <span className={s.catalogCount}>{filteredCatalogItems.length}</span>
             </div>
 
             <div className={s.categoryRail} aria-label="Категории каталога">
-              {(["Все", ...CATALOG_CATEGORIES] as Array<CatalogCategory | "Все">).map((category) => (
+              {(["Все", ...ATTRIBUTION_CATEGORIES] as Array<CatalogCategory | "Все">).map((category) => (
                 <button
                   key={category}
                   type="button"
@@ -739,10 +748,35 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
 
             <div className={s.panelSections}>
+              {result.sections.length === 0 ? (
+                <div className={s.panelEmpty}>
+                  Выберите услуги слева — смета появится здесь
+                </div>
+              ) : (
+                result.sections.map((section: CalculationSection) => (
+                  <div key={section.title} className={s.panelSection}>
+                    <div className={s.panelSectionHead}>
+                      <span>{section.title}</span>
+                      <span className={s.panelSectionAmt}>{formatCurrency(section.total)}</span>
+                    </div>
+                    {section.items?.map((item) => (
+                      <div key={item.label} className={s.panelItem}>
+                        <span>{item.label}</span>
+                        {item.price != null ? (
+                          <span>{formatCurrency(item.price)}</span>
+                        ) : (
+                          <span className={s.panelItemIncluded}>включено</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+
               {estimateItems.length > 0 && (
                 <div className={s.panelSection}>
                   <div className={s.panelSectionHead}>
-                    <span>Позиции каталога</span>
+                    <span>Атрибутика</span>
                     <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
                   </div>
                   <div className={s.estimateList}>
@@ -793,31 +827,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                     })}
                   </div>
                 </div>
-              )}
-
-              {result.sections.length === 0 ? (
-                <div className={s.panelEmpty}>
-                  Выберите услуги слева — смета появится здесь
-                </div>
-              ) : (
-                result.sections.map((section: CalculationSection) => (
-                  <div key={section.title} className={s.panelSection}>
-                    <div className={s.panelSectionHead}>
-                      <span>{section.title}</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(section.total)}</span>
-                    </div>
-                    {section.items?.map((item) => (
-                      <div key={item.label} className={s.panelItem}>
-                        <span>{item.label}</span>
-                        {item.price != null ? (
-                          <span>{formatCurrency(item.price)}</span>
-                        ) : (
-                          <span className={s.panelItemIncluded}>включено</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))
               )}
             </div>
 

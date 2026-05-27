@@ -126,7 +126,7 @@ export default function CoView({ code }: { code: string }) {
             {estimateItems.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Позиции каталога</span>
+                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Атрибутика</span>
                   <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(estimateTotal)}</span>
                 </div>
                 {estimateItems.map((item) => (
