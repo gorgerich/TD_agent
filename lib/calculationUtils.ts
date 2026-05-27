@@ -971,6 +971,269 @@ export type BudgetStatus = {
   status: "not_set" | "within" | "near_limit" | "exceeded";
 };
 
+export type CatalogCategory =
+  | "Гробы"
+  | "Постель / комплект в гроб"
+  | "Венки"
+  | "Кресты / таблички"
+  | "Транспорт"
+  | "Бригада / грузчики"
+  | "Урны"
+  | "Дополнительные услуги";
+
+export type CatalogItem = {
+  id: string;
+  name: string;
+  category: CatalogCategory;
+  description: string;
+  imageUrl?: string | null;
+  imagePlaceholder: string;
+  clientPrice: number;
+  costPrice: number;
+  quantityDefault: number;
+  availableColors?: string[];
+  selectedColor?: string;
+  isRequired?: boolean;
+  isRecommended?: boolean;
+  tags?: string[];
+};
+
+export type EstimateItem = {
+  id: string;
+  catalogItemId: string;
+  name: string;
+  category: CatalogCategory;
+  description: string;
+  imagePlaceholder: string;
+  clientPrice: number;
+  costPrice: number;
+  quantity: number;
+  selectedColor?: string;
+  isRequired?: boolean;
+  isRecommended?: boolean;
+  tags?: string[];
+};
+
+export type PublicEstimateItem = {
+  id: string;
+  name: string;
+  category: CatalogCategory;
+  description: string;
+  imagePlaceholder: string;
+  clientPrice: number;
+  quantity: number;
+  selectedColor?: string;
+};
+
+export const CATALOG_CATEGORIES: CatalogCategory[] = [
+  "Гробы",
+  "Постель / комплект в гроб",
+  "Венки",
+  "Кресты / таблички",
+  "Транспорт",
+  "Бригада / грузчики",
+  "Урны",
+  "Дополнительные услуги",
+];
+
+// Temporary mock catalog data for agent attribution prototype. Not real supplier prices.
+export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
+  {
+    id: "coffin-fabric-standard",
+    name: "Гроб тканевый стандартный",
+    category: "Гробы",
+    description: "Бюджетный вариант с тканевой обивкой",
+    imagePlaceholder: "ГТ",
+    clientPrice: 18000,
+    costPrice: 9000,
+    quantityDefault: 1,
+    availableColors: ["синий", "бордовый", "белый", "чёрный"],
+    isRecommended: true,
+    tags: ["атрибутика", "бюджет"],
+  },
+  {
+    id: "coffin-lacquered",
+    name: "Гроб лакированный",
+    category: "Гробы",
+    description: "Классический деревянный гроб с лаковым покрытием",
+    imagePlaceholder: "ГЛ",
+    clientPrice: 35000,
+    costPrice: 17000,
+    quantityDefault: 1,
+    availableColors: ["тёмный орех", "светлый орех", "вишня"],
+    tags: ["атрибутика"],
+  },
+  {
+    id: "coffin-premium-lacquered",
+    name: "Гроб премиальный лакированный",
+    category: "Гробы",
+    description: "Премиальная лакированная модель для расширенной сметы",
+    imagePlaceholder: "ГП",
+    clientPrice: 65000,
+    costPrice: 36000,
+    quantityDefault: 1,
+    availableColors: ["тёмный орех", "махагон"],
+    tags: ["премиум"],
+  },
+  {
+    id: "lining-standard",
+    name: "Комплект в гроб стандартный",
+    category: "Постель / комплект в гроб",
+    description: "Базовый комплект постели и покрывала",
+    imagePlaceholder: "КС",
+    clientPrice: 5000,
+    costPrice: 2500,
+    quantityDefault: 1,
+    isRequired: true,
+  },
+  {
+    id: "lining-improved",
+    name: "Комплект в гроб улучшенный",
+    category: "Постель / комплект в гроб",
+    description: "Улучшенная ткань и аккуратная отделка",
+    imagePlaceholder: "КУ",
+    clientPrice: 9000,
+    costPrice: 4500,
+    quantityDefault: 1,
+    isRecommended: true,
+  },
+  {
+    id: "wreath-standard",
+    name: "Венок стандартный",
+    category: "Венки",
+    description: "Классический венок с траурной лентой",
+    imagePlaceholder: "ВС",
+    clientPrice: 7000,
+    costPrice: 2500,
+    quantityDefault: 1,
+    isRecommended: true,
+  },
+  {
+    id: "wreath-improved",
+    name: "Венок улучшенный",
+    category: "Венки",
+    description: "Более плотная композиция с расширенным набором цветов",
+    imagePlaceholder: "ВУ",
+    clientPrice: 12000,
+    costPrice: 4500,
+    quantityDefault: 1,
+  },
+  {
+    id: "flower-basket",
+    name: "Корзина цветов",
+    category: "Венки",
+    description: "Небольшая цветочная корзина для церемонии",
+    imagePlaceholder: "КЦ",
+    clientPrice: 9000,
+    costPrice: 3500,
+    quantityDefault: 1,
+  },
+  {
+    id: "cross-wood-catalog",
+    name: "Крест деревянный",
+    category: "Кресты / таблички",
+    description: "Временный деревянный крест",
+    imagePlaceholder: "КР",
+    clientPrice: 6000,
+    costPrice: 3000,
+    quantityDefault: 1,
+  },
+  {
+    id: "nameplate",
+    name: "Табличка",
+    category: "Кресты / таблички",
+    description: "Временная табличка с данными",
+    imagePlaceholder: "ТБ",
+    clientPrice: 2500,
+    costPrice: 1000,
+    quantityDefault: 1,
+  },
+  {
+    id: "hearse-catalog",
+    name: "Катафалк",
+    category: "Транспорт",
+    description: "Транспорт для сопровождения церемонии",
+    imagePlaceholder: "КТ",
+    clientPrice: 18000,
+    costPrice: 12000,
+    quantityDefault: 1,
+    isRequired: true,
+  },
+  {
+    id: "family-bus",
+    name: "Автобус для родственников",
+    category: "Транспорт",
+    description: "Транспорт для близких на день церемонии",
+    imagePlaceholder: "АВ",
+    clientPrice: 15000,
+    costPrice: 10000,
+    quantityDefault: 1,
+  },
+  {
+    id: "support-crew",
+    name: "Бригада сопровождения",
+    category: "Бригада / грузчики",
+    description: "Команда для переноса и сопровождения",
+    imagePlaceholder: "БС",
+    clientPrice: 12000,
+    costPrice: 8000,
+    quantityDefault: 1,
+    isRecommended: true,
+  },
+  {
+    id: "urn-standard",
+    name: "Урна стандартная",
+    category: "Урны",
+    description: "Базовая урна для кремации",
+    imagePlaceholder: "УС",
+    clientPrice: 6000,
+    costPrice: 2500,
+    quantityDefault: 1,
+  },
+  {
+    id: "urn-improved",
+    name: "Урна улучшенная",
+    category: "Урны",
+    description: "Улучшенная урна с более плотным материалом",
+    imagePlaceholder: "УУ",
+    clientPrice: 12000,
+    costPrice: 5000,
+    quantityDefault: 1,
+  },
+  {
+    id: "cafe-help",
+    name: "Помощь с кафе / поминками",
+    category: "Дополнительные услуги",
+    description: "Координация кафе и поминального обеда",
+    imagePlaceholder: "ПМ",
+    clientPrice: 10000,
+    costPrice: 0,
+    quantityDefault: 1,
+    tags: ["сервис"],
+  },
+  {
+    id: "church-ceremony",
+    name: "Организация отпевания",
+    category: "Дополнительные услуги",
+    description: "Организация отпевания и согласование времени",
+    imagePlaceholder: "ОТ",
+    clientPrice: 8000,
+    costPrice: 3000,
+    quantityDefault: 1,
+  },
+  {
+    id: "agent-services",
+    name: "Услуги агента",
+    category: "Дополнительные услуги",
+    description: "Сопровождение семьи агентом",
+    imagePlaceholder: "АГ",
+    clientPrice: 32000,
+    costPrice: 0,
+    quantityDefault: 1,
+    isRecommended: true,
+  },
+];
+
 const toSafeNumber = (value: unknown) => {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
@@ -1038,6 +1301,93 @@ export function calculateBudgetStatus(orderClientTotal: number, clientBudget?: n
     budgetUsagePercent,
     status: budgetExceeded ? "exceeded" : budgetUsagePercent > 90 ? "near_limit" : "within",
   };
+}
+
+export function normalizeCatalogItemToEstimateItem(
+  item: CatalogItem,
+  selectedColor?: string,
+): EstimateItem {
+  const color = selectedColor && item.availableColors?.includes(selectedColor) ? selectedColor : item.availableColors?.[0];
+
+  return {
+    id: color ? `${item.id}:${color}` : item.id,
+    catalogItemId: item.id,
+    name: item.name,
+    category: item.category,
+    description: item.description,
+    imagePlaceholder: item.imagePlaceholder,
+    clientPrice: Math.max(0, toSafeNumber(item.clientPrice)),
+    costPrice: Math.max(0, toSafeNumber(item.costPrice)),
+    quantity: Math.max(1, toSafeNumber(item.quantityDefault || 1)),
+    selectedColor: color,
+    isRequired: item.isRequired,
+    isRecommended: item.isRecommended,
+    tags: item.tags,
+  };
+}
+
+export function addCatalogItemToEstimate(
+  items: EstimateItem[],
+  catalogItem: CatalogItem,
+  selectedColor?: string,
+): EstimateItem[] {
+  const nextItem = normalizeCatalogItemToEstimateItem(catalogItem, selectedColor);
+  const existing = items.find((item) => item.id === nextItem.id);
+  if (!existing) return [...items, nextItem];
+
+  return items.map((item) =>
+    item.id === nextItem.id ? { ...item, quantity: item.quantity + nextItem.quantity } : item,
+  );
+}
+
+export function updateEstimateItemQuantity(
+  items: EstimateItem[],
+  id: string,
+  quantity: number,
+): EstimateItem[] {
+  const safeQuantity = Math.floor(toSafeNumber(quantity));
+  if (safeQuantity <= 0) return removeEstimateItem(items, id);
+  return items.map((item) => (item.id === id ? { ...item, quantity: safeQuantity } : item));
+}
+
+export function removeEstimateItem(items: EstimateItem[], id: string): EstimateItem[] {
+  return items.filter((item) => item.id !== id);
+}
+
+export function updateEstimateItemClientPrice(
+  items: EstimateItem[],
+  id: string,
+  clientPrice: number,
+): EstimateItem[] {
+  const safePrice = Math.max(0, toSafeNumber(clientPrice));
+  return items.map((item) => (item.id === id ? { ...item, clientPrice: safePrice } : item));
+}
+
+export function estimateItemsToMarginInputs(items: EstimateItem[]): MarginItemInput[] {
+  return items.map((item) => ({
+    name: item.selectedColor ? `${item.name} — цвет: ${item.selectedColor}` : item.name,
+    category: item.category,
+    clientPrice: item.clientPrice,
+    costPrice: item.costPrice,
+    quantity: item.quantity,
+  }));
+}
+
+export function calculateEstimateItemsTotal(items: Array<Pick<EstimateItem, "clientPrice" | "quantity">>): number {
+  return items.reduce((sum, item) => sum + Math.max(0, toSafeNumber(item.clientPrice)) * Math.max(1, toSafeNumber(item.quantity || 1)), 0);
+}
+
+export function toPublicEstimateItems(items: EstimateItem[]): PublicEstimateItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    description: item.description,
+    imagePlaceholder: item.imagePlaceholder,
+    clientPrice: item.clientPrice,
+    quantity: item.quantity,
+    selectedColor: item.selectedColor,
+  }));
 }
 
 const DEFAULT_BASE_PRICE = 25000;

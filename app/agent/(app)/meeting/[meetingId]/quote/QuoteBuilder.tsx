@@ -8,13 +8,25 @@ import {
   type CalculationSection,
   type MarginItemInput,
   type ItemMargin,
+  type CatalogCategory,
+  type CatalogItem,
+  type EstimateItem,
   calculateOrder,
   calculateOrderEconomics,
   calculateBudgetStatus,
+  calculateEstimateItemsTotal,
+  addCatalogItemToEstimate,
+  updateEstimateItemQuantity,
+  removeEstimateItem,
+  updateEstimateItemClientPrice,
+  estimateItemsToMarginInputs,
+  toPublicEstimateItems,
   formatCurrency,
   PRICES,
   PACKAGES,
   ADDITIONAL_SERVICES,
+  AGENT_ATTRIBUTION_CATALOG,
+  CATALOG_CATEGORIES,
   MOSCOW_CEMETERIES,
   MO_CEMETERIES,
   DEFAULT_CALCULATOR_CONFIG,
@@ -58,13 +70,24 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [clientEdited, setClientEdited] = useState(false);
+  const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
+  const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
+  const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
 
   const result = useMemo(
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
     [form, cemeteryCategory],
   );
   const attrTotal = useMemo(() => attributesTotal(attributes), [attributes]);
-  const grandTotal = result.total + attrTotal;
+  const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
+  const grandTotal = result.total + attrTotal + estimateTotal;
+  const filteredCatalogItems = useMemo(
+    () =>
+      catalogCategory === "Все"
+        ? AGENT_ATTRIBUTION_CATALOG
+        : AGENT_ATTRIBUTION_CATALOG.filter((item) => item.category === catalogCategory),
+    [catalogCategory],
+  );
   const marginItems = useMemo<MarginItemInput[]>(() => {
     const sectionItems = result.sections.flatMap((section) => {
       const pricedItems =
@@ -92,19 +115,30 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       ];
     });
 
-    return [...sectionItems, ...selectedAttributeMarginItems(attributes)];
-  }, [result.sections, attributes]);
+    return [
+      ...sectionItems,
+      ...selectedAttributeMarginItems(attributes),
+      ...estimateItemsToMarginInputs(estimateItems),
+    ];
+  }, [result.sections, attributes, estimateItems]);
   const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
   const budgetStatus = useMemo(
     () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
     [economics.orderClientTotal, form.clientBudget],
   );
+  const itemMarginAlert = useMemo(() => {
+    const worstMarginPercent = Math.min(...economics.items.map((item) => item.marginPercent), Number.POSITIVE_INFINITY);
+    if (economics.items.some((item) => item.marginRub < 0)) return "negative";
+    if (worstMarginPercent < 5) return "critical";
+    if (worstMarginPercent < 15) return "low";
+    return null;
+  }, [economics.items]);
   const marginWarning =
-    economics.orderMarginRub < 0
+    economics.orderMarginRub < 0 || itemMarginAlert === "negative"
       ? "Внимание: цена ниже себестоимости"
-      : economics.orderMarginPercent < 5
+      : economics.orderMarginPercent < 5 || itemMarginAlert === "critical"
         ? "Критически низкая маржа: сделка почти без прибыли"
-        : economics.orderMarginPercent < 15
+        : economics.orderMarginPercent < 15 || itemMarginAlert === "low"
           ? "Низкая маржа: проверьте цену или себестоимость"
           : null;
   const budgetMessage =
@@ -143,11 +177,16 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       fetch(`/api/agent/meeting/${meetingId}/session`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form, cemeteryCategory, attributes }),
+        body: JSON.stringify({
+          form,
+          cemeteryCategory,
+          attributes,
+          estimateItems: toPublicEstimateItems(estimateItems),
+        }),
       }).catch(() => {});
     }, 400);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [form, cemeteryCategory, attributes, meetingId]);
+  }, [form, cemeteryCategory, attributes, estimateItems, meetingId]);
 
   // Poll: подхватываем правки атрибутики, сделанные клиентом на своём экране.
   useEffect(() => {
@@ -192,6 +231,31 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
     }));
   }
 
+  function getSelectedCatalogColor(item: CatalogItem) {
+    return catalogColors[item.id] ?? item.selectedColor ?? item.availableColors?.[0];
+  }
+
+  function setCatalogColor(itemId: string, color: string) {
+    setCatalogColors((current) => ({ ...current, [itemId]: color }));
+  }
+
+  function addCatalogItem(item: CatalogItem) {
+    setEstimateItems((current) => addCatalogItemToEstimate(current, item, getSelectedCatalogColor(item)));
+  }
+
+  function changeEstimateQuantity(id: string, quantity: number) {
+    setEstimateItems((current) => updateEstimateItemQuantity(current, id, quantity));
+  }
+
+  function deleteEstimateItem(id: string) {
+    setEstimateItems((current) => removeEstimateItem(current, id));
+  }
+
+  function changeEstimatePrice(id: string, value: string) {
+    const normalized = value.replace(/[^\d]/g, "");
+    setEstimateItems((current) => updateEstimateItemClientPrice(current, id, normalized ? Number(normalized) : 0));
+  }
+
   function copyCode() {
     if (!cobrowseCode) return;
     navigator.clipboard.writeText(cobrowseCode).then(() => {
@@ -207,7 +271,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       const res = await fetch(`/api/agent/meeting/${meetingId}/quote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: { form, attributes }, total: grandTotal }),
+        body: JSON.stringify({ payload: { form, attributes, estimateItems }, total: grandTotal }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -498,6 +562,41 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
           </div>
 
+          <div className={s.card}>
+            <div className={s.catalogIntro}>
+              <div>
+                <p className={s.cardTitle}>Каталог атрибутики</p>
+                <p className={s.catalogSubtitle}>Выберите позиции, которые нужно добавить в смету.</p>
+              </div>
+              <span className={s.catalogCount}>{filteredCatalogItems.length}</span>
+            </div>
+
+            <div className={s.categoryRail} aria-label="Категории каталога">
+              {(["Все", ...CATALOG_CATEGORIES] as Array<CatalogCategory | "Все">).map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  className={`${s.categoryChip} ${catalogCategory === category ? s.categoryChipActive : ""}`}
+                  onClick={() => setCatalogCategory(category)}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            <div className={s.catalogGrid}>
+              {filteredCatalogItems.map((item) => (
+                <CatalogCard
+                  key={item.id}
+                  item={item}
+                  selectedColor={getSelectedCatalogColor(item)}
+                  onColorChange={(color) => setCatalogColor(item.id, color)}
+                  onAdd={() => addCatalogItem(item)}
+                />
+              ))}
+            </div>
+          </div>
+
           {/* Атрибутика */}
           <div className={s.card}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14 }}>
@@ -525,6 +624,26 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
 
             <div className={s.panelSections}>
+              {estimateItems.length > 0 && (
+                <div className={s.panelSection}>
+                  <div className={s.panelSectionHead}>
+                    <span>Позиции каталога</span>
+                    <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
+                  </div>
+                  <div className={s.estimateList}>
+                    {estimateItems.map((item) => (
+                      <EstimateItemRow
+                        key={item.id}
+                        item={item}
+                        onPriceChange={(value) => changeEstimatePrice(item.id, value)}
+                        onQuantityChange={(quantity) => changeEstimateQuantity(item.id, quantity)}
+                        onRemove={() => deleteEstimateItem(item.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {result.sections.length === 0 ? (
                 <div className={s.panelEmpty}>
                   Выберите услуги слева — смета появится здесь
@@ -596,6 +715,109 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           </div>
         </aside>
 
+      </div>
+    </div>
+  );
+}
+
+function CatalogCard({
+  item,
+  selectedColor,
+  onColorChange,
+  onAdd,
+}: {
+  item: CatalogItem;
+  selectedColor?: string;
+  onColorChange: (color: string) => void;
+  onAdd: () => void;
+}) {
+  const itemMargin = calculateOrderEconomics([
+    {
+      name: item.name,
+      category: item.category,
+      clientPrice: item.clientPrice,
+      costPrice: item.costPrice,
+      quantity: item.quantityDefault,
+    },
+  ]).items[0];
+
+  return (
+    <article className={s.catalogCard}>
+      <div className={s.catalogMedia} aria-hidden="true">{item.imagePlaceholder}</div>
+      <div className={s.catalogBody}>
+        <div className={s.catalogBadges}>
+          {item.isRecommended && <span className={s.recommendedBadge}>Рекомендовано</span>}
+          {item.isRequired && <span className={s.requiredBadge}>Обязательное</span>}
+        </div>
+        <h3 className={s.catalogName}>{item.name}</h3>
+        <p className={s.catalogDescription}>{item.description}</p>
+
+        <div className={s.catalogPrices}>
+          <span>Клиенту {formatCurrency(item.clientPrice)}</span>
+          <span>Себестоимость {formatCurrency(item.costPrice)}</span>
+          <span>Маржа {formatCurrency(itemMargin?.marginRub ?? 0)}</span>
+        </div>
+
+        {item.availableColors && item.availableColors.length > 0 && (
+          <div className={s.colorGroup} aria-label={`Цвет для ${item.name}`}>
+            {item.availableColors.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`${s.colorChip} ${selectedColor === color ? s.colorChipActive : ""}`}
+                onClick={() => onColorChange(color)}
+              >
+                {color}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <button type="button" className={s.addCatalogBtn} onClick={onAdd}>
+          Добавить в смету
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function EstimateItemRow({
+  item,
+  onPriceChange,
+  onQuantityChange,
+  onRemove,
+}: {
+  item: EstimateItem;
+  onPriceChange: (value: string) => void;
+  onQuantityChange: (quantity: number) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className={s.estimateItem}>
+      <div className={s.estimateTop}>
+        <div className={s.estimateNameWrap}>
+          <span className={s.estimateName}>{item.name}</span>
+          {item.selectedColor && <span className={s.estimateMeta}>цвет: {item.selectedColor}</span>}
+        </div>
+        <button type="button" className={s.removeEstimateBtn} onClick={onRemove} aria-label={`Удалить ${item.name}`}>
+          Удалить
+        </button>
+      </div>
+
+      <div className={s.estimateControls}>
+        <div className={s.qtyControl} aria-label={`Количество ${item.name}`}>
+          <button type="button" onClick={() => onQuantityChange(item.quantity - 1)} aria-label="Уменьшить количество">−</button>
+          <span>{item.quantity}</span>
+          <button type="button" onClick={() => onQuantityChange(item.quantity + 1)} aria-label="Увеличить количество">+</button>
+        </div>
+        <label className={s.priceEditLabel}>
+          <span>Цена клиенту</span>
+          <input
+            value={String(item.clientPrice)}
+            inputMode="numeric"
+            onChange={(event) => onPriceChange(event.target.value)}
+          />
+        </label>
       </div>
     </div>
   );

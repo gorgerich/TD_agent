@@ -1,12 +1,13 @@
 import { prisma } from "./prisma";
 import { normalizeSelection, type AttrSelection } from "./attributes";
+import type { PublicEstimateItem } from "./calculationUtils";
 
 /*
   Общее состояние встречи (co-work) — хранится в БД (AgentSession), а не в памяти
   процесса: на Vercel serverless агент и клиент попадают на разные инстансы, и
   in-memory не синхронизируется. AgentSession.meetingId уникален.
 
-  Форма состояния: { form, cemeteryCategory, attributes, _ts }
+  Форма состояния: { form, cemeteryCategory, attributes, estimateItems, _ts }
 */
 
 const TTL_MS = 12 * 60 * 60 * 1000; // 12 часов
@@ -15,6 +16,7 @@ export interface CoState {
   form?: unknown;
   cemeteryCategory?: string;
   attributes?: AttrSelection;
+  estimateItems?: PublicEstimateItem[];
   _ts?: number;
 }
 

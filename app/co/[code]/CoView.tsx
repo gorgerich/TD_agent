@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { calculateOrder, DEFAULT_CALCULATOR_CONFIG, formatCurrency, type FormData, type CalculationResult } from "@/lib/calculationUtils";
+import {
+  calculateOrder,
+  calculateEstimateItemsTotal,
+  DEFAULT_CALCULATOR_CONFIG,
+  formatCurrency,
+  type FormData,
+  type CalculationResult,
+  type PublicEstimateItem,
+} from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, attributesTotal, normalizeSelection, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
 import AttributePicker from "@/components/AttributePicker";
@@ -14,6 +22,7 @@ export default function CoView({ code }: { code: string }) {
   const [form, setForm] = useState<FormData | null>(null);
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
+  const [estimateItems, setEstimateItems] = useState<PublicEstimateItem[]>([]);
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
@@ -39,6 +48,9 @@ export default function CoView({ code }: { code: string }) {
           setCemeteryCategory(state.cemeteryCategory ?? "standard");
           setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
         }
+        if (Array.isArray(state.estimateItems)) {
+          setEstimateItems(state.estimateItems as PublicEstimateItem[]);
+        }
         // атрибутику может менять и клиент — не перетираем свежую локальную правку
         if (state.attributes && Date.now() > suppressUntil.current) {
           const norm = normalizeSelection(state.attributes);
@@ -62,7 +74,8 @@ export default function CoView({ code }: { code: string }) {
   }
 
   const attrTotal = attributesTotal(attributes);
-  const grandTotal = (result?.total ?? 0) + attrTotal;
+  const estimateTotal = calculateEstimateItemsTotal(estimateItems);
+  const grandTotal = (result?.total ?? 0) + attrTotal + estimateTotal;
   const sections = result?.sections.filter((s) => s.total > 0) ?? [];
 
   if (!started) {
@@ -117,6 +130,24 @@ export default function CoView({ code }: { code: string }) {
                 ))}
               </div>
             ))}
+            {estimateItems.length > 0 && (
+              <div className="border-t border-line">
+                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
+                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Позиции каталога</span>
+                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(estimateTotal)}</span>
+                </div>
+                {estimateItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
+                    <span className="text-[14px] text-ink-2">
+                      {item.name}
+                      {item.selectedColor ? ` — цвет: ${item.selectedColor}` : ""}
+                      {item.quantity > 1 ? ` ×${item.quantity}` : ""}
+                    </span>
+                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{formatCurrency(item.clientPrice * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {attrTotal > 0 && (
               <div className="flex items-center justify-between border-t border-line bg-surface-2 px-5 py-3">
                 <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Оформление</span>

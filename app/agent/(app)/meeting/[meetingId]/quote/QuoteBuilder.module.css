@@ -300,6 +300,180 @@
   font-size: 12.5px; color: var(--color-ink-2); flex-shrink: 0;
 }
 
+/* ── Catalog ───────────────────────────────────────────── */
+.catalogIntro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.catalogIntro .cardTitle { margin-bottom: 5px; }
+.catalogSubtitle {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.catalogCount {
+  display: inline-flex;
+  min-width: 32px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+.categoryRail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+.categoryChip {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.categoryChip:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
+.categoryChipActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.catalogGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.catalogCard {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-2));
+}
+.catalogMedia {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink-2);
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 700;
+}
+.catalogBody { min-width: 0; }
+.catalogBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 18px;
+  margin-bottom: 4px;
+}
+.recommendedBadge,
+.requiredBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.recommendedBadge {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.requiredBadge {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+.catalogName {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.catalogDescription {
+  margin: 5px 0 0;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.catalogPrices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin-top: 8px;
+  color: var(--color-ink-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.catalogPrices span:first-child {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.colorGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 9px;
+}
+.colorChip {
+  min-height: 26px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+.colorChipActive {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  font-weight: 700;
+}
+.addCatalogBtn {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.addCatalogBtn:hover { background: var(--color-accent-hover); }
+
 /* ── Quote panel ────────────────────────────────────────── */
 .panel { min-width: 0; }
 @media (min-width: 980px) {
@@ -355,6 +529,106 @@
 }
 .panelItem > span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .panelItemIncluded { color: var(--color-success); font-family: var(--font-sans) !important; font-size: 11.5px; }
+
+.estimateList {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.estimateItem {
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.estimateTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.estimateNameWrap { min-width: 0; }
+.estimateName {
+  display: block;
+  color: var(--color-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.estimateMeta {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-ink-3);
+  font-size: 11px;
+}
+.removeEstimateBtn {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.estimateControls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+  margin-top: 9px;
+}
+.qtyControl {
+  display: grid;
+  grid-template-columns: 28px 30px 28px;
+  align-items: center;
+  min-height: 32px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.qtyControl button {
+  height: 32px;
+  border: 0;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+  font-size: 15px;
+  cursor: pointer;
+}
+.qtyControl span {
+  text-align: center;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+.priceEditLabel {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.priceEditLabel span {
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.priceEditLabel input {
+  min-width: 0;
+  height: 32px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.priceEditLabel input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
 
 .panelTotalBlock {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
