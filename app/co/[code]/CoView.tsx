@@ -115,10 +115,9 @@ export default function CoView({ code }: { code: string }) {
                   <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
                   <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(section.total)}</span>
                 </div>
-                {section.items?.filter((it) => !it.included && (it.price ?? 0) > 0).map((item, j) => (
-                  <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
+                {section.items?.map((item, j) => (
+                  <div key={j} className="border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{item.label}</span>
-                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{item.price != null ? formatCurrency(item.price) : ""}</span>
                   </div>
                 ))}
               </div>
