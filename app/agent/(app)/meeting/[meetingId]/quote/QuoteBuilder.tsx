@@ -448,8 +448,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           <strong>{budgetShort}</strong>
         </div>
         <div className={`${s.dealMetric} ${economics.orderMarginRub < 0 ? s.dealMetricDanger : ""}`}>
-          <span>Маржа</span>
-          <strong>{formatPercent(economics.orderMarginPercent)}%</strong>
+          <span>Экономия агента</span>
+          <strong>{formatCurrency(economics.orderMarginRub)}</strong>
         </div>
         <div className={s.dealMetric}>
           <span>Позиции</span>
@@ -1325,7 +1325,7 @@ function SnapshotBlock({
                 </div>
                 <div className={s.snapshotMetrics}>
                   <span>{formatCurrency(snapshot.orderClientTotal)}</span>
-                  <span>Маржа {formatCurrency(snapshot.orderMarginRub)} · {formatPercent(snapshot.orderMarginPercent)}%</span>
+                  <span>Экономия агента {formatCurrency(snapshot.orderMarginRub)}</span>
                   <span>{snapshot.budgetExceeded ? `Превышение ${formatCurrency(Math.abs(snapshot.budgetRemaining ?? 0))}` : budgetStatus.clientBudget ? "В бюджете" : "Без бюджета"}</span>
                 </div>
                 {open && (
@@ -1410,8 +1410,8 @@ function AgentEconomicsBlock({
           value={budgetStatus === "not_set" ? "—" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
         />
         <Metric label="Себестоимость" value={formatCurrency(economics.orderCostTotal)} />
-        <Metric label="Маржа" value={formatCurrency(economics.orderMarginRub)} />
-        <Metric label="Маржа" value={`${formatPercent(economics.orderMarginPercent)}%`} />
+        <Metric label="Экономия агента" value={formatCurrency(economics.orderMarginRub)} />
+        <Metric label="Позиции в расчёте" value={String(marginItems.length)} />
       </div>
 
       <div className={`${s.budgetLine} ${budgetStatus === "exceeded" ? s.budgetLineWarn : ""}`}>
@@ -1434,9 +1434,7 @@ function AgentEconomicsBlock({
                 </div>
                 <div className={s.marginItemMeta}>
                   <span>Себестоимость {formatCurrency(item.totalCostPrice)}</span>
-                  <span>
-                    Маржа {formatCurrency(item.marginRub)} · {formatPercent(item.marginPercent)}%
-                  </span>
+                  <span>Экономия {formatCurrency(item.marginRub)}</span>
                 </div>
               </div>
             ))}
@@ -1454,13 +1452,6 @@ function Metric({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
-}
-
-function formatPercent(value: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  }).format(Number.isFinite(value) ? value : 0);
 }
 
 /* ─── Toggle row component ───────────────────────────────────────────── */
