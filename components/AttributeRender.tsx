@@ -64,19 +64,20 @@ function itemText(item: PreviewItem) {
 }
 
 export function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): AttributePreviewConfig {
-  const casket = items.find((item) => {
+  const reversed = [...items].reverse();
+  const casket = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("гроб") || text.includes("coffin");
   });
-  const wreath = items.find((item) => {
+  const wreath = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("венок") || text.includes("корзина цветов") || text.includes("wreath") || text.includes("flower");
   });
-  const cross = items.find((item) => {
+  const cross = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("крест") || text.includes("cross");
   });
-  const plate = items.find((item) => {
+  const plate = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("таблич") || text.includes("plate");
   });

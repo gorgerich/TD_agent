@@ -53,12 +53,12 @@ export default function CoView({ code }: { code: string }) {
         // Старый attributes payload читаем только как совместимый fallback для render-компонента.
         if (state.attributes) {
           const norm = normalizeSelection(state.attributes);
-          if (JSON.stringify(norm) !== attrJson) setAttributes(norm);
+          setAttributes((current) => (JSON.stringify(current) === JSON.stringify(norm) ? current : norm));
         }
       } catch { /* ignore */ }
     }
     poll();
-    const id = setInterval(poll, 2000);
+    const id = setInterval(poll, 700);
     return () => { alive = false; clearInterval(id); };
   }, [code, attrJson]);
 
@@ -111,13 +111,15 @@ export default function CoView({ code }: { code: string }) {
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
             {sections.map((section, i) => (
               <div key={i} className={i > 0 ? "border-t border-line" : ""}>
-                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
+                <div className="flex items-center bg-surface-2 px-5 py-3">
                   <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
-                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(section.total)}</span>
                 </div>
                 {section.items?.map((item, j) => (
-                  <div key={j} className="border-t border-line px-5 py-3">
+                  <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{item.label}</span>
+                    <span className="tnum flex-shrink-0 text-[14px] text-ink">
+                      {item.included ? "включено" : item.price != null ? formatCurrency(item.price) : ""}
+                    </span>
                   </div>
                 ))}
               </div>

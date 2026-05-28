@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readCoState, mergeCoAttributes } from "@/lib/coSession";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 async function resolveMeetingId(code: string): Promise<number | null> {
   if (code.startsWith("DEV-")) return Number(code.slice(4)) || null;
   try {
