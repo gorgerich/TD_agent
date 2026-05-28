@@ -140,6 +140,64 @@
   .flowNav { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
 }
 
+/* ── Step tabs (этапы конструктора) ─────────────────────── */
+.stepNav {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -16px 18px;
+  padding: 9px 16px;
+  border-block: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
+  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
+  backdrop-filter: blur(10px);
+  scrollbar-width: none;
+}
+.stepNav::-webkit-scrollbar { display: none; }
+.stepTab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.stepTab:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
+.stepTabActive,
+.stepTabActive:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+.stepCount {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--color-ink) 9%, transparent);
+  color: var(--color-ink-2);
+}
+.stepTabActive .stepCount { background: rgba(255, 255, 255, 0.22); color: var(--color-on-accent); }
+@media (min-width: 640px) {
+  .stepNav { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
+}
+
 /* ── Layout ─────────────────────────────────────────────── */
 .layout {
   display: grid;
@@ -537,6 +595,20 @@
 }
 .catalogPrices span:not(:first-child) {
   color: var(--color-ink-3);
+}
+.catalogPriceMain {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.catalogPriceMeta {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
 }
 .colorGroup {
   display: flex;
@@ -983,6 +1055,43 @@
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+/* Сворачиваемые заголовки (экономика, история версий) */
+.economicsBlock > summary,
+.snapshotBlock > summary { list-style: none; }
+.economicsBlock > summary::-webkit-details-marker,
+.snapshotBlock > summary::-webkit-details-marker { display: none; }
+.collapseHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.collapseTitle { flex: 1; }
+.collapseHead::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-left: 2px;
+  border-right: 2px solid var(--color-ink-3);
+  border-bottom: 2px solid var(--color-ink-3);
+  transform: rotate(45deg);
+  transition: transform 0.2s var(--ease-out);
+}
+details[open] > .collapseHead::after { transform: rotate(-135deg); }
+details[open] > .collapseHead { margin-bottom: 12px; }
+.collapseAlert {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-danger);
 }
 .economicsGrid {
   display: grid;

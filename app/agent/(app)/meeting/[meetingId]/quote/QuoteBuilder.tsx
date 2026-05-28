@@ -79,6 +79,16 @@ const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
   "Урны",
 ];
 
+type Step = "basics" | "logistics" | "attributes" | "memorial" | "expenses";
+
+const STEPS: Array<{ id: Step; label: string }> = [
+  { id: "basics", label: "Основное" },
+  { id: "logistics", label: "Логистика" },
+  { id: "attributes", label: "Атрибутика" },
+  { id: "memorial", label: "Поминки" },
+  { id: "expenses", label: "Расходы" },
+];
+
 /* ─── Main component ─────────────────────────────────────────────────── */
 
 export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Props) {
@@ -103,6 +113,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [snapshotNote, setSnapshotNote] = useState("");
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("basics");
 
   const result = useMemo(
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
@@ -446,12 +457,26 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         </div>
       </div>
 
-      <nav className={s.flowNav} aria-label="Этапы конструктора сметы">
-        <a href="#quote-basics">Основное</a>
-        <a href="#quote-logistics">Логистика</a>
-        <a href="#quote-attributes">Атрибутика</a>
-        <a href="#quote-memorial">Поминки</a>
-        <a href="#quote-expenses">Расходы</a>
+      <nav className={s.stepNav} role="tablist" aria-label="Этапы конструктора сметы">
+        {STEPS.map((stepItem) => {
+          const active = step === stepItem.id;
+          const count =
+            stepItem.id === "attributes" ? estimateItemCount :
+            stepItem.id === "expenses" ? externalExpenses.length : 0;
+          return (
+            <button
+              key={stepItem.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`${s.stepTab} ${active ? s.stepTabActive : ""}`}
+              onClick={() => setStep(stepItem.id)}
+            >
+              {stepItem.label}
+              {count > 0 && <span className={s.stepCount}>{count}</span>}
+            </button>
+          );
+        })}
       </nav>
 
       {/* ── Main layout ────────────────────────────────── */}
@@ -460,6 +485,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         {/* ── Form ─────────────────────────────────────── */}
         <div className={s.form}>
 
+          {step === "basics" && (<>
           {/* Service type */}
           <div className={s.card} id="quote-basics">
             <p className={s.cardTitle}>Тип услуги</p>
@@ -576,7 +602,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               ))}
             </div>
           </div>
+          </>)}
 
+          {step === "logistics" && (<>
           {/* Logistics */}
           <div className={s.card} id="quote-logistics">
             <p className={s.cardTitle}>Логистика</p>
@@ -706,7 +734,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               })}
             </div>
           </div>
+          </>)}
 
+          {step === "attributes" && (
           <div className={s.card}>
             <div className={s.catalogIntro}>
               <div>
@@ -742,6 +772,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             </div>
           </div>
 
+          )}
+
+          {step === "memorial" && (
           <div id="quote-memorial">
             <MemorialBlock
               data={memorialData}
@@ -752,6 +785,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             />
           </div>
 
+          )}
+
+          {step === "expenses" && (
           <div id="quote-expenses">
             <ExternalExpensesBlock
               draft={expenseDraft}
@@ -764,6 +800,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               onUpdate={updateExternalExpense}
             />
           </div>
+          )}
 
         </div>
 
@@ -1167,10 +1204,9 @@ function CatalogCard({
         <h3 className={s.catalogName}>{item.name}</h3>
         <p className={s.catalogDescription}>{item.description}</p>
 
-        <div className={s.catalogPrices}>
-          <span>Клиенту {formatCurrency(item.clientPrice)}</span>
-          <span>Себестоимость {formatCurrency(item.costPrice)}</span>
-          <span>Маржа {formatCurrency(itemMargin?.marginRub ?? 0)}</span>
+        <div className={s.catalogPriceMain}>{formatCurrency(item.clientPrice)}</div>
+        <div className={s.catalogPriceMeta}>
+          себестоимость {formatCurrency(item.costPrice)} · маржа {formatCurrency(itemMargin?.marginRub ?? 0)}
         </div>
 
         {item.availableColors && item.availableColors.length > 0 && (
@@ -1264,11 +1300,11 @@ function SnapshotBlock({
   title: string;
 }) {
   return (
-    <div className={s.snapshotBlock}>
-      <div className={s.economicsHead}>
-        <span>История версий</span>
+    <details className={s.snapshotBlock}>
+      <summary className={s.collapseHead}>
+        <span className={s.collapseTitle}>История версий</span>
         <span className={s.economicsTag}>{snapshots.length}</span>
-      </div>
+      </summary>
       <input className={s.snapshotInput} value={title} placeholder="Название версии" onChange={(event) => onTitleChange(event.target.value)} />
       <textarea className={s.snapshotTextarea} value={note} placeholder="Например: клиент попросил уложиться в 130 000 ₽, убрали отдельный катафалк" onChange={(event) => onNoteChange(event.target.value)} />
       <button type="button" className={s.saveBtn} onClick={onFix}>Зафиксировать смету</button>
@@ -1309,7 +1345,7 @@ function SnapshotBlock({
           })}
         </div>
       )}
-    </div>
+    </details>
   );
 }
 
@@ -1359,11 +1395,12 @@ function AgentEconomicsBlock({
   marginWarning: string | null;
 }) {
   return (
-    <div className={s.economicsBlock}>
-      <div className={s.economicsHead}>
-        <span>Экономика сделки</span>
+    <details className={s.economicsBlock} open={Boolean(marginWarning)}>
+      <summary className={s.collapseHead}>
+        <span className={s.collapseTitle}>Экономика сделки</span>
         <span className={s.economicsTag}>внутренне</span>
-      </div>
+        {marginWarning && <span className={s.collapseAlert} aria-label="Внимание по марже" />}
+      </summary>
 
       <div className={s.economicsGrid}>
         <Metric label="Бюджет клиента" value={clientBudget ? formatCurrency(clientBudget) : "Не указан"} />
@@ -1406,7 +1443,7 @@ function AgentEconomicsBlock({
           </div>
         </details>
       )}
-    </div>
+    </details>
   );
 }
 
