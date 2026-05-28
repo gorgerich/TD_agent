@@ -43,13 +43,13 @@ export default async function LeadsPage() {
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">CRM</span>
-          <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Лиды</h1>
+          <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Клиенты</h1>
         </div>
         <Link
           href="/agent/leads/new"
           className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
-          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый лид</span><span className="sm:hidden">Лид</span>
+          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый клиент</span><span className="sm:hidden">Клиент</span>
         </Link>
       </header>
 
@@ -59,7 +59,7 @@ export default async function LeadsPage() {
           <div className="px-6 py-16 text-center">
             <Users size={36} className="mx-auto mb-3 text-accent" />
             <p className="text-[13.5px] text-ink-2">
-              Лидов пока нет,{" "}
+              Клиентов пока нет,{" "}
               <Link href="/agent/leads/new" className="text-accent hover:text-accent-hover">добавьте первого</Link>
             </p>
           </div>
@@ -131,7 +131,7 @@ export default async function LeadsPage() {
                       <td className="pr-4">
                         <Link
                           href={`/agent/leads/${lead.id}`}
-                          aria-label={`Открыть лид: ${lead.name}`}
+                          aria-label={`Открыть клиента: ${lead.name}`}
                           className="grid h-10 w-10 place-items-center rounded-[10px] transition-colors hover:bg-accent-soft"
                         >
                           <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />

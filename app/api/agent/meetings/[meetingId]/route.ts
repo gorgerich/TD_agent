@@ -5,8 +5,15 @@ import { prisma } from "@/lib/prisma";
 
 const PatchMeetingSchema = z.object({
   status: z.enum(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
-  scheduledAt: z.string().datetime().optional(),
+  scheduledAt: z.string().trim().min(1).optional(),
 });
+
+function parseMeetingDatetime(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const normalized = value.includes("Z") ? value : `${value}:00`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
   const session = await getSessionFromRequest(req);
@@ -42,7 +49,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ me
       if (parsed.data.status === "IN_PROGRESS") updateData.startedAt = new Date();
       if (parsed.data.status === "COMPLETED") updateData.endedAt = new Date();
     }
-    if (parsed.data.scheduledAt) updateData.scheduledAt = new Date(parsed.data.scheduledAt);
+    if (parsed.data.scheduledAt) {
+      const scheduledAt = parseMeetingDatetime(parsed.data.scheduledAt);
+      if (!scheduledAt) return NextResponse.json({ error: "Некорректная дата встречи" }, { status: 400 });
+      updateData.scheduledAt = scheduledAt;
+    }
 
     const meeting = await prisma.meeting.updateMany({
       where: { id: Number(meetingId), agentId: session.agentId },

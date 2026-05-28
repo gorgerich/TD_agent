@@ -49,7 +49,7 @@ function FormInner() {
   return (
     <form onSubmit={handleSubmit} className="max-w-[620px] td-shell" aria-busy={loading}>
       <div className="td-core space-y-5 p-5 sm:p-7">
-        <Field id="meeting-lead-id" label="ID лида" hint="Откройте раздел «Лиды», чтобы найти номер лида">
+        <Field id="meeting-lead-id" label="ID клиента" hint="Откройте раздел «Клиенты», чтобы найти номер клиента">
           <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
         </Field>
 

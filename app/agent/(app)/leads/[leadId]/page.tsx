@@ -61,12 +61,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ lea
   return (
     <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
       <Link href="/agent/leads" className="mb-6 inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink">
-        <ArrowLeft size={14} /> Все лиды
+        <ArrowLeft size={14} /> Все клиенты
       </Link>
 
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Лид №{lead.id}</p>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Клиент №{lead.id}</p>
           <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">{lead.name}</h1>
         </div>
         <Link

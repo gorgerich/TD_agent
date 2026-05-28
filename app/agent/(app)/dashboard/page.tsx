@@ -90,7 +90,7 @@ export default async function DashboardPage() {
               </h1>
               <div className="mt-6 flex flex-wrap gap-2">
                 <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Встречи сегодня: {todayMeetings}</span>
-                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Лиды в работе: {activeLeads}</span>
+                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Клиенты в работе: {activeLeads}</span>
                 <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">К выплате: {formatMoney(accrued)}</span>
               </div>
             </div>
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
                   href="/agent/leads/new"
                   className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-on-accent px-4 py-2 text-[13px] font-semibold text-accent transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98]"
                 >
-                  <Plus size={16} weight="bold" /> Новый лид
+                  <Plus size={16} weight="bold" /> Новый клиент
                 </Link>
                 <Link
                   href="/agent/meetings/new"
@@ -128,7 +128,7 @@ export default async function DashboardPage() {
         />
         <StatCard
           icon={<Users size={18} weight="duotone" />}
-          label="Лиды в работе"
+          label="Клиенты в работе"
           value={String(activeLeads)}
           sub="без завершённой встречи"
         />
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
           href="/agent/leads/new"
           className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
-          <Plus size={16} weight="bold" /> Новый лид
+          <Plus size={16} weight="bold" /> Новый клиент
         </Link>
         <Link
           href="/agent/meetings/new"
@@ -159,7 +159,7 @@ export default async function DashboardPage() {
           href="/agent/leads"
           className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-5 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface"
         >
-          <Users size={16} /> Все лиды
+          <Users size={16} /> Все клиенты
         </Link>
       </section>
 

@@ -9,8 +9,15 @@ function generateCobrowseCode(): string {
 
 const CreateMeetingSchema = z.object({
   leadId: z.number().int().positive(),
-  scheduledAt: z.string().datetime().optional(),
+  scheduledAt: z.string().trim().min(1).optional(),
 });
+
+function parseMeetingDatetime(value?: string): Date | undefined {
+  if (!value) return undefined;
+  const normalized = value.includes("Z") ? value : `${value}:00`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
 
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req);
@@ -39,6 +46,11 @@ export async function POST(req: NextRequest) {
   const parsed = CreateMeetingSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
+  const scheduledAt = parseMeetingDatetime(parsed.data.scheduledAt);
+  if (parsed.data.scheduledAt && !scheduledAt) {
+    return NextResponse.json({ error: "Некорректная дата встречи" }, { status: 400 });
+  }
+
   const cobrowseCode = generateCobrowseCode();
 
   try {
@@ -47,7 +59,7 @@ export async function POST(req: NextRequest) {
         leadId: parsed.data.leadId,
         agentId: session.agentId,
         cobrowseCode,
-        scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : undefined,
+        scheduledAt,
       },
     });
     return NextResponse.json(meeting, { status: 201 });

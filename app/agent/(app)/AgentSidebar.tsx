@@ -16,7 +16,7 @@ import type { AgentSession } from "@/lib/auth";
 
 const NAV = [
   { href: "/agent/dashboard", icon: House, label: "Дашборд" },
-  { href: "/agent/leads", icon: Users, label: "Лиды" },
+  { href: "/agent/leads", icon: Users, label: "Клиенты" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Встречи" },
   { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
 ];
