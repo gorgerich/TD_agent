@@ -1,61 +1,82 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, ArrowRight, Key, ArrowLeft, Warning, ShieldCheck } from "@phosphor-icons/react";
+import {
+  ArrowRight,
+  EnvelopeSimple,
+  Key,
+  Phone,
+  ShieldCheck,
+  User,
+  Warning,
+} from "@phosphor-icons/react";
+
+type Mode = "login" | "register";
 
 export default function AgentLoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [mode, setMode] = useState<Mode>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"login" | "register" | "demo" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
-  const isDev = process.env.NODE_ENV === "development";
-  const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 
-  async function handleRequestOtp(e: React.FormEvent) {
+  async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(mode);
+
     try {
-      const res = await fetch("/api/agent/auth/request-otp", {
+      const res = await fetch(`/api/agent/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify(
+          mode === "login"
+            ? { email, password }
+            : { name, email, phone, password },
+        ),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Ошибка отправки"); return; }
-      if (data.devCode) setDevCode(data.devCode);
-      setStep("code");
-    } catch {
-      setError("Сеть недоступна");
-    } finally {
-      setLoading(false);
-    }
-  }
+      if (!res.ok) {
+        setError(data.error ?? "Не удалось войти");
+        return;
+      }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/agent/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Неверный код"); return; }
       router.push("/agent/dashboard");
       router.refresh();
     } catch {
       setError("Сеть недоступна");
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   }
+
+  async function enterDemo() {
+    setError(null);
+    setLoading("demo");
+
+    try {
+      const res = await fetch("/api/agent/auth/demo", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Демо недоступно");
+        return;
+      }
+
+      router.push("/agent/dashboard");
+      router.refresh();
+    } catch {
+      setError("Сеть недоступна");
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  const isRegister = mode === "register";
 
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.08fr_0.92fr]">
@@ -81,34 +102,30 @@ export default function AgentLoginPage() {
             агентская платформа
           </span>
           <h1 className="mt-6 font-serif text-[48px] leading-[1.04] text-on-accent">
-            Спокойная работа с семьей, документами и оплатой.
+            Кабинет для реальной работы агента и отдельный безопасный демо-вход.
           </h1>
           <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">
-            <div className="rounded-[22px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">поток</p>
-              <p className="mt-2 font-serif text-[20px] text-on-accent">Лид</p>
-            </div>
-            <div className="rounded-[22px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">дальше</p>
-              <p className="mt-2 font-serif text-[20px] text-on-accent">Встреча</p>
-            </div>
-            <div className="rounded-[22px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">итог</p>
-              <p className="mt-2 font-serif text-[20px] text-on-accent">Смета</p>
-            </div>
+            {[
+              ["профиль", "Агент"],
+              ["поток", "Встречи"],
+              ["итог", "Смета"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[22px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
+                <p className="mt-2 font-serif text-[20px] text-on-accent">{value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="relative flex items-center gap-2.5 text-[12.5px] text-on-accent/70">
           <ShieldCheck size={16} weight="duotone" />
-          Данные клиентов защищены и не индексируются
+          Боевой вход хранит аккаунт в постоянной Postgres-БД
         </div>
       </aside>
 
-      {/* Form panel */}
       <main id="main-content" className="td-page flex items-center justify-center px-5 py-10 sm:px-8">
-        <div className="w-full max-w-[460px] rise">
-          {/* Mobile brand */}
+        <div className="w-full max-w-[480px] rise">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <span className="grid h-12 w-12 place-items-center rounded-[17px] bg-accent text-on-accent shadow-soft">
               <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
@@ -119,123 +136,177 @@ export default function AgentLoginPage() {
             </span>
           </div>
 
-          {(isDev || isDemo) && step === "phone" && (
-            <div className="mb-5 flex items-start gap-2.5 rounded-[18px] border border-warning/25 bg-warning-soft px-4 py-3">
-              <Warning size={16} className="mt-0.5 flex-shrink-0 text-warning" />
-              <p className="text-[12.5px] leading-relaxed text-ink-2">
-                {isDemo ? "Демо-версия" : "Режим разработки"}: введите любой телефон и код{" "}
-                <strong className="font-semibold text-ink">0000</strong>
+          <section className="td-shell">
+            <div className="td-core p-5 sm:p-7">
+              <div className="inline-grid w-full grid-cols-2 rounded-full border border-line bg-surface-2 p-1">
+                {(["login", "register"] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      setMode(item);
+                      setError(null);
+                    }}
+                    className={`min-h-10 rounded-full px-4 text-[13px] font-semibold transition-colors ${
+                      mode === item
+                        ? "bg-surface text-ink shadow-[0_8px_18px_-16px_rgba(33,26,19,0.8)]"
+                        : "text-ink-3 hover:text-ink-2"
+                    }`}
+                  >
+                    {item === "login" ? "Войти" : "Регистрация"}
+                  </button>
+                ))}
+              </div>
+
+              <span className="td-eyebrow mt-6">{isRegister ? "новый агент" : "боевой вход"}</span>
+              <h2 className="mt-5 font-serif text-[32px] leading-tight text-ink">
+                {isRegister ? "Создать профиль агента" : "Войти в кабинет"}
+              </h2>
+              <p className="mt-2 text-[14.5px] leading-6 text-ink-2">
+                {isRegister
+                  ? "Профиль будет создан в постоянной базе и сразу откроет агентский кабинет."
+                  : "Используйте email и пароль агента. Демо-вход оставлен ниже отдельным вариантом."}
               </p>
-            </div>
-          )}
 
-          {step === "phone" ? (
-            <form onSubmit={handleRequestOtp} aria-busy={loading} className="td-shell">
-              <div className="td-core p-5 sm:p-7">
-              <span className="td-eyebrow">безопасный вход</span>
-              <h2 className="mt-5 font-serif text-[32px] leading-tight text-ink">Войти в кабинет</h2>
-              <p className="mt-2 text-[14.5px] leading-6 text-ink-2">Введите номер телефона, отправим код подтверждения</p>
-
-              <div className="mt-8">
-                <label htmlFor="agent-phone" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-                  Телефон
-                </label>
-                <div className="relative">
-                  <Phone size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3" />
-                  <input
-                    id="agent-phone"
-                    type="tel"
-                    className="min-h-14 w-full rounded-[16px] border border-line bg-surface py-3 pl-11 pr-4 text-[15px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent"
-                    placeholder="+7 900 000 00 00"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    autoComplete="tel"
-                    autoFocus
+              <form onSubmit={submitAuth} aria-busy={loading === mode} className="mt-8 grid gap-4">
+                {isRegister && (
+                  <Field
+                    id="agent-name"
+                    label="Имя агента"
+                    icon={<User size={17} />}
+                    value={name}
+                    onChange={setName}
+                    placeholder="Например, Анна Иванова"
+                    autoComplete="name"
                     required
                   />
-                </div>
-                <p className="mt-2 text-[12px] text-ink-3">Должен быть привязан к профилю агента</p>
-              </div>
+                )}
 
-              {error && (
-                <p role="alert" className="mt-4 flex items-center gap-1.5 text-[13px] text-danger">
-                  <Warning size={14} /> {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || phone.length < 10}
-                className="group mt-7 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[15px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
-              >
-                {loading ? "Отправляю…" : <>Получить код <span className="grid h-9 w-9 place-items-center rounded-full bg-on-accent/12 transition-transform group-hover:translate-x-0.5"><ArrowRight size={17} /></span></>}
-              </button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} aria-busy={loading} className="td-shell">
-              <div className="td-core p-5 sm:p-7">
-              <span className="td-eyebrow">подтверждение</span>
-              <h2 className="mt-5 font-serif text-[32px] leading-tight text-ink">Введите код</h2>
-              <p className="mt-2 text-[14.5px] leading-6 text-ink-2">
-                Отправили на <span className="font-medium text-ink">{phone}</span>
-              </p>
-
-              {devCode && (
-                <div className="mt-6 flex items-center gap-2.5 rounded-[18px] border border-accent/20 bg-accent-soft px-4 py-3">
-                  <Key size={15} className="flex-shrink-0 text-accent" />
-                  <p className="text-[12.5px] text-ink-2">
-                    Код для входа: <strong className="font-semibold tnum text-accent">{devCode}</strong>
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-6">
-                <label htmlFor="agent-code" className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-                  Код из SMS
-                </label>
-                <input
-                  id="agent-code"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  className="tnum min-h-16 w-full rounded-[18px] border border-line bg-surface px-4 py-3.5 text-center text-[24px] font-semibold tracking-[0.4em] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent"
-                  placeholder="0000"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  autoComplete="one-time-code"
-                  autoFocus
-                  maxLength={6}
+                <Field
+                  id="agent-email"
+                  label="Email"
+                  icon={<EnvelopeSimple size={17} />}
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="agent@example.com"
+                  type="email"
+                  autoComplete="email"
                   required
                 />
+
+                {isRegister && (
+                  <Field
+                    id="agent-phone"
+                    label="Телефон"
+                    icon={<Phone size={17} />}
+                    value={phone}
+                    onChange={setPhone}
+                    placeholder="+7 900 000 00 00"
+                    type="tel"
+                    autoComplete="tel"
+                  />
+                )}
+
+                <Field
+                  id="agent-password"
+                  label="Пароль"
+                  icon={<Key size={17} />}
+                  value={password}
+                  onChange={setPassword}
+                  placeholder={isRegister ? "Минимум 8 символов" : "Введите пароль"}
+                  type="password"
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  required
+                />
+
+                {error && (
+                  <p role="alert" className="flex items-center gap-1.5 text-[13px] text-danger">
+                    <Warning size={14} /> {error}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={loading !== null || !email || !password || (isRegister && !name)}
+                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[15px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
+                >
+                  {loading === mode ? (
+                    "Проверяю…"
+                  ) : (
+                    <>
+                      {isRegister ? "Создать и войти" : "Войти"}
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-on-accent/12 transition-transform group-hover:translate-x-0.5">
+                        <ArrowRight size={17} />
+                      </span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="my-6 flex items-center gap-3">
+                <span className="h-px flex-1 bg-line" />
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">или</span>
+                <span className="h-px flex-1 bg-line" />
               </div>
-
-              {error && (
-                <p role="alert" className="mt-4 flex items-center gap-1.5 text-[13px] text-danger">
-                  <Warning size={14} /> {error}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || code.length < 4}
-                className="mt-6 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 text-[15px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
-              >
-                {loading ? "Проверяю…" : "Войти"}
-              </button>
 
               <button
                 type="button"
-                onClick={() => { setStep("phone"); setCode(""); setError(null); }}
-                className="mt-3 flex w-full items-center justify-center gap-1.5 py-2 text-[13px] text-ink-3 transition-colors hover:text-ink-2"
+                onClick={enterDemo}
+                disabled={loading !== null}
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface text-[14px] font-semibold text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
               >
-                <ArrowLeft size={14} /> Изменить номер
+                {loading === "demo" ? "Открываю демо…" : "Войти в демо-кабинет"}
               </button>
-              </div>
-            </form>
-          )}
+              <p className="mt-3 text-center text-[12px] leading-5 text-ink-3">
+                Демо использует тестового агента и засеянные данные. Боевые аккаунты создаются отдельно.
+              </p>
+            </div>
+          </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function Field({
+  id,
+  label,
+  icon,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  autoComplete,
+  required,
+}: {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: string;
+  autoComplete?: string;
+  required?: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
+        {label}
+      </label>
+      <div className="relative">
+        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">{icon}</span>
+        <input
+          id={id}
+          type={type}
+          className="min-h-14 w-full rounded-[16px] border border-line bg-surface py-3 pl-11 pr-4 text-[15px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete={autoComplete}
+          required={required}
+        />
+      </div>
     </div>
   );
 }

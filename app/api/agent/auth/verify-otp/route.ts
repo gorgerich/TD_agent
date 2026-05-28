@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { signSession, SESSION_COOKIE } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { isDemoMode, ensureDemoAgent, DEMO_CODE } from "@/lib/demo";
+import { isDemoMode, ensureDemoAgent, DEMO_CODE, DEMO_PHONE } from "@/lib/demo";
 
 function sessionCookie(res: NextResponse, token: string) {
   res.cookies.set(SESSION_COOKIE, token, {
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   // Демо-режим (DEMO_MODE=1): любой входит по коду 0000 и попадает в кабинет
   // демо-агента с примерами данных. Витрина — НЕ боевой вход.
-  if (isDemoMode()) {
+  if (isDemoMode() && phone.trim() === DEMO_PHONE) {
     if (code !== DEMO_CODE) return NextResponse.json({ error: "Демо-код: 0000" }, { status: 401 });
     try {
       const demo = await ensureDemoAgent();
