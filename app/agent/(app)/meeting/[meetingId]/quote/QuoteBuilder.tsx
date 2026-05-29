@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Check } from "@phosphor-icons/react";
+import { Check, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
@@ -81,12 +81,12 @@ const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
 
 type Step = "basics" | "logistics" | "attributes" | "memorial" | "expenses";
 
-const STEPS: Array<{ id: Step; label: string }> = [
-  { id: "basics", label: "Основное" },
-  { id: "logistics", label: "Логистика" },
-  { id: "attributes", label: "Атрибутика" },
-  { id: "memorial", label: "Поминки" },
-  { id: "expenses", label: "Расходы" },
+const STEPS: Array<{ id: Step; label: string; hint: string }> = [
+  { id: "basics", label: "Основное", hint: "Тип услуги, бюджет, пакет и формат церемонии." },
+  { id: "logistics", label: "Логистика", hint: "Транспорт, носильщики, место захоронения и доп. услуги." },
+  { id: "attributes", label: "Атрибутика", hint: "Гроб, постель, венки, кресты, таблички и урны." },
+  { id: "memorial", label: "Поминки", hint: "Нужны ли поминки и помощь агента с подбором кафе." },
+  { id: "expenses", label: "Расходы", hint: "Внешние расходы: морг, кладбище, крематорий, церковь." },
 ];
 
 /* ─── Main component ─────────────────────────────────────────────────── */
@@ -114,6 +114,24 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("basics");
+  const [visited, setVisited] = useState<Set<Step>>(() => new Set<Step>(["basics"]));
+
+  const stepIndex = STEPS.findIndex((item) => item.id === step);
+  const prevStep = stepIndex > 0 ? STEPS[stepIndex - 1] : null;
+  const nextStep = stepIndex < STEPS.length - 1 ? STEPS[stepIndex + 1] : null;
+
+  function goToStep(id: Step) {
+    setStep(id);
+    setVisited((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
 
   const result = useMemo(
     () => calculateOrder(form, DEFAULT_CALCULATOR_CONFIG, cemeteryCategory),
@@ -457,27 +475,38 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         </div>
       </div>
 
-      <nav className={s.stepNav} role="tablist" aria-label="Этапы конструктора сметы">
-        {STEPS.map((stepItem) => {
-          const active = step === stepItem.id;
-          const count =
-            stepItem.id === "attributes" ? estimateItemCount :
-            stepItem.id === "expenses" ? externalExpenses.length : 0;
-          return (
-            <button
-              key={stepItem.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={`${s.stepTab} ${active ? s.stepTabActive : ""}`}
-              onClick={() => setStep(stepItem.id)}
-            >
-              {stepItem.label}
-              {count > 0 && <span className={s.stepCount}>{count}</span>}
-            </button>
-          );
-        })}
+      <nav className={s.stepper} aria-label="Этапы конструктора сметы" data-tour="quote-stepper">
+        <ol className={s.stepperList}>
+          {STEPS.map((stepItem, index) => {
+            const active = step === stepItem.id;
+            const done = !active && visited.has(stepItem.id);
+            const count =
+              stepItem.id === "attributes" ? estimateItemCount :
+              stepItem.id === "expenses" ? externalExpenses.length : 0;
+            return (
+              <li key={stepItem.id} className={s.stepperItem}>
+                <button
+                  type="button"
+                  aria-current={active ? "step" : undefined}
+                  className={`${s.stepNode} ${active ? s.stepNodeActive : ""} ${done ? s.stepNodeDone : ""}`}
+                  onClick={() => goToStep(stepItem.id)}
+                >
+                  <span className={s.stepBadge} aria-hidden="true">
+                    {done ? <Check size={12} weight="bold" /> : index + 1}
+                  </span>
+                  <span className={s.stepLabel}>{stepItem.label}</span>
+                  {count > 0 && <span className={s.stepCount}>{count}</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
       </nav>
+
+      <div className={s.stepIntro} data-tour="quote-intro">
+        <span className={s.stepKicker}>Шаг {stepIndex + 1} из {STEPS.length}</span>
+        <p className={s.stepHint}>{STEPS[stepIndex].hint}</p>
+      </div>
 
       {/* ── Main layout ────────────────────────────────── */}
       <div className={s.layout}>
@@ -487,7 +516,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
           {step === "basics" && (<>
           {/* Service type */}
-          <div className={s.card} id="quote-basics">
+          <div className={s.card}>
             <p className={s.cardTitle}>Тип услуги</p>
             <div className={s.serviceToggle}>
               {(["burial", "cremation"] as const).map((t) => (
@@ -606,7 +635,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
           {step === "logistics" && (<>
           {/* Logistics */}
-          <div className={s.card} id="quote-logistics">
+          <div className={s.card}>
             <p className={s.cardTitle}>Логистика</p>
 
             <ToggleRow
@@ -710,7 +739,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           </div>
 
           {/* Additional services */}
-          <div className={s.card} id="quote-attributes">
+          <div className={s.card}>
             <p className={s.cardTitle}>Дополнительные услуги</p>
             <div className={s.svcList}>
               {ADDITIONAL_SERVICES.map((svc) => {
@@ -775,7 +804,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           )}
 
           {step === "memorial" && (
-          <div id="quote-memorial">
+          <div>
             <MemorialBlock
               data={memorialData}
               onCommentChange={(comment) => setMemorialData((current) => ({ ...current, comment }))}
@@ -788,7 +817,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           )}
 
           {step === "expenses" && (
-          <div id="quote-expenses">
+          <div>
             <ExternalExpensesBlock
               draft={expenseDraft}
               expenses={externalExpenses}
@@ -801,6 +830,32 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
             />
           </div>
           )}
+
+          {/* Навигация по шагам */}
+          <div className={s.stepFooter} data-tour="quote-nav">
+            {prevStep ? (
+              <button type="button" className={s.stepBack} onClick={() => goToStep(prevStep.id)}>
+                <CaretLeft size={14} weight="bold" /> {prevStep.label}
+              </button>
+            ) : (
+              <span />
+            )}
+            {nextStep ? (
+              <button type="button" className={s.stepForward} onClick={() => goToStep(nextStep.id)}>
+                Далее: {nextStep.label} <CaretRight size={14} weight="bold" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={`${s.stepForward} ${s.stepForwardDone}`}
+                onClick={saveVersion}
+                disabled={saving}
+              >
+                {saving ? "Сохраняю…" : "Готово — сохранить смету"}
+                {!saving && <Check size={14} weight="bold" />}
+              </button>
+            )}
+          </div>
 
         </div>
 
@@ -818,10 +873,16 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               <AttributeRender selection={attributes} selectedItems={estimateItems} className={s.renderSvg} />
             </div>
 
+            {/* Главная цифра — всегда на виду */}
+            <div className={s.panelHero}>
+              <span className={s.panelHeroLabel}>Предварительная сумма</span>
+              <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
+            </div>
+
             <div className={s.panelHead}>
-              <span className={s.panelHeadTitle}>Смета</span>
+              <span className={s.panelHeadTitle}>Что входит</span>
               {savedCount > 0 && (
-                <span className={s.panelVersions}>v{savedCount}</span>
+                <span className={s.panelVersions}>сохранено v{savedCount}</span>
               )}
             </div>
 
@@ -896,9 +957,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                             {expense.comment && <em>{expense.comment}</em>}
                           </div>
                           <div className={s.externalSummaryNumbers}>
-                            <span>Клиенту {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}</span>
-                            <span>Себестоимость {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)}</span>
-                            <span>Маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}</span>
+                            <span className={s.externalSummaryClient}>
+                              {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}
+                            </span>
+                            <span className={s.externalSummaryMeta}>
+                              с/с {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)} · маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}
+                            </span>
                           </div>
                         </div>
                       );
@@ -906,11 +970,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   </div>
                 </div>
               )}
-            </div>
-
-            <div className={s.panelTotalBlock}>
-              <div className={s.panelTotalLabel}>Итого</div>
-              <div className={s.panelTotalAmount}>{formatCurrency(grandTotal)}</div>
             </div>
 
             <AgentEconomicsBlock
@@ -936,7 +995,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               title={snapshotTitle}
             />
 
-            <div className={s.panelActions}>
+            <div className={s.panelActions} data-tour="quote-summary">
               <button
                 className={s.saveBtn}
                 onClick={saveVersion}

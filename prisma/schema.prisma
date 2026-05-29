@@ -131,6 +131,7 @@ model Agent {
   tier         AgentTier    @relation(fields: [tierId], references: [id])
   inn          String?      // ИНН ИП/самозанятого
   selfEmployed Boolean      @default(true)
+  onboardingCompleted Boolean @default(false) // прошёл ли агент интерактивный онбординг
 
   leads        ClientLead[]
   meetings     Meeting[]

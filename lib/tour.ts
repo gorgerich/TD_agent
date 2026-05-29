@@ -1,0 +1,103 @@
+// Определения интерактивных туров для онбординга агентов.
+// Каждый шаг привязан к элементу через атрибут data-tour="<anchor>".
+
+export type TourPlacement = "top" | "bottom" | "auto";
+
+export type TourStep = {
+  /** Значение атрибута data-tour у целевого элемента. */
+  anchor: string;
+  title: string;
+  body: string;
+  placement?: TourPlacement;
+  /** Если целевого элемента нет на странице — шаг пропускается. */
+  optional?: boolean;
+};
+
+export type TourDef = {
+  id: string;
+  /** Подходит ли тур к текущему пути. */
+  match: (pathname: string) => boolean;
+  /** Заголовок приветствия (первый экран без подсветки). */
+  intro?: { title: string; body: string };
+  steps: TourStep[];
+};
+
+export const DASHBOARD_TOUR: TourDef = {
+  id: "dashboard-v1",
+  match: (p) => p === "/agent/dashboard" || p === "/agent",
+  intro: {
+    title: "Добро пожаловать в «Тихий дом»",
+    body: "Покажем за минуту, как устроен кабинет агента: где смотреть встречи, где добавлять клиентов и как собрать смету. Можно пропустить в любой момент.",
+  },
+  steps: [
+    {
+      anchor: "greeting",
+      title: "Ваш рабочий день",
+      body: "Здесь — приветствие и сводка на сегодня: сколько встреч, клиентов в работе и сумма к выплате.",
+      placement: "bottom",
+    },
+    {
+      anchor: "stats",
+      title: "Ключевые цифры",
+      body: "Три показателя обновляются автоматически. «К выплате» — начисленные комиссии, которые ждут выплаты.",
+      placement: "bottom",
+    },
+    {
+      anchor: "quick-actions",
+      title: "Быстрые действия",
+      body: "Отсюда начинается работа: «Новый клиент» — добавить лид, «Назначить встречу» — запланировать выезд или звонок.",
+      placement: "bottom",
+    },
+    {
+      anchor: "recent",
+      title: "Последние встречи",
+      body: "Список недавних встреч со статусами. Нажмите на встречу, чтобы открыть её и собрать смету в конструкторе.",
+      placement: "top",
+    },
+  ],
+};
+
+export const QUOTE_TOUR: TourDef = {
+  id: "quote-v1",
+  match: (p) => /^\/agent\/meeting\/[^/]+\/quote\/?$/.test(p),
+  intro: {
+    title: "Конструктор сметы",
+    body: "Смета собирается по шагам. Проведём по каждому: что заполнять и где увидеть итог. Это займёт меньше минуты.",
+  },
+  steps: [
+    {
+      anchor: "quote-stepper",
+      title: "Шаги сметы",
+      body: "Пять этапов: Основное, Логистика, Атрибутика, Поминки, Расходы. Текущий шаг подсвечен, пройденные отмечены галочкой. Можно переключаться в любом порядке.",
+      placement: "bottom",
+    },
+    {
+      anchor: "quote-intro",
+      title: "Подсказка по шагу",
+      body: "Под шагами всегда видно, какой это шаг из пяти и что именно нужно заполнить на этом этапе.",
+      placement: "bottom",
+    },
+    {
+      anchor: "quote-nav",
+      title: "Навигация по шагам",
+      body: "Кнопки «Назад» и «Далее» ведут по этапам. На последнем шаге появится зелёная кнопка «Готово — сохранить смету».",
+      placement: "top",
+    },
+    {
+      anchor: "quote-summary",
+      title: "Итог и сохранение",
+      body: "Справа всегда виден итог сметы. Кнопка «Сохранить версию сметы» фиксирует расчёт — клиент увидит его на своей странице.",
+      placement: "top",
+      optional: true,
+    },
+  ],
+};
+
+export const TOURS: TourDef[] = [DASHBOARD_TOUR, QUOTE_TOUR];
+
+export function tourStorageKey(id: string) {
+  return `td_tour_done:${id}`;
+}
+
+/** Событие для ручного перезапуска тура из меню. */
+export const TOUR_START_EVENT = "td:start-tour";

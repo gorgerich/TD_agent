@@ -99,70 +99,47 @@
 }
 .dealMetricDanger span,
 .dealMetricDanger strong { color: var(--color-danger); }
-.flowNav {
-  position: sticky;
-  top: 0;
-  z-index: 8;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin: 0 -16px 16px;
-  padding: 8px 16px;
-  border-block: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
-  background: color-mix(in srgb, var(--color-canvas) 86%, transparent);
-  backdrop-filter: blur(10px);
-  scrollbar-width: none;
-}
-.flowNav::-webkit-scrollbar { display: none; }
-.flowNav a {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  min-height: 38px;
-  border: 1px solid var(--color-line);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--color-ink-2);
-  padding: 8px 12px;
-  text-decoration: none;
-  font-size: 12px;
-  font-weight: 700;
-  transition: border-color 0.16s ease, color 0.16s ease, background 0.16s ease;
-}
-.flowNav a:hover,
-.flowNav a:focus-visible {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-}
 @media (min-width: 640px) {
   .dealBar { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-  .flowNav { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
 }
 
-/* ── Step tabs (этапы конструктора) ─────────────────────── */
-.stepNav {
+/* ── Stepper (последовательные шаги конструктора) ───────── */
+.stepper {
   position: sticky;
   top: 0;
   z-index: 8;
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin: 0 -16px 18px;
-  padding: 9px 16px;
+  margin: 0 -16px 14px;
+  padding: 10px 16px;
   border-block: 1px solid color-mix(in srgb, var(--color-line) 70%, transparent);
-  background: color-mix(in srgb, var(--color-canvas) 88%, transparent);
+  background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
   backdrop-filter: blur(10px);
+}
+.stepperList {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
   scrollbar-width: none;
 }
-.stepNav::-webkit-scrollbar { display: none; }
-.stepTab {
+.stepperList::-webkit-scrollbar { display: none; }
+.stepperItem { flex: 0 0 auto; display: flex; align-items: center; }
+.stepperItem:not(:last-child)::after {
+  content: "";
+  width: 14px;
+  height: 2px;
+  margin: 0 2px;
+  border-radius: 2px;
+  background: var(--color-line);
   flex: 0 0 auto;
+}
+.stepNode {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 7px 13px 7px 8px;
   border: 1px solid var(--color-line);
   border-radius: 999px;
   background: var(--color-surface);
@@ -170,16 +147,39 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
-.stepTab:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
-.stepTabActive,
-.stepTabActive:hover {
+.stepNode:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
+.stepBadge {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.stepLabel { line-height: 1; }
+.stepNodeActive,
+.stepNodeActive:hover {
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: var(--color-on-accent);
   box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
+.stepNodeActive .stepBadge { background: rgba(255, 255, 255, 0.24); color: var(--color-on-accent); }
+.stepNodeDone {
+  border-color: color-mix(in srgb, var(--color-success) 40%, var(--color-line));
+  color: var(--color-ink);
+}
+.stepNodeDone .stepBadge { background: var(--color-success); color: var(--color-on-accent); }
 .stepCount {
   display: inline-grid;
   place-items: center;
@@ -193,10 +193,79 @@
   background: color-mix(in srgb, var(--color-ink) 9%, transparent);
   color: var(--color-ink-2);
 }
-.stepTabActive .stepCount { background: rgba(255, 255, 255, 0.22); color: var(--color-on-accent); }
+.stepNodeActive .stepCount { background: rgba(255, 255, 255, 0.22); color: var(--color-on-accent); }
 @media (min-width: 640px) {
-  .stepNav { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
+  .stepper { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
 }
+
+/* Подсказка текущего шага */
+.stepIntro {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 14px;
+}
+.stepKicker {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.stepHint {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Навигация по шагам (низ колонки формы) */
+.stepFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+.stepBack,
+.stepForward {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.stepBack {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+}
+.stepBack:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
+.stepForward {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--color-accent) 70%, transparent);
+}
+.stepForward:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+.stepForward:disabled { opacity: 0.55; cursor: default; }
+.stepForwardDone {
+  border-color: var(--color-success);
+  background: var(--color-success);
+}
+.stepForwardDone:hover:not(:disabled) { background: color-mix(in srgb, var(--color-success) 86%, #000); border-color: color-mix(in srgb, var(--color-success) 86%, #000); }
 
 /* ── Layout ─────────────────────────────────────────────── */
 .layout {
@@ -218,18 +287,15 @@
   border-radius: var(--radius-card);
   padding: 18px;
   box-shadow: var(--shadow-soft);
-  scroll-margin-top: 82px;
-}
-#quote-memorial,
-#quote-expenses {
-  scroll-margin-top: 82px;
 }
 @media (min-width: 640px) { .card { padding: 20px 22px; } }
 
 .cardTitle {
   margin: 0 0 14px;
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.1em; color: var(--color-ink-3);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
 }
 .subLabel {
   margin: 0 0 10px;
@@ -578,23 +644,6 @@
   color: var(--color-ink-2);
   font-size: 12px;
   line-height: 1.35;
-}
-.catalogPrices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-top: 8px;
-  color: var(--color-ink-3);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-.catalogPrices span:first-child {
-  color: var(--color-ink);
-  font-weight: 700;
-}
-.catalogPrices span:not(:first-child) {
-  color: var(--color-ink-3);
 }
 .catalogPriceMain {
   margin-top: 8px;
@@ -1009,43 +1058,55 @@
 }
 .externalSummaryNumbers {
   display: grid;
-  gap: 2px;
-  color: var(--color-ink-3);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-variant-numeric: tabular-nums;
+  gap: 3px;
+  align-content: start;
   text-align: right;
 }
+.externalSummaryClient {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.externalSummaryMeta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+  color: var(--color-ink-3);
+}
 
-.panelTotalBlock {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+/* Главная цифра сметы — фокус правой колонки */
+.panelHero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
   padding: 16px 20px;
-  background: var(--color-surface-2);
+  background: var(--color-accent-soft);
   border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
 }
-.panelTotalLabel {
-  font-size: 12px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.08em; color: var(--color-ink-2);
+.panelHeroLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-2);
 }
-.panelTotalAmount {
-  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  font-size: 24px; font-weight: 600; color: var(--color-ink);
+.panelHeroAmount {
+  font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-accent);
 }
 
 .economicsBlock {
   padding: 16px 20px;
   border-top: 1px solid var(--color-line);
   background: color-mix(in srgb, var(--color-surface-2) 42%, var(--color-surface));
-}
-.economicsHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-ink);
 }
 .economicsTag {
   padding: 2px 8px;
@@ -1355,14 +1416,3 @@ details[open] > .collapseHead { margin-bottom: 12px; }
   height: auto;
   border-radius: 12px;
 }
-
-/* Индикатор правки клиента */
-.clientPing {
-  font-size: 10.5px; font-weight: 600;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  border-radius: 999px;
-  padding: 2px 9px;
-  animation: clientPing 0.4s ease;
-}
-@keyframes clientPing { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }

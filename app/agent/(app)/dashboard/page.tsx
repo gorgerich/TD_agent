@@ -80,7 +80,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
-      <header className="rise mb-7 td-shell">
+      <header className="rise mb-7 td-shell" data-tour="greeting">
         <div className="td-core overflow-hidden">
           <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
             <div>
@@ -119,7 +119,7 @@ export default async function DashboardPage() {
       </header>
 
       {/* Stats */}
-      <section className="rise rise-1 mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="rise rise-1 mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="stats">
         <StatCard
           icon={<CalendarDots size={18} weight="duotone" />}
           label="Встречи сегодня"
@@ -142,7 +142,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* Quick actions */}
-      <section className="rise rise-2 mb-9 flex flex-wrap gap-2.5">
+      <section className="rise rise-2 mb-9 flex flex-wrap gap-2.5" data-tour="quick-actions">
         <Link
           href="/agent/leads/new"
           className="inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
@@ -164,7 +164,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* Recent meetings */}
-      <section className="rise rise-3">
+      <section className="rise rise-3" data-tour="recent">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="td-eyebrow">Последние встречи</h2>
           <Link href="/agent/meetings" className="inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-[12.5px] font-semibold text-accent transition-colors hover:bg-accent-soft hover:text-accent-hover">

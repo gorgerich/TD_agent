@@ -10,9 +10,11 @@ import {
   SignOut,
   List,
   X,
+  GraduationCap,
 } from "@phosphor-icons/react";
 import { CurrencyRub } from "@phosphor-icons/react/dist/csr/CurrencyRub";
 import type { AgentSession } from "@/lib/auth";
+import { TOURS, TOUR_START_EVENT } from "@/lib/tour";
 
 const NAV = [
   { href: "/agent/dashboard", icon: House, label: "Дашборд" },
@@ -75,7 +77,15 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   );
 }
 
-function UserBlock({ session, onLogout }: { session: AgentSession | null; onLogout: () => void }) {
+function UserBlock({
+  session,
+  onLogout,
+  onStartTour,
+}: {
+  session: AgentSession | null;
+  onLogout: () => void;
+  onStartTour: () => void;
+}) {
   const initials = session?.name
     ? session.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "А";
@@ -92,6 +102,14 @@ function UserBlock({ session, onLogout }: { session: AgentSession | null; onLogo
           </span>
         </div>
       )}
+      <button
+        type="button"
+        onClick={onStartTour}
+        className="flex w-full items-center gap-2.5 rounded-[14px] px-3 py-2.5 text-[13px] font-medium text-on-accent/66 transition-colors hover:bg-on-accent/9 hover:text-on-accent"
+      >
+        <GraduationCap size={16} />
+        Обучение
+      </button>
       <button
         type="button"
         onClick={onLogout}
@@ -122,6 +140,17 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
     router.refresh();
   }
 
+  function startTour() {
+    setOpen(false);
+    const onTourPage = TOURS.some((t) => t.match(pathname));
+    if (onTourPage) {
+      window.dispatchEvent(new CustomEvent(TOUR_START_EVENT));
+    } else {
+      // С любой страницы — на дашборд с принудительным запуском тура.
+      router.push("/agent/dashboard#tour");
+    }
+  }
+
   return (
     <>
       {/* Desktop sidebar */}
@@ -137,7 +166,7 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
           <NavLinks pathname={pathname} />
         </div>
         <div className="border-t border-on-accent/10 px-4 py-4">
-          <UserBlock session={session} onLogout={logout} />
+          <UserBlock session={session} onLogout={logout} onStartTour={startTour} />
         </div>
       </nav>
 
@@ -188,7 +217,7 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
           </div>
           <div className="border-t border-on-accent/10 px-4 py-4">
-            <UserBlock session={session} onLogout={logout} />
+            <UserBlock session={session} onLogout={logout} onStartTour={startTour} />
           </div>
         </nav>
       </div>
