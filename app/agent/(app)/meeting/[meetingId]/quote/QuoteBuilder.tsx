@@ -1018,6 +1018,17 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         </aside>
 
       </div>
+
+      {/* Липкая сводка для мобильных — сумма и сохранение всегда под рукой */}
+      <div className={s.mobileBar}>
+        <div className={s.mobileBarSum}>
+          <span className={s.mobileBarLabel}>Предварительно</span>
+          <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
+        </div>
+        <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>
+          {saving ? "Сохраняю…" : "Сохранить"}
+        </button>
+      </div>
     </div>
   );
 }

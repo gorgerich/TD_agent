@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
+import { ArrowLeft, CaretRight } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import QuoteBuilder from "./QuoteBuilder";
@@ -23,32 +23,41 @@ export default async function QuoteBuilderPage({
   type MeetingRow = {
     id: number;
     cobrowseCode: string | null;
-    lead: { name: string } | null;
+    lead: { id: number; name: string } | null;
   };
   let meeting: MeetingRow | null = null;
 
   try {
     meeting = await prisma.meeting.findUnique({
       where: { id: meetingId },
-      select: { id: true, cobrowseCode: true, lead: { select: { name: true } } },
+      select: { id: true, cobrowseCode: true, lead: { select: { id: true, name: true } } },
     });
   } catch {
     // DB not configured in local dev — proceed with nulls
   }
 
   const clientName = meeting?.lead?.name ?? "Клиент";
+  const leadId = meeting?.lead?.id;
 
   return (
     <div>
-      <nav className="mx-auto flex max-w-[1180px] items-center gap-3 px-4 pt-7 sm:px-7 sm:pt-9">
-        <Link
-          href={`/agent/meetings/${meetingId}`}
-          className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink"
-        >
-          <ArrowLeft size={14} /> К встрече
+      {/* Хлебные крошки — путь во вложенности всегда виден */}
+      <nav aria-label="Навигация" className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-1.5 px-4 pt-7 text-[12.5px] sm:px-7 sm:pt-9">
+        <Link href={`/agent/meetings/${meetingId}`} className="inline-flex items-center gap-1 text-ink-3 transition-colors hover:text-ink">
+          <ArrowLeft size={13} /> Назад
         </Link>
-        <span className="text-ink-3">·</span>
-        <span className="text-[12.5px] font-medium text-ink-3">Конструктор сметы</span>
+        <span className="mx-1 h-3 w-px bg-line-strong" aria-hidden />
+        <Link href="/agent/leads" className="text-ink-3 transition-colors hover:text-ink">Клиенты</Link>
+        <CaretRight size={11} className="text-ink-3" aria-hidden />
+        {leadId ? (
+          <Link href={`/agent/leads/${leadId}`} className="text-ink-2 transition-colors hover:text-ink">{clientName}</Link>
+        ) : (
+          <span className="text-ink-2">{clientName}</span>
+        )}
+        <CaretRight size={11} className="text-ink-3" aria-hidden />
+        <Link href={`/agent/meetings/${meetingId}`} className="text-ink-2 transition-colors hover:text-ink">Встреча №{meetingId}</Link>
+        <CaretRight size={11} className="text-ink-3" aria-hidden />
+        <span className="font-semibold text-ink">Смета</span>
       </nav>
 
       <QuoteBuilder

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
+import { ArrowLeft, FileText, ArrowSquareOut, Check } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import MeetingActions from "./MeetingActions";
@@ -13,6 +13,7 @@ async function getMeeting(meetingId: number, agentId: number) {
       include: {
         lead: { select: { id: true, name: true, phone: true } },
         quotes: { orderBy: { id: "desc" }, take: 1, include: { versions: { orderBy: { createdAt: "desc" }, take: 1 } } },
+        orders: { select: { id: true } },
       },
     });
   } catch {
@@ -48,6 +49,9 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
 
   const cobrowseCode = meeting.cobrowseCode ?? `DEV-${meeting.id}`;
   const lastVersion = meeting.quotes[0]?.versions[0];
+  const hasQuote = Boolean(lastVersion);
+  const hasOrder = meeting.orders.length > 0;
+  const completed = meeting.status === "COMPLETED";
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
@@ -68,6 +72,15 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           <p className="mt-1.5 text-[10.5px] text-ink-3">/co/{cobrowseCode}</p>
         </div>
       </div>
+
+      {/* Воронка действий по сделке */}
+      <DealFunnel
+        meetingId={meeting.id}
+        hasQuote={hasQuote}
+        hasOrder={hasOrder}
+        completed={completed}
+        cancelled={meeting.status === "CANCELLED"}
+      />
 
       {/* Info grid */}
       <div className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-6">
@@ -117,6 +130,72 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
 
       <MeetingActions meetingId={meeting.id} currentStatus={meeting.status} />
     </div>
+  );
+}
+
+function DealFunnel({
+  meetingId,
+  hasQuote,
+  hasOrder,
+  completed,
+  cancelled,
+}: {
+  meetingId: number;
+  hasQuote: boolean;
+  hasOrder: boolean;
+  completed: boolean;
+  cancelled: boolean;
+}) {
+  const stages = [
+    { label: "Лид", done: true, href: undefined as string | undefined },
+    { label: "Встреча", done: true, href: undefined },
+    { label: "Смета", done: hasQuote, href: `/agent/meeting/${meetingId}/quote` },
+    { label: "Подписание", done: hasOrder, href: undefined },
+    { label: "Заказ", done: completed, href: undefined },
+  ];
+  // Текущий этап — первый незавершённый (если сделка не отменена).
+  const currentIndex = cancelled ? -1 : stages.findIndex((s) => !s.done);
+
+  return (
+    <nav aria-label="Этапы сделки" className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-3 py-4 shadow-soft sm:px-5">
+      <ol className="flex items-center gap-1 overflow-x-auto">
+        {stages.map((stage, i) => {
+          const active = i === currentIndex;
+          const done = stage.done;
+          const node = (
+            <span className="flex flex-col items-center gap-1.5 px-1.5">
+              <span
+                className={[
+                  "grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-[11px] font-semibold transition-colors",
+                  done
+                    ? "bg-accent text-on-accent"
+                    : active
+                      ? "border-2 border-accent bg-accent-soft text-accent"
+                      : "border border-line-strong bg-surface text-ink-3",
+                ].join(" ")}
+              >
+                {done ? <Check size={13} weight="bold" /> : i + 1}
+              </span>
+              <span className={`whitespace-nowrap text-[11px] font-medium ${active ? "text-ink" : done ? "text-ink-2" : "text-ink-3"}`}>
+                {stage.label}
+              </span>
+            </span>
+          );
+          return (
+            <li key={stage.label} className="flex flex-1 items-center">
+              {stage.href ? (
+                <Link href={stage.href} className="rounded-lg transition-opacity hover:opacity-80">{node}</Link>
+              ) : (
+                node
+              )}
+              {i < stages.length - 1 && (
+                <span className={`mx-0.5 h-px flex-1 ${stages[i + 1].done || done ? "bg-accent/45" : "bg-line"}`} aria-hidden />
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 

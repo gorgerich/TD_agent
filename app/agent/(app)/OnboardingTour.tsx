@@ -101,15 +101,15 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     return () => window.clearTimeout(timer);
   }, [pathname, begin]);
 
-  // Если ушли со страницы тура — закрываем без отметки (вернётся при возврате, если ещё не пройден).
-  useEffect(() => {
-    if (tour && (!activeTour || activeTour.id !== tour.id)) {
-      setTour(null);
-      setRect(null);
-      setIndex(0);
-      setPhase("intro");
-    }
-  }, [pathname, tour, activeTour]);
+  // Если ушли со страницы тура — закрываем без отметки (вернётся при возврате,
+  // если ещё не пройден). Корректировка состояния при смене pathname делается
+  // во время рендера (рекомендованный паттерн React вместо эффекта).
+  if (tour && (!activeTour || activeTour.id !== tour.id)) {
+    setTour(null);
+    setRect(null);
+    setIndex(0);
+    setPhase("intro");
+  }
 
   const steps: TourStep[] = tour?.steps ?? [];
   const current = phase === "steps" ? steps[index] : null;

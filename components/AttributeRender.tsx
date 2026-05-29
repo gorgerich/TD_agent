@@ -1,39 +1,29 @@
+"use client";
+
+// Публичный компонент визуализации ритуального комплекта.
+// API сохранён: { selection, selectedItems, className, compact }.
+// Основной режим — интерактивная 3D-сцена (Three.js). Если WebGL недоступен
+// или комплект ещё пуст — показываем лёгкий SVG-предпросмотр (graceful fallback).
+
+import { Component, type CSSProperties, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { getItem, type AttrSelection } from "@/lib/attributes";
-import type { CatalogCategory } from "@/lib/calculationUtils";
+import {
+  mapToSceneConfig,
+  type AttributePreviewConfig,
+  type CasketType,
+  type CrossType,
+  type PreviewItem,
+  type WreathType,
+} from "./funeral3d/config";
 
-type PreviewItem = {
-  catalogItemId?: string;
-  name: string;
-  category: CatalogCategory | "Поминки / кафе";
-  selectedColor?: string;
-};
+const FuneralScene = dynamic(() => import("./funeral3d/FuneralScene"), {
+  ssr: false,
+  loading: () => <SceneSkeleton />,
+});
 
-type CasketType = "fabric" | "lacquered" | "premium";
-type WreathType = "standard" | "premium" | "flowerBasket";
-type CrossType = "wooden" | "metal" | "none";
-
-type CasketPalette = {
-  base: string;
-  side: string;
-  top: string;
-  highlight: string;
-};
-
-export type AttributePreviewConfig = {
-  casketType?: CasketType;
-  casketColor?: string;
-  hasWreath?: boolean;
-  wreathType?: WreathType;
-  hasCross?: boolean;
-  crossType?: CrossType;
-  hasNamePlate?: boolean;
-  summary: {
-    casket?: string;
-    color?: string;
-    wreath?: string;
-    cross?: string;
-  };
-};
+// ── SVG-палитра (используется только в fallback-предпросмотре) ─────────────
+type CasketPalette = { base: string; side: string; top: string; highlight: string };
 
 const CASKET_COLORS: Record<string, CasketPalette> = {
   "синий": { base: "#243a73", side: "#17264f", top: "#334f94", highlight: "#6f85c7" },
@@ -63,7 +53,8 @@ function itemText(item: PreviewItem) {
   return `${item.catalogItemId ?? ""} ${item.name} ${item.category}`.toLowerCase();
 }
 
-export function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): AttributePreviewConfig {
+// ── Деривация доменного конфига из позиций сметы ───────────────────────────
+function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): AttributePreviewConfig {
   const reversed = [...items].reverse();
   const casket = reversed.find((item) => {
     const text = itemText(item);
@@ -76,6 +67,10 @@ export function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []):
   const cross = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("крест") || text.includes("cross");
+  });
+  const textile = reversed.find((item) => {
+    const text = itemText(item);
+    return text.includes("покрывал") || text.includes("атлас") || text.includes("бархат") || text.includes("парча");
   });
   const plate = reversed.find((item) => {
     const text = itemText(item);
@@ -100,14 +95,33 @@ export function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []):
         ? "premium"
         : "standard"
     : undefined;
+  const wreathAccent = wreath
+    ? wreathText.includes("траур") || wreathText.includes("красн") || wreathText.includes("гвоздик")
+      ? "#9e3b32"
+      : wreathText.includes("бордов")
+        ? "#6e2230"
+        : "#efece4"
+    : undefined;
+
+  const crossText = cross ? itemText(cross) : "";
+  const crossStyle: AttributePreviewConfig["crossStyle"] = cross
+    ? crossText.includes("православ")
+      ? "carved"
+      : crossText.includes("металл")
+        ? "metal"
+        : "wood"
+    : "none";
 
   return {
     casketType,
     casketColor: casket?.selectedColor,
     hasWreath: Boolean(wreath),
     wreathType,
+    wreathAccent,
     hasCross: Boolean(cross),
-    crossType: cross ? (itemText(cross).includes("металл") ? "metal" : "wooden") : "none",
+    crossType: cross ? (crossText.includes("металл") ? "metal" : "wooden") : "none",
+    crossStyle,
+    textileName: textile?.name,
     hasNamePlate: Boolean(plate),
     summary: {
       casket: casket?.name,
@@ -121,6 +135,7 @@ export function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []):
 function derivePreviewConfigFromSelection(selection: AttrSelection): AttributePreviewConfig {
   const coffin = getItem(selection.coffin);
   const cross = getItem(selection.cross);
+  const textile = getItem(selection.textile);
   const wreaths = (selection.wreaths ?? []).map(getItem).filter(Boolean);
   const casketColor = coffin?.name === "Белый лак" ? "белый" : coffin?.name === "Махагон" ? "махагон" : "тёмный орех";
 
@@ -129,8 +144,11 @@ function derivePreviewConfigFromSelection(selection: AttrSelection): AttributePr
     casketColor,
     hasWreath: wreaths.length > 0,
     wreathType: wreaths.some((wreath) => wreath?.name.includes("Корзина")) ? "flowerBasket" : wreaths.length > 1 ? "premium" : "standard",
+    wreathAccent: wreaths[0]?.render.accent,
     hasCross: Boolean(cross),
     crossType: cross?.render.style === "metal" ? "metal" : cross ? "wooden" : "none",
+    crossStyle: cross ? (cross.render.style ?? "wood") : "none",
+    textileName: textile?.name,
     hasNamePlate: false,
     summary: {
       casket: coffin?.name,
@@ -141,10 +159,10 @@ function derivePreviewConfigFromSelection(selection: AttrSelection): AttributePr
   };
 }
 
+// ── SVG-объекты (fallback) ─────────────────────────────────────────────────
 function Cross({ type = "wooden" }: { type?: CrossType }) {
   if (type === "none") return null;
   const metal = type === "metal";
-
   return (
     <g transform="translate(116 120) rotate(-6)" filter="url(#objectShadow)">
       <ellipse cx="18" cy="210" rx="38" ry="10" fill="#2a211733" filter="url(#softBlur)" />
@@ -267,26 +285,24 @@ function Casket({ config, muted = false }: { config: AttributePreviewConfig; mut
   );
 }
 
-export default function AttributeRender({
-  selection,
+function SvgPreview({
+  config,
+  hasSelectedVisual,
+  mutedCasket,
   selectedItems,
-  className,
-  compact = false,
+  compact,
 }: {
-  selection: AttrSelection;
+  config: AttributePreviewConfig;
+  hasSelectedVisual: boolean;
+  mutedCasket: boolean;
   selectedItems?: PreviewItem[];
-  className?: string;
-  compact?: boolean;
+  compact: boolean;
 }) {
-  const config = selectedItems ? derivePreviewConfigFromEstimateItems(selectedItems) : derivePreviewConfigFromSelection(selection);
-  const hasSelectedVisual = Boolean(config.casketType || config.hasWreath || config.hasCross || config.hasNamePlate);
-  const mutedCasket = !config.casketType && hasSelectedVisual;
   const palette = getPalette(config.casketColor, config.casketType);
-
   return (
     <svg
       viewBox="0 0 640 420"
-      className={className}
+      style={{ display: "block", width: "100%", height: "100%" }}
       role="img"
       aria-label="Предпросмотр комплекта ритуальной атрибутики"
       preserveAspectRatio="xMidYMid meet"
@@ -334,9 +350,7 @@ export default function AttributeRender({
         </clipPath>
       </defs>
 
-      <style>{`
-        .preview-casket, .preview-accessory { transition: opacity 180ms ease, transform 220ms ease; transform-origin: center; }
-      `}</style>
+      <style>{`.preview-casket, .preview-accessory { transition: opacity 180ms ease, transform 220ms ease; transform-origin: center; }`}</style>
 
       <rect x="0" y="0" width="640" height="420" rx="28" fill="url(#previewBg)" />
       <path d="M 88 329 C 174 292 444 290 561 331 C 482 389 185 390 88 329 Z" fill="#fff8eb70" />
@@ -360,5 +374,81 @@ export default function AttributeRender({
         <path d="M 520 85 C 565 119 586 165 588 220" fill="none" stroke="#ffffff55" strokeWidth="22" strokeLinecap="round" />
       </g>
     </svg>
+  );
+}
+
+// Если WebGL недоступен / контекст потерян — показываем SVG-предпросмотр.
+class WebGLBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+function SceneSkeleton() {
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "grid",
+        placeItems: "center",
+        background: "radial-gradient(120% 100% at 38% 22%, #fff9ed 0%, #efe5d4 58%, #d8ccb8 100%)",
+      }}
+    >
+      <span style={{ fontSize: 12, color: "#756a59", letterSpacing: "0.04em" }}>Загрузка 3D-сцены…</span>
+    </div>
+  );
+}
+
+// ── Публичный компонент ────────────────────────────────────────────────────
+export default function AttributeRender({
+  selection,
+  selectedItems,
+  className,
+  compact = false,
+}: {
+  selection: AttrSelection;
+  selectedItems?: PreviewItem[];
+  className?: string;
+  compact?: boolean;
+}) {
+  const config = selectedItems ? derivePreviewConfigFromEstimateItems(selectedItems) : derivePreviewConfigFromSelection(selection);
+  const hasSelectedVisual = Boolean(config.casketType || config.hasWreath || config.hasCross || config.hasNamePlate);
+  const mutedCasket = !config.casketType && hasSelectedVisual;
+  const emptyState = !hasSelectedVisual && Boolean(selectedItems);
+
+  const wrapperStyle: CSSProperties = {
+    position: "relative",
+    width: "100%",
+    aspectRatio: compact ? "3 / 2" : "64 / 42",
+    overflow: "hidden",
+    borderRadius: 12,
+  };
+
+  const svgFallback = (
+    <SvgPreview
+      config={config}
+      hasSelectedVisual={hasSelectedVisual}
+      mutedCasket={mutedCasket}
+      selectedItems={selectedItems}
+      compact={compact}
+    />
+  );
+
+  return (
+    <div className={className} style={wrapperStyle}>
+      {emptyState ? (
+        svgFallback
+      ) : (
+        <WebGLBoundary fallback={svgFallback}>
+          <FuneralScene config={mapToSceneConfig(config, compact ? "compact" : "full")} />
+        </WebGLBoundary>
+      )}
+    </div>
   );
 }
