@@ -124,6 +124,50 @@ export function layerPaths(c: ConfigState): { bg: string; layers: Layer[] } {
 }
 
 // ── Маппинг в 3D-конфиг (фолбэк) ───────────────────────────────────────────
+// ── Маппинг в id/состав для RitualSetPreview (2.5D-слои) ──────────────────
+function label<T extends string>(opts: Option<T>[], v: T): string {
+  return opts.find((o) => o.value === v)?.label ?? v;
+}
+
+const WOOD_KEY: Record<CoffinWood, string> = {
+  dark_oak: "dark-oak", walnut: "walnut", mahogany: "mahogany", black: "black", white: "white",
+};
+const WREATH_COLOR_KEY: Record<WreathColor, string> = {
+  white_green: "white-green", red_white: "red-white", burgundy_green: "burgundy-green", cream: "white-green",
+};
+
+export function previewIds(c: ConfigState): {
+  coffinId: string;
+  upholsteryId: string;
+  wreathId: string;
+  crossId: string;
+} {
+  const modelKey = c.coffinModel === "rect" ? "simple" : c.coffinModel === "hex_modern" ? "modern" : "classic";
+  const shapeKey = c.wreathShape === "teardrop_120" ? "teardrop" : "oval";
+  return {
+    coffinId: `${modelKey}-${WOOD_KEY[c.wood]}`,
+    upholsteryId:
+      c.upholsteryMaterial === "velvet"
+        ? "burgundy-velvet"
+        : c.upholsteryMaterial === "brocade"
+          ? "white-gold-trim"
+          : c.upholsteryColor === "cream"
+            ? "cream-satin"
+            : "white-satin",
+    wreathId: `orthodox-${shapeKey}-${WREATH_COLOR_KEY[c.wreathColor]}`,
+    crossId: c.crossKind === "ortho_8" ? "orthodox-eight-point" : "orthodox-six-point",
+  };
+}
+
+export function previewSummary(c: ConfigState) {
+  return {
+    coffin: `${label(COFFIN_MODELS, c.coffinModel)}, ${label(WOODS, c.wood).toLowerCase()}`,
+    upholstery: `${label(UPHOLSTERY_MATERIALS, c.upholsteryMaterial)}, ${label(UPHOLSTERY_COLORS, c.upholsteryColor).toLowerCase()}`,
+    wreath: c.wreathEnabled ? label(WREATH_SHAPES, c.wreathShape) : undefined,
+    cross: c.crossEnabled ? label(CROSS_KINDS, c.crossKind) : undefined,
+  };
+}
+
 export function toSceneConfig(c: ConfigState): FuneralVisualizationConfig {
   const upholstery: Upholstery =
     c.upholsteryMaterial === "velvet"

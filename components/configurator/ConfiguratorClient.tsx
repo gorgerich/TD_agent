@@ -1,12 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import { ArrowsOut, Info, Cube, Image as ImageIcon } from "@phosphor-icons/react";
-
-// Клиент-только: img-слои создаются после гидратации → onError ловится надёжно,
-// Canvas-фолбэк не пытается рендериться на сервере.
-const ConfiguratorScene = dynamic(() => import("./ConfiguratorScene"), { ssr: false });
+import RitualSetPreview from "../visualizer/RitualSetPreview";
 import {
   COFFIN_MODELS,
   CROSS_KINDS,
@@ -17,6 +13,7 @@ import {
   WREATH_COLORS,
   WREATH_SHAPES,
   formatRub,
+  previewIds,
   totalPrice,
   type ConfigState,
   type Option,
@@ -234,7 +231,14 @@ export default function ConfiguratorClient({ meetingId }: { meetingId?: number }
 
         {/* превью */}
         <div id="cfg-stage" className="relative min-h-0 flex-1">
-          <ConfiguratorScene config={config} />
+          <RitualSetPreview
+            variant="bare"
+            {...previewIds(config)}
+            showWreath={config.wreathEnabled}
+            showCross={config.crossEnabled}
+            enableZoom={false}
+          />
+
           <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/40 px-3.5 py-1.5 text-[11.5px] text-white/70 backdrop-blur">
             Вращайте сцену мышью или пальцем
           </div>

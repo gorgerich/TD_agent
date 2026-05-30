@@ -5,22 +5,16 @@
 // Основной режим — интерактивная 3D-сцена (Three.js). Если WebGL недоступен
 // или комплект ещё пуст — показываем лёгкий SVG-предпросмотр (graceful fallback).
 
-import { Component, type CSSProperties, type ReactNode } from "react";
-import dynamic from "next/dynamic";
+import { type CSSProperties } from "react";
 import { getItem, type AttrSelection } from "@/lib/attributes";
 import {
-  mapToSceneConfig,
   type AttributePreviewConfig,
   type CasketType,
   type CrossType,
   type PreviewItem,
   type WreathType,
 } from "./funeral3d/config";
-
-const FuneralScene = dynamic(() => import("./funeral3d/FuneralScene"), {
-  ssr: false,
-  loading: () => <SceneSkeleton />,
-});
+import RitualSetPreview from "./visualizer/RitualSetPreview";
 
 // ── SVG-палитра (используется только в fallback-предпросмотре) ─────────────
 type CasketPalette = { base: string; side: string; top: string; highlight: string };
@@ -377,32 +371,43 @@ function SvgPreview({
   );
 }
 
-// Если WebGL недоступен / контекст потерян — показываем SVG-предпросмотр.
-class WebGLBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
+// ── Маппинг доменного конфига → id слоёв 2.5D-визуализатора ─────────────────
+function lc(s?: string) {
+  return (s ?? "").toLowerCase();
 }
 
-function SceneSkeleton() {
-  return (
-    <div
-      aria-hidden
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "grid",
-        placeItems: "center",
-        background: "radial-gradient(120% 100% at 38% 22%, #fff9ed 0%, #efe5d4 58%, #d8ccb8 100%)",
-      }}
-    >
-      <span style={{ fontSize: 12, color: "#756a59", letterSpacing: "0.04em" }}>Загрузка 3D-сцены…</span>
-    </div>
-  );
+function previewIdsFromConfig(c: AttributePreviewConfig) {
+  const col = lc(c.casketColor);
+  const wood = col.includes("бел")
+    ? "white"
+    : col.includes("чёрн") || col.includes("черн")
+      ? "black"
+      : col.includes("махагон") || col.includes("вишн")
+        ? "mahogany"
+        : col.includes("светл") || col.includes("сосн")
+          ? "walnut"
+          : "dark-oak";
+  const tx = lc(c.textileName);
+  const upholsteryId = tx.includes("бархат")
+    ? "burgundy-velvet"
+    : tx.includes("парча")
+      ? "white-gold-trim"
+      : tx.includes("крем")
+        ? "cream-satin"
+        : "white-satin";
+  const acc = lc(c.wreathAccent);
+  const wcol =
+    acc.includes("9e3b32") || acc.includes("красн") || acc.startsWith("#a")
+      ? "red-white"
+      : acc.includes("6e22") || acc.includes("бордов")
+        ? "burgundy-green"
+        : "white-green";
+  return {
+    coffinId: `classic-${wood}`,
+    upholsteryId,
+    wreathId: `orthodox-oval-${wcol}`,
+    crossId: c.crossStyle === "carved" ? "orthodox-eight-point" : "orthodox-six-point",
+  };
 }
 
 // ── Публичный компонент ────────────────────────────────────────────────────
@@ -440,14 +445,24 @@ export default function AttributeRender({
     />
   );
 
+  const ids = previewIdsFromConfig(config);
+
   return (
     <div className={className} style={wrapperStyle}>
       {emptyState ? (
         svgFallback
       ) : (
-        <WebGLBoundary fallback={svgFallback}>
-          <FuneralScene config={mapToSceneConfig(config, compact ? "compact" : "full")} />
-        </WebGLBoundary>
+        // 2.5D-слои; нет ассета гроба → graceful fallback = SVG-предпросмотр.
+        <RitualSetPreview
+          variant="bare"
+          coffinId={ids.coffinId}
+          upholsteryId={ids.upholsteryId}
+          wreathId={ids.wreathId}
+          crossId={ids.crossId}
+          showWreath={Boolean(config.hasWreath)}
+          showCross={Boolean(config.hasCross)}
+          fallback={svgFallback}
+        />
       )}
     </div>
   );
