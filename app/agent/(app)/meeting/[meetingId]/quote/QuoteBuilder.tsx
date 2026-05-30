@@ -47,6 +47,7 @@ import {
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
+import RitualConfigurator from "@/components/configurator/RitualConfigurator";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -798,6 +799,11 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   onAdd={() => addCatalogItem(item)}
                 />
               ))}
+            </div>
+
+            {/* Визуальный конфигуратор комплекта — мини-окно + разворот на весь экран */}
+            <div className={s.configuratorSlot}>
+              <RitualConfigurator mode="inline" />
             </div>
           </div>
 

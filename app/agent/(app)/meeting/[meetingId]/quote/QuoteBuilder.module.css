@@ -1474,3 +1474,5 @@ details[open] > .collapseHead { margin-bottom: 12px; }
   opacity: 0.55;
   cursor: default;
 }
+
+.configuratorSlot { margin-top: 16px; }

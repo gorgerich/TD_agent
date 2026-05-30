@@ -11,7 +11,6 @@ import {
   List,
   X,
   GraduationCap,
-  Cube,
 } from "@phosphor-icons/react";
 import { CurrencyRub } from "@phosphor-icons/react/dist/csr/CurrencyRub";
 import type { AgentSession } from "@/lib/auth";
@@ -21,7 +20,6 @@ const NAV = [
   { href: "/agent/dashboard", icon: House, label: "Дашборд" },
   { href: "/agent/leads", icon: Users, label: "Клиенты" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Встречи" },
-  { href: "/agent/configurator", icon: Cube, label: "Конфигуратор" },
   { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
 ];
 
