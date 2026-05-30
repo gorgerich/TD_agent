@@ -46,7 +46,6 @@ import {
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
-import AttributeRender from "@/components/AttributeRender";
 import RitualConfigurator from "@/components/configurator/RitualConfigurator";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
@@ -303,8 +302,30 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
     setCatalogColors((current) => ({ ...current, [itemId]: color }));
   }
 
-  function addCatalogItem(item: CatalogItem) {
-    setEstimateItems((current) => addCatalogItemToEstimate(current, item, getSelectedCatalogColor(item)));
+  // Категории с одиночным выбором (radio-семантика): новый выбор заменяет прежний.
+  const SINGLE_CATEGORIES = new Set<CatalogCategory>(["Гробы", "Постель / комплект в гроб", "Урны"]);
+
+  function isCatalogSelected(item: CatalogItem) {
+    return estimateItems.some((e) => e.catalogItemId === item.id);
+  }
+
+  function toggleCatalogItem(item: CatalogItem) {
+    setEstimateItems((current) => {
+      if (current.some((e) => e.catalogItemId === item.id)) {
+        return current.filter((e) => e.catalogItemId !== item.id);
+      }
+      const base = SINGLE_CATEGORIES.has(item.category) ? current.filter((e) => e.category !== item.category) : current;
+      return addCatalogItemToEstimate(base, item, getSelectedCatalogColor(item));
+    });
+  }
+
+  function changeCatalogColor(item: CatalogItem, color: string) {
+    setCatalogColor(item.id, color);
+    setEstimateItems((current) =>
+      current.some((e) => e.catalogItemId === item.id)
+        ? current.map((e) => (e.catalogItemId === item.id ? { ...e, selectedColor: color } : e))
+        : current,
+    );
   }
 
   function changeEstimateQuantity(id: string, quantity: number) {
@@ -776,6 +797,11 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               <span className={s.catalogCount}>{filteredCatalogItems.length}</span>
             </div>
 
+            {/* Большое превью комплекта + разворот на весь экран */}
+            <div className={s.configuratorSlot}>
+              <RitualConfigurator mode="inline" />
+            </div>
+
             <div className={s.categoryRail} aria-label="Категории каталога">
               {(["Все", ...ATTRIBUTION_CATEGORIES] as Array<CatalogCategory | "Все">).map((category) => (
                 <button
@@ -789,22 +815,30 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
               ))}
             </div>
 
-            <div className={s.catalogGrid}>
-              {filteredCatalogItems.map((item) => (
-                <CatalogCard
-                  key={item.id}
-                  item={item}
-                  selectedColor={getSelectedCatalogColor(item)}
-                  onColorChange={(color) => setCatalogColor(item.id, color)}
-                  onAdd={() => addCatalogItem(item)}
-                />
-              ))}
-            </div>
-
-            {/* Визуальный конфигуратор комплекта — мини-окно + разворот на весь экран */}
-            <div className={s.configuratorSlot}>
-              <RitualConfigurator mode="inline" />
-            </div>
+            {ATTRIBUTION_CATEGORIES.map((cat) => {
+              const items = filteredCatalogItems.filter((i) => i.category === cat);
+              if (!items.length) return null;
+              return (
+                <div key={cat} className={s.pickerGroup}>
+                  <p className={s.pickerGroupTitle}>
+                    {cat}
+                    <span className={s.pickerGroupHint}>{SINGLE_CATEGORIES.has(cat) ? "выберите один" : "можно несколько"}</span>
+                  </p>
+                  <div className={s.optGrid}>
+                    {items.map((item) => (
+                      <OptionCard
+                        key={item.id}
+                        item={item}
+                        selected={isCatalogSelected(item)}
+                        selectedColor={getSelectedCatalogColor(item)}
+                        onToggle={() => toggleCatalogItem(item)}
+                        onColorChange={(color) => changeCatalogColor(item, color)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           )}
@@ -868,17 +902,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         {/* ── Quote panel ──────────────────────────────── */}
         <aside className={s.panel}>
           <div className={s.panelCard}>
-            {/* Рендер сцены — то же, что видит клиент */}
-            <div className={s.renderWrap}>
-              <div className={s.renderHead}>
-                <div>
-                  <span className={s.renderTitle}>Предпросмотр комплекта</span>
-                  <span className={s.renderSubtitle}>Визуализация обновляется при выборе атрибутики.</span>
-                </div>
-              </div>
-              <AttributeRender selection={attributes} selectedItems={estimateItems} className={s.renderSvg} />
-            </div>
-
             {/* Главная цифра — всегда на виду */}
             <div className={s.panelHero}>
               <span className={s.panelHeroLabel}>Предварительная сумма</span>
@@ -1248,62 +1271,51 @@ function ExternalExpenseRow({
   );
 }
 
-function CatalogCard({
+function OptionCard({
   item,
+  selected,
   selectedColor,
+  onToggle,
   onColorChange,
-  onAdd,
 }: {
   item: CatalogItem;
+  selected: boolean;
   selectedColor?: string;
+  onToggle: () => void;
   onColorChange: (color: string) => void;
-  onAdd: () => void;
 }) {
-  const itemMargin = calculateOrderEconomics([
-    {
-      name: item.name,
-      category: item.category,
-      clientPrice: item.clientPrice,
-      costPrice: item.costPrice,
-      quantity: item.quantityDefault,
-    },
-  ]).items[0];
-
   return (
-    <article className={s.catalogCard}>
-      <div className={s.catalogMedia} aria-hidden="true">{item.imagePlaceholder}</div>
-      <div className={s.catalogBody}>
-        <div className={s.catalogBadges}>
-          {item.isRecommended && <span className={s.recommendedBadge}>Рекомендовано</span>}
-          {item.isRequired && <span className={s.requiredBadge}>Обязательное</span>}
+    <article className={`${s.optCard} ${selected ? s.optCardActive : ""}`}>
+      <button type="button" className={s.optMain} onClick={onToggle} aria-pressed={selected}>
+        <span className={s.optMedia} aria-hidden="true">{item.imagePlaceholder}</span>
+        <span className={s.optInfo}>
+          <span className={s.optTop}>
+            <span className={s.optName}>{item.name}</span>
+            <span className={`${s.optCheck} ${selected ? s.optCheckOn : ""}`} aria-hidden="true">
+              {selected && <Check size={12} weight="bold" />}
+            </span>
+          </span>
+          <span className={s.optPrice}>{formatCurrency(item.clientPrice)}</span>
+          {(item.isRecommended || item.isRequired) && (
+            <span className={s.optBadge}>{item.isRequired ? "Обязательное" : "Рекомендовано"}</span>
+          )}
+        </span>
+      </button>
+
+      {item.availableColors && item.availableColors.length > 0 && (
+        <div className={s.optColors} aria-label={`Цвет для ${item.name}`}>
+          {item.availableColors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`${s.colorChip} ${selectedColor === color ? s.colorChipActive : ""}`}
+              onClick={() => onColorChange(color)}
+            >
+              {color}
+            </button>
+          ))}
         </div>
-        <h3 className={s.catalogName}>{item.name}</h3>
-        <p className={s.catalogDescription}>{item.description}</p>
-
-        <div className={s.catalogPriceMain}>{formatCurrency(item.clientPrice)}</div>
-        <div className={s.catalogPriceMeta}>
-          себестоимость {formatCurrency(item.costPrice)} · маржа {formatCurrency(itemMargin?.marginRub ?? 0)}
-        </div>
-
-        {item.availableColors && item.availableColors.length > 0 && (
-          <div className={s.colorGroup} aria-label={`Цвет для ${item.name}`}>
-            {item.availableColors.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`${s.colorChip} ${selectedColor === color ? s.colorChipActive : ""}`}
-                onClick={() => onColorChange(color)}
-              >
-                {color}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <button type="button" className={s.addCatalogBtn} onClick={onAdd}>
-          Добавить в смету
-        </button>
-      </div>
+      )}
     </article>
   );
 }
