@@ -214,12 +214,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         : budgetStatus.status === "near_limit"
           ? `Почти весь бюджет использован. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`
           : `В рамках бюджета. Осталось: ${formatCurrency(budgetStatus.budgetRemaining)}`;
-  const budgetShort =
-    budgetStatus.status === "not_set"
-      ? "Не указан"
-      : budgetStatus.status === "exceeded"
-        ? `+${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
-        : formatCurrency(budgetStatus.budgetRemaining);
 
   const relevantPackages = PACKAGES.filter((p) =>
     form.serviceType === "cremation"
@@ -463,37 +457,25 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
         <div className={s.headerLeft}>
           <span className={s.headerDot} />
           <div>
-            <div className={s.headerTitle}>{clientName}</div>
-            <div className={s.headerSubtitle}>Встреча #{meetingId}</div>
+            <div className={s.headerBrand}>Тихий дом</div>
+            <div className={s.headerSubtitle}>Смета · {clientName}</div>
           </div>
         </div>
-        {cobrowseCode && (
-          <div className={s.cobrowseBlock}>
-            <span className={s.cobrowseLabel}>Код клиента</span>
-            <button onClick={copyCode} className={s.cobrowseCode}>
-              {cobrowseCode}
-              {copied && <span className={s.copiedBadge}>скопировано</span>}
+        <div className={s.headerRight}>
+          {cobrowseCode && (
+            <button onClick={copyCode} className={s.headerCode} aria-label="Скопировать код клиента">
+              <span className={s.headerCodeLabel}>Код клиента</span>
+              <span className={s.headerCodeValue}>
+                {cobrowseCode}
+                {copied && <span className={s.copiedBadge}>скопировано</span>}
+              </span>
             </button>
-          </div>
-        )}
-      </div>
-
-      <div className={s.dealBar} aria-label="Сводка текущей сметы">
-        <div className={s.dealMetric}>
-          <span>Итого</span>
-          <strong>{formatCurrency(grandTotal)}</strong>
-        </div>
-        <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
-          <span>{budgetStatus.status === "exceeded" ? "Сверх бюджета" : "Бюджет"}</span>
-          <strong>{budgetShort}</strong>
-        </div>
-        <div className={`${s.dealMetric} ${economics.orderMarginRub < 0 ? s.dealMetricDanger : ""}`}>
-          <span>Экономия агента</span>
-          <strong>{formatCurrency(economics.orderMarginRub)}</strong>
-        </div>
-        <div className={s.dealMetric}>
-          <span>Позиции</span>
-          <strong>{estimateItemCount + externalExpenses.length}</strong>
+          )}
+          {cobrowseCode && (
+            <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={s.showClientBtn}>
+              Показать клиенту
+            </a>
+          )}
         </div>
       </div>
 
@@ -596,7 +578,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
                   onClick={() => setField("packageType", p.id)}
                 >
                   {"popular" in p && p.popular && (
-                    <span className={s.pkgBadge}>популярный</span>
+                    <span className={s.pkgBadge}>Чаще выбирают</span>
                   )}
                   <div className={s.pkgName}>{p.name}</div>
                   <div className={s.pkgPrice}>{formatCurrency(p.price)}</div>
@@ -607,7 +589,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
 
           {/* Format */}
           <div className={s.card}>
-            <p className={s.cardTitle}>Формат</p>
+            <p className={s.cardTitle}>Формат прощания</p>
 
             <ToggleRow
               label="Зал прощания"

@@ -26,34 +26,39 @@
   box-shadow: 0 0 0 4px var(--color-success-soft);
   flex-shrink: 0;
 }
-.headerTitle {
+.headerTitle,
+.headerBrand {
   font-family: var(--font-serif);
   font-size: 22px;
   color: var(--color-ink);
   line-height: 1.15;
 }
-.headerSubtitle { font-size: 12.5px; color: var(--color-ink-3); margin-top: 2px; }
+.headerSubtitle { font-size: 13px; color: var(--color-ink-3); margin-top: 2px; }
 
-.cobrowseBlock {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-}
-.cobrowseLabel {
-  font-size: 10px; font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.1em; color: var(--color-ink-3);
-}
-.cobrowseCode {
+.headerRight { display: flex; align-items: center; gap: 14px; }
+.headerCode {
   position: relative;
-  font-family: var(--font-mono);
-  font-size: 17px; font-weight: 600; letter-spacing: 0.14em;
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
-  border-radius: 10px;
-  padding: 7px 12px;
-  cursor: pointer;
-  transition: background 0.15s;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  border: 0; background: transparent; cursor: pointer;
 }
-.cobrowseCode:hover { background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface)); }
+.headerCodeLabel {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.12em; color: var(--color-ink-3);
+}
+.headerCodeValue {
+  position: relative;
+  font-family: var(--font-mono); font-size: 15px; font-weight: 600;
+  letter-spacing: 0.14em; color: var(--color-ink);
+}
+.showClientBtn {
+  display: inline-flex; align-items: center;
+  padding: 11px 20px; border-radius: 999px;
+  background: var(--color-accent); color: var(--color-on-accent);
+  font-size: 13.5px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 12px 26px -16px color-mix(in srgb, var(--color-accent) 80%, transparent);
+  transition: background 0.16s ease;
+}
+.showClientBtn:hover { background: var(--color-accent-hover); }
 .copiedBadge {
   position: absolute; top: -9px; right: -6px;
   font-family: var(--font-sans);
@@ -291,8 +296,9 @@
 @media (min-width: 640px) { .card { padding: 20px 22px; } }
 
 .cardTitle {
-  margin: 0 0 14px;
-  font-size: 15px;
+  margin: 0 0 16px;
+  font-family: var(--font-serif);
+  font-size: 21px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-ink);
@@ -1076,31 +1082,31 @@
   color: var(--color-ink-3);
 }
 
-/* Главная цифра сметы — фокус правой колонки */
+/* Главная цифра сметы — тёмно-зелёный hero (как в макете) */
 .panelHero {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 16px 20px;
-  background: var(--color-accent-soft);
-  border-top: 1px solid var(--color-line);
-  border-bottom: 1px solid var(--color-line);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 20px 22px 22px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .panelHeroLabel {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-ink-2);
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--color-on-accent) 70%, transparent);
 }
 .panelHeroAmount {
   font-family: var(--font-serif);
   font-variant-numeric: tabular-nums;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .economicsBlock {
