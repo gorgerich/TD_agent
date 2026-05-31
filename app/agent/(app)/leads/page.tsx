@@ -42,7 +42,7 @@ export default async function LeadsPage() {
     <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <span className="td-eyebrow">CRM</span>
+          <span className="td-eyebrow">База клиентов</span>
           <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Клиенты</h1>
         </div>
         <Link
@@ -57,11 +57,19 @@ export default async function LeadsPage() {
         <div className="td-core overflow-hidden">
         {leads.length === 0 ? (
           <div className="px-6 py-16 text-center">
-            <Users size={36} className="mx-auto mb-3 text-accent" />
-            <p className="text-[13.5px] text-ink-2">
-              Клиентов пока нет,{" "}
-              <Link href="/agent/leads/new" className="text-accent hover:text-accent-hover">добавьте первого</Link>
+            <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
+              <Users size={28} weight="duotone" />
+            </span>
+            <h2 className="font-serif text-[20px] text-ink">Здесь будут ваши клиенты</h2>
+            <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
+              Добавьте первого клиента — имя и телефон. Дальше назначите встречу и соберёте смету.
             </p>
+            <Link
+              href="/agent/leads/new"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
+            >
+              <Plus size={16} weight="bold" /> Добавить клиента
+            </Link>
           </div>
         ) : (
           <>

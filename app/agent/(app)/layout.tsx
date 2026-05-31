@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AgentSidebar from "./AgentSidebar";
+import AgentBottomNav from "./AgentBottomNav";
 import OnboardingTour from "./OnboardingTour";
+import { ToastProvider } from "@/components/Toast";
 
 async function getOnboardingCompleted(agentId: number): Promise<boolean> {
   if (!agentId) return false; // dev-заглушка / нет агента → показать онбординг
@@ -28,10 +30,15 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
   const onboardingCompleted = await getOnboardingCompleted(session.agentId);
 
   return (
-    <div className="min-h-[100dvh]">
-      <AgentSidebar session={session} />
-      <main id="main-content" className="relative min-h-[100dvh] pt-14 lg:pl-[280px] lg:pt-0">{children}</main>
-      <OnboardingTour onboardingCompleted={onboardingCompleted} />
-    </div>
+    <ToastProvider>
+      <div className="min-h-[100dvh]">
+        <AgentSidebar session={session} />
+        <main id="main-content" className="relative min-h-[100dvh] pb-[72px] pt-14 lg:pb-0 lg:pl-[280px] lg:pt-0">
+          {children}
+        </main>
+        <AgentBottomNav />
+        <OnboardingTour onboardingCompleted={onboardingCompleted} />
+      </div>
+    </ToastProvider>
   );
 }

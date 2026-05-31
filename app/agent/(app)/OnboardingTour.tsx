@@ -212,13 +212,13 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     : null;
 
   // Позиция карточки-подсказки.
+  const mobile = typeof window !== "undefined" && window.innerWidth < 640;
   let cardStyle: React.CSSProperties;
-  if (isIntro || !spot) {
-    cardStyle = {
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-    };
+  if (mobile) {
+    // Bottom-sheet на мобильном: не перекрывает контент, всегда в кадре.
+    cardStyle = { left: 12, right: 12, bottom: "max(16px, env(safe-area-inset-bottom))" };
+  } else if (isIntro || !spot) {
+    cardStyle = { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   } else {
     const vh = window.innerHeight;
     const vw = window.innerWidth;
@@ -233,6 +233,8 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
       cardStyle = { bottom: vh - spot.top + GAP, left };
     }
   }
+  cardStyle.maxHeight = "min(72vh, 560px)";
+  cardStyle.overflowY = "auto";
 
   return (
     <div className="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Обучение">
@@ -254,13 +256,13 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
         <div
           className="fixed inset-0"
           style={{ background: "rgba(20,16,11,0.62)" }}
-          onClick={() => isIntro && undefined}
+          onClick={() => close(true)}
         />
       )}
 
       {/* Карточка-подсказка */}
       <div
-        className="fixed w-[332px] max-w-[calc(100vw-24px)] rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-pop"
+        className={`fixed rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-pop ${mobile ? "" : "w-[332px] max-w-[calc(100vw-24px)]"}`}
         style={cardStyle}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
