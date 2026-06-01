@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDots, Users, ArrowRight, Plus } from "@phosphor-icons/react/dist/ssr";
+import { CalendarDots, Users, ArrowRight, Plus, CheckCircle } from "@phosphor-icons/react/dist/ssr";
 import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,14 +7,24 @@ import { money, dateTime } from "@/lib/format";
 
 type RecentMeeting = { id: number; status: string; scheduledAt: Date | null; lead: { name: string } };
 
-async function getStats(agentId: number): Promise<{ todayMeetings: number; activeLeads: number; accrued: number; recentMeetings: RecentMeeting[] }> {
+type Stats = {
+  todayMeetings: number;
+  activeLeads: number;
+  accrued: number;
+  recentMeetings: RecentMeeting[];
+  leadsTotal: number;
+  meetingsTotal: number;
+  quotesTotal: number;
+};
+
+async function getStats(agentId: number): Promise<Stats> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
   try {
-    const [todayMeetings, activeLeads, commissionSum, recentMeetings] = await Promise.all([
+    const [todayMeetings, activeLeads, commissionSum, recentMeetings, leadsTotal, meetingsTotal, quotesTotal] = await Promise.all([
       prisma.meeting.count({ where: { agentId, scheduledAt: { gte: todayStart, lte: todayEnd } } }),
       prisma.clientLead.count({
         where: { agentId, meetings: { none: { status: { in: ["COMPLETED", "CANCELLED"] } } } },
@@ -26,15 +36,21 @@ async function getStats(agentId: number): Promise<{ todayMeetings: number; activ
         take: 8,
         include: { lead: { select: { name: true } } },
       }),
+      prisma.clientLead.count({ where: { agentId } }),
+      prisma.meeting.count({ where: { agentId } }),
+      prisma.quote.count({ where: { meeting: { agentId } } }),
     ]);
     return {
       todayMeetings,
       activeLeads,
       accrued: (commissionSum._sum.amount ?? 0) / 100,
       recentMeetings,
+      leadsTotal,
+      meetingsTotal,
+      quotesTotal,
     };
   } catch {
-    return { todayMeetings: 0, activeLeads: 0, accrued: 0, recentMeetings: [] };
+    return { todayMeetings: 0, activeLeads: 0, accrued: 0, recentMeetings: [], leadsTotal: 0, meetingsTotal: 0, quotesTotal: 0 };
   }
 }
 
@@ -64,7 +80,8 @@ function StatusPill({ status }: { status: string }) {
 export default async function DashboardPage() {
   const session = await getAgentSession();
   const agentId = session?.agentId ?? 0;
-  const { todayMeetings, activeLeads, accrued, recentMeetings } = await getStats(agentId);
+  const { todayMeetings, activeLeads, accrued, recentMeetings, leadsTotal, meetingsTotal, quotesTotal } = await getStats(agentId);
+  const showQuickStart = !(leadsTotal > 0 && meetingsTotal > 0 && quotesTotal > 0);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
@@ -109,6 +126,14 @@ export default async function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {showQuickStart && (
+        <QuickStart
+          leadsDone={leadsTotal > 0}
+          meetingsDone={meetingsTotal > 0}
+          quotesDone={quotesTotal > 0}
+        />
+      )}
 
       {/* Stats */}
       <section className="rise rise-1 mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3" data-tour="stats">
@@ -230,6 +255,53 @@ export default async function DashboardPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function QuickStart({ leadsDone, meetingsDone, quotesDone }: { leadsDone: boolean; meetingsDone: boolean; quotesDone: boolean }) {
+  const steps = [
+    { done: leadsDone, title: "Добавьте первого клиента", sub: "Имя и телефон — основа карточки", href: "/agent/leads/new", cta: "Добавить" },
+    { done: meetingsDone, title: "Назначьте встречу", sub: "Выезд или звонок с клиентом", href: "/agent/meetings/new", cta: "Назначить" },
+    { done: quotesDone, title: "Соберите смету", sub: "Откройте встречу и пройдите конструктор", href: "/agent/meetings", cta: "Открыть" },
+  ];
+  const completed = steps.filter((s) => s.done).length;
+  return (
+    <section className="rise rise-1 mb-7 td-shell" aria-label="Быстрый старт">
+      <div className="td-core p-5 sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <span className="td-eyebrow">Быстрый старт</span>
+            <h2 className="mt-2 font-serif text-[22px] leading-tight text-ink">Соберите первую смету за 3 шага</h2>
+          </div>
+          <span className="tnum flex-shrink-0 rounded-full bg-accent-soft px-3 py-1.5 text-[12px] font-semibold text-accent">{completed} / 3</span>
+        </div>
+        <ol className="grid gap-2.5 sm:grid-cols-3">
+          {steps.map((s, i) => (
+            <li
+              key={s.href}
+              className={`flex flex-col gap-2 rounded-[16px] border p-4 transition-colors ${
+                s.done ? "border-success-soft bg-success-soft/40" : "border-line bg-surface"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                {s.done ? (
+                  <CheckCircle size={20} weight="fill" className="flex-shrink-0 text-success" />
+                ) : (
+                  <span className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-accent text-[11px] font-bold text-on-accent">{i + 1}</span>
+                )}
+                <span className={`text-[13.5px] font-semibold ${s.done ? "text-ink-2 line-through" : "text-ink"}`}>{s.title}</span>
+              </span>
+              <p className="text-[11.5px] leading-snug text-ink-3">{s.sub}</p>
+              {!s.done && (
+                <Link href={s.href} className="mt-auto inline-flex items-center gap-1 text-[12.5px] font-semibold text-accent transition-colors hover:text-accent-hover">
+                  {s.cta} <ArrowRight size={12} weight="bold" />
+                </Link>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
   );
 }
 
