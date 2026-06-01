@@ -53,9 +53,14 @@ export default async function CommissionsPage() {
         <div className="td-shell overflow-hidden">
           <div className="td-core overflow-hidden">
           {commissions.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <CurrencyRub size={30} className="mx-auto mb-2 text-ink-3" />
-              <p className="text-[13px] text-ink-2">Начислений пока нет</p>
+            <div className="px-6 py-16 text-center">
+              <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
+                <CurrencyRub size={28} weight="duotone" />
+              </span>
+              <h2 className="font-serif text-[20px] text-ink">Начислений пока нет</h2>
+              <p className="mx-auto mt-1.5 max-w-[340px] text-[13.5px] leading-relaxed text-ink-2">
+                Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
+              </p>
             </div>
           ) : (
             <ul className="divide-y divide-line">
