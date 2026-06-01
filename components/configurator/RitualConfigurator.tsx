@@ -182,8 +182,11 @@ function FullView({
     ? "fixed inset-0 z-[1000] flex flex-col bg-[#161618] text-white lg:flex-row"
     : "flex h-[100dvh] flex-col bg-[#161618] text-white lg:flex-row";
   return (
-    <div className={wrap}>
-      <aside className="flex w-full flex-shrink-0 flex-col overflow-y-auto border-r border-white/8 bg-[#1d1d20] lg:w-[320px]">
+    <div
+      className={wrap}
+      {...(overlay ? { role: "dialog", "aria-modal": true, "aria-label": "Конфигуратор комплекта" } : {})}
+    >
+      <aside className="flex w-full min-h-0 flex-1 flex-col overflow-y-auto border-r border-white/8 bg-[#1d1d20] lg:w-[320px] lg:flex-none">
         <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
           <h2 className="text-[14px] font-semibold">Конфигуратор комплекта</h2>
           {onClose && (
@@ -201,7 +204,7 @@ function FullView({
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="order-first flex h-[42vh] min-w-0 flex-shrink-0 flex-col lg:order-none lg:h-auto lg:flex-1">
         <div className="flex items-center justify-end gap-2 border-b border-white/8 bg-[#1d1d20] px-4 py-2.5">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-[11.5px] text-white/55">
             <Info size={13} /> Превью подбирается по выбору
@@ -225,12 +228,17 @@ export default function RitualConfigurator({ mode = "inline" }: { mode?: "inline
   const [full, setFull] = useState(false);
   const set = <K extends keyof ConfigState>(k: K, v: ConfigState[K]) => setConfig((c) => ({ ...c, [k]: v }));
 
-  // Esc закрывает полноэкранный режим.
+  // Esc закрывает полноэкранный режим + блокировка прокрутки фона.
   useEffect(() => {
     if (!full) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [full]);
 
   if (mode === "page") {
