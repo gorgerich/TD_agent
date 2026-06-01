@@ -11,10 +11,26 @@ import {
   List,
   X,
   GraduationCap,
+  MagnifyingGlass,
 } from "@phosphor-icons/react";
 import { CurrencyRub } from "@phosphor-icons/react/dist/csr/CurrencyRub";
 import type { AgentSession } from "@/lib/auth";
 import { TOURS, TOUR_START_EVENT } from "@/lib/tour";
+import { COMMAND_OPEN_EVENT } from "@/components/CommandPalette";
+
+function CommandTrigger() {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(COMMAND_OPEN_EVENT))}
+      className="flex w-full items-center gap-2.5 rounded-[14px] border border-on-accent/10 bg-on-accent/[0.06] px-3.5 py-2.5 text-[13px] text-on-accent/56 transition-colors hover:border-on-accent/20 hover:text-on-accent/80"
+    >
+      <MagnifyingGlass size={16} className="flex-shrink-0" />
+      <span className="flex-1 text-left">Поиск и действия</span>
+      <kbd className="rounded-md border border-on-accent/15 bg-on-accent/8 px-1.5 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+    </button>
+  );
+}
 
 const NAV = [
   { href: "/agent/dashboard", icon: House, label: "Дашборд" },
@@ -158,9 +174,8 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
         <div className="px-5 pb-5 pt-6">
           <Brand />
         </div>
-        <div className="mx-5 mb-5 rounded-[20px] border border-on-accent/10 bg-on-accent/[0.06] px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">Сегодня</p>
-          <p className="mt-1 font-serif text-[18px] leading-tight text-on-accent">Рабочий контур</p>
+        <div className="mx-5 mb-5">
+          <CommandTrigger />
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <NavLinks pathname={pathname} />

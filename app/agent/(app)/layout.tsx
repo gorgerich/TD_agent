@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import AgentSidebar from "./AgentSidebar";
 import AgentBottomNav from "./AgentBottomNav";
 import OnboardingTour from "./OnboardingTour";
+import CommandPalette from "@/components/CommandPalette";
 import { ToastProvider } from "@/components/Toast";
 
 async function getOnboardingCompleted(agentId: number): Promise<boolean> {
@@ -37,6 +38,7 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
           {children}
         </main>
         <AgentBottomNav />
+        <CommandPalette />
         <OnboardingTour onboardingCompleted={onboardingCompleted} />
       </div>
     </ToastProvider>
