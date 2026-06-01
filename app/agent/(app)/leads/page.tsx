@@ -44,13 +44,14 @@ export default async function LeadsPage() {
         </div>
         <Link
           href="/agent/leads/new"
+          data-tour="leads-new"
           className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый клиент</span><span className="sm:hidden">Клиент</span>
         </Link>
       </header>
 
-      <div className="rise rise-1 td-shell overflow-hidden">
+      <div className="rise rise-1 td-shell overflow-hidden" data-tour="leads-list">
         <div className="td-core overflow-hidden">
         {leads.length === 0 ? (
           <div className="px-6 py-16 text-center">

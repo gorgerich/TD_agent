@@ -54,6 +54,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         </div>
         <Link
           href="/agent/meetings/new"
+          data-tour="meetings-new"
           className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новая встреча</span><span className="sm:hidden">Встреча</span>
@@ -61,7 +62,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
       </header>
 
       {/* Filter pills — horizontally scrollable on mobile */}
-      <div className="rise rise-1 -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div data-tour="meetings-filters" className="rise rise-1 -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {FILTERS.map((f) => {
           const active = (status ?? "") === f.value;
           return (
@@ -82,7 +83,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         })}
       </div>
 
-      <div className="rise rise-2 td-shell overflow-hidden">
+      <div className="rise rise-2 td-shell overflow-hidden" data-tour="meetings-list">
         <div className="td-core overflow-hidden">
         {meetings.length === 0 ? (
           <div className="px-6 py-16 text-center">

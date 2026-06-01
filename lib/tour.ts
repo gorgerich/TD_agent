@@ -93,7 +93,59 @@ export const QUOTE_TOUR: TourDef = {
   ],
 };
 
-export const TOURS: TourDef[] = [DASHBOARD_TOUR, QUOTE_TOUR];
+export const LEADS_TOUR: TourDef = {
+  id: "leads-v1",
+  match: (p) => p === "/agent/leads",
+  intro: {
+    title: "База клиентов",
+    body: "Здесь живут все ваши клиенты. Покажем, как добавить первого и что делать дальше.",
+  },
+  steps: [
+    {
+      anchor: "leads-new",
+      title: "Добавить клиента",
+      body: "Кнопка создаёт карточку клиента: имя и телефон. С неё начинается каждая сделка.",
+      placement: "bottom",
+    },
+    {
+      anchor: "leads-list",
+      title: "Список и статусы",
+      body: "Все клиенты со статусом: «Новый», «В работе», «Завершён». Нажмите на клиента, чтобы открыть карточку и назначить встречу.",
+      placement: "top",
+    },
+  ],
+};
+
+export const MEETINGS_TOUR: TourDef = {
+  id: "meetings-v1",
+  match: (p) => p === "/agent/meetings",
+  intro: {
+    title: "Расписание встреч",
+    body: "Встречи — это выезды и звонки с клиентами. На встрече вы собираете смету. Короткий обзор раздела.",
+  },
+  steps: [
+    {
+      anchor: "meetings-new",
+      title: "Назначить встречу",
+      body: "Запланируйте выезд или звонок: выберите клиента, дату и время.",
+      placement: "bottom",
+    },
+    {
+      anchor: "meetings-filters",
+      title: "Фильтры по статусу",
+      body: "Быстрый отбор: запланированные, идущие, завершённые. Помогает не потерять активные встречи.",
+      placement: "bottom",
+    },
+    {
+      anchor: "meetings-list",
+      title: "Встречи и смета",
+      body: "Откройте встречу, чтобы перейти к конструктору сметы и собрать расчёт для клиента.",
+      placement: "top",
+    },
+  ],
+};
+
+export const TOURS: TourDef[] = [DASHBOARD_TOUR, QUOTE_TOUR, LEADS_TOUR, MEETINGS_TOUR];
 
 export function tourStorageKey(id: string) {
   return `td_tour_done:${id}`;
