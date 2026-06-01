@@ -2,6 +2,7 @@ import { TrendUp, CheckCircle } from "@phosphor-icons/react/dist/ssr";
 import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { moneyFromKopecks, dateLong } from "@/lib/format";
 
 type CommissionRow = { id: number; orderId: number; status: string; amount: number; order?: { id: number; createdAt: Date } | null };
 type PayoutRow = { id: number; amount: number; paidAt: Date | null };
@@ -25,15 +26,6 @@ async function getCommissions(agentId: number): Promise<{ commissions: Commissio
   }
 }
 
-function money(kopecks: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(kopecks / 100);
-}
-
-function formatDate(d: Date | null | undefined) {
-  if (!d) return "—";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", year: "numeric" }).format(new Date(d));
-}
-
 const STATUS_LABELS: Record<string, string> = { ACCRUED: "Начислено", APPROVED: "Подтверждено", PAID: "Выплачено" };
 const STATUS_DOT: Record<string, string> = { ACCRUED: "bg-warning", APPROVED: "bg-info", PAID: "bg-success" };
 
@@ -50,9 +42,9 @@ export default async function CommissionsPage() {
 
       {/* Summary */}
       <section className="rise rise-1 mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <SumCard icon={<CurrencyRub size={18} weight="duotone" />} label="К выплате" value={money(accrued + approved)} sub="начислено + подтверждено" tone="gold" />
-        <SumCard icon={<TrendUp size={18} weight="duotone" />} label="Ожидает" value={money(accrued)} sub="ожидает подтверждения" />
-        <SumCard icon={<CheckCircle size={18} weight="duotone" />} label="Выплачено" value={money(paid)} sub="за всё время" />
+        <SumCard icon={<CurrencyRub size={18} weight="duotone" />} label="К выплате" value={moneyFromKopecks(accrued + approved)} sub="начислено + подтверждено" tone="gold" />
+        <SumCard icon={<TrendUp size={18} weight="duotone" />} label="Ожидает" value={moneyFromKopecks(accrued)} sub="ожидает подтверждения" />
+        <SumCard icon={<CheckCircle size={18} weight="duotone" />} label="Выплачено" value={moneyFromKopecks(paid)} sub="за всё время" />
       </section>
 
       {/* Commission history */}
@@ -71,14 +63,14 @@ export default async function CommissionsPage() {
                 <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
                   <span className="min-w-0">
                     <span className="tnum block text-[14px] font-medium text-ink">Заказ №{c.orderId}</span>
-                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(c.order?.createdAt)}</span>
+                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{dateLong(c.order?.createdAt)}</span>
                   </span>
                   <span className="flex items-center gap-4">
                     <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
                       <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[c.status] ?? "bg-ink-3"}`} />
                       <span className="hidden sm:inline">{STATUS_LABELS[c.status] ?? c.status}</span>
                     </span>
-                    <span className="tnum text-[14px] font-semibold text-ink">{money(c.amount)}</span>
+                    <span className="tnum text-[14px] font-semibold text-ink">{moneyFromKopecks(c.amount)}</span>
                   </span>
                 </li>
               ))}
@@ -99,9 +91,9 @@ export default async function CommissionsPage() {
                 <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
                   <span className="min-w-0">
                     <span className="tnum block text-[14px] font-medium text-ink">Выплата №{p.id}</span>
-                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(p.paidAt)}</span>
+                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{dateLong(p.paidAt)}</span>
                   </span>
-                  <span className="tnum text-[14px] font-semibold text-success">{money(p.amount)}</span>
+                  <span className="tnum text-[14px] font-semibold text-success">{moneyFromKopecks(p.amount)}</span>
                 </li>
               ))}
             </ul>

@@ -3,6 +3,7 @@ import { CalendarDots, Users, ArrowRight, Plus } from "@phosphor-icons/react/dis
 import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { money, dateTime } from "@/lib/format";
 
 type RecentMeeting = { id: number; status: string; scheduledAt: Date | null; lead: { name: string } };
 
@@ -35,15 +36,6 @@ async function getStats(agentId: number): Promise<{ todayMeetings: number; activ
   } catch {
     return { todayMeetings: 0, activeLeads: 0, accrued: 0, recentMeetings: [] };
   }
-}
-
-function formatMoney(rubles: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(rubles);
-}
-
-function formatDate(d: Date | null | undefined) {
-  if (!d) return "—";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -91,7 +83,7 @@ export default async function DashboardPage() {
               <div className="mt-6 flex flex-wrap gap-2">
                 <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Встречи сегодня: {todayMeetings}</span>
                 <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Клиенты в работе: {activeLeads}</span>
-                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">К выплате: {formatMoney(accrued)}</span>
+                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">К выплате: {money(accrued)}</span>
               </div>
             </div>
             <div className="grid content-between gap-4 rounded-[20px] bg-accent px-5 py-5 text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
@@ -135,7 +127,7 @@ export default async function DashboardPage() {
         <StatCard
           icon={<CurrencyRub size={18} weight="duotone" />}
           label="К выплате"
-          value={formatMoney(accrued)}
+          value={money(accrued)}
           sub="начислено, ожидает выплаты"
           tone="gold"
         />
@@ -191,7 +183,7 @@ export default async function DashboardPage() {
                     <Link href={`/agent/meetings/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-4 transition-colors active:bg-surface-2">
                       <span className="min-w-0">
                         <span className="block truncate text-[14px] font-medium text-ink">{m.lead.name}</span>
-                        <span className="tnum mt-0.5 block text-[12px] text-ink-3">{formatDate(m.scheduledAt)}</span>
+                        <span className="tnum mt-0.5 block text-[12px] text-ink-3">{dateTime(m.scheduledAt)}</span>
                       </span>
                       <StatusPill status={m.status} />
                     </Link>
@@ -217,7 +209,7 @@ export default async function DashboardPage() {
                           {m.lead.name}
                         </Link>
                       </td>
-                      <td className="tnum px-4 py-3.5 text-[12.5px] text-ink-2">{formatDate(m.scheduledAt)}</td>
+                      <td className="tnum px-4 py-3.5 text-[12.5px] text-ink-2">{dateTime(m.scheduledAt)}</td>
                       <td className="px-4 py-3.5"><StatusPill status={m.status} /></td>
                       <td className="pr-4">
                         <Link

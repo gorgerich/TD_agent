@@ -223,6 +223,7 @@ export default function AgentLoginPage() {
                   placeholder={isRegister ? "Минимум 8 символов" : "Введите пароль"}
                   type={showPw ? "text" : "password"}
                   autoComplete={isRegister ? "new-password" : "current-password"}
+                  minLength={isRegister ? 8 : undefined}
                   required
                   trailing={
                     <button
@@ -297,6 +298,7 @@ function Field({
   inputMode,
   autoComplete,
   autoFocus,
+  minLength,
   required,
   trailing,
 }: {
@@ -310,6 +312,7 @@ function Field({
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   autoComplete?: string;
   autoFocus?: boolean;
+  minLength?: number;
   required?: boolean;
   trailing?: ReactNode;
 }) {
@@ -330,6 +333,7 @@ function Field({
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
           autoFocus={autoFocus}
+          minLength={minLength}
           required={required}
         />
         {trailing && (
