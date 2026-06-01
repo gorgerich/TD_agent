@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   EnvelopeSimple,
+  Eye,
+  EyeSlash,
   Key,
   Phone,
   ShieldCheck,
@@ -24,6 +26,7 @@ export default function AgentLoginPage() {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState<"login" | "register" | "demo" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPw, setShowPw] = useState(false);
 
   async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -178,6 +181,7 @@ export default function AgentLoginPage() {
                     onChange={setName}
                     placeholder="Например, Анна Иванова"
                     autoComplete="name"
+                    autoFocus
                     required
                   />
                 )}
@@ -190,7 +194,9 @@ export default function AgentLoginPage() {
                   onChange={setEmail}
                   placeholder="agent@example.com"
                   type="email"
+                  inputMode="email"
                   autoComplete="email"
+                  autoFocus={!isRegister}
                   required
                 />
 
@@ -203,6 +209,7 @@ export default function AgentLoginPage() {
                     onChange={setPhone}
                     placeholder="+7 900 000 00 00"
                     type="tel"
+                    inputMode="tel"
                     autoComplete="tel"
                   />
                 )}
@@ -214,9 +221,20 @@ export default function AgentLoginPage() {
                   value={password}
                   onChange={setPassword}
                   placeholder={isRegister ? "Минимум 8 символов" : "Введите пароль"}
-                  type="password"
+                  type={showPw ? "text" : "password"}
                   autoComplete={isRegister ? "new-password" : "current-password"}
                   required
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
+                      aria-pressed={showPw}
+                      className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
+                    >
+                      {showPw ? <EyeSlash size={17} /> : <Eye size={17} />}
+                    </button>
+                  }
                 />
 
                 {error && (
@@ -276,8 +294,11 @@ function Field({
   onChange,
   placeholder,
   type = "text",
+  inputMode,
   autoComplete,
+  autoFocus,
   required,
+  trailing,
 }: {
   id: string;
   label: string;
@@ -286,8 +307,11 @@ function Field({
   onChange: (value: string) => void;
   placeholder: string;
   type?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   autoComplete?: string;
+  autoFocus?: boolean;
   required?: boolean;
+  trailing?: ReactNode;
 }) {
   return (
     <div>
@@ -299,13 +323,18 @@ function Field({
         <input
           id={id}
           type={type}
-          className="min-h-14 w-full rounded-[16px] border border-line bg-surface py-3 pl-11 pr-4 text-[15px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent"
+          inputMode={inputMode}
+          className={`min-h-14 w-full rounded-[16px] border border-line bg-surface py-3 pl-11 text-[15px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent ${trailing ? "pr-12" : "pr-4"}`}
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
+          autoFocus={autoFocus}
           required={required}
         />
+        {trailing && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</span>
+        )}
       </div>
     </div>
   );

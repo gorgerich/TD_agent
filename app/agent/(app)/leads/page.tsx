@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Users, Plus, ArrowRight, CalendarBlank } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dateShort, phone } from "@/lib/format";
 
 type Lead = { id: number; name: string; phone: string; context: string | null; source: string; createdAt: Date; meetings: { status: string }[] };
 
@@ -21,10 +22,6 @@ function getStatus(meetings: { status: string }[]) {
   if (meetings.length === 0) return { label: "Новый", dot: "bg-info" };
   if (meetings.some((m) => m.status === "COMPLETED")) return { label: "Завершён", dot: "bg-success" };
   return { label: "В работе", dot: "bg-warning" };
-}
-
-function formatDate(d: Date) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(d));
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -86,12 +83,12 @@ export default async function LeadsPage() {
                           <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
                         </span>
                       </div>
-                      <div className="tnum mt-1 text-[13px] text-ink-2">{lead.phone}</div>
+                      <div className="tnum mt-1 text-[13px] text-ink-2">{phone(lead.phone)}</div>
                       {lead.context && <p className="mt-1.5 line-clamp-2 text-[12.5px] text-ink-3">{lead.context}</p>}
                       <div className="mt-2 flex items-center gap-3 text-[11.5px] text-ink-3">
                         <span>{SOURCE_LABELS[lead.source] ?? lead.source}</span>
                         <span className="inline-flex items-center gap-1"><CalendarBlank size={12} />{lead.meetings.length}</span>
-                        <span className="tnum ml-auto">{formatDate(lead.createdAt)}</span>
+                        <span className="tnum ml-auto">{dateShort(lead.createdAt)}</span>
                       </div>
                     </Link>
                   </li>
@@ -123,7 +120,7 @@ export default async function LeadsPage() {
                         </Link>
                         {lead.context && <p className="mt-0.5 max-w-[230px] truncate text-[11.5px] text-ink-3">{lead.context}</p>}
                       </td>
-                      <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{lead.phone}</td>
+                      <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{phone(lead.phone)}</td>
                       <td className="px-3 py-3.5 text-[12.5px] text-ink-2">{SOURCE_LABELS[lead.source] ?? lead.source}</td>
                       <td className="px-3 py-3.5">
                         <span className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-2">
@@ -135,7 +132,7 @@ export default async function LeadsPage() {
                           <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
                         </span>
                       </td>
-                      <td className="tnum px-5 py-3.5 text-right text-[12.5px] text-ink-3">{formatDate(lead.createdAt)}</td>
+                      <td className="tnum px-5 py-3.5 text-right text-[12.5px] text-ink-3">{dateShort(lead.createdAt)}</td>
                       <td className="pr-4">
                         <Link
                           href={`/agent/leads/${lead.id}`}

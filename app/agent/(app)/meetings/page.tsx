@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDots, Plus, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { dateTime, phone } from "@/lib/format";
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Запланирована",
@@ -29,11 +30,6 @@ async function getMeetings(agentId: number, status?: string): Promise<MeetingRow
   } catch {
     return [];
   }
-}
-
-function formatDate(d: Date | null | undefined) {
-  if (!d) return "—";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
 }
 
 const FILTERS = [
@@ -118,8 +114,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                       </span>
                     </div>
                     <div className="tnum mt-1 flex items-center gap-3 text-[12.5px] text-ink-2">
-                      <span>{m.lead.phone}</span>
-                      <span className="ml-auto text-ink-3">{formatDate(m.scheduledAt)}</span>
+                      <span>{phone(m.lead.phone)}</span>
+                      <span className="ml-auto text-ink-3">{dateTime(m.scheduledAt)}</span>
                     </div>
                   </Link>
                 </li>
@@ -145,8 +141,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
                         {m.lead.name}
                       </Link>
                     </td>
-                    <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{m.lead.phone}</td>
-                    <td className="tnum px-3 py-3.5 text-[12.5px] text-ink-2">{formatDate(m.scheduledAt)}</td>
+                    <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{phone(m.lead.phone)}</td>
+                    <td className="tnum px-3 py-3.5 text-[12.5px] text-ink-2">{dateTime(m.scheduledAt)}</td>
                     <td className="px-3 py-3.5">
                       <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
                         <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[m.status] ?? m.status}
