@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Check, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { useToast } from "@/components/Toast";
 import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
@@ -100,6 +101,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
   const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
   const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
@@ -438,13 +440,17 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setSaveError(data.error ?? "Ошибка сохранения");
+        const msg = data.error ?? "Ошибка сохранения";
+        setSaveError(msg);
+        toast({ type: "error", message: msg });
       } else {
         setSavedAt(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
         setSavedCount((n) => n + 1);
+        toast({ type: "success", message: "Смета сохранена" });
       }
     } catch {
       setSaveError("Сеть недоступна");
+      toast({ type: "error", message: "Сеть недоступна — смета не сохранена" });
     } finally {
       setSaving(false);
     }
