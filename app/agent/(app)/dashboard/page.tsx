@@ -89,42 +89,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
-      <header className="rise mb-7 td-shell" data-tour="greeting">
-        <div className="td-core overflow-hidden">
-          <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
-            <div>
-              <span className="td-eyebrow">{today}</span>
-              <h1 className="mt-5 max-w-[620px] font-serif text-[34px] leading-[1.06] text-ink sm:text-[44px]">
-                {greeting}{session?.name ? `, ${session.name.split(" ")[0]}` : ""}
-              </h1>
-              <div className="mt-6 flex flex-wrap gap-2">
-                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Встречи сегодня: {todayMeetings}</span>
-                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Клиенты в работе: {activeLeads}</span>
-                <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">К выплате: {money(accrued)}</span>
-              </div>
-            </div>
-            <div className="grid content-between gap-4 rounded-[20px] bg-accent px-5 py-5 text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-on-accent/58">Быстро</p>
-                <p className="mt-2 font-serif text-[24px] leading-tight">Новая работа</p>
-              </div>
-              <div className="flex flex-wrap gap-2.5">
-                <Link
-                  href="/agent/leads/new"
-                  className="group inline-flex min-h-11 items-center gap-2 rounded-full bg-on-accent px-4 py-2 text-[13px] font-semibold text-accent transition-transform duration-200 hover:scale-[1.01] active:scale-[0.98]"
-                >
-                  <Plus size={16} weight="bold" /> Новый клиент
-                </Link>
-                <Link
-                  href="/agent/meetings/new"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full bg-on-accent/12 px-4 py-2 text-[13px] font-semibold text-on-accent ring-1 ring-on-accent/16 transition-colors hover:bg-on-accent/18"
-                >
-                  <CalendarDots size={16} /> Встреча
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
+      <header className="rise mb-8" data-tour="greeting">
+        <span className="td-eyebrow">{today}</span>
+        <h1 className="mt-3 font-serif text-[32px] leading-[1.08] text-ink sm:text-[40px]">
+          {greeting}{session?.name ? `, ${session.name.split(" ")[0]}` : ""}
+        </h1>
+        <p className="mt-2 text-[14.5px] text-ink-2">Сводка дня и быстрые действия — ниже.</p>
       </header>
 
       {showQuickStart && (
