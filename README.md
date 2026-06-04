@@ -7,6 +7,11 @@ B2B-расширение поверх существующей B2C-БД tihiydom
 
 ## Database migration workflow
 
+> **Полный owner-runbook (BLOCKER + проверки окружения + шаги 0–6):**
+> [`docs/db-migrations-runbook.md`](docs/db-migrations-runbook.md). Перед любыми
+> push в ветки/мерджем владелец обязан проверить scoping Vercel-env (Preview vs
+> Production DB) — см. секцию BLOCKER.
+
 > **Правило №1: НИКОГДА `prisma db push` против общей prod-БД.**
 > Только аддитивные миграции (`migrate deploy`). Никаких изменений типов/`DROP` на
 > существующих B2C-полях.
