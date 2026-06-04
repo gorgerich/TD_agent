@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { encryptField } from "@/lib/crypto";
 
 export const DEMO_PHONE = "+79990000000";
 export const DEMO_CODE = "0000";
@@ -60,7 +61,7 @@ export async function ensureDemoAgent(): Promise<{ userId: number; agentId: numb
 
     for (const s of seed) {
       const lead = await prisma.clientLead.create({
-        data: { agentId: agent.id, name: s.name, phone: s.phone, context: s.context, source: s.source },
+        data: { agentId: agent.id, name: s.name, phone: s.phone, context: encryptField(s.context), source: s.source },
       });
       await prisma.meeting.create({
         data: {
