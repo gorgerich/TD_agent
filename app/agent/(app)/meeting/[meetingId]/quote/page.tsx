@@ -13,7 +13,7 @@ export default async function QuoteBuilderPage({
   const { meetingId: meetingIdStr } = await params;
   const meetingId = Number(meetingIdStr);
 
-  if (isNaN(meetingId)) redirect("/agent/dashboard");
+  if (isNaN(meetingId)) redirect("/agent/cases");
 
   const session = await getAgentSession();
   if (!session && process.env.NODE_ENV !== "development") {

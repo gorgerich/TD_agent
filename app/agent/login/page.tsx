@@ -49,7 +49,7 @@ export default function AgentLoginPage() {
         return;
       }
 
-      router.push("/agent/dashboard");
+      router.push("/agent/cases");
       router.refresh();
     } catch {
       setError("Сеть недоступна");
@@ -70,7 +70,7 @@ export default function AgentLoginPage() {
         return;
       }
 
-      router.push("/agent/dashboard");
+      router.push("/agent/cases");
       router.refresh();
     } catch {
       setError("Сеть недоступна");

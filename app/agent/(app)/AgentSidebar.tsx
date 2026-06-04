@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   House,
-  Users,
   CalendarDots,
   SignOut,
   List,
@@ -33,9 +32,8 @@ function CommandTrigger() {
 }
 
 const NAV = [
-  { href: "/agent/dashboard", icon: House, label: "Дашборд" },
-  { href: "/agent/leads", icon: Users, label: "Клиенты" },
-  { href: "/agent/meetings", icon: CalendarDots, label: "Встречи" },
+  { href: "/agent/cases", icon: House, label: "Дела" },
+  { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
 ];
 
@@ -67,7 +65,7 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
   return (
     <div className="space-y-1">
       {NAV.map(({ href, icon: Icon, label }) => {
-        const active = pathname === href || (href !== "/agent/dashboard" && pathname.startsWith(href));
+        const active = pathname === href || (href !== "/agent/cases" && pathname.startsWith(href));
         return (
           <Link
             key={href}
