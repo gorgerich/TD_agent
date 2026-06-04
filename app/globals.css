@@ -13,31 +13,31 @@
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности (нейтрали, почти-белый) */
-  --color-canvas: #fbfbfa;     /* фон приложения */
-  --color-surface: #ffffff;    /* карточки */
-  --color-surface-2: #f4f4f2;  /* вторичные заливки, hover */
-  --color-line: #e7e7e4;       /* бордеры */
-  --color-line-strong: #d7d7d3;
+  /* Поверхности (тёплый айвори, спокойно) */
+  --color-canvas: #f7f5f0;     /* фон приложения */
+  --color-surface: #fffcf7;    /* карточки */
+  --color-surface-2: #f0ede6;  /* вторичные заливки, hover */
+  --color-line: rgba(0, 0, 0, 0.06);   /* бордеры — на 70% тише */
+  --color-line-strong: rgba(0, 0, 0, 0.10);
 
   /* Текст */
-  --color-ink: #16181d;
-  --color-ink-2: #5f6470;
-  --color-ink-3: #8b909a;
+  --color-ink: #161616;
+  --color-ink-2: #5c5b54;
+  --color-ink-3: #8a897f;
 
-  /* Акцент — глубокий хвойно-графитовый (благородный, не яркий) */
-  --color-accent: #23423b;
-  --color-accent-hover: #1a322c;
-  --color-accent-soft: #eef2f0;
+  /* Акцент — благородный приглушённый зелёный */
+  --color-accent: #1f5c4c;
+  --color-accent-hover: #184a3d;
+  --color-accent-soft: #e8efea;
   --color-on-accent: #ffffff;
 
   /* Дозированный тёплый акцент (редко: комиссии/печати). Приглушённая бронза. */
   --color-gold: #8a6a39;
   --color-gold-soft: #f1eee7;
 
-  /* Тёмная поверхность (сайдбар, вход) — графит, не зелёно-чёрный */
-  --color-night: #15171b;
-  --color-night-2: #1c1f25;
+  /* Тёмная поверхность (вход) — тёплый глубокий графит-хвоя */
+  --color-night: #1a201c;
+  --color-night-2: #232a25;
 
   /* Семантика — спокойная, читаемая (AA) */
   --color-success: #2e7d55;

@@ -41,7 +41,7 @@ export default function AgentError({
           <ArrowClockwise size={16} weight="bold" /> Попробовать снова
         </button>
         <Link
-          href="/agent/dashboard"
+          href="/agent/cases"
           className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-surface px-5 py-2.5 text-[14px] font-semibold text-ink transition-colors hover:border-line-strong"
         >
           <House size={16} /> На главную
