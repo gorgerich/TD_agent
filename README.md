@@ -5,23 +5,39 @@ B2B-расширение поверх существующей B2C-БД tihiydom
 Наши — аддитивные B2B-таблицы (`Agent`, `ClientLead`, `Meeting`, `Quote`, `QuoteVersion`,
 `Commission`, `Payout`, `AgentSession`, `OtpToken`, `AgentTier`, `Signature` + enums).
 
+## Database safety (current state)
+
+> **Temporary safety state:** Vercel build does not apply database schema changes.
+> Schema changes must be applied only through the documented migration workflow
+> after verified backup and baseline. Do not rely on deploy to mutate the database.
+
+Текущий `build` = `prisma generate && next build` — **db push удалён** (hotfix
+`#3`, merged). Деплой больше **не мутирует** БД на этапе сборки.
+
+> ⚠️ **CONFIRMED — Preview и Production делят одни DB-переменные.** Аудит
+> (`vercel env ls`) показал: `DATABASE_URL` и `DATABASE_URL_UNPOOLED` заданы одним
+> значением на оба окружения (Production + Preview). Сборка больше не делает
+> `db push`, поэтому preview-**билд** не мутирует прод. **Но preview-рантайм всё
+> ещё подключается к прод-БД** (общий env) — читает/пишет боевые данные.
+>
+> **Preview DB обязательно изолировать перед реальным использованием previews:**
+> - включить Neon **«branch per preview deployment»**, либо
+> - задать **Preview-scoped** `DATABASE_URL` + `DATABASE_URL_UNPOOLED` на отдельную
+>   Neon-ветку; **Production-scoped** оставить на прод.
+> - после изоляции `vercel env ls` должен показать **отдельные** строки Production и Preview.
+
 ## Database migration workflow
 
 > **Полный owner-runbook (BLOCKER + проверки окружения + шаги 0–6):**
-> [`docs/db-migrations-runbook.md`](docs/db-migrations-runbook.md). Перед любыми
-> push в ветки/мерджем владелец обязан проверить scoping Vercel-env (Preview vs
-> Production DB) — см. секцию BLOCKER.
+> [`docs/db-migrations-runbook.md`](docs/db-migrations-runbook.md). Перед любым
+> переходом на `migrate deploy` владелец проверяет scoping Vercel-env и делает
+> бэкап — см. секцию BLOCKER.
 
 > **Правило №1: НИКОГДА `prisma db push` против общей prod-БД.**
 > Только аддитивные миграции (`migrate deploy`). Никаких изменений типов/`DROP` на
 > существующих B2C-полях.
 
-> **СТАТУС (сейчас):** `build` всё ещё `prisma db push --skip-generate` (см. таблицу
-> «Скрипты»). Переключение на `migrate deploy` — **только после** того как владелец
-> выполнит `scripts/db/baseline-prod.sh` на проде (с бэкапом) и пройдёт
-> staging-проверку. До этого момента сборку не трогаем.
-
-Целевая сборка (после бейзлайна) применяет миграции декларативно:
+Целевая сборка (после бейзлайна, отдельным PR) применяет миграции декларативно:
 
 ```
 build = prisma generate && prisma migrate deploy && next build
@@ -29,7 +45,8 @@ build = prisma generate && prisma migrate deploy && next build
 
 `migrate deploy` применяет только новые, ещё не применённые миграции из
 `prisma/migrations/`. Он **не** пересоздаёт существующие таблицы и **не** делает
-`db push`-подобной синхронизации.
+`db push`-подобной синхронизации. Переключение — **только после** прод-бейзлайна
+(`scripts/db/baseline-prod.sh`) и зелёной staging-проверки.
 
 ### Подключения (Neon на Vercel)
 
@@ -73,17 +90,20 @@ export DATABASE_URL_UNPOOLED=...   # direct
 > Это сгенерировало бы *целевую* схему (B2C+B2B). Она совпадёт с прод **только если**
 > прошлый `db push` отработал полностью и без дрейфа. Бейзлайним от **реального**
 > состояния прода (`--to-url`) и отдельно проверяем дрейф — так баг не маскируется.
+>
+> Поэтому локально-сгенерированный `0_init` (из `schema.prisma`) в репозиторий
+> **не коммитим** — его создаёт `baseline-prod.sh` из живого прода.
 
 ### Последующие изменения схемы (нормальный цикл)
 
 ```bash
 # 1. редактируешь prisma/schema.prisma (только аддитивно!)
-# 2. локально, против dev/branch-БД:
+# 2. локально, против dev/branch-БД (НЕ прод):
 npx prisma migrate dev --name <краткое_имя>
 # 3. ревью сгенерированного prisma/migrations/<ts>_<имя>/migration.sql:
 #    — никаких DROP COLUMN / ALTER TYPE по B2C-таблицам
 #    — новые колонки B2C должны быть nullable или с DEFAULT
-# 4. коммит миграции → merge → Vercel build запустит migrate deploy
+# 4. коммит миграции → merge → (после флипа build) Vercel запустит migrate deploy
 ```
 
 ### Проверка на staging/branch-БД перед prod
@@ -103,6 +123,6 @@ npx prisma migrate status      # должно быть "Database schema is up to
 | npm script        | действие                                  |
 |-------------------|-------------------------------------------|
 | `dev`             | `next dev -p 3001`                         |
-| `build`           | сейчас `prisma db push --skip-generate`; цель — `migrate deploy` (после бейзлайна) |
-| `prisma:deploy`   | `prisma migrate deploy`                    |
+| `build`           | `prisma generate && next build` (db push удалён; migrate deploy — цель после бейзлайна) |
+| `prisma:deploy`   | `prisma migrate deploy` (ручной, не вызывается build)  |
 | `test`            | node:test suite (`tests/*.test.ts`)        |

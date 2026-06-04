@@ -6,15 +6,23 @@ prod step is owner-run, with a verified backup in hand.
 
 ---
 
-## 🔴 BLOCKER — verify deploy environment BEFORE any further branch pushes/merges
+## 🟠 STATE — build no longer mutates DB; Preview/Prod still share env (CONFIRMED)
 
-- Current `build` still runs **`prisma db push`** (`package.json`):
-  `prisma generate && prisma db push --skip-generate && next build`.
-- Vercel **Preview** deployments run the **same** build → previews also `db push`.
-- PR #2's Preview deploy (`f6a03a0`) **already succeeded** → `db push` **already
-  ran against some live Postgres** at build time.
-- **The DB target is UNKNOWN from this session** (no Vercel token here).
-- **Owner must verify Vercel env scoping before any more branch pushes/merges.**
+- **Resolved (hotfix `#3`, merged to main):** `build` = `prisma generate && next build`.
+  `prisma db push` removed → **deploy builds no longer mutate the DB.** Verified in
+  the production build log (`prisma generate && next build`, no `db push`/`migrate`).
+- **CONFIRMED (audit `vercel env ls`):** `DATABASE_URL` and `DATABASE_URL_UNPOOLED`
+  are each a **single env entry scoped Production + Preview** → Preview uses the
+  **same value as Production**. Neon integration `neon-bole-lamp` is installed, but
+  per-preview branching is not evident (static shared URL).
+- **Residual risk:** preview-**runtime** still connects to the **production DB**
+  (shared env). Builds are now safe; preview *app instances* read/write prod data.
+- **History:** PR #2's earlier preview (`f6a03a0`) ran the OLD `db push` build once
+  against the prod DB (additive-only, no `--accept-data-loss`; no data loss observed).
+
+### Required before using previews against real flows — isolate Preview DB
+
+CONFIRMED necessary (not hypothetical). See the rule + owner checks below.
 
 ### Owner checks (exact)
 
