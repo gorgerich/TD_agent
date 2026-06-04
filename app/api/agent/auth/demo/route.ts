@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { createAgentSession, setAgentSessionCookie } from "@/lib/agentAuth";
 import { ensureDemoAgent } from "@/lib/demo";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const limited = enforceRateLimit(req, "demo", 10, 60_000);
+  if (limited) return limited;
+
   try {
     const demo = await ensureDemoAgent();
     const token = await createAgentSession({

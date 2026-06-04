@@ -3,6 +3,7 @@ import { z } from "zod";
 import { signSession, SESSION_COOKIE } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isDemoMode, ensureDemoAgent, DEMO_CODE, DEMO_PHONE } from "@/lib/demo";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 function sessionCookie(res: NextResponse, token: string) {
   res.cookies.set(SESSION_COOKIE, token, {
@@ -17,6 +18,9 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "verify-otp", 10, 60_000);
+  if (limited) return limited;
+
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Неверный запрос" }, { status: 400 });
 

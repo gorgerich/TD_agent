@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { DEMO_PHONE } from "@/lib/demo";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 const Body = z.object({ phone: z.string().min(10) });
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "request-otp", 5, 60_000);
+  if (limited) return limited;
+
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Укажите номер телефона" }, { status: 400 });
 

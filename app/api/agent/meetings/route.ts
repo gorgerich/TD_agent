@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { assertLeadOwned, handleApiError } from "@/lib/apiAuth";
 
 function generateCobrowseCode(): string {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(3))).toString("hex").toUpperCase();
@@ -54,6 +55,10 @@ export async function POST(req: NextRequest) {
   const cobrowseCode = generateCobrowseCode();
 
   try {
+    // Владение: лид должен принадлежать агенту (иначе IDOR — привязка к чужому клиенту).
+    // agentId === 0 — только dev-заглушка без куки (в prod невозможна).
+    if (session.agentId) await assertLeadOwned(parsed.data.leadId, session.agentId);
+
     const meeting = await prisma.meeting.create({
       data: {
         leadId: parsed.data.leadId,
@@ -63,7 +68,7 @@ export async function POST(req: NextRequest) {
       },
     });
     return NextResponse.json(meeting, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (err) {
+    return handleApiError(err, "meetings/create");
   }
 }

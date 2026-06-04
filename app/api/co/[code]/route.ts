@@ -6,7 +6,11 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 async function resolveMeetingId(code: string): Promise<number | null> {
-  if (code.startsWith("DEV-")) return Number(code.slice(4)) || null;
+  // DEV-<id> — обход только вне прода. В проде доступ строго по cobrowseCode,
+  // иначе любой подбором DEV-<id> читает/пишет co-state чужой встречи (ПДн).
+  if (code.startsWith("DEV-")) {
+    return process.env.NODE_ENV === "production" ? null : Number(code.slice(4)) || null;
+  }
   try {
     const meeting = await prisma.meeting.findUnique({ where: { cobrowseCode: code }, select: { id: true } });
     return meeting?.id ?? null;

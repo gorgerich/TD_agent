@@ -9,6 +9,7 @@ import {
   normalizeOptionalPhone,
   setAgentSessionCookie,
 } from "@/lib/agentAuth";
+import { enforceRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,9 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const limited = enforceRateLimit(req, "register", 5, 60_000);
+  if (limited) return limited;
+
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Неверный запрос" }, { status: 400 });

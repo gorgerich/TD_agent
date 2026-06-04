@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const Body = z.object({
@@ -43,21 +44,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, skipped: "commission already exists", commissionId: order.commission.id });
     }
 
-    // Commission = order.totalAmount * agentTier.commissionPct / 100
+    // ВНИМАНИЕ: схема (AgentTier.commissionPct) задаёт «% от МАРЖИ», но маржа
+    // на Order не хранится — используется totalAmount (чек). Это завышает комиссию.
+    // TODO(owner-decision): хранить маржу на Order (из QuoteVersion.economics) и
+    // считать от неё; до решения собственника база остаётся totalAmount.
     const pct = Number(order.agent.tier.commissionPct);
-    const amount = Math.round(order.totalAmount * pct / 100);
+    const amount = Math.round((order.totalAmount * pct) / 100);
 
-    const commission = await prisma.commission.create({
-      data: {
-        agentId: order.agentId,
-        orderId: order.id,
-        amount,
-        status: "ACCRUED",
-      },
-    });
-
-    return NextResponse.json({ ok: true, commissionId: commission.id, amount, pct });
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+    // Идемпотентность: Commission.orderId @unique. Параллельный/повторный вебхук
+    // ловим по P2002 и возвращаем уже существующую комиссию (а не 500).
+    try {
+      const commission = await prisma.commission.create({
+        data: { agentId: order.agentId, orderId: order.id, amount, status: "ACCRUED" },
+      });
+      return NextResponse.json({ ok: true, commissionId: commission.id, amount, pct });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const existing = await prisma.commission.findUnique({ where: { orderId: order.id } });
+        return NextResponse.json({ ok: true, skipped: "commission already exists", commissionId: existing?.id });
+      }
+      throw e;
+    }
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientInitializationError ||
+      (err instanceof Error && /Can't reach database|ECONNREFUSED|P1001/.test(err.message))
+    ) {
+      return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+    }
+    console.error("[webhook/order-complete] failed:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
