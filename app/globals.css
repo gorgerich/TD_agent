@@ -2,8 +2,9 @@
 
 /*
   Тихий дом — дизайн-система кабинета агента.
-  Стиль: «dashboards» (taste-skill), тонированный под достоинство ритуальной сферы.
-  Палитра: тёплый камень/айвори + сдержанный хвойно-зелёный акцент. Светлый режим.
+  Стиль: спокойный премиальный enterprise/B2B (ближе к Linear/Stripe/Apple).
+  Палитра: почти-белые нейтрали + глубокий хвойно-графитовый акцент. Светлый режим.
+  Принцип: чистые плоские поверхности, минимум теней и декора, строгая иерархия.
 */
 
 @theme {
@@ -12,54 +13,48 @@
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности (тёплые нейтрали) */
-  --color-canvas: #eee9de;
-  --color-surface: #fffaf1;
-  --color-surface-2: #e8dfcf;
-  --color-line: #ddd2c0;
-  --color-line-strong: #c9bda7;
+  /* Поверхности (нейтрали, почти-белый) */
+  --color-canvas: #fbfbfa;     /* фон приложения */
+  --color-surface: #ffffff;    /* карточки */
+  --color-surface-2: #f4f4f2;  /* вторичные заливки, hover */
+  --color-line: #e7e7e4;       /* бордеры */
+  --color-line-strong: #d7d7d3;
 
   /* Текст */
-  --color-ink: #211a13;
-  --color-ink-2: #675d50;
-  --color-ink-3: #756a59;
+  --color-ink: #16181d;
+  --color-ink-2: #5f6470;
+  --color-ink-3: #8b909a;
 
-  /* Акцент — хвойно-зелёный */
-  --color-accent: #204f43;
-  --color-accent-hover: #173d34;
-  --color-accent-soft: #dfeae4;
-  --color-on-accent: #fff8ea;
+  /* Акцент — глубокий хвойно-графитовый (благородный, не яркий) */
+  --color-accent: #23423b;
+  --color-accent-hover: #1a322c;
+  --color-accent-soft: #eef2f0;
+  --color-on-accent: #ffffff;
 
-  /* Вторичный премиум-акцент — приглушённое брасс/золото (дозированно) */
-  --color-gold: #9b7431;
-  --color-gold-soft: #efe3c7;
-  --color-night: #112a25;
-  --color-night-2: #18392f;
+  /* Дозированный тёплый акцент (редко: комиссии/печати). Приглушённая бронза. */
+  --color-gold: #8a6a39;
+  --color-gold-soft: #f1eee7;
 
-  /* Семантика (тёплая, приглушённая) */
-  --color-success: #3f7d5c;
-  --color-success-soft: #e6efe8;
-  --color-warning: #9a7320;
-  --color-warning-soft: #f4ecd8;
-  --color-danger: #9e3b32;
-  --color-danger-soft: #f4e3df;
-  --color-info: #355e74;
-  --color-info-soft: #e4edf1;
+  /* Тёмная поверхность (сайдбар, вход) — графит, не зелёно-чёрный */
+  --color-night: #15171b;
+  --color-night-2: #1c1f25;
 
-  /* Радиусы и тени — утончённые, многослойные (премиум-глубина) */
-  --radius-card: 22px;
-  --radius-inner: 16px;
-  --shadow-soft:
-    0 1px 1px rgba(33, 26, 19, 0.04),
-    0 3px 10px rgba(33, 26, 19, 0.05),
-    0 18px 42px -24px rgba(33, 26, 19, 0.24);
-  --shadow-lift:
-    0 3px 8px rgba(33, 26, 19, 0.06),
-    0 18px 38px -18px rgba(33, 26, 19, 0.24),
-    0 34px 70px -34px rgba(32, 79, 67, 0.26);
-  --shadow-pop:
-    0 4px 8px rgba(34, 30, 24, 0.06),
-    0 16px 48px -12px rgba(34, 30, 24, 0.20);
+  /* Семантика — спокойная, читаемая (AA) */
+  --color-success: #2e7d55;
+  --color-success-soft: #e9f2ec;
+  --color-warning: #9a6a12;
+  --color-warning-soft: #f6eedd;
+  --color-danger: #b23b33;
+  --color-danger-soft: #f6e7e4;
+  --color-info: #2f5c86;
+  --color-info-soft: #e8eef5;
+
+  /* Радиусы — сдержанные. Тени — минимальные. */
+  --radius-card: 14px;
+  --radius-inner: 10px;
+  --shadow-soft: 0 1px 2px rgba(16, 18, 22, 0.04), 0 1px 3px rgba(16, 18, 22, 0.06);
+  --shadow-lift: 0 2px 6px rgba(16, 18, 22, 0.06), 0 10px 26px -14px rgba(16, 18, 22, 0.18);
+  --shadow-pop: 0 10px 30px -10px rgba(16, 18, 22, 0.22);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -90,12 +85,12 @@ select, button, input, textarea { font-family: inherit; }
   top: 0;
   z-index: 1000;
   transform: translateY(calc(-100% - 8px));
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--color-accent);
   color: var(--color-on-accent);
   padding: 10px 14px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   box-shadow: var(--shadow-pop);
   transition: transform 0.18s var(--ease-out);
 }
@@ -113,91 +108,46 @@ button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
 button, a, [role="button"] { touch-action: manipulation; }
 button, [role="button"] { min-height: 44px; }
 button { transition: transform 0.12s var(--ease-out), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
-button:not(:disabled):active { transform: scale(0.985); }
+button:not(:disabled):active { transform: scale(0.99); }
 
-/* Утилиты премиум-глубины */
-.u-lift { transition: transform 0.26s var(--ease-out), box-shadow 0.26s var(--ease-out); }
-.u-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
-.u-sheen { position: relative; overflow: hidden; }
-.u-sheen::after {
-  content: ""; position: absolute; inset: 0 0 auto 0; height: 40%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
-  pointer-events: none;
-}
+/* Сдержанный hover-подъём (используется точечно) */
+.u-lift { transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), border-color 0.2s ease; }
+.u-lift:hover { box-shadow: var(--shadow-lift); border-color: var(--color-line-strong); }
+/* u-sheen больше не даёт глянец — оставлено no-op для совместимости разметки */
+.u-sheen { position: relative; }
 
 /* Числа, суммы, коды — табличные моноширинные */
 .tnum { font-variant-numeric: tabular-nums; }
-
-/* Тонкая текстура фона — едва заметная, фиксированная (не мешает скроллу) */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: -2;
-  background:
-    radial-gradient(1200px 650px at 18% -10%, rgba(32, 79, 67, 0.11), transparent 62%),
-    radial-gradient(920px 540px at 96% 4%, rgba(155, 116, 49, 0.10), transparent 58%),
-    linear-gradient(115deg, rgba(255, 250, 241, 0.74), rgba(238, 233, 222, 0));
-}
-
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.18;
-  background-image:
-    linear-gradient(rgba(33, 26, 19, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(33, 26, 19, 0.028) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(to bottom, black, transparent 72%);
-}
 
 .td-page {
   position: relative;
   z-index: 1;
 }
 
+/* Карточка — одна чистая плоская поверхность. Без двойной рамки и градиентов. */
 .td-shell {
-  border: 1px solid rgba(33, 26, 19, 0.08);
-  border-radius: calc(var(--radius-card) + 8px);
-  background:
-    linear-gradient(180deg, rgba(255, 250, 241, 0.7), rgba(232, 223, 207, 0.5));
-  padding: 6px;
-  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
 }
-
+/* Внутренний слой больше не декоративен: только скругление контента. */
 .td-core {
   border-radius: var(--radius-card);
-  background:
-    linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(255, 250, 241, 0.92));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.78),
-    inset 0 -1px 0 rgba(33, 26, 19, 0.04);
 }
 
+/* Тёмная поверхность — ровный графит. */
 .td-night {
-  background:
-    radial-gradient(780px 380px at 18% 8%, rgba(239, 227, 199, 0.18), transparent 58%),
-    linear-gradient(145deg, var(--color-night), var(--color-night-2));
+  background: linear-gradient(160deg, var(--color-night), var(--color-night-2));
   color: var(--color-on-accent);
 }
 
+/* Надзаголовок секции — спокойная подпись, НЕ пилюля. */
 .td-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  border: 1px solid rgba(32, 79, 67, 0.14);
-  border-radius: 999px;
-  background: rgba(223, 234, 228, 0.76);
-  padding: 5px 10px;
-  color: var(--color-accent);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  display: inline-block;
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
 }
 
@@ -233,10 +183,10 @@ body::after {
 
 /* Мягкое появление секций */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .rise-1 { animation-delay: 0.04s; }
 .rise-2 { animation-delay: 0.09s; }
 .rise-3 { animation-delay: 0.14s; }
@@ -246,15 +196,15 @@ body::after {
 .sk {
   position: relative;
   overflow: hidden;
-  background: color-mix(in srgb, var(--color-surface-2) 70%, var(--color-surface));
-  border-radius: 10px;
+  background: var(--color-surface-2);
+  border-radius: 8px;
 }
 .sk::after {
   content: "";
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface) 60%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface) 70%, transparent), transparent);
   animation: skshimmer 1.4s ease-in-out infinite;
 }
 @keyframes skshimmer { 100% { transform: translateX(100%); } }
