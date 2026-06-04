@@ -4,6 +4,10 @@ import { signSession, SESSION_COOKIE } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isDemoMode, ensureDemoAgent, DEMO_CODE, DEMO_PHONE } from "@/lib/demo";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { verifyOtp, normalizePhone } from "@/lib/otp";
+import { createAgentSession, setAgentSessionCookie } from "@/lib/agentAuth";
+
+export const runtime = "nodejs";
 
 function sessionCookie(res: NextResponse, token: string) {
   res.cookies.set(SESSION_COOKIE, token, {
@@ -57,7 +61,38 @@ export async function POST(req: NextRequest) {
     return res;
   }
 
-  // Production: verify OtpToken, find user/agent, issue JWT
-  // TODO: implement when DB is migrated and SMS provider is configured
-  return NextResponse.json({ error: "Требуется настройка" }, { status: 503 });
+  // Production: verify OtpToken (latest non-expired), find user/agent, issue session.
+  const normalized = normalizePhone(phone);
+  try {
+    const otp = await prisma.otpToken.findFirst({
+      where: { phone: normalized, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!otp || !verifyOtp(code, normalized, otp.codeHash)) {
+      return NextResponse.json({ error: "Неверный или просроченный код" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { phone: normalized },
+      include: { agent: true },
+    });
+    if (!user?.agent) {
+      return NextResponse.json({ error: "Профиль агента не найден" }, { status: 401 });
+    }
+    if (user.agent.status !== "ACTIVE") {
+      return NextResponse.json({ error: "Профиль агента не активен" }, { status: 403 });
+    }
+
+    // Код одноразовый — гасим все токены номера.
+    await prisma.otpToken.deleteMany({ where: { phone: normalized } });
+
+    const sessionToken = await createAgentSession({
+      userId: user.id,
+      agentId: user.agent.id,
+      name: user.name,
+    });
+    return setAgentSessionCookie(NextResponse.json({ ok: true }), sessionToken);
+  } catch {
+    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503 });
+  }
 }
