@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encryptField, decryptField } from "@/lib/crypto";
 
 const CreateLeadSchema = z.object({
   name: z.string().min(1).max(200),
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
       include: { meetings: { select: { status: true } } },
     });
-    return NextResponse.json(leads);
+    return NextResponse.json(leads.map((l) => ({ ...l, context: decryptField(l.context) })));
   } catch {
     return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
   }
@@ -41,10 +42,10 @@ export async function POST(req: NextRequest) {
         name: parsed.data.name,
         phone: parsed.data.phone,
         source: parsed.data.source,
-        context: parsed.data.context,
+        context: encryptField(parsed.data.context),
       },
     });
-    return NextResponse.json(lead, { status: 201 });
+    return NextResponse.json({ ...lead, context: decryptField(lead.context) }, { status: 201 });
   } catch {
     return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
   }

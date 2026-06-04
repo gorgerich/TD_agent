@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDots, ArrowRight, Plus } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { decryptField } from "@/lib/crypto";
 
 async function getLead(leadId: number, agentId: number) {
   try {
-    return await prisma.clientLead.findFirst({
+    const lead = await prisma.clientLead.findFirst({
       where: { id: leadId, agentId },
       include: {
         meetings: {
@@ -15,6 +16,7 @@ async function getLead(leadId: number, agentId: number) {
         },
       },
     });
+    return lead ? { ...lead, context: decryptField(lead.context) } : null;
   } catch {
     return null;
   }

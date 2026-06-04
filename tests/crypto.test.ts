@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { encryptString, decryptString } from "../lib/crypto";
+import { encryptString, decryptString, encryptField, decryptField } from "../lib/crypto";
 
 test("crypto: roundtrip preserves content incl. cyrillic", () => {
   const s = JSON.stringify({ attributes: { a: "тест ПДн" }, n: 42 });
@@ -22,4 +22,14 @@ test("crypto: tampered ciphertext throws (GCM auth)", () => {
   const enc = encryptString("secret");
   const tampered = enc.slice(0, -4) + (enc.endsWith("AAAA") ? "BBBB" : "AAAA");
   assert.throws(() => decryptString(tampered));
+});
+
+test("crypto: field helpers pass null/empty through, roundtrip non-empty", () => {
+  assert.equal(encryptField(null), null);
+  assert.equal(encryptField(undefined), undefined);
+  assert.equal(encryptField(""), "");
+  assert.equal(decryptField(null), null);
+  const enc = encryptField("Отец, 78 лет");
+  assert.ok(enc!.startsWith("enc1:"));
+  assert.equal(decryptField(enc), "Отец, 78 лет");
 });

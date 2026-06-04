@@ -43,3 +43,13 @@ export function decryptString(stored: string): string {
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
 }
+
+/** Шифрование nullable-поля ПДн для записи в БД. null/"" — без изменений. */
+export function encryptField<T extends string | null | undefined>(v: T): T {
+  return (v == null || v === "" ? v : (encryptString(v) as T));
+}
+
+/** Расшифровка nullable-поля ПДн при чтении. null — без изменений; легаси-плейнтекст проходит насквозь. */
+export function decryptField<T extends string | null | undefined>(v: T): T {
+  return (v == null ? v : (decryptString(v) as T));
+}

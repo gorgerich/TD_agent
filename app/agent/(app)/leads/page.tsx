@@ -3,16 +3,18 @@ import { Users, Plus, ArrowRight, CalendarBlank } from "@phosphor-icons/react/di
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, phone } from "@/lib/format";
+import { decryptField } from "@/lib/crypto";
 
 type Lead = { id: number; name: string; phone: string; context: string | null; source: string; createdAt: Date; meetings: { status: string }[] };
 
 async function getLeads(agentId: number): Promise<Lead[]> {
   try {
-    return await prisma.clientLead.findMany({
+    const leads = await prisma.clientLead.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
       include: { meetings: { select: { status: true } } },
     });
+    return leads.map((l) => ({ ...l, context: decryptField(l.context) }));
   } catch {
     return [];
   }
