@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { assertLeadOwned, handleApiError } from "@/lib/apiAuth";
 
 function generateCobrowseCode(): string {
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(3))).toString("hex").toUpperCase();
+  // 5 байт = 10 hex-символов (~1.1e12 вариантов). Код даёт доступ к co-state с
+  // ПДн без авторизации, поэтому пространство должно быть неперебираемым.
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString("hex").toUpperCase();
 }
 
 const CreateMeetingSchema = z.object({

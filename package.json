@@ -9,6 +9,7 @@
     "start": "next start -p 3001",
     "postinstall": "prisma generate",
     "lint": "eslint .",
+    "test": "node --import tsx --test tests/*.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name b2b_platform_init",
     "prisma:deploy": "prisma migrate deploy"
@@ -32,6 +33,7 @@
     "eslint-config-next": "16.0.5",
     "playwright": "^1.60.0",
     "prisma": "^5.20.0",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }
