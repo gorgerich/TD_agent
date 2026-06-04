@@ -133,12 +133,25 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     if (phase !== "steps" || !current) return;
     const el = findEl(current.anchor);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const mob = window.innerWidth < 640;
+      if (mob) {
+        // На мобильном карточка — нижний лист. Цель нужно вывести в видимую
+        // зону НАД листом, иначе подсказка перекрывает обучаемый элемент.
+        const vh = window.innerHeight;
+        const topBar = 64; // фиксированный верхний бар кабинета
+        const reserve = Math.min(vh * 0.48, 360) + 24; // лист + отступ
+        const visCenter = topBar + (vh - reserve - topBar) / 2;
+        const r = el.getBoundingClientRect();
+        const elCenter = r.top + r.height / 2;
+        window.scrollBy({ top: elCenter - visCenter, behavior: "smooth" });
+      } else {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
     const raf = requestAnimationFrame(() => {
       measure();
-      // повторное измерение после прокрутки
-      window.setTimeout(measure, 240);
+      // повторное измерение после плавной прокрутки
+      window.setTimeout(measure, 320);
     });
     return () => cancelAnimationFrame(raf);
   }, [phase, index, current, measure]);
@@ -215,8 +228,14 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
   const mobile = typeof window !== "undefined" && window.innerWidth < 640;
   let cardStyle: React.CSSProperties;
   if (mobile) {
-    // Bottom-sheet на мобильном: не перекрывает контент, всегда в кадре.
-    cardStyle = { left: 12, right: 12, bottom: "max(16px, env(safe-area-inset-bottom))" };
+    // Лист снизу по умолчанию. Но если цель оказалась в нижней половине
+    // (последний/низкий элемент — страницу не прокрутить выше листа), уводим
+    // карточку НАВЕРХ, чтобы не перекрывать подсветку.
+    const vhM = window.innerHeight;
+    const lowTarget = !isIntro && !!spot && spot.top > vhM * 0.5;
+    cardStyle = lowTarget
+      ? { top: "max(16px, env(safe-area-inset-top))", left: 12, right: 12 }
+      : { left: 12, right: 12, bottom: "max(16px, env(safe-area-inset-bottom))" };
   } else if (isIntro || !spot) {
     cardStyle = { top: "50%", left: "50%", transform: "translate(-50%, -50%)" };
   } else {
@@ -233,7 +252,8 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
       cardStyle = { bottom: vh - spot.top + GAP, left };
     }
   }
-  cardStyle.maxHeight = "min(72vh, 560px)";
+  // На мобильном лист не должен занимать весь экран — оставляем место для цели.
+  cardStyle.maxHeight = mobile ? "42vh" : "min(72vh, 560px)";
   cardStyle.overflowY = "auto";
 
   return (
