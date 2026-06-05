@@ -138,6 +138,8 @@ model Agent {
   orders       Order[]
   commissions  Commission[]
   payouts      Payout[]
+  tasks        Task[]       // NEW (P5)
+  notes        CaseNote[]   // NEW (P5)
 
   createdAt    DateTime     @default(now())
 
@@ -160,6 +162,8 @@ model ClientLead {
   context   String?   // сведения об усопшем, бюджетные ожидания (ПДн — шифровать на уровне приложения)
   source    String    // telegram | form | agent
   meetings  Meeting[]
+  tasks     Task[]    // NEW (P5)
+  notes     CaseNote[] // NEW (P5)
   createdAt DateTime  @default(now())
 
   @@index([agentId])
@@ -252,6 +256,40 @@ model AgentSession {
   state     String   // текущая смета co-browse (JSON-строкой; шифровать на уровне приложения, ФЗ-152)
   expiresAt DateTime // авто-удаление после встречи (cron, см. Блок 2.7)
   createdAt DateTime @default(now())
+}
+
+// ============================================================
+// P5 — Tasks + Notes (аддитивно, без изменения существующих полей)
+// ============================================================
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  leadId      Int
+  lead        ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId     Int
+  agent       Agent      @relation(fields: [agentId], references: [id])
+  title       String
+  dueAt       DateTime?               // null = без срока
+  completedAt DateTime?               // null = открыта; DateTime = выполнена
+  createdAt   DateTime   @default(now())
+
+  @@index([leadId])
+  @@index([agentId])
+  @@index([agentId, completedAt])
+  @@index([agentId, dueAt])
+}
+
+model CaseNote {
+  id        Int        @id @default(autoincrement())
+  leadId    Int
+  lead      ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId   Int
+  agent     Agent      @relation(fields: [agentId], references: [id])
+  body      String     // ПДн — шифровать на уровне app (encryptField), как ClientLead.context
+  createdAt DateTime   @default(now())
+
+  @@index([leadId])
+  @@index([agentId])
 }
 
 // ============================================================
