@@ -37,25 +37,22 @@ export default async function QuoteBuilderPage({
   }
 
   const clientName = meeting?.lead?.name ?? "Клиент";
-  const leadId = meeting?.lead?.id;
+  const caseId = meeting?.lead?.id;
 
   return (
     <div>
-      {/* Хлебные крошки — путь во вложенности всегда виден */}
       <nav aria-label="Навигация" className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-1.5 px-4 pt-7 text-[12.5px] sm:px-7 sm:pt-9">
-        <Link href={`/agent/meetings/${meetingId}`} className="inline-flex items-center gap-1 text-ink-3 transition-colors hover:text-ink">
+        <Link href={caseId ? `/agent/cases/${caseId}` : "/agent/cases"} className="inline-flex items-center gap-1 text-ink-3 transition-colors hover:text-ink">
           <ArrowLeft size={13} /> Назад
         </Link>
         <span className="mx-1 h-3 w-px bg-line-strong" aria-hidden />
-        <Link href="/agent/leads" className="text-ink-3 transition-colors hover:text-ink">Клиенты</Link>
+        <Link href="/agent/cases" className="text-ink-3 transition-colors hover:text-ink">Дела</Link>
         <CaretRight size={11} className="text-ink-3" aria-hidden />
-        {leadId ? (
-          <Link href={`/agent/leads/${leadId}`} className="text-ink-2 transition-colors hover:text-ink">{clientName}</Link>
+        {caseId ? (
+          <Link href={`/agent/cases/${caseId}`} className="text-ink-2 transition-colors hover:text-ink">{clientName}</Link>
         ) : (
           <span className="text-ink-2">{clientName}</span>
         )}
-        <CaretRight size={11} className="text-ink-3" aria-hidden />
-        <Link href={`/agent/meetings/${meetingId}`} className="text-ink-2 transition-colors hover:text-ink">Встреча №{meetingId}</Link>
         <CaretRight size={11} className="text-ink-3" aria-hidden />
         <span className="font-semibold text-ink">Смета</span>
       </nav>
