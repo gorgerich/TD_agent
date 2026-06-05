@@ -1156,6 +1156,10 @@
 }
 details[open] > .collapseHead::after { transform: rotate(-135deg); }
 details[open] > .collapseHead { margin-bottom: 12px; }
+/* button variant (AgentEconomicsBlock) — reset + aria-expanded arrow */
+button.collapseHead { background: none; border: none; width: 100%; text-align: left; padding: 2px 0; }
+button.collapseHead[aria-expanded="true"]::after { transform: rotate(-135deg); }
+button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 .collapseAlert {
   width: 8px;
   height: 8px;
