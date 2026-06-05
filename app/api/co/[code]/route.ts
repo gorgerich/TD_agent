@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { readCoState, mergeCoAttributes } from "@/lib/coSession";
+import { toPublicEstimateItems, type EstimateItem } from "@/lib/calculationUtils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -24,9 +25,60 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
   const meetingId = await resolveMeetingId(code);
   if (!meetingId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // 1. Live cobrowse session takes priority.
   const entry = await readCoState(meetingId);
-  if (!entry) return NextResponse.json({ state: null, updatedAt: null });
-  return NextResponse.json({ state: entry.state, updatedAt: entry.updatedAt });
+  if (entry) {
+    return NextResponse.json({ state: entry.state, updatedAt: entry.updatedAt, isSnapshot: false });
+  }
+
+  // 2. Fallback: latest saved QuoteVersion — shown when agent is not in an active session.
+  try {
+    const quote = await prisma.quote.findFirst({
+      where: { meetingId },
+      include: {
+        versions: { orderBy: { createdAt: "desc" }, take: 1 },
+        meeting: {
+          select: {
+            agent: { select: { user: { select: { name: true, phone: true } } } },
+          },
+        },
+      },
+    });
+
+    if (!quote || quote.versions.length === 0) {
+      return NextResponse.json({ state: null, updatedAt: null, isSnapshot: false });
+    }
+
+    const version = quote.versions[0];
+    const raw = JSON.parse(version.payload) as {
+      form?: unknown;
+      attributes?: unknown;
+      estimateItems?: unknown[];
+    };
+
+    // Strip internal fields (costPrice, margin) — server is the security boundary.
+    const publicItems = Array.isArray(raw.estimateItems)
+      ? toPublicEstimateItems(raw.estimateItems as EstimateItem[])
+      : [];
+
+    const state = {
+      form: raw.form ?? null,
+      attributes: raw.attributes ?? null,
+      estimateItems: publicItems,
+      // externalExpenses not stored in QuoteVersion — omit intentionally
+      _ts: version.createdAt.getTime(),
+    };
+
+    return NextResponse.json({
+      state,
+      updatedAt: version.createdAt.getTime(),
+      isSnapshot: true,
+      agentName: quote.meeting?.agent?.user?.name ?? null,
+      agentPhone: quote.meeting?.agent?.user?.phone ?? null,
+    });
+  } catch {
+    return NextResponse.json({ state: null, updatedAt: null, isSnapshot: false });
+  }
 }
 
 // Клиент меняет только атрибутику (без авторизации — доступ по коду встречи).
