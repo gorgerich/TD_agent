@@ -34,6 +34,8 @@
   line-height: 1.15;
 }
 .headerSubtitle { font-size: 13px; color: var(--color-ink-3); margin-top: 2px; }
+.headerCaseLink { color: var(--color-ink-2); text-decoration: none; transition: color 0.15s; }
+.headerCaseLink:hover { color: var(--color-ink); }
 
 .headerRight { display: flex; align-items: center; gap: 14px; }
 .headerCode {

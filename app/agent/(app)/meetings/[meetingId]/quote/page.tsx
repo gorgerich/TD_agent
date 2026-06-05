@@ -61,6 +61,7 @@ export default async function QuoteBuilderPage({
         meetingId={meetingId}
         cobrowseCode={meeting?.cobrowseCode ?? null}
         clientName={clientName}
+        caseId={caseId}
       />
     </div>
   );

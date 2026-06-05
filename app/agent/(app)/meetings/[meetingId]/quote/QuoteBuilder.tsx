@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Check, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { useToast } from "@/components/Toast";
 import s from "./QuoteBuilder.module.css";
@@ -55,6 +56,7 @@ interface Props {
   meetingId: number;
   cobrowseCode: string | null;
   clientName: string;
+  caseId?: number;
 }
 
 const DEFAULT_FORM: FormData = {
@@ -92,7 +94,7 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
 
 /* ─── Main component ─────────────────────────────────────────────────── */
 
-export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Props) {
+export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, caseId }: Props) {
   const [form, setForm] = useState<FormData>(DEFAULT_FORM);
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
@@ -464,7 +466,14 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           <span className={s.headerDot} />
           <div>
             <div className={s.headerBrand}>Тихий дом</div>
-            <div className={s.headerSubtitle}>Смета · {clientName}</div>
+            <div className={s.headerSubtitle}>
+              Смета ·{" "}
+              {caseId ? (
+                <Link href={`/agent/cases/${caseId}`} className={s.headerCaseLink}>{clientName}</Link>
+              ) : (
+                clientName
+              )}
+            </div>
           </div>
         </div>
         <div className={s.headerRight}>
