@@ -4,10 +4,14 @@
 .root {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 16px 16px 80px;
+  /* Extra bottom padding for mobileBar (~56px) stacked above AgentBottomNav (~56px already in layout) */
+  padding: 16px 16px 140px;
 }
 @media (min-width: 640px) {
-  .root { padding: 24px 28px 96px; }
+  .root { padding: 24px 28px 140px; }
+}
+@media (min-width: 980px) {
+  .root { padding: 24px 28px 80px; }
 }
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -202,7 +206,14 @@
 }
 .stepNodeActive .stepCount { background: rgba(255, 255, 255, 0.22); color: var(--color-on-accent); }
 @media (min-width: 640px) {
-  .stepper { margin-inline: 0; padding-inline: 0; border-block: 0; background: transparent; backdrop-filter: none; }
+  .stepper {
+    margin-inline: 0; padding: 10px 0;
+    border-bottom: 1px solid var(--color-line);
+    border-top: 0;
+    background: color-mix(in srgb, var(--color-canvas, #F7F5F0) 94%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
 }
 
 /* Подсказка текущего шага */
@@ -900,6 +911,7 @@
 .panel { min-width: 0; }
 @media (min-width: 980px) {
   .panel { position: sticky; top: 20px; }
+  .panelCard { max-height: calc(100dvh - 56px); overflow-y: auto; }
 }
 .panelCard {
   background: var(--color-surface);
@@ -1376,20 +1388,22 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-size: 11px;
 }
 
-.panelActions { padding: 16px 20px; }
+.panelActions { display: none; padding: 16px 20px; }
+@media (min-width: 980px) { .panelActions { display: block; } }
 .saveBtn {
   width: 100%;
-  padding: 12px;
-  border-radius: 12px;
+  padding: 13px;
+  border-radius: 999px;
   border: none;
   background: var(--color-accent);
   color: var(--color-on-accent);
-  font-size: 14.5px; font-weight: 600;
+  font-size: 14px; font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--color-accent) 72%, transparent);
+  transition: background 0.15s, box-shadow 0.15s;
 }
-.saveBtn:hover:not(:disabled) { background: var(--color-accent-hover); }
-.saveBtn:disabled { opacity: 0.5; cursor: default; }
+.saveBtn:hover:not(:disabled) { background: var(--color-accent-hover); box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--color-accent) 80%, transparent); }
+.saveBtn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
 .savedMsg {
   display: flex; align-items: center; gap: 6px;
   margin-top: 12px;
@@ -1434,18 +1448,19 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
-  z-index: 30;
+  /* Sit above AgentBottomNav (h-14 = 56px) which has z-index 40 */
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  z-index: 45;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--color-surface) 95%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-top: 1px solid var(--color-line);
-  box-shadow: 0 -6px 20px -16px rgba(22, 22, 22, 0.18);
+  box-shadow: 0 -4px 16px -12px rgba(22, 22, 22, 0.14);
 }
 @media (min-width: 980px) {
   .mobileBar { display: none; }
