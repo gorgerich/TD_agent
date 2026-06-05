@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, ArrowRight, CalendarDots, Clock, Briefcase } from "@phosphor-icons/react/dist/ssr";
+import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { type Stage, STAGE_DOT, NEXT_ACTION, deriveStage, relTime } from "@/lib/case";
@@ -103,9 +103,29 @@ async function getCases(agentId: number): Promise<CasesData> {
   }
 }
 
+type OverdueTask = { id: number; title: string; leadId: number; leadName: string };
+
+async function getOverdueTasks(agentId: number): Promise<OverdueTask[]> {
+  if (!agentId) return [];
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { agentId, completedAt: null, dueAt: { lt: new Date() } },
+      orderBy: { dueAt: "asc" },
+      take: 8,
+      select: { id: true, title: true, leadId: true, lead: { select: { name: true } } },
+    });
+    return tasks.map((t) => ({ id: t.id, title: t.title, leadId: t.leadId, leadName: t.lead.name }));
+  } catch {
+    return [];
+  }
+}
+
 export default async function CasesPage() {
   const session = await getAgentSession();
-  const { active, todayMeetings, upcoming, inactive } = await getCases(session?.agentId ?? 0);
+  const [{ active, todayMeetings, upcoming, inactive }, overdueTasks] = await Promise.all([
+    getCases(session?.agentId ?? 0),
+    getOverdueTasks(session?.agentId ?? 0),
+  ]);
 
   return (
     <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
@@ -187,6 +207,17 @@ export default async function CasesPage() {
               ))
             )}
           </RailBlock>
+
+          {overdueTasks.length > 0 && (
+            <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Просроченные задачи">
+              {overdueTasks.map((t) => (
+                <Link key={t.id} href={`/agent/cases/${t.leadId}`} className="block py-1.5 text-[13px] transition-colors hover:text-ink">
+                  <span className="truncate text-danger">{t.title}</span>
+                  <span className="block truncate text-[11.5px] text-ink-3">{t.leadName}</span>
+                </Link>
+              ))}
+            </RailBlock>
+          )}
 
           {inactive.length > 0 && (
             <RailBlock icon={<Clock size={15} weight="duotone" />} title="Без движения">

@@ -15,6 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
+import { TasksSection } from "./TasksSection";
+import { NotesSection } from "./NotesSection";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -50,6 +52,23 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const session = await getAgentSession();
   const lead = await getCase(id, session?.agentId ?? 0);
   if (!lead) notFound();
+
+  // Tasks + Notes (P5) — fetched separately; notes body decrypted server-side.
+  const [rawTasks, rawNotes] = await Promise.all([
+    prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
+    prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
+  ]);
+  const tasks = rawTasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    dueAt: t.dueAt?.toISOString() ?? null,
+    completedAt: t.completedAt?.toISOString() ?? null,
+  }));
+  const notes = rawNotes.map((n) => ({
+    id: n.id,
+    body: decryptField(n.body) ?? n.body,
+    createdAt: n.createdAt.toISOString(),
+  }));
 
   const meetings = lead.meetings;
   const versions = meetings.flatMap((m) => m.quotes.flatMap((q) => q.versions));
@@ -134,6 +153,14 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
                 </li>
               ))}
             </ol>
+          </Card>
+
+          <Card title="Задачи">
+            <TasksSection caseId={id} initial={tasks} />
+          </Card>
+
+          <Card title="Заметки">
+            <NotesSection caseId={id} initial={notes} />
           </Card>
         </main>
 
