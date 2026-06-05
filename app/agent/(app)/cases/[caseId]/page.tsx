@@ -150,7 +150,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           <div className="space-y-2.5">
             <span className="td-eyebrow">Действия</span>
             {firstMeeting ? (
-              <Action href={`/agent/meeting/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
+              <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
                 Открыть смету
               </Action>
             ) : (

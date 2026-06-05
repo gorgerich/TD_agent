@@ -86,7 +86,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       <div className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-6">
         <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
           <InfoField label="Клиент">
-            <Link href={`/agent/leads/${meeting.lead.id}`} className="text-[14px] font-medium text-accent transition-colors hover:text-accent-hover">
+            <Link href={`/agent/cases/${meeting.lead.id}`} className="text-[14px] font-medium text-accent transition-colors hover:text-accent-hover">
               {meeting.lead.name}
             </Link>
           </InfoField>
@@ -112,7 +112,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       {/* Actions row */}
       <div className="rise rise-2 mb-5 flex flex-wrap gap-2.5">
         <Link
-          href={`/agent/meeting/${meeting.id}/quote`}
+          href={`/agent/meetings/${meeting.id}/quote`}
           className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
         >
           <FileText size={16} /> Конструктор сметы
@@ -149,7 +149,7 @@ function DealFunnel({
   const stages = [
     { label: "Лид", done: true, href: undefined as string | undefined },
     { label: "Встреча", done: true, href: undefined },
-    { label: "Смета", done: hasQuote, href: `/agent/meeting/${meetingId}/quote` },
+    { label: "Смета", done: hasQuote, href: `/agent/meetings/${meetingId}/quote` },
     { label: "Подписание", done: hasOrder, href: undefined },
     { label: "Заказ", done: completed, href: undefined },
   ];
