@@ -189,9 +189,12 @@ export default async function CasesPage() {
               {active.map((c) => (
                 <li key={c.id} className="border-b border-line last:border-0">
                   <Link href={`/agent/cases/${c.id}`} className="group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 lg:grid-cols-[minmax(210px,1.05fr)_132px_150px_minmax(180px,1fr)_96px_86px_28px] lg:items-center lg:gap-3">
-                    <span className="min-w-0">
-                      <span className="block truncate text-[14.5px] font-semibold text-ink">{c.name}</span>
-                      <span className="mt-0.5 block text-[12px] text-ink-3 lg:hidden">{fmtPhone(c.phone)}</span>
+                    <span className="flex min-w-0 items-center gap-3">
+                      <Avatar name={c.name} urgent={c.urgent} />
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14.5px] font-semibold text-ink">{c.name}</span>
+                        <span className="mt-0.5 block text-[12px] text-ink-3 lg:hidden">{fmtPhone(c.phone)}</span>
+                      </span>
                     </span>
                     <span className="tnum hidden truncate text-[13px] text-ink-2 lg:block">{fmtPhone(c.phone)}</span>
                     <StageProgress stage={c.stage} progress={c.progress} />
@@ -251,6 +254,18 @@ export default async function CasesPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function Avatar({ name, urgent }: { name: string; urgent?: boolean }) {
+  const initials = name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+  return (
+    <span
+      aria-hidden="true"
+      className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12.5px] font-semibold text-accent ${urgent ? "ring-2 ring-danger/30" : ""}`}
+    >
+      {initials}
+    </span>
   );
 }
 
