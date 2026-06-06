@@ -2,59 +2,64 @@
 
 /*
   Тихий дом — дизайн-система кабинета агента.
-  Стиль: спокойный премиальный enterprise/B2B (ближе к Linear/Stripe/Apple).
-  Палитра: почти-белые нейтрали + глубокий хвойно-графитовый акцент. Светлый режим.
-  Принцип: чистые плоские поверхности, минимум теней и декора, строгая иерархия.
+  Направление: QUIET LUXURY. Статус через сдержанность, а не декор.
+  Палитра: тёплая нейтральная семья (oat / linen / stone / espresso) + один
+  глубокий хвойный акцент. Материал важнее теней. Дозированная сериф-типографика.
+  Дайлы: variance 4 · motion 2 · density 3 (операционная плотность, editorial-тон).
 */
 
 @theme {
-  /* Шрифты */
+  /* Шрифты — роли: serif = display/headline, sans = UI/body, mono = числа/коды */
   --font-sans: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности (тёплый айвори, спокойно) */
-  --color-canvas: #f7f5f0;     /* фон приложения */
-  --color-surface: #fffcf7;    /* карточки */
-  --color-surface-2: #f0ede6;  /* вторичные заливки, hover */
-  --color-line: rgba(0, 0, 0, 0.06);   /* бордеры — на 70% тише */
-  --color-line-strong: rgba(0, 0, 0, 0.10);
+  /* Поверхности — тёплый овёс/лён/камень. Высота через тон, не через тень. */
+  --color-canvas: #f3efe7;     /* фон приложения — oat */
+  --color-surface: #fcfbf7;    /* карточки — linen, светлее канвы → приподняты */
+  --color-surface-2: #eae5db;  /* вторичные заливки, hover — stone */
+  --color-surface-3: #e1dbcd;  /* редкое тональное бандирование */
+  --color-line: rgba(45, 36, 24, 0.09);        /* тёплый волосок */
+  --color-line-strong: rgba(45, 36, 24, 0.15);
 
-  /* Текст */
-  --color-ink: #161616;
-  --color-ink-2: #5c5b54;
-  --color-ink-3: #8a897f;
+  /* Текст — тёплый эспрессо, не чистый чёрный */
+  --color-ink: #221d15;
+  --color-ink-2: #685f52;
+  --color-ink-3: #8d8474;
 
-  /* Акцент — благородный приглушённый зелёный */
-  --color-accent: #1f5c4c;
-  --color-accent-hover: #184a3d;
-  --color-accent-soft: #e8efea;
-  --color-on-accent: #ffffff;
+  /* Акцент — глубокий приглушённый хвойный (бренд), используется дозированно */
+  --color-accent: #1e5446;
+  --color-accent-hover: #163d33;
+  --color-accent-soft: #e7ece9;
+  --color-on-accent: #fbfaf5;
 
-  /* Дозированный тёплый акцент (редко: комиссии/печати). Приглушённая бронза. */
-  --color-gold: #8a6a39;
-  --color-gold-soft: #f1eee7;
+  /* Дозированный тёплый акцент (редко: комиссии/печати). Глина-бронза. */
+  --color-gold: #8a6535;
+  --color-gold-soft: #efe9dd;
 
-  /* Тёмная поверхность (вход) — тёплый глубокий графит-хвоя */
-  --color-night: #1a201c;
-  --color-night-2: #232a25;
+  /* Тёмная поверхность (вход) — тёплый эспрессо-хвоя */
+  --color-night: #181c19;
+  --color-night-2: #21261f;
 
-  /* Семантика — спокойная, читаемая (AA) */
-  --color-success: #2e7d55;
-  --color-success-soft: #e9f2ec;
-  --color-warning: #9a6a12;
-  --color-warning-soft: #f6eedd;
-  --color-danger: #b23b33;
-  --color-danger-soft: #f6e7e4;
-  --color-info: #2f5c86;
-  --color-info-soft: #e8eef5;
+  /* Семантика — спокойная, земляная, читаемая (AA) */
+  --color-success: #2f7553;
+  --color-success-soft: #e7efe7;
+  --color-warning: #94701f;
+  --color-warning-soft: #f3ecd9;
+  --color-danger: #b0443a;
+  --color-danger-soft: #f4e6e1;
+  --color-info: #345f82;
+  --color-info-soft: #e8eef4;
 
-  /* Радиусы — сдержанные. Тени — минимальные. */
+  /* Радиусы — сдержанные. Тени — тёплые, минимальные. */
   --radius-card: 14px;
   --radius-inner: 10px;
-  --shadow-soft: 0 1px 2px rgba(16, 18, 22, 0.04), 0 1px 3px rgba(16, 18, 22, 0.06);
-  --shadow-lift: 0 2px 6px rgba(16, 18, 22, 0.06), 0 10px 26px -14px rgba(16, 18, 22, 0.18);
-  --shadow-pop: 0 10px 30px -10px rgba(16, 18, 22, 0.22);
+  /* Многослойная мягкая глубина — «вещь на льне», не плоско, но сдержанно */
+  --shadow-soft: 0 1px 1px rgba(40, 30, 18, 0.05), 0 2px 4px rgba(40, 30, 18, 0.05), 0 6px 16px -8px rgba(40, 30, 18, 0.10);
+  --shadow-lift: 0 2px 6px rgba(40, 30, 18, 0.06), 0 10px 22px -10px rgba(40, 30, 18, 0.14), 0 24px 48px -24px rgba(40, 30, 18, 0.20);
+  --shadow-pop: 0 16px 44px -14px rgba(40, 30, 18, 0.24);
+  /* Верхний внутренний блик — лёгкое «тиснение» по светлым поверхностям */
+  --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -100,8 +105,26 @@ select, button, input, textarea { font-family: inherit; }
   outline-color: var(--color-on-accent);
 }
 
-/* Премиальная типографика: лёгкая отрицательная трекинг-коррекция крупных серифов */
+/* ── Типографические роли ──────────────────────────────────────
+   Quiet luxury: серьёзная серифная гарнитура в display/headline,
+   тонкая отрицательная трекинг-коррекция, спокойная авторитетность. */
+.td-display {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
 .font-serif { letter-spacing: -0.01em; }
+
+/* Надзаголовок секции — спокойная подпись, НЕ пилюля. */
+.td-eyebrow {
+  display: inline-block;
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
 
 /* Убираем серую вспышку тача, ускоряем нажатие, плавные состояния кнопок */
 button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
@@ -129,27 +152,21 @@ button:not(:disabled):active { transform: scale(0.99); }
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+  box-shadow: var(--shadow-soft), var(--hl-top);
 }
 /* Внутренний слой больше не декоративен: только скругление контента. */
 .td-core {
   border-radius: var(--radius-card);
 }
 
-/* Тёмная поверхность — ровный графит. */
+/* Тёмная поверхность — ровный тёплый эспрессо-хвоя. */
 .td-night {
   background: linear-gradient(160deg, var(--color-night), var(--color-night-2));
   color: var(--color-on-accent);
 }
 
-/* Надзаголовок секции — спокойная подпись, НЕ пилюля. */
-.td-eyebrow {
-  display: inline-block;
-  color: var(--color-ink-3);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
+/* Тонкий волосковый разделитель — материал вместо лишней рамки. */
+.td-rule { height: 1px; background: var(--color-line); border: 0; }
 
 /* Аккуратные скроллбары */
 * {
@@ -165,7 +182,7 @@ button:not(:disabled):active { transform: scale(0.99); }
 }
 *::-webkit-scrollbar-thumb:hover { background: var(--color-ink-3); background-clip: padding-box; }
 
-/* Доступный фокус */
+/* Доступный фокус — тёплый акцент */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
@@ -181,16 +198,16 @@ button:not(:disabled):active { transform: scale(0.99); }
   }
 }
 
-/* Мягкое появление секций */
+/* Мягкое появление секций — тихая, «дорогая» моторика */
 @keyframes rise {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.rise { animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.rise-1 { animation-delay: 0.04s; }
-.rise-2 { animation-delay: 0.09s; }
-.rise-3 { animation-delay: 0.14s; }
-.rise-4 { animation-delay: 0.19s; }
+.rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rise-1 { animation-delay: 0.05s; }
+.rise-2 { animation-delay: 0.11s; }
+.rise-3 { animation-delay: 0.17s; }
+.rise-4 { animation-delay: 0.23s; }
 
 /* ── Skeleton shimmer (loading states) ─────────────────────── */
 .sk {

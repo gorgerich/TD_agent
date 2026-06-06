@@ -11,8 +11,10 @@ const BASE =
   "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45 active:translate-y-px";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-accent text-on-accent shadow-[0_1px_2px_rgba(16,18,22,0.10)] hover:bg-accent-hover",
-  secondary: "border border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-2",
+  primary:
+    "bg-accent text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.25),0_6px_16px_-8px_rgba(20,30,24,0.40),inset_0_1px_0_rgba(255,255,255,0.16)] hover:bg-accent-hover hover:shadow-[0_2px_4px_rgba(20,30,24,0.28),0_10px_22px_-8px_rgba(20,30,24,0.46),inset_0_1px_0_rgba(255,255,255,0.18)]",
+  secondary:
+    "border border-line bg-surface text-ink shadow-[0_1px_2px_rgba(40,30,18,0.05),inset_0_1px_0_rgba(255,255,255,0.6)] hover:border-line-strong hover:bg-surface-2",
   ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
   danger: "bg-danger text-white hover:brightness-95",
 };
