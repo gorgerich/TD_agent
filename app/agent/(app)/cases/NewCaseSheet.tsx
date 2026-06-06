@@ -54,6 +54,7 @@ export default function NewCaseSheet() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        if (res.status === 401) { router.push("/agent/login"); return; }
         setError(data.error ?? "Не удалось создать кейс");
         return;
       }

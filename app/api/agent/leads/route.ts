@@ -3,6 +3,9 @@ import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptField, decryptField } from "@/lib/crypto";
+import { handleApiError } from "@/lib/apiAuth";
+
+export const runtime = "nodejs";
 
 const CreateLeadSchema = z.object({
   name: z.string().min(1).max(200),
@@ -36,6 +39,16 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
   try {
+    // Профиль агента должен существовать в текущей БД. После смены БД
+    // (Neon → Railway) старая сессия может нести agentId, которого здесь нет —
+    // тогда просим перелогиниться, а не отдаём непонятную 503 (FK-ошибка).
+    if (session.agentId) {
+      const agent = await prisma.agent.findUnique({ where: { id: session.agentId }, select: { id: true } });
+      if (!agent) {
+        return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
+      }
+    }
+
     const lead = await prisma.clientLead.create({
       data: {
         agentId: session.agentId,
@@ -46,7 +59,7 @@ export async function POST(req: NextRequest) {
       },
     });
     return NextResponse.json({ ...lead, context: decryptField(lead.context) }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (err) {
+    return handleApiError(err, "leads/create");
   }
 }
