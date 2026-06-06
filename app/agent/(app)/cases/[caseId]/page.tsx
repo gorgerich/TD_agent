@@ -9,6 +9,8 @@ import {
   ShareNetwork,
   Plus,
   ClockCounterClockwise,
+  Files,
+  ClipboardText,
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -88,9 +90,15 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     { label: "Оформлен договор", done: orders.length > 0 },
     { label: "Принята оплата", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
   ];
+  const docs = [
+    { name: "Карточка клиента", type: "Кейс", status: "Готово", done: true },
+    { name: "Смета", type: "Смета", status: versions.length > 0 ? "Сохранена" : "Нужна", done: versions.length > 0 },
+    { name: "Договор", type: "Документ", status: orders.length > 0 ? "Оформлен" : "Нужен после сметы", done: orders.length > 0 },
+    { name: "Подтверждение оплаты", type: "Оплата", status: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) ? "Есть" : "Ожидает", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
+  ];
 
   // Derived activity feed
-  const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Дело создано" }];
+  const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Кейс создан" }];
   for (const m of meetings) {
     if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt) });
   }
@@ -99,31 +107,39 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   activity.sort((a, b) => b.at - a.at);
 
   return (
-    <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
+    <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
       <Link href="/agent/cases" className="rise inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink">
-        <ArrowLeft size={15} /> К делам
+        <ArrowLeft size={15} /> К кейсам
       </Link>
 
-      <header className="rise rise-1 mt-4 mb-8">
-        <h1 className="font-serif text-[30px] leading-tight text-ink sm:text-[38px]">{lead.name}</h1>
-        <p className="mt-1.5 flex items-center gap-2 text-[13.5px] text-ink-2">
-          <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
-          Этап: {stage} · {NEXT_ACTION[stage]}
-        </p>
+      <header className="rise rise-1 mt-4 mb-6 flex flex-col gap-4 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="td-eyebrow">Кейс #{id}</span>
+          <h1 className="mt-2 text-[28px] font-semibold leading-tight text-ink sm:text-[34px]">{lead.name}</h1>
+          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
+            <StagePill stage={stage} />
+            <span>{NEXT_ACTION[stage]}</span>
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 sm:w-[330px]">
+          <Stat label="Встречи" value={String(meetings.length)} />
+          <Stat label="Сметы" value={String(versions.length)} />
+          <Stat label="Заказы" value={String(orders.length)} />
+        </div>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[180px_1fr_300px]">
+      <div className="grid gap-5 lg:grid-cols-[190px_1fr_310px]">
         {/* LEFT — timeline */}
-        <nav aria-label="Этапы дела" className="rise rise-1 order-1">
+        <nav aria-label="Этапы кейса" className="rise rise-1 order-1">
           <Timeline current={curIdx} />
         </nav>
 
         {/* CENTER — operational */}
-        <main className="rise rise-2 order-3 space-y-7 lg:order-2">
-          <Card title="Чек-лист">
-            <ul className="space-y-2.5">
+        <main className="rise rise-2 order-3 space-y-5 lg:order-2">
+          <Card title="Чек-лист текущего этапа" icon={<ClipboardText size={16} weight="duotone" />}>
+            <ul className="grid gap-2 sm:grid-cols-2">
               {checklist.map((it) => (
-                <li key={it.label} className="flex items-center gap-2.5 text-[14px]">
+                <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13.5px]">
                   {it.done
                     ? <Check size={17} weight="bold" className="flex-shrink-0 text-success" />
                     : <Circle size={17} className="flex-shrink-0 text-ink-3" />}
@@ -134,16 +150,16 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           </Card>
 
           {context && (
-            <Card title="Контекст">
+            <Card title="Контекст" icon={<FileText size={16} weight="duotone" />}>
               <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink-2">{context}</p>
             </Card>
           )}
 
-          <Card title="Активность">
-            <ol className="space-y-3.5">
+          <Card title="Активность" icon={<ClockCounterClockwise size={16} weight="duotone" />}>
+            <ol className="divide-y divide-line">
               {activity.map((a, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="mt-1 flex-shrink-0">
+                <li key={i} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className="mt-0.5 flex-shrink-0">
                     <ClockCounterClockwise size={15} className="text-ink-3" />
                   </span>
                   <span className="min-w-0">
@@ -155,18 +171,35 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             </ol>
           </Card>
 
-          <Card title="Задачи">
+          <Card title="Задачи" icon={<ClipboardText size={16} weight="duotone" />}>
             <TasksSection caseId={id} initial={tasks} />
           </Card>
 
-          <Card title="Заметки">
+          <Card title="Заметки" icon={<FileText size={16} weight="duotone" />}>
             <NotesSection caseId={id} initial={notes} />
+          </Card>
+
+          <Card title="Документы" icon={<Files size={16} weight="duotone" />}>
+            <ul className="divide-y divide-line">
+              {docs.map((doc) => (
+                <li key={doc.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className={`grid h-7 w-7 place-items-center rounded-[9px] ${doc.done ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
+                    {doc.done ? <Check size={14} weight="bold" /> : <Circle size={14} />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-medium text-ink">{doc.name}</span>
+                    <span className="block text-[11.5px] text-ink-3">{doc.type}</span>
+                  </span>
+                  <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11.5px] font-medium text-ink-2">{doc.status}</span>
+                </li>
+              ))}
+            </ul>
           </Card>
         </main>
 
         {/* RIGHT — info + quick actions */}
         <aside className="rise rise-2 order-2 space-y-6 lg:order-3">
-          <div className="td-shell p-5">
+          <div className="td-shell p-4">
             <Row label="Телефон" value={fmtPhone(lead.phone)} />
             <Row label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
             <Row label="Этап" value={stage} />
@@ -174,8 +207,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             <Row label="Заведено" value={dateTime(lead.createdAt)} last />
           </div>
 
-          <div className="space-y-2.5">
-            <span className="td-eyebrow">Действия</span>
+          <div className="td-shell space-y-2.5 p-4">
+            <span className="td-eyebrow">Быстрые действия</span>
             {firstMeeting ? (
               <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
                 Открыть смету
@@ -202,7 +235,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
 function Timeline({ current }: { current: number }) {
   return (
-    <ol className="relative">
+    <ol className="relative rounded-[var(--radius-card)] border border-line bg-surface p-4">
+      <li className="mb-4 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Маршрут кейса</li>
       {STAGE_ORDER.map((s, i) => {
         const done = i < current;
         const active = i === current;
@@ -224,12 +258,33 @@ function Timeline({ current }: { current: number }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="td-shell p-5 sm:p-6">
-      <h2 className="mb-4 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">{title}</h2>
+    <section className="td-shell p-4 sm:p-5">
+      <h2 className="mb-4 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+        {icon}
+        {title}
+      </h2>
       {children}
     </section>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[12px] border border-line bg-surface-2/55 px-3 py-2">
+      <span className="block text-[11px] text-ink-3">{label}</span>
+      <span className="tnum mt-0.5 block text-[18px] font-semibold text-ink">{value}</span>
+    </div>
+  );
+}
+
+function StagePill({ stage }: { stage: (typeof STAGE_ORDER)[number] }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2">
+      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
+      {stage}
+    </span>
   );
 }
 

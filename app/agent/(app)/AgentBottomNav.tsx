@@ -5,13 +5,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, CalendarDots } from "@phosphor-icons/react";
-import { CurrencyRub } from "@phosphor-icons/react/dist/csr/CurrencyRub";
+import { Briefcase, CalendarDots, FileText, CheckSquare } from "@phosphor-icons/react";
 
 const TABS = [
-  { href: "/agent/cases", icon: House, label: "Дела" },
+  { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
-  { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
+  { href: "/agent/estimates", icon: FileText, label: "Сметы" },
+  { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
 ];
 
 export default function AgentBottomNav() {
@@ -22,7 +22,7 @@ export default function AgentBottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {TABS.map(({ href, icon: Icon, label }) => {
-        const active = pathname === href || (href !== "/agent/cases" && pathname.startsWith(href));
+        const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
             key={href}

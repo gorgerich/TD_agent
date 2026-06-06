@@ -62,11 +62,11 @@ export default async function CalendarPage() {
   const days = await getCalendar(session?.agentId ?? 0);
 
   return (
-    <div className="td-page mx-auto max-w-[860px] px-4 py-7 sm:px-7 sm:py-10">
+    <div className="td-page mx-auto max-w-[1040px] px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Расписание</span>
-          <h1 className="mt-3 font-serif text-[32px] leading-tight text-ink sm:text-[40px]">Календарь</h1>
+          <h1 className="mt-2 text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">Календарь</h1>
         </div>
         <Link
           href="/agent/meetings/new"
@@ -82,7 +82,7 @@ export default async function CalendarPage() {
           <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
             <CalendarDots size={26} weight="duotone" />
           </span>
-          <h2 className="font-serif text-[20px] text-ink">Событий пока нет</h2>
+          <h2 className="text-[20px] font-semibold text-ink">Событий пока нет</h2>
           <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
             Запланируйте встречу или звонок — увидите их здесь по дням.
           </p>
@@ -91,19 +91,20 @@ export default async function CalendarPage() {
           </Link>
         </div>
       ) : (
-        <div className="rise rise-1 space-y-7">
+        <div className="rise rise-1 space-y-5">
           {days.map((day) => (
-            <section key={day.key}>
-              <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
-              <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
+            <section key={day.key} className="td-shell overflow-hidden">
+              <h2 className="border-b border-line bg-surface-2/55 px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
+              <ul>
                 {day.events.map((e) => (
                   <li key={e.id} className="border-b border-line last:border-0">
-                    <Link href={`/agent/cases/${e.leadId}`} className={`group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2/60 sm:px-5 ${e.past ? "opacity-60" : ""}`}>
+                    <Link href={`/agent/cases/${e.leadId}`} className={`group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 sm:grid-cols-[64px_minmax(220px,1fr)_150px_90px_28px] sm:items-center sm:gap-3 ${e.past ? "opacity-60" : ""}`}>
                       <span className="tnum w-12 flex-shrink-0 text-[13px] font-semibold text-ink">{e.time}</span>
-                      <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
-                      <span className="hidden flex-shrink-0 items-center gap-1.5 text-[12px] text-ink-2 sm:flex">
+                      <span className="min-w-0 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
+                      <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
                         <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[e.status] ?? e.status}
                       </span>
+                      <span className="text-[12.5px] font-medium text-accent">Кейс</span>
                       <ArrowRight size={15} className="flex-shrink-0 text-ink-3 transition-colors group-hover:text-accent" />
                     </Link>
                   </li>

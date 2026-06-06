@@ -3,14 +3,17 @@ import NewCaseSheet from "./NewCaseSheet";
 import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { phone as fmtPhone } from "@/lib/format";
 import { type Stage, STAGE_DOT, NEXT_ACTION, deriveStage, relTime } from "@/lib/case";
 
 type CaseRow = {
   id: number;
   name: string;
+  phone: string;
   stage: Stage;
   nextAction: string;
   lastActivityLabel: string;
+  priority: "Высокий" | "Средний" | "Низкий";
   urgent: boolean;
   stale: boolean;
   nextMeetingAt: number | null;
@@ -75,9 +78,11 @@ async function getCases(agentId: number): Promise<CasesData> {
       return {
         id: lead.id,
         name: lead.name,
+        phone: lead.phone,
         stage,
         nextAction: NEXT_ACTION[stage],
         lastActivityLabel: relTime(lastActivity, now),
+        priority: soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
         urgent: soon || stale,
         stale,
         nextMeetingAt,
@@ -123,53 +128,74 @@ async function getOverdueTasks(agentId: number): Promise<OverdueTask[]> {
 
 export default async function CasesPage() {
   const session = await getAgentSession();
-  const [{ active, todayMeetings, upcoming, inactive }, overdueTasks] = await Promise.all([
+  const [{ active, todayMeetings, inactive }, overdueTasks] = await Promise.all([
     getCases(session?.agentId ?? 0),
     getOverdueTasks(session?.agentId ?? 0),
   ]);
+  const attention = [...active.filter((c) => c.urgent), ...overdueTasks.map((t) => ({
+    id: t.leadId,
+    name: t.leadName,
+    phone: "",
+    stage: "Лид" as Stage,
+    nextAction: t.title,
+    lastActivityLabel: "просрочено",
+    priority: "Высокий" as const,
+    urgent: true,
+    stale: false,
+    nextMeetingAt: null,
+    nextMeetingTime: "",
+    nextMeetingDate: "",
+  }))].slice(0, 6);
 
   return (
-    <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
+    <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
-          <span className="td-eyebrow">Рабочий стол</span>
-          <h1 className="mt-3 font-serif text-[32px] leading-tight text-ink sm:text-[40px]">Дела</h1>
+          <span className="td-eyebrow">Рабочий центр</span>
+          <h1 className="mt-2 text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">Кейсы</h1>
         </div>
         <NewCaseSheet />
       </header>
 
-      <div className="grid gap-7 lg:grid-cols-[1fr_300px]">
+      <div className="grid gap-5 lg:grid-cols-[1fr_310px]">
         <section className="rise rise-1">
           {active.length === 0 ? (
-            <div className="td-shell px-6 py-16 text-center">
+            <div className="td-shell px-6 py-14 text-center">
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
                 <Briefcase size={26} weight="duotone" />
               </span>
-              <h2 className="font-serif text-[20px] text-ink">Активных дел нет</h2>
+              <h2 className="text-[20px] font-semibold text-ink">Активных кейсов нет</h2>
               <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
-                Заведите дело — клиент, документы, смета и оплата в одном месте.
+                Заведите кейс — клиент, документы, смета и оплата будут в одном рабочем контуре.
               </p>
               <Link href="/agent/leads/new" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
-                <Plus size={15} weight="bold" /> Новое дело
+                <Plus size={15} weight="bold" /> Новый кейс
               </Link>
             </div>
           ) : (
             <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
+              <li className="hidden grid-cols-[minmax(220px,1.1fr)_140px_120px_minmax(180px,1fr)_110px_92px_28px] gap-3 border-b border-line bg-surface-2/55 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 lg:grid">
+                <span>Клиент</span>
+                <span>Телефон</span>
+                <span>Этап</span>
+                <span>Следующее действие</span>
+                <span>Активность</span>
+                <span>Приоритет</span>
+                <span />
+              </li>
               {active.map((c) => (
                 <li key={c.id} className="border-b border-line last:border-0">
-                  <Link href={`/agent/cases/${c.id}`} className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-surface-2/60 sm:px-5">
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2.5">
-                        <span className="truncate text-[15px] font-semibold text-ink">{c.name}</span>
-                        <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[12px] text-ink-2">
-                          <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[c.stage]}`} />{c.stage}
-                        </span>
-                        {c.urgent && <span className="flex-shrink-0 text-[11px] font-semibold uppercase tracking-wide text-danger">Срочно</span>}
-                      </span>
-                      <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
+                  <Link href={`/agent/cases/${c.id}`} className="group grid gap-2 px-4 py-3.5 transition-colors hover:bg-surface-2/60 lg:grid-cols-[minmax(220px,1.1fr)_140px_120px_minmax(180px,1fr)_110px_92px_28px] lg:items-center lg:gap-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14.5px] font-semibold text-ink">{c.name}</span>
+                      <span className="mt-0.5 block text-[12px] text-ink-3 lg:hidden">{fmtPhone(c.phone)}</span>
                     </span>
-                    <span className="hidden flex-shrink-0 text-right text-[12px] text-ink-3 sm:block">{c.lastActivityLabel}</span>
-                    <ArrowRight size={15} className="flex-shrink-0 text-ink-3 transition-colors group-hover:text-accent" />
+                    <span className="tnum hidden truncate text-[13px] text-ink-2 lg:block">{fmtPhone(c.phone)}</span>
+                    <StageBadge stage={c.stage} />
+                    <span className="min-w-0 truncate text-[13px] text-ink-2">{c.nextAction}</span>
+                    <span className="text-[12px] text-ink-3">{c.lastActivityLabel}</span>
+                    <PriorityBadge priority={c.priority} />
+                    <ArrowRight size={15} className="hidden text-ink-3 transition-colors group-hover:text-accent lg:block" />
                   </Link>
                 </li>
               ))}
@@ -177,7 +203,7 @@ export default async function CasesPage() {
           )}
         </section>
 
-        <aside className="rise rise-2 space-y-7">
+        <aside className="rise rise-2 space-y-5">
           <RailBlock icon={<CalendarDots size={15} weight="duotone" />} title="Сегодня">
             {todayMeetings.length === 0 ? (
               <RailEmpty>Встреч на сегодня нет</RailEmpty>
@@ -191,40 +217,31 @@ export default async function CasesPage() {
             )}
           </RailBlock>
 
-          <RailBlock icon={<Clock size={15} weight="duotone" />} title="Ближайшие">
-            {upcoming.length === 0 ? (
-              <RailEmpty>Ничего не запланировано</RailEmpty>
+          <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Требуют внимания">
+            {attention.length === 0 ? (
+              <RailEmpty>Критичных кейсов нет</RailEmpty>
             ) : (
-              upcoming.map((c) => (
-                <Link key={c.id} href={`/agent/cases/${c.id}`} className="flex items-center justify-between gap-2 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink">
-                  <span className="truncate">{c.name}</span>
-                  <span className="tnum flex-shrink-0 text-ink-3">{c.nextMeetingDate}</span>
+              attention.map((c, i) => (
+                <Link key={`${c.id}-${i}`} href={`/agent/cases/${c.id}`} className="block py-2 text-[13px] transition-colors hover:text-ink">
+                  <span className="block truncate font-medium text-ink">{c.name}</span>
+                  <span className="block truncate text-[12px] text-ink-3">{c.nextAction}</span>
                 </Link>
               ))
             )}
           </RailBlock>
 
-          {overdueTasks.length > 0 && (
-            <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Просроченные задачи">
-              {overdueTasks.map((t) => (
-                <Link key={t.id} href={`/agent/cases/${t.leadId}`} className="block py-1.5 text-[13px] transition-colors hover:text-ink">
-                  <span className="truncate text-danger">{t.title}</span>
-                  <span className="block truncate text-[11.5px] text-ink-3">{t.leadName}</span>
-                </Link>
-              ))}
-            </RailBlock>
-          )}
-
-          {inactive.length > 0 && (
-            <RailBlock icon={<Clock size={15} weight="duotone" />} title="Без движения">
-              {inactive.map((c) => (
+          <RailBlock icon={<Clock size={15} weight="duotone" />} title="Без движения">
+            {inactive.length === 0 ? (
+              <RailEmpty>Зависших кейсов нет</RailEmpty>
+            ) : (
+              inactive.map((c) => (
                 <Link key={c.id} href={`/agent/cases/${c.id}`} className="flex items-center justify-between gap-2 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink">
                   <span className="truncate">{c.name}</span>
                   <span className="flex-shrink-0 text-ink-3">{c.lastActivityLabel}</span>
                 </Link>
-              ))}
-            </RailBlock>
-          )}
+              ))
+            )}
+          </RailBlock>
         </aside>
       </div>
     </div>
@@ -233,7 +250,7 @@ export default async function CasesPage() {
 
 function RailBlock({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="td-shell p-4">
       <div className="mb-2 flex items-center gap-2 text-ink-3">
         {icon}
         <span className="text-[11px] font-semibold uppercase tracking-[0.07em]">{title}</span>
@@ -245,4 +262,26 @@ function RailBlock({ icon, title, children }: { icon: React.ReactNode; title: st
 
 function RailEmpty({ children }: { children: React.ReactNode }) {
   return <p className="py-1.5 text-[13px] text-ink-3">{children}</p>;
+}
+
+function StageBadge({ stage }: { stage: Stage }) {
+  return (
+    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
+      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
+      {stage}
+    </span>
+  );
+}
+
+function PriorityBadge({ priority }: { priority: CaseRow["priority"] }) {
+  const cls = priority === "Высокий"
+    ? "border-danger/20 bg-danger-soft text-danger"
+    : priority === "Средний"
+    ? "border-warning/20 bg-warning-soft text-warning"
+    : "border-line bg-surface text-ink-3";
+  return (
+    <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${cls}`}>
+      {priority}
+    </span>
+  );
 }

@@ -34,7 +34,7 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
     <ToastProvider>
       <div className="min-h-[100dvh]">
         <AgentSidebar session={session} />
-        <main id="main-content" className="relative min-h-[100dvh] pb-[72px] pt-14 lg:pb-0 lg:pl-[280px] lg:pt-0">
+        <main id="main-content" className="relative min-h-[100dvh] pb-[72px] pt-14 lg:pb-0 lg:pl-[260px] lg:pt-0">
           {children}
         </main>
         <AgentBottomNav />

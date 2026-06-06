@@ -7,14 +7,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MagnifyingGlass,
-  House,
-  Users,
+  Briefcase,
   CalendarDots,
   Plus,
   GraduationCap,
   ArrowRight,
+  FileText,
+  Files,
+  CheckSquare,
+  GearSix,
 } from "@phosphor-icons/react";
-import { CurrencyRub } from "@phosphor-icons/react/dist/csr/CurrencyRub";
 import { TOUR_START_EVENT } from "@/lib/tour";
 
 /** Открыть палитру из любого места (кнопка в сайдбаре и т.п.). */
@@ -49,11 +51,13 @@ export default function CommandPalette() {
       router.push(href);
     };
     return [
-      { id: "dashboard", label: "Главная", keywords: "дашборд главная home обзор", icon: House, run: go("/agent/dashboard") },
-      { id: "leads", label: "Клиенты", keywords: "клиенты лиды crm база", icon: Users, run: go("/agent/leads") },
-      { id: "meetings", label: "Встречи", keywords: "встречи расписание календарь", icon: CalendarDots, run: go("/agent/meetings") },
-      { id: "commissions", label: "Комиссии", keywords: "комиссии финансы выплаты деньги", icon: CurrencyRub, run: go("/agent/commissions") },
-      { id: "new-lead", label: "Новый клиент", hint: "Создать", keywords: "новый клиент добавить создать лид", icon: Plus, run: go("/agent/leads/new") },
+      { id: "cases", label: "Кейсы", keywords: "кейсы дела клиенты лиды crm база", icon: Briefcase, run: go("/agent/cases") },
+      { id: "meetings", label: "Календарь", keywords: "встречи расписание календарь", icon: CalendarDots, run: go("/agent/meetings") },
+      { id: "estimates", label: "Сметы", keywords: "сметы расчет заказ quote estimates", icon: FileText, run: go("/agent/estimates") },
+      { id: "documents", label: "Документы", keywords: "документы договор подпись паспорт", icon: Files, run: go("/agent/documents") },
+      { id: "tasks", label: "Задачи", keywords: "задачи дедлайны todo чеклист", icon: CheckSquare, run: go("/agent/tasks") },
+      { id: "settings", label: "Настройки", keywords: "настройки профиль агент", icon: GearSix, run: go("/agent/settings") },
+      { id: "new-case", label: "Новый кейс", hint: "Создать", keywords: "новый кейс клиент добавить создать лид", icon: Plus, run: go("/agent/leads/new") },
       { id: "new-meeting", label: "Назначить встречу", hint: "Создать", keywords: "новая встреча назначить создать", icon: Plus, run: go("/agent/meetings/new") },
       {
         id: "tour",
