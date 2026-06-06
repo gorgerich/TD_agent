@@ -4,7 +4,6 @@ import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phos
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { phone as fmtPhone } from "@/lib/format";
-import { Badge } from "@/components/ui/Badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { type Stage, STAGE_DOT, STAGE_ORDER, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
 
@@ -158,6 +157,10 @@ export default async function CasesPage() {
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
           <h1 className="td-display mt-2.5 text-[34px] text-ink sm:text-[42px]">Кейсы</h1>
+          <p className="mt-2 text-[13.5px] text-ink-2">
+            <span className="font-semibold text-ink">{active.length}</span> в работе
+            {attention.length > 0 && <> · <span className="font-semibold text-danger">{attention.length}</span> требуют внимания</>}
+          </p>
         </div>
         <NewCaseSheet />
       </header>
@@ -178,35 +181,36 @@ export default async function CasesPage() {
               </Link>
             </div>
           ) : (
-            <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-              <li className="hidden grid-cols-[minmax(210px,1.05fr)_132px_150px_minmax(180px,1fr)_96px_86px_28px] gap-3 border-b border-line bg-surface-2/55 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 lg:grid">
-                <span>Клиент</span>
-                <span>Телефон</span>
-                <span>Этап</span>
-                <span>Следующее действие</span>
-                <span>Активность</span>
-                <span>Приоритет</span>
-                <span />
-              </li>
-              {active.map((c) => (
-                <li key={c.id} className="border-b border-line last:border-0">
-                  <Link href={`/agent/cases/${c.id}`} className="group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 lg:grid-cols-[minmax(210px,1.05fr)_132px_150px_minmax(180px,1fr)_96px_86px_28px] lg:items-center lg:gap-3">
-                    <span className="flex min-w-0 items-center gap-3">
+            <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+              {active.map((c) => {
+                const bar = c.urgent ? "before:bg-danger" : "before:bg-transparent";
+                return (
+                  <li key={c.id} className="border-b border-line last:border-0">
+                    <Link
+                      href={`/agent/cases/${c.id}`}
+                      className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
+                    >
                       <Avatar name={c.name} urgent={c.urgent} />
-                      <span className="min-w-0">
-                        <span className="block truncate text-[14.5px] font-semibold text-ink">{c.name}</span>
-                        <span className="mt-0.5 block text-[12px] text-ink-3 lg:hidden">{fmtPhone(c.phone)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[15px] font-semibold text-ink">{c.name}</span>
+                          <StageChip stage={c.stage} />
+                          {c.urgent && <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Срочно</span>}
+                        </span>
+                        <span className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-2">
+                          <ArrowRight size={12} weight="bold" className="flex-shrink-0 text-ink-3" />
+                          <span className="truncate">{c.nextAction}</span>
+                        </span>
                       </span>
-                    </span>
-                    <span className="tnum hidden truncate text-[13px] text-ink-2 lg:block">{fmtPhone(c.phone)}</span>
-                    <StageProgress stage={c.stage} progress={c.progress} />
-                    <span className="min-w-0 truncate text-[13px] text-ink-2">{c.nextAction}</span>
-                    <span className="text-[12px] text-ink-3">{c.lastActivityLabel}</span>
-                    <PriorityBadge priority={c.priority} />
-                    <ArrowRight size={15} className="hidden text-ink-3 transition-colors group-hover:text-accent lg:block" />
-                  </Link>
-                </li>
-              ))}
+                      <span className="hidden flex-shrink-0 flex-col items-end gap-2 pr-1 sm:flex">
+                        <Stepper progress={c.progress} />
+                        <span className="text-[11.5px] text-ink-3">{c.lastActivityLabel}</span>
+                      </span>
+                      <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-all group-hover:translate-x-0.5 group-hover:text-accent" />
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -287,22 +291,22 @@ function RailEmpty({ children }: { children: React.ReactNode }) {
   return <p className="py-1.5 text-[13px] text-ink-3">{children}</p>;
 }
 
-function StageProgress({ stage, progress }: { stage: Stage; progress: number }) {
-  const percent = Math.round((progress / STAGE_ORDER.length) * 100);
+function StageChip({ stage }: { stage: Stage }) {
   return (
-    <span className="grid min-w-0 gap-1">
-      <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
-        <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
-        {stage}
-      </span>
-      <span className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`Прогресс ${percent}%`}>
-        <span className="block h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
-      </span>
+    <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[12px] font-medium text-ink-2">
+      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
+      {stage}
     </span>
   );
 }
 
-function PriorityBadge({ priority }: { priority: CaseRow["priority"] }) {
-  const tone = priority === "Высокий" ? "danger" : priority === "Средний" ? "warning" : "neutral";
-  return <Badge tone={tone}>{priority}</Badge>;
+// Мини-степпер этапов (6 сегментов) — заполнено до текущего, активный ярче.
+function Stepper({ progress }: { progress: number }) {
+  return (
+    <span className="flex items-center gap-1" aria-label={`Этап ${progress} из ${STAGE_ORDER.length}`}>
+      {STAGE_ORDER.map((stage, i) => (
+        <span key={stage} className={`h-1 w-4 rounded-full ${i < progress ? "bg-accent" : "bg-surface-2"}`} />
+      ))}
+    </span>
+  );
 }
