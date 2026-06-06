@@ -104,7 +104,7 @@ export default function CoView({ code }: { code: string }) {
   if (!started) {
     return (
       <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-4 text-center">
-        <div className="mb-5 grid h-16 w-16 place-items-center rounded-[20px] bg-accent-soft">
+        <div className="mb-5 grid h-16 w-16 place-items-center rounded-[14px] bg-accent-soft">
           <span className="block h-4 w-4 rounded-full bg-accent" />
         </div>
         <h2 className="font-serif text-[22px] text-ink">Агент готовит вашу смету</h2>

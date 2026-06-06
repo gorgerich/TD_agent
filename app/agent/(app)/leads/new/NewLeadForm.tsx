@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Warning } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
 
 export default function NewLeadForm() {
   const router = useRouter();
@@ -64,20 +65,16 @@ export default function NewLeadForm() {
           </p>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || !name || !phone}
-          className="flex min-h-14 w-full items-center justify-center rounded-full bg-accent py-3 text-[14.5px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
-        >
-          {loading ? "Создаю…" : "Создать кейс"}
-        </button>
+        <Button type="submit" size="lg" loading={loading} disabled={!name || !phone} className="w-full">
+          Создать кейс
+        </Button>
       </div>
     </form>
   );
 }
 
 const inputCls =
-  "min-h-12 w-full rounded-[16px] border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
 
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
