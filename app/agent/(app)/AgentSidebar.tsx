@@ -25,11 +25,11 @@ function CommandTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(COMMAND_OPEN_EVENT))}
-      className="flex w-full items-center gap-2.5 rounded-[12px] border border-line bg-surface px-3 py-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong hover:text-ink"
+      className="flex w-full items-center gap-2.5 rounded-[11px] border border-line bg-surface-2/60 px-3 py-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
     >
       <MagnifyingGlass size={16} className="flex-shrink-0" />
       <span className="flex-1 text-left">Поиск и действия</span>
-      <kbd className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+      <kbd className="tnum rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-3">⌘K</kbd>
     </button>
   );
 }
@@ -54,14 +54,14 @@ const ROLE_LABELS: Record<string, string> = {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent">
-        <span className="block h-2.5 w-2.5 rounded-full bg-accent" />
+      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] border border-line-strong bg-surface">
+        <span className="block h-2 w-2 rounded-full bg-accent" />
       </span>
-      <span className="leading-tight">
-        <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">
-          Тихий дом
+      <span className="leading-none">
+        <span className="block td-display text-[17px] text-ink">Тихий дом</span>
+        <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
+          Кабинет агента
         </span>
-        <span className="block text-[15px] font-semibold text-ink">Кабинет агента</span>
       </span>
     </div>
   );
@@ -69,7 +69,7 @@ function Brand() {
 
 function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-0.5">
       {NAV.map(({ href, icon: Icon, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
@@ -79,16 +79,23 @@ function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () 
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={[
-              "group relative flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
+              "group relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[13.5px] transition-colors duration-200",
               active
-                ? "bg-accent-soft text-accent"
-                : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+                ? "bg-surface-2 font-semibold text-ink"
+                : "font-medium text-ink-2 hover:bg-surface-2/55 hover:text-ink",
             ].join(" ")}
           >
-            {active && (
-              <span className="absolute left-1 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-accent" />
-            )}
-            <Icon size={18} weight={active ? "fill" : "regular"} />
+            <span
+              className={[
+                "absolute left-0 top-1/2 h-5 w-[2.5px] -translate-y-1/2 rounded-full bg-accent transition-opacity duration-200",
+                active ? "opacity-100" : "opacity-0",
+              ].join(" ")}
+            />
+            <Icon
+              size={18}
+              weight={active ? "fill" : "regular"}
+              className={active ? "text-accent" : "text-ink-3 group-hover:text-ink-2"}
+            />
             {label}
           </Link>
         );
@@ -110,10 +117,10 @@ function UserBlock({
     ? session.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "А";
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {session && (
-        <div className="flex items-center gap-3 rounded-[14px] border border-line bg-surface px-3 py-3">
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[11px] bg-accent-soft text-[12px] font-semibold text-accent">
+        <div className="flex items-center gap-3 px-1.5 py-1.5">
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">
             {initials}
           </span>
           <span className="min-w-0 leading-tight">
@@ -125,15 +132,15 @@ function UserBlock({
       <button
         type="button"
         onClick={onStartTour}
-        className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-[13px] font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
+        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-2/55 hover:text-ink"
       >
-        <GraduationCap size={16} />
+        <GraduationCap size={16} className="text-ink-3" />
         Обучение
       </button>
       <button
         type="button"
         onClick={onLogout}
-        className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-[13px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
+        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12.5px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
       >
         <SignOut size={16} />
         Выйти
@@ -173,15 +180,15 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <nav className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col border-r border-line bg-surface/92 backdrop-blur-md lg:flex">
-        <div className="px-5 pb-5 pt-6">
+      {/* Desktop sidebar — тихий отельный рельс */}
+      <nav className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col border-r border-line bg-surface lg:flex">
+        <div className="px-6 pb-6 pt-7">
           <Brand />
         </div>
-        <div className="mx-4 mb-4">
+        <div className="mx-4 mb-5">
           <CommandTrigger />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div className="flex-1 overflow-y-auto px-4 py-1">
           <NavLinks pathname={pathname} />
         </div>
         <div className="border-t border-line px-4 py-4">
@@ -198,7 +205,7 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
           aria-expanded={open}
           aria-controls="agent-mobile-menu"
           aria-label="Открыть меню"
-          className="grid h-11 w-11 place-items-center rounded-[14px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
+          className="grid h-11 w-11 place-items-center rounded-[12px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
         >
           <List size={22} />
         </button>
@@ -227,10 +234,13 @@ export default function AgentSidebar({ session }: { session: AgentSession | null
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Закрыть меню"
-              className="grid h-10 w-10 place-items-center rounded-[14px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
+              className="grid h-10 w-10 place-items-center rounded-[12px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
             >
               <X size={20} />
             </button>
+          </div>
+          <div className="mx-4 mt-4">
+            <CommandTrigger />
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />

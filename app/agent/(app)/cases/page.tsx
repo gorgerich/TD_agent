@@ -264,7 +264,7 @@ function Avatar({ name, urgent }: { name: string; urgent?: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12.5px] font-semibold text-accent ${urgent ? "ring-2 ring-danger/30" : ""}`}
+      className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12.5px] font-semibold text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(40,30,18,0.10)] ring-1 ring-accent/10 ${urgent ? "ring-2 ring-danger/30" : ""}`}
     >
       {initials}
     </span>

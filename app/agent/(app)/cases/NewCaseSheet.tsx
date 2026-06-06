@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
 
 const SOURCES = [
   { value: "agent", label: "Агент" },
@@ -126,13 +127,9 @@ export default function NewCaseSheet() {
               {error && <p role="alert" className="mb-3 text-[13px] text-danger">{error}</p>}
 
               <div className="mt-auto pt-3">
-                <button
-                  type="submit"
-                  disabled={!valid || saving}
-                  className="flex min-h-12 w-full items-center justify-center rounded-full bg-accent text-[14px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
-                >
-                  {saving ? "Создаю…" : "Создать кейс"}
-                </button>
+                <Button type="submit" size="lg" loading={saving} disabled={!valid} className="w-full">
+                  Создать кейс
+                </Button>
               </div>
             </form>
           </div>
@@ -143,7 +140,7 @@ export default function NewCaseSheet() {
 }
 
 const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14.5px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
