@@ -4,6 +4,8 @@ import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phos
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { phone as fmtPhone } from "@/lib/format";
+import { Badge } from "@/components/ui/Badge";
+import { buttonClasses } from "@/components/ui/Button";
 import { type Stage, STAGE_DOT, STAGE_ORDER, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
 
 type CaseRow = {
@@ -155,7 +157,7 @@ export default async function CasesPage() {
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
-          <h1 className="mt-2 text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">Кейсы</h1>
+          <h1 className="td-display mt-2.5 text-[34px] text-ink sm:text-[42px]">Кейсы</h1>
         </div>
         <NewCaseSheet />
       </header>
@@ -171,7 +173,7 @@ export default async function CasesPage() {
               <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
                 Заведите кейс — клиент, документы, смета и оплата будут в одном рабочем контуре.
               </p>
-              <Link href="/agent/leads/new" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
+              <Link href="/agent/leads/new" className={buttonClasses({ className: "mt-5" })}>
                 <Plus size={15} weight="bold" /> Новый кейс
               </Link>
             </div>
@@ -301,14 +303,6 @@ function StageProgress({ stage, progress }: { stage: Stage; progress: number }) 
 }
 
 function PriorityBadge({ priority }: { priority: CaseRow["priority"] }) {
-  const cls = priority === "Высокий"
-    ? "border-danger/20 bg-danger-soft text-danger"
-    : priority === "Средний"
-    ? "border-warning/20 bg-warning-soft text-warning"
-    : "border-line bg-surface text-ink-3";
-  return (
-    <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-[11.5px] font-semibold ${cls}`}>
-      {priority}
-    </span>
-  );
+  const tone = priority === "Высокий" ? "danger" : priority === "Средний" ? "warning" : "neutral";
+  return <Badge tone={tone}>{priority}</Badge>;
 }
