@@ -85,15 +85,15 @@ export default function AgentLoginPage() {
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.08fr_0.92fr]">
       <aside className="relative hidden flex-col justify-between overflow-hidden td-night px-14 py-14 text-on-accent lg:flex">
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.18]"
+          className="pointer-events-none absolute inset-0 opacity-[0.10]"
           style={{
             backgroundImage:
-              "radial-gradient(900px 500px at 15% 10%, rgba(255,255,255,0.5), transparent 60%), radial-gradient(700px 500px at 95% 100%, rgba(0,0,0,0.35), transparent 55%)",
+              "radial-gradient(1100px 600px at 12% 6%, rgba(255,255,255,0.6), transparent 62%)",
           }}
         />
         <div className="relative flex items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-[18px] bg-gold-soft text-accent">
-            <span className="block h-2.5 w-2.5 rounded-full bg-accent" />
+          <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-on-accent/10 ring-1 ring-on-accent/15">
+            <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
           </span>
           <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-on-accent/80">
             Тихий дом
@@ -113,7 +113,7 @@ export default function AgentLoginPage() {
               ["поток", "Встречи"],
               ["итог", "Смета"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-[22px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
+              <div key={label} className="rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
                 <p className="mt-2 font-serif text-[20px] text-on-accent">{value}</p>
               </div>
@@ -130,7 +130,7 @@ export default function AgentLoginPage() {
       <main id="main-content" className="td-page flex items-center justify-center px-5 py-10 sm:px-8">
         <div className="w-full max-w-[480px] rise">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="grid h-12 w-12 place-items-center rounded-[17px] bg-accent text-on-accent shadow-soft">
+            <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-accent text-on-accent shadow-soft">
               <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
             </span>
             <span className="leading-tight">
