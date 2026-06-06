@@ -2,7 +2,6 @@ import Link from "next/link";
 import { CalendarDots, Plus, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { dateTime, phone } from "@/lib/format";
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Запланирована",
@@ -10,7 +9,6 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Завершена",
   CANCELLED: "Отменена",
 };
-
 const STATUS_DOT: Record<string, string> = {
   SCHEDULED: "bg-info",
   IN_PROGRESS: "bg-warning",
@@ -18,154 +16,103 @@ const STATUS_DOT: Record<string, string> = {
   CANCELLED: "bg-ink-3",
 };
 
-type MeetingRow = { id: number; status: string; scheduledAt: Date | null; lead: { name: string; phone: string } };
+type Event = { id: number; leadId: number; name: string; time: string; status: string; past: boolean };
+type DayGroup = { key: string; label: string; events: Event[] };
 
-async function getMeetings(agentId: number, status?: string): Promise<MeetingRow[]> {
+const fmtTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+const fmtDay = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+
+async function getCalendar(agentId: number): Promise<DayGroup[]> {
   try {
-    return await prisma.meeting.findMany({
-      where: { agentId, ...(status ? { status: status as "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" } : {}) },
-      orderBy: { scheduledAt: "desc" },
-      include: { lead: { select: { name: true, phone: true } } },
+    const meetings = await prisma.meeting.findMany({
+      where: { agentId, scheduledAt: { not: null } },
+      orderBy: { scheduledAt: "asc" },
+      select: { id: true, status: true, scheduledAt: true, lead: { select: { id: true, name: true } } },
     });
+
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const groups = new Map<string, DayGroup>();
+
+    for (const m of meetings) {
+      const d = m.scheduledAt!;
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!groups.has(key)) {
+        const label = d.getTime() >= todayStart.getTime() && d.getTime() < todayStart.getTime() + 86_400_000
+          ? "Сегодня" : fmtDay.format(d);
+        groups.set(key, { key, label, events: [] });
+      }
+      groups.get(key)!.events.push({
+        id: m.id,
+        leadId: m.lead.id,
+        name: m.lead.name,
+        time: fmtTime.format(d),
+        status: m.status,
+        past: d.getTime() < now,
+      });
+    }
+    return [...groups.values()];
   } catch {
     return [];
   }
 }
 
-const FILTERS = [
-  { value: "", label: "Все" },
-  { value: "SCHEDULED", label: "Запланированы" },
-  { value: "IN_PROGRESS", label: "Идут" },
-  { value: "COMPLETED", label: "Завершены" },
-  { value: "CANCELLED", label: "Отменены" },
-];
-
-export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const { status } = await searchParams;
+export default async function CalendarPage() {
   const session = await getAgentSession();
-  const meetings = await getMeetings(session?.agentId ?? 0, status);
+  const days = await getCalendar(session?.agentId ?? 0);
 
   return (
-    <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
+    <div className="td-page mx-auto max-w-[860px] px-4 py-7 sm:px-7 sm:py-10">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Расписание</span>
-          <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Встречи</h1>
+          <h1 className="mt-3 font-serif text-[32px] leading-tight text-ink sm:text-[40px]">Календарь</h1>
         </div>
         <Link
           href="/agent/meetings/new"
           data-tour="meetings-new"
-          className="inline-flex min-h-12 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(32,79,67,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
+          className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
         >
-          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новая встреча</span><span className="sm:hidden">Встреча</span>
+          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое событие</span><span className="sm:hidden">Событие</span>
         </Link>
       </header>
 
-      {/* Filter pills — horizontally scrollable on mobile */}
-      <div data-tour="meetings-filters" className="rise rise-1 -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {FILTERS.map((f) => {
-          const active = (status ?? "") === f.value;
-          return (
-            <Link
-              key={f.value}
-              href={f.value ? `/agent/meetings?status=${f.value}` : "/agent/meetings"}
-              aria-current={active ? "page" : undefined}
-              className={[
-                "flex min-h-10 flex-shrink-0 items-center rounded-full border px-4 py-1.5 text-[12.5px] font-semibold transition-colors",
-                active
-                  ? "border-accent bg-accent text-on-accent"
-                  : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
-              ].join(" ")}
-            >
-              {f.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      <div className="rise rise-2 td-shell overflow-hidden" data-tour="meetings-list">
-        <div className="td-core overflow-hidden">
-        {meetings.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
-              <CalendarDots size={28} weight="duotone" />
-            </span>
-            <h2 className="font-serif text-[20px] text-ink">Встреч пока нет</h2>
-            <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
-              Назначьте встречу с клиентом — выезд или звонок. На встрече соберёте смету в конструкторе.
-            </p>
-            <Link
-              href="/agent/meetings/new"
-              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
-            >
-              <Plus size={16} weight="bold" /> Назначить встречу
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* Mobile cards */}
-            <ul className="divide-y divide-line sm:hidden">
-              {meetings.map((m) => (
-                <li key={m.id}>
-                  <Link href={`/agent/meetings/${m.id}`} className="block px-4 py-4 transition-colors active:bg-surface-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="truncate text-[15px] font-semibold text-ink">{m.lead.name}</span>
-                      <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[11.5px] font-medium text-ink-2">
-                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[m.status] ?? m.status}
-                      </span>
-                    </div>
-                    <div className="tnum mt-1 flex items-center gap-3 text-[12.5px] text-ink-2">
-                      <span>{phone(m.lead.phone)}</span>
-                      <span className="ml-auto text-ink-3">{dateTime(m.scheduledAt)}</span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-
-            {/* Desktop table */}
-            <table className="hidden w-full sm:table">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="px-5 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Клиент</th>
-                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Телефон</th>
-                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Дата</th>
-                  <th className="px-3 py-3 text-left text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">Статус</th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {meetings.map((m) => (
-                  <tr key={m.id} className="group border-b border-line last:border-0 transition-colors hover:bg-accent-soft/55">
-                    <td className="px-5 py-3.5">
-                      <Link href={`/agent/meetings/${m.id}`} className="text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">
-                        {m.lead.name}
-                      </Link>
-                    </td>
-                    <td className="tnum px-3 py-3.5 text-[13px] text-ink-2">{phone(m.lead.phone)}</td>
-                    <td className="tnum px-3 py-3.5 text-[12.5px] text-ink-2">{dateTime(m.scheduledAt)}</td>
-                    <td className="px-3 py-3.5">
-                      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
-                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[m.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[m.status] ?? m.status}
-                      </span>
-                    </td>
-                    <td className="pr-4">
-                      <Link
-                        href={`/agent/meetings/${m.id}`}
-                        aria-label={`Открыть встречу: ${m.lead.name}`}
-                        className="grid h-10 w-10 place-items-center rounded-[10px] transition-colors hover:bg-accent-soft"
-                      >
-                        <ArrowRight size={15} className="text-ink-3 transition-colors group-hover:text-accent" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+      {days.length === 0 ? (
+        <div className="rise rise-1 td-shell px-6 py-16 text-center">
+          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+            <CalendarDots size={26} weight="duotone" />
+          </span>
+          <h2 className="font-serif text-[20px] text-ink">Событий пока нет</h2>
+          <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
+            Запланируйте встречу или звонок — увидите их здесь по дням.
+          </p>
+          <Link href="/agent/meetings/new" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
+            <Plus size={15} weight="bold" /> Новое событие
+          </Link>
         </div>
-      </div>
+      ) : (
+        <div className="rise rise-1 space-y-7">
+          {days.map((day) => (
+            <section key={day.key}>
+              <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
+              <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
+                {day.events.map((e) => (
+                  <li key={e.id} className="border-b border-line last:border-0">
+                    <Link href={`/agent/cases/${e.leadId}`} className={`group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2/60 sm:px-5 ${e.past ? "opacity-60" : ""}`}>
+                      <span className="tnum w-12 flex-shrink-0 text-[13px] font-semibold text-ink">{e.time}</span>
+                      <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
+                      <span className="hidden flex-shrink-0 items-center gap-1.5 text-[12px] text-ink-2 sm:flex">
+                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[e.status] ?? e.status}
+                      </span>
+                      <ArrowRight size={15} className="flex-shrink-0 text-ink-3 transition-colors group-hover:text-accent" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,29 +1,9 @@
 import Link from "next/link";
-import { Plus, ArrowRight, CalendarDots, Clock, Briefcase } from "@phosphor-icons/react/dist/ssr";
+import NewCaseSheet from "./NewCaseSheet";
+import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-// ── Модель «дела» ───────────────────────────────────────────────
-// «Дело» = клиент (ClientLead) + всё привязанное. Этап выводим из самого
-// продвинутого артефакта — без отдельной таблицы (миграции gated).
-
-type Stage = "Лид" | "Документы" | "Смета" | "Договор" | "Оплата" | "Завершено";
-const STAGE_DOT: Record<Stage, string> = {
-  Лид: "bg-ink-3",
-  Документы: "bg-info",
-  Смета: "bg-warning",
-  Договор: "bg-accent",
-  Оплата: "bg-accent",
-  Завершено: "bg-success",
-};
-const NEXT_ACTION: Record<Stage, string> = {
-  Лид: "Назначить встречу",
-  Документы: "Собрать документы и смету",
-  Смета: "Отправить смету клиенту",
-  Договор: "Подписать договор",
-  Оплата: "Принять оплату",
-  Завершено: "Дело завершено",
-};
+import { type Stage, STAGE_DOT, NEXT_ACTION, deriveStage, relTime } from "@/lib/case";
 
 type CaseRow = {
   id: number;
@@ -46,27 +26,6 @@ type CasesData = {
 };
 
 const DAY = 86_400_000;
-
-function deriveStage(orders: { status: string }[], quotesLen: number, meetingsLen: number): Stage {
-  const st = orders.map((o) => o.status.toUpperCase());
-  if (st.includes("COMPLETED")) return "Завершено";
-  if (st.some((s) => s === "PAID" || s === "PARTIALLY_PAID")) return "Оплата";
-  if (orders.length > 0) return "Договор";
-  if (quotesLen > 0) return "Смета";
-  if (meetingsLen > 0) return "Документы";
-  return "Лид";
-}
-
-function relTime(ts: number, now: number): string {
-  const min = Math.round((now - ts) / 60_000);
-  if (min < 1) return "только что";
-  if (min < 60) return `${min} мин назад`;
-  const h = Math.round(min / 60);
-  if (h < 24) return `${h} ч назад`;
-  const days = Math.round(h / 24);
-  if (days < 7) return `${days} дн назад`;
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(ts));
-}
 
 const fmtTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const fmtDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
@@ -145,9 +104,29 @@ async function getCases(agentId: number): Promise<CasesData> {
   }
 }
 
+type OverdueTask = { id: number; title: string; leadId: number; leadName: string };
+
+async function getOverdueTasks(agentId: number): Promise<OverdueTask[]> {
+  if (!agentId) return [];
+  try {
+    const tasks = await prisma.task.findMany({
+      where: { agentId, completedAt: null, dueAt: { lt: new Date() } },
+      orderBy: { dueAt: "asc" },
+      take: 8,
+      select: { id: true, title: true, leadId: true, lead: { select: { name: true } } },
+    });
+    return tasks.map((t) => ({ id: t.id, title: t.title, leadId: t.leadId, leadName: t.lead.name }));
+  } catch {
+    return [];
+  }
+}
+
 export default async function CasesPage() {
   const session = await getAgentSession();
-  const { active, todayMeetings, upcoming, inactive } = await getCases(session?.agentId ?? 0);
+  const [{ active, todayMeetings, upcoming, inactive }, overdueTasks] = await Promise.all([
+    getCases(session?.agentId ?? 0),
+    getOverdueTasks(session?.agentId ?? 0),
+  ]);
 
   return (
     <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
@@ -156,12 +135,7 @@ export default async function CasesPage() {
           <span className="td-eyebrow">Рабочий стол</span>
           <h1 className="mt-3 font-serif text-[32px] leading-tight text-ink sm:text-[40px]">Дела</h1>
         </div>
-        <Link
-          href="/agent/leads/new"
-          className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
-        >
-          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое дело</span><span className="sm:hidden">Дело</span>
-        </Link>
+        <NewCaseSheet />
       </header>
 
       <div className="grid gap-7 lg:grid-cols-[1fr_300px]">
@@ -229,6 +203,17 @@ export default async function CasesPage() {
               ))
             )}
           </RailBlock>
+
+          {overdueTasks.length > 0 && (
+            <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Просроченные задачи">
+              {overdueTasks.map((t) => (
+                <Link key={t.id} href={`/agent/cases/${t.leadId}`} className="block py-1.5 text-[13px] transition-colors hover:text-ink">
+                  <span className="truncate text-danger">{t.title}</span>
+                  <span className="block truncate text-[11.5px] text-ink-3">{t.leadName}</span>
+                </Link>
+              ))}
+            </RailBlock>
+          )}
 
           {inactive.length > 0 && (
             <RailBlock icon={<Clock size={15} weight="duotone" />} title="Без движения">

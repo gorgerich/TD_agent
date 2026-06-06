@@ -18,6 +18,25 @@ function formatTime(ts: number) {
   return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
 }
 
+function formatDate(ts: number) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
+}
+
+type ApiResponse = {
+  state: {
+    form?: unknown;
+    cemeteryCategory?: string;
+    attributes?: unknown;
+    estimateItems?: PublicEstimateItem[];
+    externalExpenses?: PublicExternalExpense[];
+    _ts?: number;
+  } | null;
+  updatedAt: number | null;
+  isSnapshot?: boolean;
+  agentName?: string | null;
+  agentPhone?: string | null;
+};
+
 export default function CoView({ code }: { code: string }) {
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [estimateItems, setEstimateItems] = useState<PublicEstimateItem[]>([]);
@@ -25,53 +44,71 @@ export default function CoView({ code }: { code: string }) {
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
+  const [isSnapshot, setIsSnapshot] = useState(false);
+  const [agentName, setAgentName] = useState<string | null>(null);
+  const [agentPhone, setAgentPhone] = useState<string | null>(null);
 
   const attrJson = JSON.stringify(attributes);
 
   useEffect(() => {
     let alive = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
     async function poll() {
       try {
         const res = await fetch(`/api/co/${code}`, { cache: "no-store" });
         if (!res.ok || !alive) return;
-        const data = await res.json();
+        const data: ApiResponse = await res.json();
         const state = data?.state;
         if (!state) return;
+
         setStarted(true);
         if (data.updatedAt) setUpdatedAt(data.updatedAt);
+        if (data.isSnapshot) {
+          setIsSnapshot(true);
+          setAgentName(data.agentName ?? null);
+          setAgentPhone(data.agentPhone ?? null);
+          // Stop polling — snapshot is static
+          if (intervalId) { clearInterval(intervalId); intervalId = null; }
+        }
 
-        // форма и расчёт — ведёт агент
         if (state.form) {
           setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
         }
         if (Array.isArray(state.estimateItems)) {
-          setEstimateItems(state.estimateItems as PublicEstimateItem[]);
+          setEstimateItems(state.estimateItems);
         }
         if (Array.isArray(state.externalExpenses)) {
-          setExternalExpenses(state.externalExpenses as PublicExternalExpense[]);
+          setExternalExpenses(state.externalExpenses);
         }
-        // Старый attributes payload читаем только как совместимый fallback для render-компонента.
         if (state.attributes) {
           const norm = normalizeSelection(state.attributes);
-          setAttributes((current) => (JSON.stringify(current) === JSON.stringify(norm) ? current : norm));
+          setAttributes((cur) => (JSON.stringify(cur) === JSON.stringify(norm) ? cur : norm));
         }
       } catch { /* ignore */ }
     }
+
     poll();
-    const id = setInterval(poll, 700);
-    return () => { alive = false; clearInterval(id); };
+    intervalId = setInterval(poll, 700);
+    return () => { alive = false; if (intervalId) clearInterval(intervalId); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, attrJson]);
 
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
-  const externalTotal = externalExpenses.reduce((sum, expense) => sum + expense.clientPrice, 0);
+  const externalTotal = externalExpenses.reduce((sum, e) => sum + e.clientPrice, 0);
   const grandTotal = (result?.total ?? 0) + estimateTotal + externalTotal;
   const sections = result?.sections.filter((s) => s.total > 0) ?? [];
+  const hasItems = sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0;
 
+  // ── Loading state ──────────────────────────────────────────────────────────
   if (!started) {
     return (
-      <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-2 text-center">
+      <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-4 text-center">
+        <div className="mb-5 grid h-16 w-16 place-items-center rounded-[20px] bg-accent-soft">
+          <span className="block h-4 w-4 rounded-full bg-accent" />
+        </div>
         <h2 className="font-serif text-[22px] text-ink">Агент готовит вашу смету</h2>
-        <p className="mt-3 text-[14.5px] leading-relaxed text-ink-2">
+        <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
           Страница обновится сама, как только агент начнёт. Ничего нажимать не нужно.
         </p>
         <div className="mt-7 flex gap-1.5">
@@ -84,74 +121,106 @@ export default function CoView({ code }: { code: string }) {
     );
   }
 
+  // ── Status badge ───────────────────────────────────────────────────────────
+  const statusBadge = isSnapshot ? (
+    <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1.5">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+      <span className="text-[11.5px] font-semibold text-accent">Смета сформирована</span>
+    </div>
+  ) : (
+    <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success-soft px-3 py-1.5">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+      <span className="text-[11.5px] font-semibold text-success">Обновляется</span>
+    </div>
+  );
+
+  // ── Main view ──────────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-[680px]">
-      {/* Рендер сцены */}
-      <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
-        <div className="px-4 pt-4">
-          <div className="text-[13px] font-semibold text-ink">Предпросмотр комплекта</div>
-          <div className="mt-1 text-[12px] leading-snug text-ink-3">Визуализация обновляется при выборе атрибутики.</div>
-        </div>
-        <AttributeRender selection={attributes} selectedItems={estimateItems} className="block h-auto w-full" />
+      {/* Status row */}
+      <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
+        {statusBadge}
+        {updatedAt && (
+          <span className="text-[12px] text-ink-3">
+            {isSnapshot ? `Сохранена ${formatDate(updatedAt)}` : `обновлено в ${formatTime(updatedAt)}`}
+          </span>
+        )}
       </div>
 
-      {/* Итог */}
-      <div className="mt-4 flex items-center justify-between gap-4 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-6 py-5">
-        <div>
-          <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-2">Предварительная сумма</div>
-          {updatedAt && <div className="tnum mt-0.5 text-[11.5px] text-ink-3">обновлено в {formatTime(updatedAt)}</div>}
+      {/* Grand total hero */}
+      <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_16px_40px_-20px_rgba(31,92,76,0.45)]">
+        <div className="px-6 py-5 sm:px-8 sm:py-6">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-accent/60">
+            {isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}
+          </p>
+          <p className="mt-1 font-serif text-[38px] font-semibold tracking-tight text-on-accent sm:text-[44px]">
+            {formatCurrency(grandTotal)}
+          </p>
         </div>
-        <span className="tnum font-serif text-[30px] font-semibold tracking-tight text-accent sm:text-[34px]">{formatCurrency(grandTotal)}</span>
       </div>
 
-      {/* Что входит (ведёт агент) */}
-      {(sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0) && (
-        <section className="mt-6">
-          <h2 className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
+      {/* Attribution render (live cobrowse only) */}
+      {!isSnapshot && (
+        <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
+          <div className="px-4 pt-4">
+            <p className="text-[13px] font-semibold text-ink">Предпросмотр комплекта</p>
+            <p className="mt-1 text-[12px] leading-snug text-ink-3">Визуализация обновляется при выборе атрибутики.</p>
+          </div>
+          <AttributeRender selection={attributes} selectedItems={estimateItems} className="block h-auto w-full" />
+        </div>
+      )}
+
+      {/* Composition */}
+      {hasItems && (
+        <section className="mb-5">
+          <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
           <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
             {sections.map((section, i) => (
               <div key={i} className={i > 0 ? "border-t border-line" : ""}>
-                <div className="flex items-center bg-surface-2 px-5 py-3">
+                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
+                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(section.total)}</span>
                 </div>
                 {section.items?.map((item, j) => (
                   <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{item.label}</span>
-                    <span className="tnum flex-shrink-0 text-[14px] text-ink">
-                      {item.included ? "включено" : item.price != null ? formatCurrency(item.price) : ""}
+                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">
+                      {item.included ? <span className="text-success text-[12px] font-semibold">включено</span> : item.price != null ? formatCurrency(item.price) : ""}
                     </span>
                   </div>
                 ))}
               </div>
             ))}
+
             {estimateItems.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Атрибутика</span>
-                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(estimateTotal)}</span>
+                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(estimateTotal)}</span>
                 </div>
                 {estimateItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">
                       {item.name}
-                      {item.selectedColor ? ` — цвет: ${item.selectedColor}` : ""}
+                      {item.selectedColor ? ` — ${item.selectedColor}` : ""}
                       {item.quantity > 1 ? ` ×${item.quantity}` : ""}
                     </span>
-                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{formatCurrency(item.clientPrice * item.quantity)}</span>
+                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">{formatCurrency(item.clientPrice * item.quantity)}</span>
                   </div>
                 ))}
               </div>
             )}
+
             {externalExpenses.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
-                  <span className="tnum text-[13px] font-semibold text-ink">{formatCurrency(externalTotal)}</span>
+                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(externalTotal)}</span>
                 </div>
                 {externalExpenses.map((expense) => (
                   <div key={expense.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{expense.category}: {expense.name}</span>
-                    <span className="tnum flex-shrink-0 text-[14px] text-ink">{formatCurrency(expense.clientPrice)}</span>
+                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">{formatCurrency(expense.clientPrice)}</span>
                   </div>
                 ))}
               </div>
@@ -160,7 +229,31 @@ export default function CoView({ code }: { code: string }) {
         </section>
       )}
 
-      <p className="mt-8 text-center text-[12px] text-ink-3">Обновляется автоматически · код {code}</p>
+      {/* Client actions (snapshot only — live cobrowse has no final agree yet) */}
+      {isSnapshot && (
+        <div className="mb-5 space-y-3">
+          <a
+            href={agentPhone ? `tel:${agentPhone}` : "#"}
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[15px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover"
+          >
+            Согласовать смету
+          </a>
+          {agentPhone && (
+            <a
+              href={`tel:${agentPhone}`}
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 font-semibold text-[14.5px] text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+            >
+              Связаться с агентом
+              {agentName ? ` — ${agentName.split(" ")[0]}` : ""}
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Footer */}
+      <p className="mt-6 text-center text-[12px] text-ink-3">
+        {isSnapshot ? "Тихий дом · ритуальные услуги" : `Обновляется автоматически · код ${code}`}
+      </p>
     </div>
   );
 }

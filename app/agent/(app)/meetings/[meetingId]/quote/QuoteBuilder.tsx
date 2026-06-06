@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import Link from "next/link";
 import { Check, CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { useToast } from "@/components/Toast";
 import s from "./QuoteBuilder.module.css";
@@ -48,6 +49,13 @@ import {
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
 import RitualConfigurator from "@/components/configurator/RitualConfigurator";
+import { ToggleRow } from "./components/ToggleRow";
+import { MemorialBlock } from "./components/MemorialBlock";
+import { EstimateItemRow } from "./components/EstimateItemRow";
+import { OptionCard } from "./components/OptionCard";
+import { ExternalExpensesBlock } from "./components/ExternalExpensesBlock";
+import { AgentEconomicsBlock } from "./components/AgentEconomicsBlock";
+import { SnapshotBlock } from "./components/SnapshotBlock";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -55,6 +63,7 @@ interface Props {
   meetingId: number;
   cobrowseCode: string | null;
   clientName: string;
+  caseId?: number;
 }
 
 const DEFAULT_FORM: FormData = {
@@ -92,7 +101,7 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
 
 /* ─── Main component ─────────────────────────────────────────────────── */
 
-export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Props) {
+export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, caseId }: Props) {
   const [form, setForm] = useState<FormData>(DEFAULT_FORM);
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
@@ -464,7 +473,14 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
           <span className={s.headerDot} />
           <div>
             <div className={s.headerBrand}>Тихий дом</div>
-            <div className={s.headerSubtitle}>Смета · {clientName}</div>
+            <div className={s.headerSubtitle}>
+              Смета ·{" "}
+              {caseId ? (
+                <Link href={`/agent/cases/${caseId}`} className={s.headerCaseLink}>{clientName}</Link>
+              ) : (
+                clientName
+              )}
+            </div>
           </div>
         </div>
         <div className={s.headerRight}>
@@ -1050,523 +1066,4 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName }: Pr
   );
 }
 
-function MemorialBlock({
-  data,
-  onCommentChange,
-  onGuestsChange,
-  onIncludeCafeChange,
-  onStatusChange,
-}: {
-  data: MemorialData;
-  onCommentChange: (comment: string) => void;
-  onGuestsChange: (value: string) => void;
-  onIncludeCafeChange: (included: boolean) => void;
-  onStatusChange: (status: MemorialStatus) => void;
-}) {
-  const showsGuests = data.status === "agent_helps" || data.status === "client_handles";
-
-  return (
-    <div className={s.card}>
-      <p className={s.cardTitle}>Поминки / кафе</p>
-      <p className={s.catalogSubtitle}>Отметьте, нужны ли поминки и будет ли агент помогать с подбором кафе.</p>
-
-      <div className={s.segmentGrid}>
-        {(
-          [
-            ["not_discussed", "Не обсуждали"],
-            ["not_needed", "Не нужны"],
-            ["client_handles", "Клиент сам"],
-            ["agent_helps", "Нужна помощь"],
-          ] as Array<[MemorialStatus, string]>
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={`${s.segmentBtn} ${data.status === value ? s.segmentBtnActive : ""}`}
-            onClick={() => onStatusChange(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {showsGuests && (
-        <label className={s.blockField}>
-          <span>Количество гостей</span>
-          <input
-            inputMode="numeric"
-            placeholder="Например, 20"
-            value={data.guestsCount ? String(data.guestsCount) : ""}
-            onChange={(event) => onGuestsChange(event.target.value)}
-          />
-        </label>
-      )}
-
-      <label className={s.blockField}>
-        <span>Комментарий по поминкам</span>
-        <textarea
-          placeholder="Например: нужно кафе рядом с кладбищем, без алкоголя, на 20 человек"
-          value={data.comment ?? ""}
-          onChange={(event) => onCommentChange(event.target.value)}
-        />
-      </label>
-
-      {data.status === "agent_helps" && (
-        <label className={s.inlineCheck}>
-          <input
-            type="checkbox"
-            checked={Boolean(data.includeCafeAssistance)}
-            onChange={(event) => onIncludeCafeChange(event.target.checked)}
-          />
-          <span>Добавить помощь с кафе в смету</span>
-        </label>
-      )}
-
-      {data.status === "agent_helps" && (
-        <div className={s.helperNote}>Можно предложить клиенту несколько вариантов кафе и меню, чтобы снять с семьи отдельную задачу.</div>
-      )}
-      {data.status === "client_handles" && (
-        <div className={s.helperNote}>Клиент организует поминки самостоятельно. Не включайте кафе в итоговую смету, если агент не помогает с подбором.</div>
-      )}
-    </div>
-  );
-}
-
-function ExternalExpensesBlock({
-  draft,
-  expenses,
-  onAddDraft,
-  onAddPreset,
-  onDraftFieldChange,
-  onDraftMoneyChange,
-  onRemove,
-  onUpdate,
-}: {
-  draft: ExternalExpense;
-  expenses: ExternalExpense[];
-  onAddDraft: () => void;
-  onAddPreset: (preset: (typeof EXTERNAL_EXPENSE_PRESETS)[number]) => void;
-  onDraftFieldChange: <K extends keyof ExternalExpense>(key: K, value: ExternalExpense[K]) => void;
-  onDraftMoneyChange: (key: "clientPrice" | "costPrice", value: string) => void;
-  onRemove: (id: string) => void;
-  onUpdate: (id: string, patch: Partial<ExternalExpense>) => void;
-}) {
-  return (
-    <div className={s.card}>
-      <p className={s.cardTitle}>Внешние расходы</p>
-      <p className={s.catalogSubtitle}>Расходы, которые зависят от морга, кладбища, крематория, церкви или других внешних условий.</p>
-
-      <div className={s.quickExpenseGrid}>
-        {EXTERNAL_EXPENSE_PRESETS.map((preset) => (
-          <button key={preset.name} type="button" className={s.quickExpenseBtn} onClick={() => onAddPreset(preset)}>
-            <span>{preset.name}</span>
-            <strong>{formatCurrency(preset.clientPrice)}</strong>
-          </button>
-        ))}
-      </div>
-
-      <div className={s.expenseDraftGrid}>
-        <label className={s.blockField}>
-          <span>Категория</span>
-          <select value={draft.category} onChange={(event) => onDraftFieldChange("category", event.target.value as ExternalExpenseCategory)}>
-            {EXTERNAL_EXPENSE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-        </label>
-        <label className={s.blockField}>
-          <span>Название расхода</span>
-          <input value={draft.name} placeholder="Например, подготовка тела в морге" onChange={(event) => onDraftFieldChange("name", event.target.value)} />
-        </label>
-        <label className={s.blockField}>
-          <span>Сумма для клиента</span>
-          <input inputMode="numeric" value={draft.clientPrice || ""} onChange={(event) => onDraftMoneyChange("clientPrice", event.target.value)} />
-        </label>
-        <label className={s.blockField}>
-          <span>Себестоимость / передаваемая сумма</span>
-          <input inputMode="numeric" value={draft.costPrice || ""} onChange={(event) => onDraftMoneyChange("costPrice", event.target.value)} />
-        </label>
-      </div>
-      <div className={s.fieldHint}>Если деньги полностью передаются внешней стороне, укажите такую же сумму.</div>
-
-      <label className={s.blockField}>
-        <span>Комментарий</span>
-        <textarea value={draft.comment ?? ""} placeholder="Например: зависит от условий конкретного морга" onChange={(event) => onDraftFieldChange("comment", event.target.value)} />
-      </label>
-
-      <div className={s.checkRow}>
-        <label className={s.inlineCheck}>
-          <input type="checkbox" checked={draft.includeInClientTotal} onChange={(event) => onDraftFieldChange("includeInClientTotal", event.target.checked)} />
-          <span>Включить в итоговую сумму для клиента</span>
-        </label>
-        <label className={s.inlineCheck}>
-          <input type="checkbox" checked={draft.includeInMarginCalculation} onChange={(event) => onDraftFieldChange("includeInMarginCalculation", event.target.checked)} />
-          <span>Учитывать в расчёте маржи</span>
-        </label>
-      </div>
-
-      <button type="button" className={s.addCatalogBtn} onClick={onAddDraft}>Добавить внешний расход</button>
-
-      {expenses.length > 0 && (
-        <div className={s.externalList}>
-          {expenses.map((expense) => (
-            <ExternalExpenseRow key={expense.id} expense={expense} onRemove={() => onRemove(expense.id)} onUpdate={(patch) => onUpdate(expense.id, patch)} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ExternalExpenseRow({
-  expense,
-  onRemove,
-  onUpdate,
-}: {
-  expense: ExternalExpense;
-  onRemove: () => void;
-  onUpdate: (patch: Partial<ExternalExpense>) => void;
-}) {
-  const margin = calculateOrderEconomics([{
-    name: expense.name,
-    clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
-    costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
-    quantity: 1,
-  }]).items[0];
-
-  return (
-    <div className={s.externalRow}>
-      <div className={s.externalRowHead}>
-        <div>
-          <span>{expense.category}</span>
-          <strong>{expense.name}</strong>
-        </div>
-        <button type="button" onClick={onRemove}>Удалить</button>
-      </div>
-      {expense.comment && <p>{expense.comment}</p>}
-      <div className={s.externalRowGrid}>
-        <label>
-          <span>Клиенту</span>
-          <input inputMode="numeric" value={expense.clientPrice} onChange={(event) => onUpdate({ clientPrice: Number(event.target.value.replace(/[^\d]/g, "")) || 0 })} />
-        </label>
-        <label>
-          <span>Себестоимость</span>
-          <input inputMode="numeric" value={expense.costPrice} onChange={(event) => onUpdate({ costPrice: Number(event.target.value.replace(/[^\d]/g, "")) || 0 })} />
-        </label>
-        <div className={s.externalMargin}>Маржа {formatCurrency(margin?.marginRub ?? 0)}</div>
-      </div>
-    </div>
-  );
-}
-
-function OptionCard({
-  item,
-  selected,
-  selectedColor,
-  onToggle,
-  onColorChange,
-}: {
-  item: CatalogItem;
-  selected: boolean;
-  selectedColor?: string;
-  onToggle: () => void;
-  onColorChange: (color: string) => void;
-}) {
-  return (
-    <article className={`${s.optCard} ${selected ? s.optCardActive : ""}`}>
-      <button type="button" className={s.optMain} onClick={onToggle} aria-pressed={selected}>
-        <span className={s.optMedia} aria-hidden="true">{item.imagePlaceholder}</span>
-        <span className={s.optInfo}>
-          <span className={s.optTop}>
-            <span className={s.optName}>{item.name}</span>
-            <span className={`${s.optCheck} ${selected ? s.optCheckOn : ""}`} aria-hidden="true">
-              {selected && <Check size={12} weight="bold" />}
-            </span>
-          </span>
-          <span className={s.optPrice}>{formatCurrency(item.clientPrice)}</span>
-          {(item.isRecommended || item.isRequired) && (
-            <span className={s.optBadge}>{item.isRequired ? "Обязательное" : "Рекомендовано"}</span>
-          )}
-        </span>
-      </button>
-
-      {item.availableColors && item.availableColors.length > 0 && (
-        <div className={s.optColors} aria-label={`Цвет для ${item.name}`}>
-          {item.availableColors.map((color) => (
-            <button
-              key={color}
-              type="button"
-              className={`${s.colorChip} ${selectedColor === color ? s.colorChipActive : ""}`}
-              onClick={() => onColorChange(color)}
-            >
-              {color}
-            </button>
-          ))}
-        </div>
-      )}
-    </article>
-  );
-}
-
-function EstimateItemRow({
-  item,
-  onPriceChange,
-  onQuantityChange,
-  onRemove,
-}: {
-  item: EstimateItem;
-  onPriceChange: (value: string) => void;
-  onQuantityChange: (quantity: number) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className={s.estimateItem}>
-      <div className={s.estimateTop}>
-        <div className={s.estimateNameWrap}>
-          <span className={s.estimateName}>{item.name}</span>
-          {item.selectedColor && <span className={s.estimateMeta}>цвет: {item.selectedColor}</span>}
-        </div>
-        <button type="button" className={s.removeEstimateBtn} onClick={onRemove} aria-label={`Удалить ${item.name}`}>
-          Удалить
-        </button>
-      </div>
-
-      <div className={s.estimateControls}>
-        <div className={s.qtyControl} aria-label={`Количество ${item.name}`}>
-          <button type="button" onClick={() => onQuantityChange(item.quantity - 1)} aria-label="Уменьшить количество">−</button>
-          <span>{item.quantity}</span>
-          <button type="button" onClick={() => onQuantityChange(item.quantity + 1)} aria-label="Увеличить количество">+</button>
-        </div>
-        <label className={s.priceEditLabel}>
-          <span>Цена клиенту</span>
-          <input
-            value={String(item.clientPrice)}
-            inputMode="numeric"
-            onChange={(event) => onPriceChange(event.target.value)}
-          />
-        </label>
-      </div>
-    </div>
-  );
-}
-
-function SnapshotBlock({
-  budgetStatus,
-  error,
-  note,
-  onDelete,
-  onFix,
-  onNoteChange,
-  onOpenChange,
-  onTitleChange,
-  openSnapshotId,
-  snapshots,
-  title,
-}: {
-  budgetStatus: ReturnType<typeof calculateBudgetStatus>;
-  error: string | null;
-  note: string;
-  onDelete: (id: string) => void;
-  onFix: () => void;
-  onNoteChange: (value: string) => void;
-  onOpenChange: (id: string | null) => void;
-  onTitleChange: (value: string) => void;
-  openSnapshotId: string | null;
-  snapshots: EstimateSnapshot[];
-  title: string;
-}) {
-  return (
-    <details className={s.snapshotBlock}>
-      <summary className={s.collapseHead}>
-        <span className={s.collapseTitle}>История версий</span>
-        <span className={s.economicsTag}>{snapshots.length}</span>
-      </summary>
-      <input className={s.snapshotInput} value={title} placeholder="Название версии" onChange={(event) => onTitleChange(event.target.value)} />
-      <textarea className={s.snapshotTextarea} value={note} placeholder="Например: клиент попросил уложиться в 130 000 ₽, убрали отдельный катафалк" onChange={(event) => onNoteChange(event.target.value)} />
-      <button type="button" className={s.saveBtn} onClick={onFix}>Зафиксировать смету</button>
-      {error && <div className={s.errorMsg}>{error}</div>}
-
-      {snapshots.length > 0 && (
-        <div className={s.snapshotList}>
-          {snapshots.map((snapshot) => {
-            const open = openSnapshotId === snapshot.id;
-            return (
-              <div key={snapshot.id} className={s.snapshotItem}>
-                <div className={s.snapshotItemHead}>
-                  <button type="button" onClick={() => onOpenChange(open ? null : snapshot.id)}>
-                    <strong>{snapshot.title}</strong>
-                    <span>{formatSnapshotDate(snapshot.createdAt)}</span>
-                  </button>
-                  <button type="button" onClick={() => onDelete(snapshot.id)}>Удалить</button>
-                </div>
-                <div className={s.snapshotMetrics}>
-                  <span>{formatCurrency(snapshot.orderClientTotal)}</span>
-                  <span>Экономия агента {formatCurrency(snapshot.orderMarginRub)}</span>
-                  <span>{snapshot.budgetExceeded ? `Превышение ${formatCurrency(Math.abs(snapshot.budgetRemaining ?? 0))}` : budgetStatus.clientBudget ? "В бюджете" : "Без бюджета"}</span>
-                </div>
-                {open && (
-                  <div className={s.snapshotDetails}>
-                    {snapshot.note && <p>{snapshot.note}</p>}
-                    <SnapshotLine title="Позиции" items={snapshot.items.map((item) => `${item.name}${item.selectedColor ? `, цвет: ${item.selectedColor}` : ""} ×${item.quantity}`)} />
-                    <SnapshotLine title="Внешние расходы" items={snapshot.externalExpenses.map((expense) => `${expense.category}: ${expense.name} (${formatCurrency(expense.clientPrice)})`)} />
-                    <SnapshotLine title="Поминки" items={[memorialSummary(snapshot.memorialData)]} />
-                    <div className={s.snapshotTotals}>
-                      <span>Себестоимость {formatCurrency(snapshot.orderCostTotal)}</span>
-                      <span>Итог {formatCurrency(snapshot.orderClientTotal)}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </details>
-  );
-}
-
-function SnapshotLine({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div className={s.snapshotLine}>
-      <span>{title}</span>
-      {items.length > 0 ? items.map((item) => <em key={item}>{item}</em>) : <em>Нет</em>}
-    </div>
-  );
-}
-
-function memorialSummary(data: MemorialData) {
-  const status: Record<MemorialStatus, string> = {
-    not_discussed: "Не обсуждали",
-    not_needed: "Не нужны",
-    client_handles: "Клиент организует сам",
-    agent_helps: "Нужна помощь с кафе",
-  };
-  const guests = data.guestsCount ? `, гостей: ${data.guestsCount}` : "";
-  const comment = data.comment ? `, ${data.comment}` : "";
-  return `${status[data.status]}${guests}${comment}`;
-}
-
-function formatSnapshotDate(value: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function AgentEconomicsBlock({
-  budgetMessage,
-  budgetStatus,
-  clientBudget,
-  economics,
-  marginItems,
-  marginWarning,
-}: {
-  budgetMessage: string;
-  budgetStatus: "not_set" | "within" | "near_limit" | "exceeded";
-  clientBudget: number | null;
-  economics: ReturnType<typeof calculateOrderEconomics>;
-  marginItems: ItemMargin[];
-  marginWarning: string | null;
-}) {
-  return (
-    <details className={s.economicsBlock} open={Boolean(marginWarning)}>
-      <summary className={s.collapseHead}>
-        <span className={s.collapseTitle}>Экономика сделки</span>
-        <span className={s.economicsTag}>внутренне</span>
-        {marginWarning && <span className={s.collapseAlert} aria-label="Внимание по марже" />}
-      </summary>
-
-      <div className={s.economicsGrid}>
-        <Metric label="Бюджет клиента" value={clientBudget ? formatCurrency(clientBudget) : "Не указан"} />
-        <Metric label="Итог клиенту" value={formatCurrency(economics.orderClientTotal)} />
-        <Metric
-          label={budgetStatus === "exceeded" ? "Превышение" : "Остаток"}
-          value={budgetStatus === "not_set" ? "—" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
-        />
-        <Metric label="Себестоимость" value={formatCurrency(economics.orderCostTotal)} />
-        <Metric label="Экономия агента" value={formatCurrency(economics.orderMarginRub)} />
-        <Metric label="Позиции в расчёте" value={String(marginItems.length)} />
-      </div>
-
-      <div className={`${s.budgetLine} ${budgetStatus === "exceeded" ? s.budgetLineWarn : ""}`}>
-        {budgetMessage}
-      </div>
-      {budgetStatus === "exceeded" && (
-        <div className={s.economicsHint}>Можно снизить цену, заменить позиции или убрать необязательные услуги.</div>
-      )}
-      {marginWarning && <div className={s.marginWarning}>{marginWarning}</div>}
-
-      {marginItems.length > 0 && (
-        <details className={s.marginDetails}>
-          <summary>Внутренние позиции ({marginItems.length})</summary>
-          <div className={s.marginList}>
-            {marginItems.slice(0, 10).map((item) => (
-              <div key={`${item.category}-${item.name}-${item.totalClientPrice}`} className={s.marginItem}>
-                <div className={s.marginItemMain}>
-                  <span className={s.marginItemName}>{item.name}</span>
-                  <span className={s.marginItemPrice}>{formatCurrency(item.totalClientPrice)}</span>
-                </div>
-                <div className={s.marginItemMeta}>
-                  <span>Себестоимость {formatCurrency(item.totalCostPrice)}</span>
-                  <span>Экономия {formatCurrency(item.marginRub)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-    </details>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={s.metric}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-/* ─── Toggle row component ───────────────────────────────────────────── */
-
-function ToggleRow({
-  label,
-  price,
-  checked,
-  onChange,
-  children,
-}: {
-  label: string;
-  price?: number;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className={s.toggleRow}>
-      <div className={s.toggleRowMain}>
-        <div className={s.toggleRowText}>
-          <div className={s.toggleRowLabel}>{label}</div>
-          {price !== undefined && price > 0 && (
-            <div className={s.toggleRowPrice}>+{formatCurrency(price)}</div>
-          )}
-        </div>
-        <label className={s.switch}>
-          <input
-            type="checkbox"
-            className={s.switchInput}
-            checked={checked}
-            onChange={(e) => onChange(e.target.checked)}
-          />
-          <span className={s.switchTrack} />
-        </label>
-      </div>
-      {checked && children && (
-        <div className={s.toggleRowSub}>{children}</div>
-      )}
-    </div>
-  );
-}
+// Sub-components extracted to ./components/
