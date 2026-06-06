@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CalendarDots, Plus, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Badge } from "@/components/ui/Badge";
+import { buttonClasses } from "@/components/ui/Button";
 
 const STATUS_LABELS: Record<string, string> = {
   SCHEDULED: "Запланирована",
@@ -9,12 +11,12 @@ const STATUS_LABELS: Record<string, string> = {
   COMPLETED: "Завершена",
   CANCELLED: "Отменена",
 };
-const STATUS_DOT: Record<string, string> = {
-  SCHEDULED: "bg-info",
-  IN_PROGRESS: "bg-warning",
-  COMPLETED: "bg-success",
-  CANCELLED: "bg-ink-3",
-};
+const STATUS_TONE = {
+  SCHEDULED: "info",
+  IN_PROGRESS: "warning",
+  COMPLETED: "success",
+  CANCELLED: "neutral",
+} as const;
 
 type Event = { id: number; leadId: number; name: string; time: string; status: string; past: boolean };
 type DayGroup = { key: string; label: string; events: Event[] };
@@ -68,11 +70,7 @@ export default async function CalendarPage() {
           <span className="td-eyebrow">Расписание</span>
           <h1 className="mt-2 text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">Календарь</h1>
         </div>
-        <Link
-          href="/agent/meetings/new"
-          data-tour="meetings-new"
-          className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
-        >
+        <Link href="/agent/meetings/new" data-tour="meetings-new" className={buttonClasses({ className: "flex-shrink-0" })}>
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое событие</span><span className="sm:hidden">Событие</span>
         </Link>
       </header>
@@ -86,7 +84,7 @@ export default async function CalendarPage() {
           <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
             Запланируйте встречу или звонок — увидите их здесь по дням.
           </p>
-          <Link href="/agent/meetings/new" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
+          <Link href="/agent/meetings/new" className={buttonClasses({ className: "mt-5" })}>
             <Plus size={15} weight="bold" /> Новое событие
           </Link>
         </div>
@@ -101,9 +99,7 @@ export default async function CalendarPage() {
                     <Link href={`/agent/cases/${e.leadId}`} className={`group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 sm:grid-cols-[64px_minmax(220px,1fr)_150px_90px_28px] sm:items-center sm:gap-3 ${e.past ? "opacity-60" : ""}`}>
                       <span className="tnum w-12 flex-shrink-0 text-[13px] font-semibold text-ink">{e.time}</span>
                       <span className="min-w-0 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
-                      <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
-                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />{STATUS_LABELS[e.status] ?? e.status}
-                      </span>
+                      <Badge tone={STATUS_TONE[e.status as keyof typeof STATUS_TONE] ?? "neutral"} dot>{STATUS_LABELS[e.status] ?? e.status}</Badge>
                       <span className="text-[12.5px] font-medium text-accent">Кейс</span>
                       <ArrowRight size={15} className="flex-shrink-0 text-ink-3 transition-colors group-hover:text-accent" />
                     </Link>
