@@ -1,4 +1,5 @@
 import Link from "next/link";
+import NewCaseSheet from "./NewCaseSheet";
 import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -134,12 +135,7 @@ export default async function CasesPage() {
           <span className="td-eyebrow">Рабочий стол</span>
           <h1 className="mt-3 font-serif text-[32px] leading-tight text-ink sm:text-[40px]">Дела</h1>
         </div>
-        <Link
-          href="/agent/leads/new"
-          className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
-        >
-          <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое дело</span><span className="sm:hidden">Дело</span>
-        </Link>
+        <NewCaseSheet />
       </header>
 
       <div className="grid gap-7 lg:grid-cols-[1fr_300px]">
