@@ -17,6 +17,12 @@ const STATUS_TONE = {
   COMPLETED: "success",
   CANCELLED: "neutral",
 } as const;
+const STATUS_BAR: Record<string, string> = {
+  SCHEDULED: "before:bg-info",
+  IN_PROGRESS: "before:bg-warning",
+  COMPLETED: "before:bg-success",
+  CANCELLED: "before:bg-ink-3",
+};
 
 type Event = { id: number; leadId: number; name: string; time: string; status: string; past: boolean };
 type DayGroup = { key: string; label: string; events: Event[] };
@@ -96,12 +102,14 @@ export default async function CalendarPage() {
               <ul>
                 {day.events.map((e) => (
                   <li key={e.id} className="border-b border-line last:border-0">
-                    <Link href={`/agent/cases/${e.leadId}`} className={`group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 sm:grid-cols-[64px_minmax(220px,1fr)_150px_90px_28px] sm:items-center sm:gap-3 ${e.past ? "opacity-60" : ""}`}>
-                      <span className="tnum w-12 flex-shrink-0 text-[13px] font-semibold text-ink">{e.time}</span>
-                      <span className="min-w-0 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
+                    <Link
+                      href={`/agent/cases/${e.leadId}`}
+                      className={`group relative flex items-center gap-3.5 py-3 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
+                    >
+                      <span className="tnum w-12 flex-shrink-0 text-[15px] font-semibold text-ink">{e.time}</span>
+                      <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
                       <Badge tone={STATUS_TONE[e.status as keyof typeof STATUS_TONE] ?? "neutral"} dot>{STATUS_LABELS[e.status] ?? e.status}</Badge>
-                      <span className="text-[12.5px] font-medium text-accent">Кейс</span>
-                      <ArrowRight size={15} className="flex-shrink-0 text-ink-3 transition-colors group-hover:text-accent" />
+                      <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-all group-hover:translate-x-0.5 group-hover:text-accent" />
                     </Link>
                   </li>
                 ))}
