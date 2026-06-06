@@ -17,6 +17,7 @@ type CaseRow = {
   lastActivityLabel: string;
   priority: "Высокий" | "Средний" | "Низкий";
   urgent: boolean;
+  soon: boolean;
   stale: boolean;
   nextMeetingAt: number | null;
   nextMeetingTime: string;
@@ -87,6 +88,7 @@ async function getCases(agentId: number): Promise<CasesData> {
         lastActivityLabel: relTime(lastActivity, now),
         priority: soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
         urgent: soon || stale,
+        soon,
         stale,
         nextMeetingAt,
         nextMeetingTime: nextMeetingAt ? fmtTime.format(nextMeetingAt) : "",
@@ -145,6 +147,7 @@ export default async function CasesPage() {
     lastActivityLabel: "просрочено",
     priority: "Высокий" as const,
     urgent: true,
+    soon: false,
     stale: false,
     nextMeetingAt: null,
     nextMeetingTime: "",
@@ -183,7 +186,7 @@ export default async function CasesPage() {
           ) : (
             <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
               {active.map((c) => {
-                const bar = c.urgent ? "before:bg-danger" : "before:bg-transparent";
+                const bar = c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
                 return (
                   <li key={c.id} className="border-b border-line last:border-0">
                     <Link
@@ -195,7 +198,11 @@ export default async function CasesPage() {
                         <span className="flex items-center gap-2">
                           <span className="truncate text-[15px] font-semibold text-ink">{c.name}</span>
                           <StageChip stage={c.stage} />
-                          {c.urgent && <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Срочно</span>}
+                          {c.soon ? (
+                            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">Встреча скоро</span>
+                          ) : c.stale ? (
+                            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-warning">Без движения</span>
+                          ) : null}
                         </span>
                         <span className="mt-1 flex items-center gap-1.5 text-[12.5px] text-ink-2">
                           <ArrowRight size={12} weight="bold" className="flex-shrink-0 text-ink-3" />
