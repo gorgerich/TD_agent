@@ -46,7 +46,7 @@ export default async function QuoteBuilderPage({
           <ArrowLeft size={13} /> Назад
         </Link>
         <span className="mx-1 h-3 w-px bg-line-strong" aria-hidden />
-        <Link href="/agent/cases" className="text-ink-3 transition-colors hover:text-ink">Дела</Link>
+        <Link href="/agent/cases" className="text-ink-3 transition-colors hover:text-ink">Кейсы</Link>
         <CaretRight size={11} className="text-ink-3" aria-hidden />
         {caseId ? (
           <Link href={`/agent/cases/${caseId}`} className="text-ink-2 transition-colors hover:text-ink">{clientName}</Link>

@@ -2,21 +2,19 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Check, CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { Check, CaretLeft, CaretRight, CaretUp, Copy, Eye, PaperPlaneTilt, X } from "@phosphor-icons/react";
 import { useToast } from "@/components/Toast";
 import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
   type CalculationSection,
   type MarginItemInput,
-  type ItemMargin,
   type CatalogCategory,
   type CatalogItem,
   type EstimateItem,
   type MemorialData,
   type MemorialStatus,
   type ExternalExpense,
-  type ExternalExpenseCategory,
   type EstimateSnapshot,
   calculateOrder,
   calculateOrderEconomics,
@@ -41,7 +39,6 @@ import {
   ADDITIONAL_SERVICES,
   AGENT_ATTRIBUTION_CATALOG,
   DEFAULT_MEMORIAL_DATA,
-  EXTERNAL_EXPENSE_CATEGORIES,
   EXTERNAL_EXPENSE_PRESETS,
   MOSCOW_CEMETERIES,
   MO_CEMETERIES,
@@ -90,6 +87,7 @@ const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
 ];
 
 type Step = "basics" | "logistics" | "attributes" | "memorial" | "expenses";
+type CalculatorTab = "composition" | "economics" | "versions" | "actions";
 
 const STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: "basics", label: "Основное", hint: "Тип услуги, бюджет, пакет и формат церемонии." },
@@ -126,6 +124,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("basics");
   const [visited, setVisited] = useState<Set<Step>>(() => new Set<Step>(["basics"]));
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [calculatorTab, setCalculatorTab] = useState<CalculatorTab>("composition");
 
   const stepIndex = STEPS.findIndex((item) => item.id === step);
   const prevStep = stepIndex > 0 ? STEPS[stepIndex - 1] : null;
@@ -155,6 +155,12 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     () => estimateItems.reduce((sum, item) => sum + item.quantity, 0),
     [estimateItems],
   );
+  const baseLineCount = useMemo(
+    () => result.sections.reduce((sum, section) => sum + (section.items?.length ?? (section.total > 0 ? 1 : 0)), 0),
+    [result.sections],
+  );
+  const calculatorLineCount = baseLineCount + estimateItems.length + externalExpenses.length;
+  const calculatorVersionLabel = savedCount > 0 ? `v${savedCount}` : "черновик";
   const filteredCatalogItems = useMemo(
     () => {
       const attributionItems = AGENT_ATTRIBUTION_CATALOG.filter((item) => ATTRIBUTION_CATEGORIES.includes(item.category));
@@ -433,6 +439,14 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   function copyCode() {
     if (!cobrowseCode) return;
     navigator.clipboard.writeText(cobrowseCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function copyClientLink() {
+    if (!cobrowseCode || typeof window === "undefined") return;
+    navigator.clipboard.writeText(`${window.location.origin}/co/${cobrowseCode}`).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -903,139 +917,202 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
         </div>
 
-        {/* ── Quote panel ──────────────────────────────── */}
-        <aside className={s.panel}>
+        {calculatorOpen && (
+          <button
+            type="button"
+            className={s.sheetBackdrop}
+            aria-label="Свернуть калькулятор"
+            onClick={() => setCalculatorOpen(false)}
+          />
+        )}
+
+        {/* ── Floating calculator sheet ────────────────── */}
+        <aside className={`${s.panel} ${calculatorOpen ? s.panelOpen : ""}`} aria-label="Детали сметы">
           <div className={s.panelCard}>
-            {/* Главная цифра — всегда на виду */}
             <div className={s.panelHero}>
-              <span className={s.panelHeroLabel}>Предварительная сумма</span>
-              <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
+              <div>
+                <span className={s.panelHeroLabel}>Предварительно</span>
+                <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
+                <span className={s.panelHeroMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
+              </div>
+              <button type="button" className={s.sheetClose} onClick={() => setCalculatorOpen(false)} aria-label="Свернуть калькулятор">
+                <X size={18} weight="bold" />
+              </button>
             </div>
 
             <div className={s.panelHead}>
-              <span className={s.panelHeadTitle}>Что входит</span>
+              <span className={s.panelHeadTitle}>Детали сметы</span>
               {savedCount > 0 && (
                 <span className={s.panelVersions}>сохранено v{savedCount}</span>
               )}
             </div>
 
-            <div className={s.panelSections}>
-              {result.sections.length === 0 ? (
-                <div className={s.panelEmpty}>
-                  Выберите услуги слева — смета появится здесь
-                </div>
-              ) : (
-                result.sections.map((section: CalculationSection) => (
-                  <div key={section.title} className={s.panelSection}>
-                    <div className={s.panelSectionHead}>
-                      <span>{section.title}</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(section.total)}</span>
-                    </div>
-                    {section.items?.map((item) => (
-                      <div key={item.label} className={s.panelItem}>
-                        <span>{item.label}</span>
-                        {item.price != null ? (
-                          <span>{formatCurrency(item.price)}</span>
-                        ) : (
-                          <span className={s.panelItemIncluded}>включено</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))
-              )}
-
-              {estimateItems.length > 0 && (
-                <div className={s.panelSection}>
-                  <div className={s.panelSectionHead}>
-                    <span>Атрибутика</span>
-                    <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
-                  </div>
-                  <div className={s.estimateList}>
-                    {estimateItems.map((item) => (
-                      <EstimateItemRow
-                        key={item.id}
-                        item={item}
-                        onPriceChange={(value) => changeEstimatePrice(item.id, value)}
-                        onQuantityChange={(quantity) => changeEstimateQuantity(item.id, quantity)}
-                        onRemove={() => deleteEstimateItem(item.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {externalExpenses.length > 0 && (
-                <div className={s.panelSection}>
-                  <div className={s.panelSectionHead}>
-                    <span>Внешние расходы</span>
-                    <span className={s.panelSectionAmt}>{formatCurrency(externalTotal)}</span>
-                  </div>
-                  <div className={s.externalSummaryList}>
-                    {externalExpenses.map((expense) => {
-                      const expenseMargin = calculateOrderEconomics([
-                        {
-                          name: expense.name,
-                          category: expense.category,
-                          clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
-                          costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
-                          quantity: 1,
-                        },
-                      ]).items[0];
-                      return (
-                        <div key={expense.id} className={s.externalSummaryItem}>
-                          <div>
-                            <span>{expense.category}</span>
-                            <strong>{expense.name}</strong>
-                            {expense.comment && <em>{expense.comment}</em>}
-                          </div>
-                          <div className={s.externalSummaryNumbers}>
-                            <span className={s.externalSummaryClient}>
-                              {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}
-                            </span>
-                            <span className={s.externalSummaryMeta}>
-                              с/с {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)} · маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            <div className={s.sheetTabs} role="tablist" aria-label="Разделы калькулятора">
+              {[
+                ["composition", "Состав"],
+                ["economics", "Экономика"],
+                ["versions", "Версии"],
+                ["actions", "Действия"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={calculatorTab === id}
+                  className={`${s.sheetTab} ${calculatorTab === id ? s.sheetTabActive : ""}`}
+                  onClick={() => setCalculatorTab(id as CalculatorTab)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            <AgentEconomicsBlock
-              budgetMessage={budgetMessage}
-              budgetStatus={budgetStatus.status}
-              clientBudget={budgetStatus.clientBudget}
-              economics={economics}
-              marginItems={economics.items}
-              marginWarning={marginWarning}
-            />
+            {calculatorTab === "composition" && (
+              <div className={s.panelSections}>
+                {result.sections.length === 0 ? (
+                  <div className={s.panelEmpty}>
+                    Выберите услуги слева, смета появится здесь
+                  </div>
+                ) : (
+                  result.sections.map((section: CalculationSection) => (
+                    <div key={section.title} className={s.panelSection}>
+                      <div className={s.panelSectionHead}>
+                        <span>{section.title}</span>
+                        <span className={s.panelSectionAmt}>{formatCurrency(section.total)}</span>
+                      </div>
+                      {section.items?.map((item) => (
+                        <div key={item.label} className={s.panelItem}>
+                          <span>{item.label}</span>
+                          {item.price != null ? (
+                            <span>{formatCurrency(item.price)}</span>
+                          ) : (
+                            <span className={s.panelItemIncluded}>включено</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))
+                )}
 
-            <SnapshotBlock
-              budgetStatus={budgetStatus}
-              error={snapshotError}
-              note={snapshotNote}
-              onDelete={deleteSnapshot}
-              onFix={fixSnapshot}
-              onNoteChange={setSnapshotNote}
-              onOpenChange={setOpenSnapshotId}
-              onTitleChange={setSnapshotTitle}
-              openSnapshotId={openSnapshotId}
-              snapshots={snapshots}
-              title={snapshotTitle}
-            />
+                {estimateItems.length > 0 && (
+                  <div className={s.panelSection}>
+                    <div className={s.panelSectionHead}>
+                      <span>Атрибутика</span>
+                      <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
+                    </div>
+                    <div className={s.estimateList}>
+                      {estimateItems.map((item) => (
+                        <EstimateItemRow
+                          key={item.id}
+                          item={item}
+                          onPriceChange={(value) => changeEstimatePrice(item.id, value)}
+                          onQuantityChange={(quantity) => changeEstimateQuantity(item.id, quantity)}
+                          onRemove={() => deleteEstimateItem(item.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            <div className={s.panelActions} data-tour="quote-summary">
+                {externalExpenses.length > 0 && (
+                  <div className={s.panelSection}>
+                    <div className={s.panelSectionHead}>
+                      <span>Внешние расходы</span>
+                      <span className={s.panelSectionAmt}>{formatCurrency(externalTotal)}</span>
+                    </div>
+                    <div className={s.externalSummaryList}>
+                      {externalExpenses.map((expense) => {
+                        const expenseMargin = calculateOrderEconomics([
+                          {
+                            name: expense.name,
+                            category: expense.category,
+                            clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+                            costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
+                            quantity: 1,
+                          },
+                        ]).items[0];
+                        return (
+                          <div key={expense.id} className={s.externalSummaryItem}>
+                            <div>
+                              <span>{expense.category}</span>
+                              <strong>{expense.name}</strong>
+                              {expense.comment && <em>{expense.comment}</em>}
+                            </div>
+                            <div className={s.externalSummaryNumbers}>
+                              <span className={s.externalSummaryClient}>
+                                {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}
+                              </span>
+                              <span className={s.externalSummaryMeta}>
+                                с/с {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)} · маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {calculatorTab === "economics" && (
+              <div className={s.sheetPane}>
+                <AgentEconomicsBlock
+                  budgetMessage={budgetMessage}
+                  budgetStatus={budgetStatus.status}
+                  clientBudget={budgetStatus.clientBudget}
+                  economics={economics}
+                  marginItems={economics.items}
+                  marginWarning={marginWarning}
+                />
+              </div>
+            )}
+
+            {calculatorTab === "versions" && (
+              <div className={s.sheetPane}>
+                <SnapshotBlock
+                  budgetStatus={budgetStatus}
+                  error={snapshotError}
+                  note={snapshotNote}
+                  onDelete={deleteSnapshot}
+                  onFix={fixSnapshot}
+                  onNoteChange={setSnapshotNote}
+                  onOpenChange={setOpenSnapshotId}
+                  onTitleChange={setSnapshotTitle}
+                  openSnapshotId={openSnapshotId}
+                  snapshots={snapshots}
+                  title={snapshotTitle}
+                />
+              </div>
+            )}
+
+            {calculatorTab === "actions" && (
+              <div className={s.panelActions} data-tour="quote-summary">
               <button
                 className={s.saveBtn}
                 onClick={saveVersion}
                 disabled={saving}
               >
-                {saving ? "Сохраняю..." : "Сохранить версию сметы"}
+                  {saving ? "Сохраняю..." : "Сохранить черновик"}
               </button>
+
+                <button type="button" className={s.secondaryActionBtn} onClick={fixSnapshot}>
+                  <Check size={15} weight="bold" /> Сохранить версию
+                </button>
+
+                {cobrowseCode && (
+                  <>
+                    <button type="button" className={s.secondaryActionBtn} onClick={copyClientLink}>
+                      <PaperPlaneTilt size={15} weight="duotone" /> Отправить клиенту
+                    </button>
+                    <button type="button" className={s.secondaryActionBtn} onClick={copyClientLink}>
+                      <Copy size={15} weight="duotone" /> Скопировать ссылку
+                    </button>
+                    <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={s.secondaryActionLink}>
+                      <Eye size={15} weight="duotone" /> Показать клиенту
+                    </a>
+                  </>
+                )}
 
               {savedAt && !saveError && (
                 <div className={s.savedMsg}>
@@ -1046,18 +1123,21 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               {saveError && (
                 <div className={s.errorMsg}>{saveError}</div>
               )}
-            </div>
+              </div>
+            )}
           </div>
         </aside>
 
       </div>
 
-      {/* Липкая сводка для мобильных — сумма и сохранение всегда под рукой */}
-      <div className={s.mobileBar}>
-        <div className={s.mobileBarSum}>
+      {/* Floating calculator — сумма и сохранение всегда под рукой */}
+      <div className={s.mobileBar} data-tour="quote-summary">
+        <button type="button" className={s.mobileBarSum} onClick={() => setCalculatorOpen(true)} aria-expanded={calculatorOpen}>
           <span className={s.mobileBarLabel}>Предварительно</span>
           <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
-        </div>
+          <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
+          <span className={s.mobileBarMore}>Подробнее <CaretUp size={13} weight="bold" /></span>
+        </button>
         <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>
           {saving ? "Сохраняю…" : "Сохранить"}
         </button>

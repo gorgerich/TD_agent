@@ -24,7 +24,7 @@ export default function NewLeadForm() {
         body: JSON.stringify({ name, phone, source, context }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Ошибка создания дела"); return; }
+      if (!res.ok) { setError(data.error ?? "Ошибка создания кейса"); return; }
       router.push(`/agent/cases/${data.id}`);
       router.refresh();
     } catch {
@@ -69,7 +69,7 @@ export default function NewLeadForm() {
           disabled={loading || !name || !phone}
           className="flex min-h-14 w-full items-center justify-center rounded-full bg-accent py-3 text-[14.5px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
         >
-          {loading ? "Создаю…" : "Создать дело"}
+          {loading ? "Создаю…" : "Создать кейс"}
         </button>
       </div>
     </form>

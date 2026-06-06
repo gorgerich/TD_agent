@@ -4,14 +4,13 @@
 .root {
   max-width: 1180px;
   margin: 0 auto;
-  /* Extra bottom padding for mobileBar (~56px) stacked above AgentBottomNav (~56px already in layout) */
-  padding: 16px 16px 140px;
+  padding: 16px 16px 150px;
 }
 @media (min-width: 640px) {
-  .root { padding: 24px 28px 140px; }
+  .root { padding: 24px 28px 150px; }
 }
 @media (min-width: 980px) {
-  .root { padding: 24px 28px 80px; }
+  .root { max-width: 1040px; padding: 24px 28px 128px; }
 }
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -293,7 +292,7 @@
   align-items: start;
 }
 @media (min-width: 980px) {
-  .layout { grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; }
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
 }
 
 .form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -907,22 +906,54 @@
   font-size: 11px;
 }
 
-/* ── Quote panel ────────────────────────────────────────── */
-.panel { min-width: 0; }
-@media (min-width: 980px) {
-  .panel { position: sticky; top: 20px; }
-  .panelCard { max-height: calc(100dvh - 56px); overflow-y: auto; }
+/* ── Floating calculator sheet ─────────────────────────── */
+.sheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  border: 0;
+  background: rgba(24, 23, 20, 0.28);
+  cursor: default;
 }
+.panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: none;
+  min-width: 0;
+  padding: 0 10px;
+}
+.panelOpen { display: block; }
 .panelCard {
+  max-height: min(88dvh, 760px);
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-card);
-  overflow: hidden;
-  box-shadow: var(--shadow-soft);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -24px 70px -38px rgba(22, 22, 22, 0.38);
+}
+@media (min-width: 980px) {
+  .sheetBackdrop { background: rgba(24, 23, 20, 0.18); }
+  .panel {
+    left: 50%;
+    right: auto;
+    bottom: 18px;
+    width: min(760px, calc(100vw - 40px));
+    padding: 0;
+    transform: translateX(-50%);
+  }
+  .panelCard {
+    max-height: min(82dvh, 720px);
+    border-radius: 22px;
+    box-shadow: 0 30px 90px -45px rgba(22, 22, 22, 0.42);
+  }
 }
 .panelHead {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--color-line);
 }
 .panelHeadTitle {
@@ -937,11 +968,13 @@
   border-radius: 999px; padding: 2px 9px;
 }
 .panelSections {
-  padding: 8px 20px;
-  max-height: 38vh;
+  padding: 8px 18px 18px;
+  max-height: none;
   overflow-y: auto;
 }
-@media (min-width: 980px) { .panelSections { max-height: 42vh; } }
+.sheetPane {
+  padding: 0 0 18px;
+}
 .panelEmpty {
   padding: 40px 8px;
   text-align: center;
@@ -1096,36 +1129,83 @@
   color: var(--color-ink-3);
 }
 
-/* Главная цифра сметы — тёмно-зелёный hero (как в макете) */
 .panelHero {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
+  justify-content: space-between;
   gap: 6px;
-  padding: 20px 22px 22px;
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-surface-2));
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-line);
 }
 .panelHeroLabel {
+  display: block;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  color: color-mix(in srgb, var(--color-on-accent) 70%, transparent);
+  color: var(--color-ink-3);
 }
 .panelHeroAmount {
-  font-family: var(--font-serif);
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 34px;
+  font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+.panelHeroMeta {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-ink-3);
+  font-size: 12px;
+}
+.sheetClose {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.sheetClose:hover { border-color: var(--color-line-strong); color: var(--color-ink); background: var(--color-surface-2); }
+.sheetTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 10px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+.sheetTab {
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.sheetTab:hover { background: var(--color-surface-2); color: var(--color-ink); }
+.sheetTabActive,
+.sheetTabActive:hover {
+  background: var(--color-accent);
   color: var(--color-on-accent);
 }
 
 .economicsBlock {
   padding: 16px 20px;
-  border-top: 1px solid var(--color-line);
+  border-top: 0;
   background: color-mix(in srgb, var(--color-surface-2) 42%, var(--color-surface));
 }
 .economicsTag {
@@ -1293,7 +1373,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 
 .snapshotBlock {
   padding: 16px 20px;
-  border-top: 1px solid var(--color-line);
+  border-top: 0;
   background: var(--color-surface);
 }
 .snapshotInput,
@@ -1388,8 +1468,11 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-size: 11px;
 }
 
-.panelActions { display: none; padding: 16px 20px; }
-@media (min-width: 980px) { .panelActions { display: block; } }
+.panelActions {
+  display: grid;
+  gap: 9px;
+  padding: 16px 18px 18px;
+}
 .saveBtn {
   width: 100%;
   padding: 13px;
@@ -1410,6 +1493,28 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-size: 12.5px; color: var(--color-success);
 }
 .errorMsg { margin-top: 12px; font-size: 12.5px; color: var(--color-danger); }
+.secondaryActionBtn,
+.secondaryActionLink {
+  display: inline-flex;
+  min-height: 42px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.secondaryActionBtn:hover,
+.secondaryActionLink:hover {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface-2);
+}
 
 /* Рендер сцены в панели */
 .renderWrap {
@@ -1443,35 +1548,48 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   border-radius: 12px;
 }
 
-/* ── Липкая мобильная сводка ─────────────────────────────── */
+/* ── Floating calculator bar ─────────────────────────────── */
 .mobileBar {
   position: fixed;
-  left: 0;
-  right: 0;
-  /* Sit above AgentBottomNav (h-14 = 56px) which has z-index 40 */
+  left: 10px;
+  right: 10px;
   bottom: calc(56px + env(safe-area-inset-bottom));
-  z-index: 45;
+  z-index: 55;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px;
+  padding: 9px;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
   background: color-mix(in srgb, var(--color-surface) 95%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-top: 1px solid var(--color-line);
-  box-shadow: 0 -4px 16px -12px rgba(22, 22, 22, 0.14);
+  box-shadow: 0 18px 60px -36px rgba(22, 22, 22, 0.45), 0 4px 18px -14px rgba(22, 22, 22, 0.22);
 }
 @media (min-width: 980px) {
-  .mobileBar { display: none; }
+  .mobileBar {
+    left: 50%;
+    right: auto;
+    bottom: 18px;
+    width: min(760px, calc(100vw - 40px));
+    transform: translateX(-50%);
+  }
 }
 .mobileBarSum {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 10px;
+  min-height: 46px;
   min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 .mobileBarLabel {
+  grid-column: 1 / 2;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1479,16 +1597,34 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   color: var(--color-ink-3);
 }
 .mobileBarAmount {
+  grid-column: 1 / 2;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 18px;
   font-weight: 600;
   color: var(--color-ink);
 }
+.mobileBarMeta {
+  grid-column: 1 / 2;
+  color: var(--color-ink-3);
+  font-size: 11.5px;
+}
+.mobileBarMore {
+  grid-column: 2 / 3;
+  grid-row: 1 / 4;
+  align-self: center;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
 .mobileBarBtn {
   flex-shrink: 0;
   min-height: 44px;
-  padding: 0 22px;
+  padding: 0 18px;
   border: 0;
   border-radius: 999px;
   background: var(--color-accent);

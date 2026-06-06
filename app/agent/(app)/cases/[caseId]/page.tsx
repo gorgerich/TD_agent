@@ -128,6 +128,32 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </div>
       </header>
 
+      <section className="rise rise-1 mb-5 grid gap-3 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="min-w-0">
+          <span className="td-eyebrow text-accent">Следующее действие</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <StagePill stage={stage} />
+            <strong className="text-[17px] font-semibold text-ink">{NEXT_ACTION[stage]}</strong>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {firstMeeting ? (
+            <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary compact>
+              Открыть смету
+            </Action>
+          ) : (
+            <Action href={`/agent/meetings/new?leadId=${id}`} icon={<CalendarDots size={16} />} primary compact>
+              Назначить встречу
+            </Action>
+          )}
+          {cobrowse && (
+            <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
+              Показать клиенту
+            </Action>
+          )}
+        </div>
+      </section>
+
       <div className="grid gap-5 lg:grid-cols-[190px_1fr_310px]">
         {/* LEFT — timeline */}
         <nav aria-label="Этапы кейса" className="rise rise-1 order-1">
@@ -171,15 +197,15 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             </ol>
           </Card>
 
-          <Card title="Задачи" icon={<ClipboardText size={16} weight="duotone" />}>
+          <Card title={`Задачи · ${tasks.filter((task) => !task.completedAt).length}`} icon={<ClipboardText size={16} weight="duotone" />}>
             <TasksSection caseId={id} initial={tasks} />
           </Card>
 
-          <Card title="Заметки" icon={<FileText size={16} weight="duotone" />}>
+          <Card title={`Заметки · ${notes.length}`} icon={<FileText size={16} weight="duotone" />}>
             <NotesSection caseId={id} initial={notes} />
           </Card>
 
-          <Card title="Документы" icon={<Files size={16} weight="duotone" />}>
+          <Card title={`Документы · ${docs.length}`} icon={<Files size={16} weight="duotone" />}>
             <ul className="divide-y divide-line">
               {docs.map((doc) => (
                 <li key={doc.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
@@ -297,7 +323,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
   );
 }
 
-function Action({ href, icon, children, primary, external }: { href: string; icon: React.ReactNode; children: React.ReactNode; primary?: boolean; external?: boolean }) {
+function Action({ href, icon, children, primary, external, compact }: { href: string; icon: React.ReactNode; children: React.ReactNode; primary?: boolean; external?: boolean; compact?: boolean }) {
   const cls = primary
     ? "bg-accent text-on-accent hover:bg-accent-hover"
     : "border border-line bg-surface text-ink hover:border-line-strong";
@@ -305,7 +331,7 @@ function Action({ href, icon, children, primary, external }: { href: string; ico
     <Link
       href={href}
       {...(external ? { target: "_blank", rel: "noopener" } : {})}
-      className={`flex min-h-11 w-full items-center gap-2.5 rounded-[12px] px-4 text-[13.5px] font-semibold transition-colors ${cls}`}
+      className={`flex min-h-11 items-center gap-2.5 rounded-[12px] px-4 text-[13.5px] font-semibold transition-colors ${compact ? "w-auto" : "w-full"} ${cls}`}
     >
       <span className="flex-shrink-0">{icon}</span>
       {children}

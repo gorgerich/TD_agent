@@ -4,13 +4,14 @@ import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phos
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { phone as fmtPhone } from "@/lib/format";
-import { type Stage, STAGE_DOT, NEXT_ACTION, deriveStage, relTime } from "@/lib/case";
+import { type Stage, STAGE_DOT, STAGE_ORDER, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
 
 type CaseRow = {
   id: number;
   name: string;
   phone: string;
   stage: Stage;
+  progress: number;
   nextAction: string;
   lastActivityLabel: string;
   priority: "Высокий" | "Средний" | "Низкий";
@@ -80,6 +81,7 @@ async function getCases(agentId: number): Promise<CasesData> {
         name: lead.name,
         phone: lead.phone,
         stage,
+        progress: stageIndex(stage) + 1,
         nextAction: NEXT_ACTION[stage],
         lastActivityLabel: relTime(lastActivity, now),
         priority: soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
@@ -137,6 +139,7 @@ export default async function CasesPage() {
     name: t.leadName,
     phone: "",
     stage: "Лид" as Stage,
+    progress: 1,
     nextAction: t.title,
     lastActivityLabel: "просрочено",
     priority: "Высокий" as const,
@@ -174,7 +177,7 @@ export default async function CasesPage() {
             </div>
           ) : (
             <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-              <li className="hidden grid-cols-[minmax(220px,1.1fr)_140px_120px_minmax(180px,1fr)_110px_92px_28px] gap-3 border-b border-line bg-surface-2/55 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 lg:grid">
+              <li className="hidden grid-cols-[minmax(210px,1.05fr)_132px_150px_minmax(180px,1fr)_96px_86px_28px] gap-3 border-b border-line bg-surface-2/55 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 lg:grid">
                 <span>Клиент</span>
                 <span>Телефон</span>
                 <span>Этап</span>
@@ -185,13 +188,13 @@ export default async function CasesPage() {
               </li>
               {active.map((c) => (
                 <li key={c.id} className="border-b border-line last:border-0">
-                  <Link href={`/agent/cases/${c.id}`} className="group grid gap-2 px-4 py-3.5 transition-colors hover:bg-surface-2/60 lg:grid-cols-[minmax(220px,1.1fr)_140px_120px_minmax(180px,1fr)_110px_92px_28px] lg:items-center lg:gap-3">
+                  <Link href={`/agent/cases/${c.id}`} className="group grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 lg:grid-cols-[minmax(210px,1.05fr)_132px_150px_minmax(180px,1fr)_96px_86px_28px] lg:items-center lg:gap-3">
                     <span className="min-w-0">
                       <span className="block truncate text-[14.5px] font-semibold text-ink">{c.name}</span>
                       <span className="mt-0.5 block text-[12px] text-ink-3 lg:hidden">{fmtPhone(c.phone)}</span>
                     </span>
                     <span className="tnum hidden truncate text-[13px] text-ink-2 lg:block">{fmtPhone(c.phone)}</span>
-                    <StageBadge stage={c.stage} />
+                    <StageProgress stage={c.stage} progress={c.progress} />
                     <span className="min-w-0 truncate text-[13px] text-ink-2">{c.nextAction}</span>
                     <span className="text-[12px] text-ink-3">{c.lastActivityLabel}</span>
                     <PriorityBadge priority={c.priority} />
@@ -209,8 +212,11 @@ export default async function CasesPage() {
               <RailEmpty>Встреч на сегодня нет</RailEmpty>
             ) : (
               todayMeetings.map((c) => (
-                <Link key={c.id} href={`/agent/cases/${c.id}`} className="flex items-center justify-between gap-2 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink">
-                  <span className="truncate">{c.name}</span>
+                <Link key={c.id} href={`/agent/cases/${c.id}`} className="group flex items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink">
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-ink">{c.name}</span>
+                    <span className="block text-[11.5px] text-ink-3">{c.nextAction}</span>
+                  </span>
                   <span className="tnum flex-shrink-0 text-ink-3">{c.nextMeetingTime}</span>
                 </Link>
               ))
@@ -222,7 +228,7 @@ export default async function CasesPage() {
               <RailEmpty>Критичных кейсов нет</RailEmpty>
             ) : (
               attention.map((c, i) => (
-                <Link key={`${c.id}-${i}`} href={`/agent/cases/${c.id}`} className="block py-2 text-[13px] transition-colors hover:text-ink">
+                <Link key={`${c.id}-${i}`} href={`/agent/cases/${c.id}`} className="group block rounded-[10px] px-2 py-2 text-[13px] transition-colors hover:bg-surface-2 hover:text-ink">
                   <span className="block truncate font-medium text-ink">{c.name}</span>
                   <span className="block truncate text-[12px] text-ink-3">{c.nextAction}</span>
                 </Link>
@@ -235,7 +241,7 @@ export default async function CasesPage() {
               <RailEmpty>Зависших кейсов нет</RailEmpty>
             ) : (
               inactive.map((c) => (
-                <Link key={c.id} href={`/agent/cases/${c.id}`} className="flex items-center justify-between gap-2 py-1.5 text-[13px] text-ink-2 transition-colors hover:text-ink">
+                <Link key={c.id} href={`/agent/cases/${c.id}`} className="group flex items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink">
                   <span className="truncate">{c.name}</span>
                   <span className="flex-shrink-0 text-ink-3">{c.lastActivityLabel}</span>
                 </Link>
@@ -264,11 +270,17 @@ function RailEmpty({ children }: { children: React.ReactNode }) {
   return <p className="py-1.5 text-[13px] text-ink-3">{children}</p>;
 }
 
-function StageBadge({ stage }: { stage: Stage }) {
+function StageProgress({ stage, progress }: { stage: Stage; progress: number }) {
+  const percent = Math.round((progress / STAGE_ORDER.length) * 100);
   return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
-      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
-      {stage}
+    <span className="grid min-w-0 gap-1">
+      <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2">
+        <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
+        {stage}
+      </span>
+      <span className="h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`Прогресс ${percent}%`}>
+        <span className="block h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+      </span>
     </span>
   );
 }
