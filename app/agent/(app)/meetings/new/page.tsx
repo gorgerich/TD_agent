@@ -1,8 +1,27 @@
 import Link from "next/link";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import NewMeetingForm from "./NewMeetingForm";
+import { getAgentSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-export default function NewMeetingPage() {
+async function getClients(agentId: number) {
+  if (!agentId) return [];
+  try {
+    return await prisma.clientLead.findMany({
+      where: { agentId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, name: true, phone: true },
+      take: 80,
+    });
+  } catch {
+    return [];
+  }
+}
+
+export default async function NewMeetingPage() {
+  const session = await getAgentSession();
+  const clients = await getClients(session?.agentId ?? 0);
+
   return (
     <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
       <Link href="/agent/meetings" className="mb-6 inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-[12.5px] font-semibold text-ink-2 transition-colors hover:bg-accent-soft hover:text-ink">
@@ -15,7 +34,7 @@ export default function NewMeetingPage() {
         <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Дата</span>
         <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Время</span>
       </div>
-      <NewMeetingForm />
+      <NewMeetingForm clients={clients} />
     </div>
   );
 }

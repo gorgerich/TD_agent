@@ -3,6 +3,13 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Warning } from "@phosphor-icons/react";
+import { phone as fmtPhone } from "@/lib/format";
+
+type ClientOption = {
+  id: number;
+  name: string;
+  phone: string;
+};
 
 const inputCls =
   "min-h-12 w-full rounded-[16px] border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent";
@@ -17,7 +24,7 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
   );
 }
 
-function FormInner() {
+function FormInner({ clients }: { clients: ClientOption[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [leadId, setLeadId] = useState(searchParams.get("leadId") ?? "");
@@ -49,9 +56,28 @@ function FormInner() {
   return (
     <form onSubmit={handleSubmit} className="max-w-[620px] td-shell" aria-busy={loading}>
       <div className="td-core space-y-5 p-5 sm:p-7">
-        <Field id="meeting-lead-id" label="ID клиента" hint="Откройте раздел «Клиенты», чтобы найти номер клиента">
-          <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
-        </Field>
+        {clients.length > 0 ? (
+          <Field id="meeting-lead-id" label="Клиент" hint="Выберите клиента из текущих дел агента">
+            <select
+              id="meeting-lead-id"
+              className={inputCls}
+              value={leadId}
+              onChange={(e) => setLeadId(e.target.value)}
+              required
+            >
+              <option value="">Выберите клиента</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name} · {fmtPhone(client.phone)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <Field id="meeting-lead-id" label="Клиент" hint="Клиенты не загрузились. Можно временно указать номер дела вручную">
+            <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
+          </Field>
+        )}
 
         <Field id="meeting-scheduled-at" label="Дата и время встречи">
           <input id="meeting-scheduled-at" type="datetime-local" className={inputCls} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
@@ -75,10 +101,10 @@ function FormInner() {
   );
 }
 
-export default function NewMeetingForm() {
+export default function NewMeetingForm({ clients = [] }: { clients?: ClientOption[] }) {
   return (
     <Suspense>
-      <FormInner />
+      <FormInner clients={clients} />
     </Suspense>
   );
 }

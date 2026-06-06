@@ -181,7 +181,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
                 Открыть смету
               </Action>
             ) : (
-              <Action href="/agent/meetings/new" icon={<CalendarDots size={16} />} primary>
+              <Action href={`/agent/meetings/new?leadId=${id}`} icon={<CalendarDots size={16} />} primary>
                 Назначить встречу
               </Action>
             )}
@@ -190,7 +190,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
                 Показать клиенту
               </Action>
             )}
-            <Action href="/agent/meetings/new" icon={<Plus size={16} />}>
+            <Action href={`/agent/meetings/new?leadId=${id}`} icon={<Plus size={16} />}>
               Новая встреча
             </Action>
           </div>

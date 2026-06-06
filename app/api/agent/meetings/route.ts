@@ -17,7 +17,7 @@ const CreateMeetingSchema = z.object({
 
 function parseMeetingDatetime(value?: string): Date | undefined {
   if (!value) return undefined;
-  const normalized = value.includes("Z") ? value : `${value}:00`;
+  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(value) || value.length > 16 ? value : `${value}:00`;
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
