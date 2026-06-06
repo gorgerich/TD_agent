@@ -77,14 +77,14 @@ export function DetailPageSkeleton() {
 export function DashboardSkeleton() {
   return (
     <div className="td-page mx-auto max-w-[1240px] px-4 py-7 sm:px-7 sm:py-10">
-      <div className="sk mb-7 h-[180px] !rounded-[22px]" />
+      <div className="sk mb-7 h-[180px] !rounded-[14px]" />
       <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="sk h-[150px] !rounded-[22px]" />
+          <div key={i} className="sk h-[150px] !rounded-[14px]" />
         ))}
       </div>
       <SkLine w={160} h={14} className="mb-3" />
-      <div className="sk h-[260px] !rounded-[22px]" />
+      <div className="sk h-[260px] !rounded-[14px]" />
     </div>
   );
 }
