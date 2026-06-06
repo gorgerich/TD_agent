@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   type ItemMargin,
   calculateOrderEconomics,
@@ -23,12 +23,15 @@ export function AgentEconomicsBlock({
   marginItems: ItemMargin[];
   marginWarning: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!marginWarning);
 
-  // Auto-expand when there is a margin warning so the agent sees it.
-  useEffect(() => {
+  // Auto-expand when a margin warning appears (render-time state-adjust pattern,
+  // рекомендованный React вместо setState в эффекте).
+  const [prevWarning, setPrevWarning] = useState(marginWarning);
+  if (marginWarning !== prevWarning) {
+    setPrevWarning(marginWarning);
     if (marginWarning) setOpen(true);
-  }, [marginWarning]);
+  }
 
   return (
     <div className={s.economicsBlock}>
