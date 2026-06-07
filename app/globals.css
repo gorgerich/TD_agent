@@ -113,10 +113,10 @@ select, button, input, textarea { font-family: inherit; }
    Quiet luxury: серьёзная серифная гарнитура в display/headline,
    тонкая отрицательная трекинг-коррекция, спокойная авторитетность. */
 .td-display {
-  font-family: var(--font-serif);
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.05;
+  font-family: var(--font-display), var(--font-serif), Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: 0.002em;
+  line-height: 1.0;
 }
 .font-serif { letter-spacing: -0.01em; }
 
