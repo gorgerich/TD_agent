@@ -163,6 +163,11 @@ model ClientLead {
   phone     String
   context   String?   // сведения об усопшем, бюджетные ожидания (ПДн — шифровать на уровне приложения)
   source    String    // telegram | form | agent
+  // NEW (P1): структурный интейк потребностей семьи (захват во время встречи)
+  ceremonyType String? // кремация | погребение | …
+  budget       String? // бюджетная вилка
+  religion     String? // конфессия/традиция
+  needs        String? // особые пожелания (ПДн — шифровать через encryptField)
   meetings  Meeting[]
   tasks     Task[]    // NEW (P5)
   notes     CaseNote[] // NEW (P5)

@@ -20,6 +20,7 @@ import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
 import { DocumentsSection } from "./DocumentsSection";
+import { IntakeSection } from "./IntakeSection";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -83,6 +84,12 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const firstMeeting = meetings[0] ?? null;
   const cobrowse = meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null;
   const context = decryptField(lead.context);
+  const intake = {
+    ceremonyType: lead.ceremonyType ?? "",
+    budget: lead.budget ?? "",
+    religion: lead.religion ?? "",
+    needs: decryptField(lead.needs) ?? "",
+  };
 
   // Derived checklist (read-only статусы — без отдельной таблицы)
   const checklist: { label: string; done: boolean }[] = [
@@ -167,17 +174,22 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
         {/* CENTER — operational */}
         <main className="rise rise-2 order-3 space-y-5 lg:order-2">
-          <Card title="Чек-лист текущего этапа" icon={<ClipboardText size={16} weight="duotone" />}>
+          <Card title="Статус оформления" icon={<ClipboardText size={16} weight="duotone" />}>
+            <p className="mb-3 text-[12px] text-ink-3">Обновляется автоматически по ходу кейса. Рабочие задачи — в блоке «Задачи» ниже.</p>
             <ul className="grid gap-2 sm:grid-cols-2">
               {checklist.map((it) => (
                 <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13.5px]">
                   {it.done
                     ? <Check size={17} weight="bold" className="flex-shrink-0 text-success" />
                     : <Circle size={17} className="flex-shrink-0 text-ink-3" />}
-                  <span className={it.done ? "text-ink-2 line-through" : "text-ink"}>{it.label}</span>
+                  <span className={it.done ? "text-ink-2" : "text-ink"}>{it.label}</span>
                 </li>
               ))}
             </ul>
+          </Card>
+
+          <Card title="Потребности семьи" icon={<ClipboardText size={16} weight="duotone" />}>
+            <IntakeSection caseId={id} initial={intake} />
           </Card>
 
           {context && (
