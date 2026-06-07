@@ -104,7 +104,7 @@ export default function AgentLoginPage() {
           <span className="inline-flex rounded-full border border-on-accent/12 bg-on-accent/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-accent/64">
             агентская платформа
           </span>
-          <h1 className="mt-6 font-serif text-[48px] leading-[1.04] text-on-accent">
+          <h1 className="td-display mt-6 text-[54px] leading-[1.02] text-on-accent">
             Кабинет для реальной работы агента и отдельный безопасный демо-вход.
           </h1>
           <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">

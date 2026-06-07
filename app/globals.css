@@ -86,6 +86,20 @@ body {
   isolation: isolate;
 }
 
+/* Тонкое «бумажное» зерно — атмосфера тихой стационарной фактуры, не плоско.
+   Fixed-слой поверх фона, под контентом; клики проходят насквозь. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/></svg>");
+}
+body > * { position: relative; z-index: 1; }
+
 select, button, input, textarea { font-family: inherit; }
 
 .skip-link {
@@ -113,10 +127,10 @@ select, button, input, textarea { font-family: inherit; }
    Quiet luxury: серьёзная серифная гарнитура в display/headline,
    тонкая отрицательная трекинг-коррекция, спокойная авторитетность. */
 .td-display {
-  font-family: var(--font-serif);
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  line-height: 1.05;
+  font-family: var(--font-display), var(--font-serif), Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: 0.002em;
+  line-height: 1.0;
 }
 .font-serif { letter-spacing: -0.01em; }
 

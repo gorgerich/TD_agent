@@ -93,36 +93,36 @@ export default async function EstimatesPage({
       {estimates.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-          <div className="hidden grid-cols-[minmax(190px,1fr)_122px_118px_96px_90px_96px] gap-3 border-b border-line bg-surface-2/55 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-3 md:grid">
-            <span>Клиент</span>
-            <span>Сумма</span>
-            <span>Статус</span>
-            <span>Дата</span>
-            <span>Кейс</span>
-            <span>Действие</span>
-          </div>
+        <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
           {visible.length === 0 ? (
             <div className="px-4 py-10 text-center text-[13.5px] text-ink-3">В этом фильтре смет нет</div>
           ) : (
             <ul>
-              {visible.map((estimate) => (
-                <li key={estimate.id} className="border-b border-line last:border-0">
-                  <div className="grid gap-2 px-4 py-3 transition-colors hover:bg-surface-2/60 md:grid-cols-[minmax(190px,1fr)_122px_118px_96px_90px_96px] md:items-center md:gap-3">
-                    <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0">
-                      <span className="block truncate text-[14px] font-semibold text-ink">{estimate.clientName}</span>
-                      <span className="mt-0.5 block text-[12px] text-ink-3 md:hidden">Кейс #{estimate.caseId}</span>
-                    </Link>
-                    <span className="tnum text-[13.5px] font-semibold text-ink">{moneyFromKopecks(estimate.total)}</span>
-                    <StatusBadge status={estimate.status} />
-                    <span className="text-[12.5px] text-ink-3">{dateShort(estimate.createdAt)}</span>
-                    <Link href={`/agent/cases/${estimate.caseId}`} className="hidden text-[12.5px] font-medium text-accent hover:text-accent-hover md:inline">Кейс #{estimate.caseId}</Link>
-                    <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12.5px] font-semibold text-ink transition-colors hover:border-line-strong">
-                      Открыть <ArrowRight size={13} />
-                    </Link>
-                  </div>
-                </li>
-              ))}
+              {visible.map((estimate) => {
+                const bar = estimate.filter === "agreed" ? "before:bg-success" : estimate.filter === "sent" ? "before:bg-info" : "before:bg-ink-3";
+                return (
+                  <li key={estimate.id} className="border-b border-line last:border-0">
+                    <div className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}>
+                      <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[15px] font-semibold text-ink">{estimate.clientName}</span>
+                          <StatusBadge status={estimate.status} />
+                        </span>
+                        <span className="mt-1 flex items-center gap-2 text-[12.5px] text-ink-2">
+                          <span className="tnum font-semibold text-ink">{moneyFromKopecks(estimate.total)}</span>
+                          <span className="text-ink-3">·</span>
+                          <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>
+                          <span className="text-ink-3">·</span>
+                          <span className="text-ink-3">Кейс #{estimate.caseId}</span>
+                        </span>
+                      </Link>
+                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                        Открыть <ArrowRight size={13} />
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
