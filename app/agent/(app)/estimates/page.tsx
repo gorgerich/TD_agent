@@ -76,7 +76,7 @@ export default async function EstimatesPage({
       <header className="rise mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Расчёты</span>
-          <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Сметы</h1>
+          <h1 className="mt-1.5 text-[28px] font-semibold leading-tight text-ink sm:text-[34px]">Сметы</h1>
         </div>
         <Link href="/agent/cases" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
           <Plus size={14} weight="bold" /> Новая смета

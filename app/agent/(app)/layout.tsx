@@ -21,18 +21,6 @@ async function getOnboardingCompleted(agentId: number): Promise<boolean> {
   }
 }
 
-// Просроченные задачи — для бейджа в навигации (in-app напоминание).
-async function getOverdueCount(agentId: number, notify: boolean): Promise<number> {
-  if (!agentId || !notify) return 0;
-  try {
-    return await prisma.task.count({
-      where: { agentId, completedAt: null, dueAt: { lt: new Date() } },
-    });
-  } catch {
-    return 0;
-  }
-}
-
 export default async function AgentAppLayout({ children }: { children: ReactNode }) {
   const session = await getAgentSession();
 
@@ -40,22 +28,16 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
   // В dev getAgentSession отдаёт заглушку, поэтому редиректа не будет.
   if (!session) redirect("/agent/login");
 
-  const [onboardingCompleted, agentMeta] = await Promise.all([
-    getOnboardingCompleted(session.agentId),
-    prisma.agent
-      .findUnique({ where: { id: session.agentId }, select: { notifyEnabled: true } })
-      .catch(() => null),
-  ]);
-  const overdue = await getOverdueCount(session.agentId, agentMeta?.notifyEnabled ?? true);
+  const onboardingCompleted = await getOnboardingCompleted(session.agentId);
 
   return (
     <ToastProvider>
       <div className="min-h-[100dvh]">
-        <AgentSidebar session={session} overdue={overdue} />
+        <AgentSidebar session={session} />
         <main id="main-content" className="relative min-h-[100dvh] pb-[72px] pt-14 lg:pb-0 lg:pl-[260px] lg:pt-0">
           {children}
         </main>
-        <AgentBottomNav overdue={overdue} />
+        <AgentBottomNav />
         <CommandPalette />
         <OnboardingTour onboardingCompleted={onboardingCompleted} />
       </div>

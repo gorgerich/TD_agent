@@ -67,12 +67,11 @@ function Brand() {
   );
 }
 
-function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onNavigate?: () => void; overdue?: number }) {
+function NavLinks({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   return (
     <div className="space-y-0.5">
       {NAV.map(({ href, icon: Icon, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
-        const badge = href === "/agent/tasks" && overdue > 0 ? overdue : 0;
         return (
           <Link
             key={href}
@@ -98,11 +97,6 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
               className={active ? "text-accent" : "text-ink-3 group-hover:text-ink-2"}
             />
             {label}
-            {badge > 0 && (
-              <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10.5px] font-bold text-white" aria-label={`${badge} просроченных`}>
-                {badge}
-              </span>
-            )}
           </Link>
         );
       })}
@@ -155,7 +149,7 @@ function UserBlock({
   );
 }
 
-export default function AgentSidebar({ session, overdue = 0 }: { session: AgentSession | null; overdue?: number }) {
+export default function AgentSidebar({ session }: { session: AgentSession | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -195,7 +189,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           <CommandTrigger />
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-1">
-          <NavLinks pathname={pathname} overdue={overdue} />
+          <NavLinks pathname={pathname} />
         </div>
         <div className="border-t border-line px-4 py-4">
           <UserBlock session={session} onLogout={logout} onStartTour={startTour} />
@@ -249,7 +243,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
             <CommandTrigger />
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4">
-            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} overdue={overdue} />
+            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} />
           </div>
           <div className="border-t border-line px-4 py-4">
             <UserBlock session={session} onLogout={logout} onStartTour={startTour} />

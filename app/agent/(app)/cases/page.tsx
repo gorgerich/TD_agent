@@ -239,14 +239,27 @@ export default async function CasesPage() {
             )}
           </RailBlock>
 
-          <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Просроченные задачи">
-            {overdueTasks.length === 0 ? (
-              <RailEmpty>Просроченных задач нет</RailEmpty>
+          <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Требуют внимания">
+            {attention.length === 0 ? (
+              <RailEmpty>Критичных кейсов нет</RailEmpty>
             ) : (
-              overdueTasks.map((t, i) => (
-                <Link key={`${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="group block rounded-[10px] px-2 py-2 text-[13px] transition-colors hover:bg-surface-2">
-                  <span className="block truncate font-medium text-ink">{t.title}</span>
-                  <span className="block truncate text-[12px] text-ink-3">{t.leadName}</span>
+              attention.map((c, i) => (
+                <Link key={`${c.id}-${i}`} href={`/agent/cases/${c.id}`} className="group block rounded-[10px] px-2 py-2 text-[13px] transition-colors hover:bg-surface-2 hover:text-ink">
+                  <span className="block truncate font-medium text-ink">{c.name}</span>
+                  <span className="block truncate text-[12px] text-ink-3">{c.nextAction}</span>
+                </Link>
+              ))
+            )}
+          </RailBlock>
+
+          <RailBlock icon={<Clock size={15} weight="duotone" />} title="Без движения">
+            {inactive.length === 0 ? (
+              <RailEmpty>Зависших кейсов нет</RailEmpty>
+            ) : (
+              inactive.map((c) => (
+                <Link key={c.id} href={`/agent/cases/${c.id}`} className="group flex items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink">
+                  <span className="truncate">{c.name}</span>
+                  <span className="flex-shrink-0 text-ink-3">{c.lastActivityLabel}</span>
                 </Link>
               ))
             )}

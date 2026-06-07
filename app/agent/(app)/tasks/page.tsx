@@ -33,7 +33,7 @@ export default async function TasksPage() {
     <div className="td-page mx-auto max-w-[1180px] px-4 py-5 sm:px-7 sm:py-7">
       <header className="rise mb-5">
         <span className="td-eyebrow">Операционка</span>
-        <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Задачи</h1>
+        <h1 className="mt-1.5 text-[28px] font-semibold leading-tight text-ink sm:text-[34px]">Задачи</h1>
       </header>
 
       {tasks.length === 0 ? (

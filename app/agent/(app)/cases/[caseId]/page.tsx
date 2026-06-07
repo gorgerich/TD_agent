@@ -19,8 +19,6 @@ import { phone as fmtPhone, dateTime } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
-import { DocumentsSection } from "./DocumentsSection";
-import { IntakeSection } from "./IntakeSection";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -58,10 +56,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (!lead) notFound();
 
   // Tasks + Notes (P5) — fetched separately; notes body decrypted server-side.
-  const [rawTasks, rawNotes, rawDocs] = await Promise.all([
+  const [rawTasks, rawNotes] = await Promise.all([
     prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
@@ -84,12 +81,6 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const firstMeeting = meetings[0] ?? null;
   const cobrowse = meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null;
   const context = decryptField(lead.context);
-  const intake = {
-    ceremonyType: lead.ceremonyType ?? "",
-    budget: lead.budget ?? "",
-    religion: lead.religion ?? "",
-    needs: decryptField(lead.needs) ?? "",
-  };
 
   // Derived checklist (read-only статусы — без отдельной таблицы)
   const checklist: { label: string; done: boolean }[] = [
@@ -99,15 +90,12 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     { label: "Оформлен договор", done: orders.length > 0 },
     { label: "Принята оплата", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
   ];
-  const docs = rawDocs.map((d) => ({
-    id: d.id,
-    name: d.name,
-    category: d.category,
-    url: d.url,
-    mimeType: d.mimeType,
-    size: d.size,
-    createdAt: d.createdAt.toISOString(),
-  }));
+  const docs = [
+    { name: "Карточка клиента", type: "Кейс", status: "Готово", done: true },
+    { name: "Смета", type: "Смета", status: versions.length > 0 ? "Сохранена" : "Нужна", done: versions.length > 0 },
+    { name: "Договор", type: "Документ", status: orders.length > 0 ? "Оформлен" : "Нужен после сметы", done: orders.length > 0 },
+    { name: "Подтверждение оплаты", type: "Оплата", status: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) ? "Есть" : "Ожидает", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
+  ];
 
   // Derived activity feed
   const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Кейс создан" }];
@@ -127,7 +115,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       <header className="rise rise-1 mt-4 mb-6 flex flex-col gap-4 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Кейс #{id}</span>
-          <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]">{lead.name}</h1>
+          <h1 className="mt-2 text-[28px] font-semibold leading-tight text-ink sm:text-[34px]">{lead.name}</h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
             <StagePill stage={stage} />
             <span>{NEXT_ACTION[stage]}</span>
@@ -174,22 +162,17 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
         {/* CENTER — operational */}
         <main className="rise rise-2 order-3 space-y-5 lg:order-2">
-          <Card title="Статус оформления" icon={<ClipboardText size={16} weight="duotone" />}>
-            <p className="mb-3 text-[12px] text-ink-3">Обновляется автоматически по ходу кейса. Рабочие задачи — в блоке «Задачи» ниже.</p>
+          <Card title="Чек-лист текущего этапа" icon={<ClipboardText size={16} weight="duotone" />}>
             <ul className="grid gap-2 sm:grid-cols-2">
               {checklist.map((it) => (
                 <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13.5px]">
                   {it.done
                     ? <Check size={17} weight="bold" className="flex-shrink-0 text-success" />
                     : <Circle size={17} className="flex-shrink-0 text-ink-3" />}
-                  <span className={it.done ? "text-ink-2" : "text-ink"}>{it.label}</span>
+                  <span className={it.done ? "text-ink-2 line-through" : "text-ink"}>{it.label}</span>
                 </li>
               ))}
             </ul>
-          </Card>
-
-          <Card title="Потребности семьи" icon={<ClipboardText size={16} weight="duotone" />}>
-            <IntakeSection caseId={id} initial={intake} />
           </Card>
 
           {context && (
@@ -223,7 +206,20 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           </Card>
 
           <Card title={`Документы · ${docs.length}`} icon={<Files size={16} weight="duotone" />}>
-            <DocumentsSection caseId={id} initial={docs} />
+            <ul className="divide-y divide-line">
+              {docs.map((doc) => (
+                <li key={doc.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <span className={`grid h-7 w-7 place-items-center rounded-[9px] ${doc.done ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
+                    {doc.done ? <Check size={14} weight="bold" /> : <Circle size={14} />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-medium text-ink">{doc.name}</span>
+                    <span className="block text-[11.5px] text-ink-3">{doc.type}</span>
+                  </span>
+                  <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11.5px] font-medium text-ink-2">{doc.status}</span>
+                </li>
+              ))}
+            </ul>
           </Card>
         </main>
 
