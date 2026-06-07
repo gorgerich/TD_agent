@@ -73,7 +73,7 @@ export default async function CalendarPage() {
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Расписание</span>
-          <h1 className="mt-2 text-[30px] font-semibold leading-tight text-ink sm:text-[36px]">Календарь</h1>
+          <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[36px]">Календарь</h1>
         </div>
         <Link href="/agent/meetings/new" data-tour="meetings-new" className={buttonClasses({ className: "flex-shrink-0" })}>
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое событие</span><span className="sm:hidden">Событие</span>

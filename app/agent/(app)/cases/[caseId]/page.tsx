@@ -127,7 +127,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       <header className="rise rise-1 mt-4 mb-6 flex flex-col gap-4 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Кейс #{id}</span>
-          <h1 className="mt-2 text-[28px] font-semibold leading-tight text-ink sm:text-[34px]">{lead.name}</h1>
+          <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]">{lead.name}</h1>
           <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
             <StagePill stage={stage} />
             <span>{NEXT_ACTION[stage]}</span>
