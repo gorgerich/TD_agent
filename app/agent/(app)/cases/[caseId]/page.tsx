@@ -11,6 +11,7 @@ import {
   ClockCounterClockwise,
   Files,
   ClipboardText,
+  Warning,
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -118,6 +119,20 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ — ${o.status}` });
   activity.sort((a, b) => b.at - a.at);
 
+  // Risk-flags — производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
+  const nowMs = Date.now();
+  const overdueCount = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt).getTime() < nowMs).length;
+  const paid = orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase()));
+  const meetingSoon = meetings.some((m) => m.scheduledAt && m.scheduledAt.getTime() > nowMs && m.scheduledAt.getTime() - nowMs < 86_400_000);
+  const lastAt = activity[0]?.at ?? lead.createdAt.getTime();
+  const stale = stage !== "Завершено" && nowMs - lastAt > 7 * 86_400_000;
+  const risks: { tone: "danger" | "warning"; label: string }[] = [];
+  if (overdueCount > 0) risks.push({ tone: "danger", label: `Просрочено задач: ${overdueCount}` });
+  if (meetingSoon && versions.length === 0) risks.push({ tone: "warning", label: "Встреча скоро — сметы нет" });
+  if (orders.length > 0 && !paid) risks.push({ tone: "warning", label: "Оплата не завершена" });
+  if ((stage === "Договор" || stage === "Оплата") && docs.length === 0) risks.push({ tone: "warning", label: "Нет документов" });
+  if (stale) risks.push({ tone: "warning", label: "Без движения >7 дней" });
+
   return (
     <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
       <Link href="/agent/cases" className="rise inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink">
@@ -165,6 +180,20 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           )}
         </div>
       </section>
+
+      {risks.length > 0 && (
+        <section className="rise rise-1 mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3">
+          <span className="td-eyebrow mr-1 text-danger">Риски</span>
+          {risks.map((r) => (
+            <span
+              key={r.label}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium ${r.tone === "danger" ? "border-danger/20 bg-danger-soft text-danger" : "border-warning/20 bg-warning-soft text-warning"}`}
+            >
+              <Warning size={12} weight="bold" /> {r.label}
+            </span>
+          ))}
+        </section>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[190px_1fr_310px]">
         {/* LEFT — timeline */}
