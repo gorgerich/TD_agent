@@ -25,6 +25,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cod
   const meetingId = await resolveMeetingId(code);
   if (!meetingId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // P2: отметить первый просмотр клиентом (не блокирует ответ).
+  if (!code.startsWith("DEV-")) {
+    prisma.meeting
+      .updateMany({ where: { id: meetingId, coViewedAt: null }, data: { coViewedAt: new Date() } })
+      .catch(() => {});
+  }
+
   // 1. Live cobrowse session takes priority.
   const entry = await readCoState(meetingId);
   if (entry) {

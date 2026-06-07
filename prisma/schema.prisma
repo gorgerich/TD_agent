@@ -185,6 +185,8 @@ model Meeting {
   agent        Agent         @relation(fields: [agentId], references: [id])
   status       MeetingStatus @default(SCHEDULED)
   cobrowseCode String?       @unique // короткий код для «зеркала сметы» у клиента
+  coViewedAt   DateTime?     // NEW (P2): когда клиент впервые открыл /co
+  coAgreedAt   DateTime?     // NEW (P2): когда клиент нажал «Согласовать смету»
 
   orders       Order[]
   payments     Payment[]

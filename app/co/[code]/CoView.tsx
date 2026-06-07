@@ -47,6 +47,18 @@ export default function CoView({ code }: { code: string }) {
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [agentName, setAgentName] = useState<string | null>(null);
   const [agentPhone, setAgentPhone] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [agreeBusy, setAgreeBusy] = useState(false);
+
+  async function agree() {
+    setAgreeBusy(true);
+    try {
+      const res = await fetch(`/api/co/${code}/agree`, { method: "POST" });
+      if (res.ok) setAgreed(true);
+    } catch { /* ignore */ } finally {
+      setAgreeBusy(false);
+    }
+  }
 
   const attrJson = JSON.stringify(attributes);
 
@@ -232,12 +244,20 @@ export default function CoView({ code }: { code: string }) {
       {/* Client actions (snapshot only — live cobrowse has no final agree yet) */}
       {isSnapshot && (
         <div className="mb-5 space-y-3">
-          <a
-            href={agentPhone ? `tel:${agentPhone}` : "#"}
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[15px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover"
-          >
-            Согласовать смету
-          </a>
+          {agreed ? (
+            <div className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-success/25 bg-success-soft px-6 text-[15px] font-semibold text-success">
+              ✓ Смета согласована
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={agree}
+              disabled={agreeBusy}
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[15px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover disabled:opacity-60"
+            >
+              {agreeBusy ? "Сохраняю…" : "Согласовать смету"}
+            </button>
+          )}
           {agentPhone && (
             <a
               href={`tel:${agentPhone}`}

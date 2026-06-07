@@ -37,7 +37,7 @@ async function getCase(caseId: number, agentId: number) {
         meetings: {
           orderBy: { id: "asc" },
           select: {
-            id: true, status: true, scheduledAt: true, cobrowseCode: true,
+            id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
             quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
             orders: { select: { status: true, createdAt: true } },
           },
@@ -117,6 +117,10 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   }
   for (const v of versions) activity.push({ at: v.createdAt.getTime(), label: "Смета сохранена" });
   for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ — ${o.status}` });
+  for (const m of meetings) {
+    if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt) });
+    if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt) });
+  }
   activity.sort((a, b) => b.at - a.at);
 
   // Risk-flags — производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
