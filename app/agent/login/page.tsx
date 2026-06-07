@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { Field } from "@/components/ui/Field";
 import {
   ArrowRight,
   EnvelopeSimple,
@@ -109,13 +109,13 @@ export default function AgentLoginPage() {
           </h1>
           <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">
             {[
-              ["профиль", "Агент"],
-              ["поток", "Встречи"],
-              ["итог", "Смета"],
+              ["до встречи", "Бриф и подготовка"],
+              ["встреча", "Смета при семье"],
+              ["после", "Задачи и сроки"],
             ].map(([label, value]) => (
               <div key={label} className="rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
-                <p className="mt-2 font-serif text-[20px] text-on-accent">{value}</p>
+                <p className="mt-2 td-display text-[19px] leading-tight text-on-accent">{value}</p>
               </div>
             ))}
           </div>
@@ -178,7 +178,7 @@ export default function AgentLoginPage() {
                     label="Имя агента"
                     icon={<User size={17} />}
                     value={name}
-                    onChange={setName}
+                    onChange={(e) => setName(e.target.value)}
                     placeholder="Например, Анна Иванова"
                     autoComplete="name"
                     autoFocus
@@ -191,7 +191,7 @@ export default function AgentLoginPage() {
                   label="Email"
                   icon={<EnvelopeSimple size={17} />}
                   value={email}
-                  onChange={setEmail}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="agent@example.com"
                   type="email"
                   inputMode="email"
@@ -206,7 +206,7 @@ export default function AgentLoginPage() {
                     label="Телефон"
                     icon={<Phone size={17} />}
                     value={phone}
-                    onChange={setPhone}
+                    onChange={(e) => setPhone(e.target.value)}
                     placeholder="+7 900 000 00 00"
                     type="tel"
                     inputMode="tel"
@@ -219,7 +219,7 @@ export default function AgentLoginPage() {
                   label="Пароль"
                   icon={<Key size={17} />}
                   value={password}
-                  onChange={setPassword}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder={isRegister ? "Минимум 8 символов" : "Введите пароль"}
                   type={showPw ? "text" : "password"}
                   autoComplete={isRegister ? "new-password" : "current-password"}
@@ -287,59 +287,3 @@ export default function AgentLoginPage() {
   );
 }
 
-function Field({
-  id,
-  label,
-  icon,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  inputMode,
-  autoComplete,
-  autoFocus,
-  minLength,
-  required,
-  trailing,
-}: {
-  id: string;
-  label: string;
-  icon: ReactNode;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-  type?: string;
-  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  autoComplete?: string;
-  autoFocus?: boolean;
-  minLength?: number;
-  required?: boolean;
-  trailing?: ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">
-        {label}
-      </label>
-      <div className="relative">
-        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3">{icon}</span>
-        <input
-          id={id}
-          type={type}
-          inputMode={inputMode}
-          className={`min-h-14 w-full rounded-[16px] border border-line bg-surface py-3 pl-11 text-[15px] text-ink outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.76)] transition-colors placeholder:text-ink-3 focus:border-accent ${trailing ? "pr-12" : "pr-4"}`}
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          autoFocus={autoFocus}
-          minLength={minLength}
-          required={required}
-        />
-        {trailing && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2">{trailing}</span>
-        )}
-      </div>
-    </div>
-  );
-}
