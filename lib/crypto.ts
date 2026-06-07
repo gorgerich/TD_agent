@@ -46,9 +46,15 @@ export function decryptString(stored: string): string {
   // Если prod env ещё не получил APP_ENCRYPTION_KEY, не роняем MVP-экраны.
   // Зашифрованное ПДн без ключа не показываем.
   if (!key) return "";
-  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
-  decipher.setAuthTag(Buffer.from(tagB64, "base64"));
-  return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
+    decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+    return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
+  } catch {
+    // Старые demo-данные могли быть зашифрованы другим ключом после сброса env.
+    // Не показываем ciphertext и не роняем рабочие экраны.
+    return "";
+  }
 }
 
 /** Шифрование nullable-поля ПДн для записи в БД. null/"" — без изменений. */
