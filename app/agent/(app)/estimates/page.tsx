@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FileText, Plus } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, Briefcase, FileText } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, moneyFromKopecks } from "@/lib/format";
@@ -79,7 +79,7 @@ export default async function EstimatesPage({
           <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Сметы</h1>
         </div>
         <Link href="/agent/cases" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
-          <Plus size={14} weight="bold" /> Новая смета
+          <Briefcase size={14} weight="bold" /> Выбрать кейс для сметы
         </Link>
       </header>
 

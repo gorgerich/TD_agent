@@ -44,6 +44,7 @@ export default function CoView({ code }: { code: string }) {
   const [result, setResult] = useState<CalculationResult | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
+  const [checkedOnce, setCheckedOnce] = useState(false);
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [agentName, setAgentName] = useState<string | null>(null);
   const [agentPhone, setAgentPhone] = useState<string | null>(null);
@@ -71,6 +72,7 @@ export default function CoView({ code }: { code: string }) {
         const res = await fetch(`/api/co/${code}`, { cache: "no-store" });
         if (!res.ok || !alive) return;
         const data: ApiResponse = await res.json();
+        setCheckedOnce(true);
         const state = data?.state;
         if (!state) return;
 
@@ -103,7 +105,6 @@ export default function CoView({ code }: { code: string }) {
     poll();
     intervalId = setInterval(poll, 700);
     return () => { alive = false; if (intervalId) clearInterval(intervalId); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, attrJson]);
 
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
@@ -119,9 +120,13 @@ export default function CoView({ code }: { code: string }) {
         <div className="mb-5 grid h-16 w-16 place-items-center rounded-[14px] bg-accent-soft">
           <span className="block h-4 w-4 rounded-full bg-accent" />
         </div>
-        <h2 className="font-serif text-[22px] text-ink">Агент готовит вашу смету</h2>
+        <h2 className="font-serif text-[22px] text-ink">
+          {checkedOnce ? "Смета ещё не отправлена" : "Проверяем смету"}
+        </h2>
         <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
-          Страница обновится сама, как только агент начнёт. Ничего нажимать не нужно.
+          {checkedOnce
+            ? "Агент откроет или сохранит смету, и она появится здесь автоматически."
+            : "Страница обновится сама, как только агент начнёт. Ничего нажимать не нужно."}
         </p>
         <div className="mt-7 flex gap-1.5">
           {[0, 1, 2].map((i) => (

@@ -16,7 +16,7 @@ import {
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
-import { phone as fmtPhone, dateTime } from "@/lib/format";
+import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
@@ -124,6 +124,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   activity.sort((a, b) => b.at - a.at);
 
   // Risk-flags — производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
+  // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker for case risk signals
   const nowMs = Date.now();
   const overdueCount = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt).getTime() < nowMs).length;
   const paid = orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase()));
@@ -136,6 +137,48 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (orders.length > 0 && !paid) risks.push({ tone: "warning", label: "Оплата не завершена" });
   if ((stage === "Договор" || stage === "Оплата") && docs.length === 0) risks.push({ tone: "warning", label: "Нет документов" });
   if (stale) risks.push({ tone: "warning", label: "Без движения >7 дней" });
+
+  const latestVersion = versions.reduce<(typeof versions)[number] | null>((latest, version) => {
+    if (!latest) return version;
+    return version.createdAt.getTime() > latest.createdAt.getTime() ? version : latest;
+  }, null);
+  const openTasksCount = tasks.filter((task) => !task.completedAt).length;
+  const requiredDocCategories = ["Свидетельство о смерти", "Паспорт", "Договор"];
+  const missingRequiredDocs = requiredDocCategories.filter((category) => !docs.some((doc) => doc.category === category)).length;
+  const clientState = meetings.some((m) => m.coAgreedAt)
+    ? "согласовал"
+    : meetings.some((m) => m.coViewedAt)
+      ? "открыл смету"
+      : cobrowse
+        ? "ссылка готова"
+        : "не отправляли";
+  const outcomeRows: Array<{ label: string; value: string; tone: "neutral" | "success" | "warning" }> = [
+    {
+      label: "Смета",
+      value: latestVersion ? moneyFromKopecks(latestVersion.total) : "не собрана",
+      tone: latestVersion ? "success" : "warning",
+    },
+    {
+      label: "Клиент",
+      value: clientState,
+      tone: clientState === "согласовал" || clientState === "открыл смету" ? "success" : cobrowse ? "neutral" : "warning",
+    },
+    {
+      label: "Документы",
+      value: missingRequiredDocs === 0 ? "минимум собран" : `нужно ${missingRequiredDocs}`,
+      tone: missingRequiredDocs === 0 ? "success" : "warning",
+    },
+    {
+      label: "Задачи",
+      value: openTasksCount > 0 ? `${openTasksCount} открыто` : "нет открытых",
+      tone: openTasksCount > 0 ? "neutral" : "success",
+    },
+  ];
+  const meetingOutcomeAction = latestVersion
+    ? "Зафиксируйте документы, следующий контакт и оплату."
+    : firstMeeting
+      ? "Откройте встречу и соберите первую смету."
+      : "Назначьте встречу и заполните вводные по семье.";
 
   return (
     <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
@@ -182,6 +225,21 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
               Показать клиенту
             </Action>
           )}
+        </div>
+      </section>
+
+      <section className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft),var(--hl-top)]">
+        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <span className="td-eyebrow">Итог встречи</span>
+            <h2 className="mt-1 text-[17px] font-semibold text-ink">Что уже зафиксировано</h2>
+          </div>
+          <p className="max-w-[420px] text-[12.5px] leading-relaxed text-ink-2 sm:text-right">{meetingOutcomeAction}</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-4">
+          {outcomeRows.map((item) => (
+            <OutcomeTile key={item.label} {...item} />
+          ))}
         </div>
       </section>
 
@@ -338,6 +396,20 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-[12px] border border-line bg-surface-2/55 px-3 py-2">
       <span className="block text-[11px] text-ink-3">{label}</span>
       <span className="tnum mt-0.5 block text-[18px] font-semibold text-ink">{value}</span>
+    </div>
+  );
+}
+
+function OutcomeTile({ label, value, tone }: { label: string; value: string; tone: "neutral" | "success" | "warning" }) {
+  const dot = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : "bg-accent";
+  const bg = tone === "success" ? "bg-success-soft/50" : tone === "warning" ? "bg-warning-soft/55" : "bg-surface-2/55";
+  return (
+    <div className={`rounded-[13px] border border-line px-3 py-2.5 ${bg}`}>
+      <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-3">
+        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+        {label}
+      </span>
+      <span className="tnum mt-1 block truncate text-[15px] font-semibold text-ink">{value}</span>
     </div>
   );
 }

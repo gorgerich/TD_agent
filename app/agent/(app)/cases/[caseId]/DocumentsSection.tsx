@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { FilePdf, FileImage, FileArrowUp, Trash, ArrowSquareOut } from "@phosphor-icons/react";
+import { CheckCircle, FilePdf, FileImage, FileArrowUp, Trash, ArrowSquareOut, WarningCircle } from "@phosphor-icons/react";
 
 type Doc = {
   id: number;
@@ -14,6 +14,29 @@ type Doc = {
 };
 
 const CATEGORIES = ["Свидетельство о смерти", "Паспорт", "Договор", "Доверенность", "Прочее"] as const;
+
+const REQUIRED_DOCUMENTS = [
+  {
+    category: "Свидетельство о смерти",
+    title: "Свидетельство о смерти",
+    hint: "Нужно для договора и запуска оформления.",
+  },
+  {
+    category: "Паспорт",
+    title: "Паспорт заявителя",
+    hint: "Проверка данных плательщика и договора.",
+  },
+  {
+    category: "Договор",
+    title: "Договор",
+    hint: "Фиксация состава услуг и оплаты.",
+  },
+  {
+    category: "Доверенность",
+    title: "Доверенность",
+    hint: "Если агент действует от имени семьи.",
+  },
+] as const;
 
 function fmtSize(b: number) {
   if (b < 1024) return `${b} Б`;
@@ -63,10 +86,60 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
     });
   }
 
+  const docsByCategory = new Map<string, Doc>();
+  for (const doc of docs) {
+    if (!docsByCategory.has(doc.category)) docsByCategory.set(doc.category, doc);
+  }
+
   return (
     <div>
+      <div className="mb-4 rounded-[14px] border border-line bg-surface-2/45 p-3">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Что нужно собрать</span>
+          <span className="tnum text-[12px] text-ink-3">
+            {REQUIRED_DOCUMENTS.filter((doc) => docsByCategory.has(doc.category)).length}/{REQUIRED_DOCUMENTS.length}
+          </span>
+        </div>
+        <ul className="space-y-2">
+          {REQUIRED_DOCUMENTS.map((item) => {
+            const uploaded = docsByCategory.get(item.category);
+            return (
+              <li key={item.category} className="flex items-start gap-2.5 rounded-[12px] border border-line bg-surface px-3 py-2.5">
+                {uploaded ? (
+                  <CheckCircle size={17} weight="fill" className="mt-0.5 flex-shrink-0 text-success" />
+                ) : (
+                  <WarningCircle size={17} weight="duotone" className="mt-0.5 flex-shrink-0 text-warning" />
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="text-[13.5px] font-medium text-ink">{item.title}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${uploaded ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
+                      {uploaded ? "Загружен" : "Требуется"}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block text-[12px] text-ink-3">
+                    {uploaded ? `${uploaded.name} · ${fmtDate(uploaded.createdAt)}` : item.hint}
+                  </span>
+                </span>
+                {uploaded && (
+                  <a
+                    href={uploaded.url}
+                    target="_blank"
+                    rel="noopener"
+                    className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent"
+                    aria-label={`Открыть ${item.title}`}
+                  >
+                    <ArrowSquareOut size={15} />
+                  </a>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       {docs.length === 0 ? (
-        <p className="text-[13.5px] text-ink-3">Документов пока нет</p>
+        <p className="mb-3 text-[13.5px] text-ink-3">Файлы ещё не загружены. Начните с документа, который сейчас есть у клиента.</p>
       ) : (
         <ul className="mb-3 space-y-2">
           {docs.map((d) => {

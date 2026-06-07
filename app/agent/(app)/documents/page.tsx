@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowSquareOut, Files, FilePdf, FileImage } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ArrowSquareOut, CheckCircle, Files, FilePdf, FileImage, WarningCircle } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort } from "@/lib/format";
@@ -8,16 +8,25 @@ const CATEGORIES = ["Свидетельство о смерти", "Паспор�
 type Category = (typeof CATEGORIES)[number];
 
 type DocRow = {
-  id: number;
+  id: string;
   caseId: number;
   clientName: string;
+  title: string;
   name: string;
   category: string;
-  url: string;
-  mimeType: string;
-  size: number;
+  status: "Требуется" | "Загружен";
+  url: string | null;
+  mimeType: string | null;
+  size: number | null;
   createdAt: Date;
 };
+
+const REQUIRED_DOCUMENTS: Array<{ category: Category; title: string }> = [
+  { category: "Свидетельство о смерти", title: "Свидетельство о смерти" },
+  { category: "Паспорт", title: "Паспорт заявителя" },
+  { category: "Договор", title: "Договор" },
+  { category: "Доверенность", title: "Доверенность" },
+];
 
 function fmtSize(b: number) {
   if (b < 1024) return `${b} Б`;
@@ -28,26 +37,54 @@ function fmtSize(b: number) {
 async function getDocuments(agentId: number): Promise<DocRow[]> {
   if (!agentId) return [];
   try {
-    const rows = await prisma.document.findMany({
+    const leads = await prisma.clientLead.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 100,
       select: {
-        id: true, leadId: true, name: true, category: true, url: true, mimeType: true, size: true, createdAt: true,
-        lead: { select: { name: true } },
+        id: true,
+        name: true,
+        createdAt: true,
+        documents: {
+          orderBy: { createdAt: "desc" },
+          select: { id: true, name: true, category: true, url: true, mimeType: true, size: true, createdAt: true },
+        },
       },
     });
-    return rows.map((d) => ({
-      id: d.id,
-      caseId: d.leadId,
-      clientName: d.lead.name,
-      name: d.name,
-      category: d.category,
-      url: d.url,
-      mimeType: d.mimeType,
-      size: d.size,
-      createdAt: d.createdAt,
-    }));
+    return leads.flatMap((lead) => {
+      const required = REQUIRED_DOCUMENTS.map((template) => {
+        const uploaded = lead.documents.find((d) => d.category === template.category);
+        return {
+          id: uploaded ? `doc-${uploaded.id}` : `missing-${lead.id}-${template.category}`,
+          caseId: lead.id,
+          clientName: lead.name,
+          title: template.title,
+          name: uploaded?.name ?? template.title,
+          category: template.category,
+          status: uploaded ? "Загружен" : "Требуется",
+          url: uploaded?.url ?? null,
+          mimeType: uploaded?.mimeType ?? null,
+          size: uploaded?.size ?? null,
+          createdAt: uploaded?.createdAt ?? lead.createdAt,
+        } satisfies DocRow;
+      });
+      const other = lead.documents
+        .filter((d) => !REQUIRED_DOCUMENTS.some((template) => template.category === d.category))
+        .map((d) => ({
+          id: `doc-${d.id}`,
+          caseId: lead.id,
+          clientName: lead.name,
+          title: d.category,
+          name: d.name,
+          category: d.category,
+          status: "Загружен" as const,
+          url: d.url,
+          mimeType: d.mimeType,
+          size: d.size,
+          createdAt: d.createdAt,
+        }));
+      return [...required, ...other];
+    });
   } catch {
     return [];
   }
@@ -63,6 +100,8 @@ export default async function DocumentsPage({
   const session = await getAgentSession();
   const docs = await getDocuments(session?.agentId ?? 0);
   const visible = activeCat === "all" ? docs : docs.filter((d) => d.category === activeCat);
+  const requiredCount = docs.filter((d) => d.status === "Требуется").length;
+  const uploadedCount = docs.filter((d) => d.status === "Загружен").length;
 
   return (
     <div className="td-page mx-auto max-w-[1180px] px-4 py-5 sm:px-7 sm:py-7">
@@ -70,7 +109,7 @@ export default async function DocumentsPage({
         <span className="td-eyebrow">Файлы кейсов</span>
         <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Документы</h1>
         <p className="mt-2 text-[13.5px] text-ink-2">
-          <span className="font-semibold text-ink">{docs.length}</span> загружено по всем кейсам
+          <span className="font-semibold text-ink">{requiredCount}</span> требуется · <span className="font-semibold text-ink">{uploadedCount}</span> загружено
         </p>
       </header>
 
@@ -88,11 +127,16 @@ export default async function DocumentsPage({
             <ul>
               {visible.map((doc) => {
                 const isPdf = doc.mimeType === "application/pdf";
+                const isUploaded = doc.status === "Загружен";
                 return (
                   <li key={doc.id} className="border-b border-line last:border-0">
                     <div className="group flex items-center gap-3.5 py-3.5 pl-4 pr-4 transition-colors hover:bg-surface-2/50">
                       <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[11px] bg-surface-2 ring-1 ring-line">
-                        {isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />}
+                        {isUploaded ? (
+                          isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
+                        ) : (
+                          <WarningCircle size={20} weight="duotone" className="text-warning" />
+                        )}
                       </span>
                       <Link href={`/agent/cases/${doc.caseId}`} className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-semibold text-ink">{doc.name}</span>
@@ -101,14 +145,26 @@ export default async function DocumentsPage({
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{doc.category}</span>
                           <span className="text-ink-3">·</span>
-                          <span className="text-ink-3">{fmtSize(doc.size)}</span>
+                          <StatusBadge status={doc.status} />
+                          {doc.size != null && (
+                            <>
+                              <span className="text-ink-3">·</span>
+                              <span className="text-ink-3">{fmtSize(doc.size)}</span>
+                            </>
+                          )}
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(doc.createdAt)}</span>
                         </span>
                       </Link>
-                      <a href={doc.url} target="_blank" rel="noopener" className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
-                        Открыть <ArrowSquareOut size={13} />
-                      </a>
+                      {doc.url ? (
+                        <a href={doc.url} target="_blank" rel="noopener" className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                          Открыть <ArrowSquareOut size={13} />
+                        </a>
+                      ) : (
+                        <Link href={`/agent/cases/${doc.caseId}`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12.5px] font-semibold text-warning transition-colors hover:bg-warning-soft/70">
+                          К кейсу <ArrowRight size={13} />
+                        </Link>
+                      )}
                     </div>
                   </li>
                 );
@@ -118,6 +174,19 @@ export default async function DocumentsPage({
         </div>
       )}
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: DocRow["status"] }) {
+  const cls = status === "Загружен"
+    ? "border-success/20 bg-success-soft text-success"
+    : "border-warning/20 bg-warning-soft text-warning";
+  const Icon = status === "Загружен" ? CheckCircle : WarningCircle;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cls}`}>
+      <Icon size={11} weight={status === "Загружен" ? "fill" : "duotone"} />
+      {status}
+    </span>
   );
 }
 
