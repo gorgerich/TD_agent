@@ -12,9 +12,10 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 const PREFIX = "enc1:";
 const IV_LEN = 12;
 
-function getKey(): Buffer {
+function getKey({ allowMissing = false }: { allowMissing?: boolean } = {}): Buffer | null {
   const secret = process.env.APP_ENCRYPTION_KEY;
   if (process.env.NODE_ENV === "production" && !secret) {
+    if (allowMissing) return null;
     throw new Error("APP_ENCRYPTION_KEY must be set in production");
   }
   return createHash("sha256")
@@ -25,7 +26,9 @@ function getKey(): Buffer {
 /** Шифрует строку. Возвращает "enc1:iv.tag.ciphertext" (всё base64). */
 export function encryptString(plain: string): string {
   const iv = randomBytes(IV_LEN);
-  const cipher = createCipheriv("aes-256-gcm", getKey(), iv);
+  const key = getKey();
+  if (!key) throw new Error("APP_ENCRYPTION_KEY must be set in production");
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `${PREFIX}${iv.toString("base64")}.${tag.toString("base64")}.${ct.toString("base64")}`;
@@ -39,7 +42,11 @@ export function decryptString(stored: string): string {
   if (!stored.startsWith(PREFIX)) return stored; // легаси-плейнтекст
   const [ivB64, tagB64, ctB64] = stored.slice(PREFIX.length).split(".");
   if (!ivB64 || !tagB64 || !ctB64) throw new Error("Повреждённый шифртекст");
-  const decipher = createDecipheriv("aes-256-gcm", getKey(), Buffer.from(ivB64, "base64"));
+  const key = getKey({ allowMissing: true });
+  // Если prod env ещё не получил APP_ENCRYPTION_KEY, не роняем MVP-экраны.
+  // Зашифрованное ПДн без ключа не показываем.
+  if (!key) return "";
+  const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
   decipher.setAuthTag(Buffer.from(tagB64, "base64"));
   return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
 }
