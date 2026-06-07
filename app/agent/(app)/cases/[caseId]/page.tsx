@@ -32,7 +32,12 @@ type Activity = { at: number; label: string; sub?: string };
 async function getCase(caseId: number, agentId: number) {
   try {
     return await prisma.clientLead.findFirst({
-      where: { id: caseId, ...(agentId ? { agentId } : {}) },
+      where: {
+        id: caseId,
+        ...(agentId
+          ? { OR: [{ agentId }, { meetings: { some: { agentId } } }] }
+          : {}),
+      },
       include: {
         meetings: {
           orderBy: { id: "asc" },
