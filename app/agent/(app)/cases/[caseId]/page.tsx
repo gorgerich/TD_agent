@@ -19,6 +19,7 @@ import { phone as fmtPhone, dateTime } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
+import { DocumentsSection } from "./DocumentsSection";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -56,9 +57,10 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (!lead) notFound();
 
   // Tasks + Notes (P5) — fetched separately; notes body decrypted server-side.
-  const [rawTasks, rawNotes] = await Promise.all([
+  const [rawTasks, rawNotes, rawDocs] = await Promise.all([
     prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
+    prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
@@ -90,12 +92,15 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     { label: "Оформлен договор", done: orders.length > 0 },
     { label: "Принята оплата", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
   ];
-  const docs = [
-    { name: "Карточка клиента", type: "Кейс", status: "Готово", done: true },
-    { name: "Смета", type: "Смета", status: versions.length > 0 ? "Сохранена" : "Нужна", done: versions.length > 0 },
-    { name: "Договор", type: "Документ", status: orders.length > 0 ? "Оформлен" : "Нужен после сметы", done: orders.length > 0 },
-    { name: "Подтверждение оплаты", type: "Оплата", status: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) ? "Есть" : "Ожидает", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
-  ];
+  const docs = rawDocs.map((d) => ({
+    id: d.id,
+    name: d.name,
+    category: d.category,
+    url: d.url,
+    mimeType: d.mimeType,
+    size: d.size,
+    createdAt: d.createdAt.toISOString(),
+  }));
 
   // Derived activity feed
   const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Кейс создан" }];
@@ -206,20 +211,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           </Card>
 
           <Card title={`Документы · ${docs.length}`} icon={<Files size={16} weight="duotone" />}>
-            <ul className="divide-y divide-line">
-              {docs.map((doc) => (
-                <li key={doc.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span className={`grid h-7 w-7 place-items-center rounded-[9px] ${doc.done ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
-                    {doc.done ? <Check size={14} weight="bold" /> : <Circle size={14} />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13.5px] font-medium text-ink">{doc.name}</span>
-                    <span className="block text-[11.5px] text-ink-3">{doc.type}</span>
-                  </span>
-                  <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-[11.5px] font-medium text-ink-2">{doc.status}</span>
-                </li>
-              ))}
-            </ul>
+            <DocumentsSection caseId={id} initial={docs} />
           </Card>
         </main>
 
