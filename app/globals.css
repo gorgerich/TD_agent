@@ -136,14 +136,26 @@ select, button, input, textarea { font-family: inherit; }
 }
 .font-serif { letter-spacing: -0.01em; }
 
-/* Надзаголовок секции — спокойная подпись, НЕ пилюля. */
+/* Надзаголовок секции — спокойная подпись, НЕ пилюля.
+   Редакционная подпись: короткая акцент-черта перед текстом (адаптивный цвет). */
 .td-eyebrow {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--color-ink-3);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+.td-eyebrow::before {
+  content: "";
+  width: 16px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.45;
+  flex-shrink: 0;
 }
 
 /* Убираем серую вспышку тача, ускоряем нажатие, плавные состояния кнопок */
