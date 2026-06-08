@@ -86,7 +86,7 @@ export default async function CalendarPage() {
             <CalendarDots size={26} weight="duotone" />
           </span>
           <h2 className="text-[20px] font-semibold text-ink">Событий пока нет</h2>
-          <p className="mx-auto mt-1.5 max-w-[320px] text-[13.5px] leading-relaxed text-ink-2">
+          <p className="mx-auto mt-1.5 max-w-[320px] text-[13px] leading-relaxed text-ink-2">
             Запланируйте встречу или звонок — увидите их здесь по дням.
           </p>
           <Link href="/agent/meetings/new" className={buttonClasses({ className: "mt-5" })}>

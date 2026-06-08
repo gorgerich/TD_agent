@@ -41,7 +41,7 @@ export default async function QuoteBuilderPage({
 
   return (
     <div>
-      <nav aria-label="Навигация" className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-1.5 px-4 pt-7 text-[12.5px] sm:px-7 sm:pt-9">
+      <nav aria-label="Навигация" className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-1.5 px-4 pt-7 text-[12px] sm:px-7 sm:pt-9">
         <Link href={caseId ? `/agent/cases/${caseId}` : "/agent/cases"} className="inline-flex items-center gap-1 text-ink-3 transition-colors hover:text-ink">
           <ArrowLeft size={13} /> Назад
         </Link>

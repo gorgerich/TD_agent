@@ -112,7 +112,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-[13.5px] font-medium text-ink">{item.title}</span>
+                    <span className="text-[13px] font-medium text-ink">{item.title}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${uploaded ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
                       {uploaded ? "Загружен" : "Требуется"}
                     </span>
@@ -126,7 +126,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                     href={uploaded.url}
                     target="_blank"
                     rel="noopener"
-                    className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent"
+                    className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-accent"
                     aria-label={`Открыть ${item.title}`}
                   >
                     <ArrowSquareOut size={15} />
@@ -139,7 +139,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
       </div>
 
       {docs.length === 0 ? (
-        <p className="mb-3 text-[13.5px] text-ink-3">Файлы ещё не загружены. Начните с документа, который сейчас есть у клиента.</p>
+        <p className="mb-3 text-[13px] text-ink-3">Файлы ещё не загружены. Начните с документа, который сейчас есть у клиента.</p>
       ) : (
         <ul className="mb-3 space-y-2">
           {docs.map((d) => {
@@ -150,14 +150,14 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                   {isPdf ? <FilePdf size={18} weight="duotone" className="text-danger" /> : <FileImage size={18} weight="duotone" className="text-info" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-medium text-ink">{d.name}</span>
-                  <span className="block text-[11.5px] text-ink-3">{d.category} · {fmtSize(d.size)} · {fmtDate(d.createdAt)}</span>
+                  <span className="block truncate text-[13px] font-medium text-ink">{d.name}</span>
+                  <span className="block text-[11px] text-ink-3">{d.category} · {fmtSize(d.size)} · {fmtDate(d.createdAt)}</span>
                 </span>
                 <a
                   href={d.url}
                   target="_blank"
                   rel="noopener"
-                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px] text-ink-3 transition-colors hover:bg-surface hover:text-accent"
+                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface hover:text-accent"
                   aria-label="Открыть документ"
                 >
                   <ArrowSquareOut size={16} />
@@ -165,7 +165,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                 <button
                   type="button"
                   onClick={() => remove(d.id)}
-                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px] text-ink-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] text-ink-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
                   aria-label="Удалить документ"
                 >
                   <Trash size={15} />
@@ -180,7 +180,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="min-h-9 rounded-[10px] border border-line bg-surface px-2.5 text-[12.5px] text-ink outline-none focus:border-accent"
+          className="min-h-9 rounded-[10px] border border-line bg-surface px-2.5 text-[12px] text-ink outline-none focus:border-accent"
         >
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -189,13 +189,13 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12.5px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
         >
           <FileArrowUp size={15} weight="bold" /> {busy ? "Загружаю…" : "Загрузить"}
         </button>
       </div>
-      {error && <p role="alert" className="mt-2 text-[12.5px] text-danger">{error}</p>}
-      <p className="mt-2 text-[11.5px] text-ink-3">PDF, JPG, PNG · до 10 МБ</p>
+      {error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}
+      <p className="mt-2 text-[11px] text-ink-3">PDF, JPG, PNG · до 10 МБ</p>
     </div>
   );
 }

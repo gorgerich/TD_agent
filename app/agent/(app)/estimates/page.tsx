@@ -95,7 +95,7 @@ export default async function EstimatesPage({
       ) : (
         <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
           {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13.5px] text-ink-3">В этом фильтре смет нет</div>
+            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре смет нет</div>
           ) : (
             <ul>
               {visible.map((estimate) => {
@@ -105,10 +105,10 @@ export default async function EstimatesPage({
                     <div className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}>
                       <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-[15px] font-semibold text-ink">{estimate.clientName}</span>
+                          <span className="truncate text-[14px] font-semibold text-ink">{estimate.clientName}</span>
                           <StatusBadge status={estimate.status} />
                         </span>
-                        <span className="mt-1 flex items-center gap-2 text-[12.5px] text-ink-2">
+                        <span className="mt-1 flex items-center gap-2 text-[12px] text-ink-2">
                           <span className="tnum font-semibold text-ink">{moneyFromKopecks(estimate.total)}</span>
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>
@@ -116,7 +116,7 @@ export default async function EstimatesPage({
                           <span className="text-ink-3">Кейс #{estimate.caseId}</span>
                         </span>
                       </Link>
-                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
                         Открыть <ArrowRight size={13} />
                       </Link>
                     </div>
@@ -138,7 +138,7 @@ function FilterTabs({ active, base, counts }: { active: EstimateFilter; base: st
         <Link
           key={item.id}
           href={item.id === "all" ? base : `${base}?status=${item.id}`}
-          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12.5px] font-semibold transition-colors ${
+          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-semibold transition-colors ${
             active === item.id ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
           }`}
         >
@@ -165,8 +165,8 @@ function EmptyState() {
       <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
         <FileText size={24} weight="duotone" />
       </span>
-      <h2 className="text-[19px] font-semibold text-ink">Смет пока нет</h2>
-      <p className="mx-auto mt-1.5 max-w-[360px] text-[13.5px] leading-relaxed text-ink-2">
+      <h2 className="text-[18px] font-semibold text-ink">Смет пока нет</h2>
+      <p className="mx-auto mt-1.5 max-w-[360px] text-[13px] leading-relaxed text-ink-2">
         Смета создаётся из кейса или встречи. Откройте кейс, соберите услуги и сохраните версию.
       </p>
     </div>

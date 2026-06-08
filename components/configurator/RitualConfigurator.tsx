@@ -36,7 +36,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Select<T extends string>({ value, options, onChange }: { value: T; options: Option<T>[]; onChange: (v: T) => void }) {
   return (
-    <div className="relative flex items-center gap-2 rounded-[9px] border border-white/12 bg-white/[0.06] px-3 py-2.5">
+    <div className="relative flex items-center gap-2 rounded-[10px] border border-white/12 bg-white/[0.06] px-3 py-2.5">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
@@ -206,7 +206,7 @@ function FullView({
 
       <main className="order-first flex h-[42vh] min-w-0 flex-shrink-0 flex-col lg:order-none lg:h-auto lg:flex-1">
         <div className="flex items-center justify-end gap-2 border-b border-white/8 bg-[#1d1d20] px-4 py-2.5">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-[11.5px] text-white/55">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 text-[11px] text-white/55">
             <Info size={13} /> Превью подбирается по выбору
           </span>
           {onClose && (
@@ -254,12 +254,12 @@ export default function RitualConfigurator({ mode = "inline" }: { mode?: "inline
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div>
             <p className="text-[13px] font-semibold text-ink">Визуализация комплекта</p>
-            <p className="mt-0.5 text-[11.5px] text-ink-3">Подбор вида гроба, обивки, венка и креста</p>
+            <p className="mt-0.5 text-[11px] text-ink-3">Подбор вида гроба, обивки, венка и креста</p>
           </div>
           <button
             type="button"
             onClick={() => setFull(true)}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-[12.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-accent px-3.5 py-2 text-[12px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
           >
             <ArrowsOut size={14} /> На весь экран
           </button>
@@ -275,7 +275,7 @@ export default function RitualConfigurator({ mode = "inline" }: { mode?: "inline
           <Stage config={config} />
         </button>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-[11.5px] text-ink-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-[11px] text-ink-2">
           <span>Гроб: {sum.coffin}</span>
           <span>Обивка: {sum.upholstery}</span>
           {sum.wreath && <span>Венок: {sum.wreath}</span>}

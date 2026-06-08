@@ -12,7 +12,7 @@ export type Intake = {
 
 const CEREMONY = ["кремация", "погребение"] as const;
 const inputCls =
-  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_rgba(30,84,70,0.12)]";
+  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_rgba(30,84,70,0.12)]";
 
 export function IntakeSection({ caseId, initial }: { caseId: number; initial: Intake }) {
   const [v, setV] = useState<Intake>(initial);
@@ -99,8 +99,8 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
         >
           {busy ? "Сохраняю…" : "Сохранить потребности"}
         </button>
-        {ok && <span className="flex items-center gap-1 text-[12.5px] text-success"><Check size={14} weight="bold" /> Сохранено</span>}
-        {err && <span className="flex items-center gap-1 text-[12.5px] text-danger"><Warning size={14} /> {err}</span>}
+        {ok && <span className="flex items-center gap-1 text-[12px] text-success"><Check size={14} weight="bold" /> Сохранено</span>}
+        {err && <span className="flex items-center gap-1 text-[12px] text-danger"><Warning size={14} /> {err}</span>}
       </div>
     </div>
   );

@@ -55,7 +55,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
-      <Link href="/agent/meetings" className="mb-6 inline-flex items-center gap-1.5 text-[12.5px] text-ink-2 transition-colors hover:text-ink">
+      <Link href="/agent/meetings" className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-ink-2 transition-colors hover:text-ink">
         <ArrowLeft size={14} /> Все встречи
       </Link>
 
@@ -69,7 +69,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         <div className="flex-shrink-0 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-5 py-4 sm:min-w-[170px] sm:text-right">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent/80">Код co-browse</p>
           <p className="tnum font-mono text-[24px] font-semibold tracking-[0.16em] text-accent">{cobrowseCode}</p>
-          <p className="mt-1.5 text-[10.5px] text-ink-3">/co/{cobrowseCode}</p>
+          <p className="mt-1.5 text-[10px] text-ink-3">/co/{cobrowseCode}</p>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
             <span className="tnum font-mono text-[14px] text-ink">{meeting.lead.phone}</span>
           </InfoField>
           <InfoField label="Статус">
-            <span className="inline-flex items-center gap-2 text-[13.5px] font-medium text-ink">
+            <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink">
               <span className={`h-2 w-2 rounded-full ${STATUS_DOT[meeting.status] ?? "bg-ink-3"}`} />
               {STATUS_LABELS[meeting.status] ?? meeting.status}
             </span>
@@ -113,7 +113,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       <div className="rise rise-2 mb-5 flex flex-wrap gap-2.5">
         <Link
           href={`/agent/meetings/${meeting.id}/quote`}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
+          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
         >
           <FileText size={16} /> Конструктор сметы
         </Link>
@@ -121,7 +121,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           href={`/co/${cobrowseCode}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
         >
           <ArrowSquareOut size={16} /> Co-browse
         </a>
@@ -202,7 +202,7 @@ function DealFunnel({
 function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</p>
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</p>
       {children}
     </div>
   );

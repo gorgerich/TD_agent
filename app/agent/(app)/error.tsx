@@ -25,12 +25,12 @@ export default function AgentError({
       <h1 className="mt-4 font-serif text-[30px] leading-tight text-ink sm:text-[36px]">
         Что-то пошло не так
       </h1>
-      <p className="mx-auto mt-2 max-w-[400px] text-[14.5px] leading-relaxed text-ink-2">
+      <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
         Не удалось загрузить раздел. Это временно — повторите попытку. Если повторяется,
         вернитесь на главную.
       </p>
       {error.digest && (
-        <p className="mt-2 font-mono text-[11.5px] text-ink-3">код: {error.digest}</p>
+        <p className="mt-2 font-mono text-[11px] text-ink-3">код: {error.digest}</p>
       )}
       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
         <button

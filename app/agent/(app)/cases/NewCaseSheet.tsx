@@ -73,7 +73,7 @@ export default function NewCaseSheet() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13.5px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
+        className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
       >
         <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый кейс</span><span className="sm:hidden">Кейс</span>
       </button>
@@ -104,7 +104,7 @@ export default function NewCaseSheet() {
                       key={c}
                       type="button"
                       onClick={() => setCeremony(ceremony === c ? "" : c)}
-                      className={`min-h-11 rounded-[12px] border text-[13.5px] font-medium capitalize transition-colors ${
+                      className={`min-h-11 rounded-[12px] border text-[13px] font-medium capitalize transition-colors ${
                         ceremony === c ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-ink-2 hover:border-line-strong"
                       }`}
                     >
@@ -140,7 +140,7 @@ export default function NewCaseSheet() {
 }
 
 const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (

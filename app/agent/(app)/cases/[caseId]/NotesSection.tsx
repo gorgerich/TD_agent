@@ -51,13 +51,13 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
   return (
     <div>
       {notes.length === 0 && !showForm && (
-        <p className="text-[13.5px] text-ink-3">Нет заметок</p>
+        <p className="text-[13px] text-ink-3">Нет заметок</p>
       )}
       {notes.length > 0 && (
         <ul className="mb-3 space-y-3">
           {notes.map((note) => (
             <li key={note.id} className="group relative rounded-[12px] border border-line bg-surface-2 px-4 py-3">
-              <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-ink">{note.body}</p>
+              <p className="whitespace-pre-line text-[13px] leading-relaxed text-ink">{note.body}</p>
               <div className="mt-1.5 flex items-center justify-between gap-2">
                 <span className="text-[11px] text-ink-3">{fmtDate(note.createdAt)}</span>
                 <button
@@ -78,7 +78,7 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
         <form onSubmit={addNote} className="mt-3 space-y-2.5 rounded-[14px] border border-line bg-surface-2 p-3.5">
           <textarea
             autoFocus
-            className="min-h-[80px] w-full resize-y rounded-[10px] border border-line bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:border-accent"
+            className="min-h-[80px] w-full resize-y rounded-[10px] border border-line bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
             placeholder="Заметка по делу (только для агента)"
             value={body}
             onChange={(e) => setBody(e.target.value)}

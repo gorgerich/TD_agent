@@ -89,7 +89,7 @@ export default function AttributePicker({
                     <Swatch item={item} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13.5px] font-semibold text-ink">{item.name}</span>
+                    <span className="block truncate text-[13px] font-semibold text-ink">{item.name}</span>
                     <span className="tnum block text-[12px] text-ink-2">{formatCurrency(item.price)}</span>
                   </span>
                   {active && (

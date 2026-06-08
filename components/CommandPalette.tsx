@@ -156,17 +156,17 @@ export default function CommandPalette() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск действий и страниц…"
-            className="w-full bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-3"
+            className="w-full bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-3"
             aria-label="Поиск команд"
           />
-          <kbd className="hidden flex-shrink-0 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10.5px] font-semibold text-ink-3 sm:block">
+          <kbd className="hidden flex-shrink-0 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[10px] font-semibold text-ink-3 sm:block">
             ESC
           </kbd>
         </div>
 
         <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <p className="px-3 py-8 text-center text-[13.5px] text-ink-3">Ничего не найдено</p>
+            <p className="px-3 py-8 text-center text-[13px] text-ink-3">Ничего не найдено</p>
           ) : (
             filtered.map((c, i) => {
               const Icon = c.icon;
@@ -183,7 +183,7 @@ export default function CommandPalette() {
                   }`}
                 >
                   <span
-                    className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[9px] ${
+                    className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] ${
                       isActive ? "bg-accent text-on-accent" : "bg-surface-2 text-ink-3"
                     }`}
                   >
@@ -212,7 +212,7 @@ export default function CommandPalette() {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="grid h-5 min-w-5 place-items-center rounded border border-line bg-surface px-1 text-[10.5px] font-semibold text-ink-3">
+    <kbd className="grid h-5 min-w-5 place-items-center rounded border border-line bg-surface px-1 text-[10px] font-semibold text-ink-3">
       {children}
     </kbd>
   );

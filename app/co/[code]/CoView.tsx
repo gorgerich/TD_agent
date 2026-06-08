@@ -142,12 +142,12 @@ export default function CoView({ code }: { code: string }) {
   const statusBadge = isSnapshot ? (
     <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1.5">
       <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-      <span className="text-[11.5px] font-semibold text-accent">Смета сформирована</span>
+      <span className="text-[11px] font-semibold text-accent">Смета сформирована</span>
     </div>
   ) : (
     <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success-soft px-3 py-1.5">
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-      <span className="text-[11.5px] font-semibold text-success">Обновляется</span>
+      <span className="text-[11px] font-semibold text-success">Обновляется</span>
     </div>
   );
 
@@ -195,7 +195,7 @@ export default function CoView({ code }: { code: string }) {
             {sections.map((section, i) => (
               <div key={i} className={i > 0 ? "border-t border-line" : ""}>
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
                   <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(section.total)}</span>
                 </div>
                 {section.items?.map((item, j) => (
@@ -212,7 +212,7 @@ export default function CoView({ code }: { code: string }) {
             {estimateItems.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Атрибутика</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Атрибутика</span>
                   <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(estimateTotal)}</span>
                 </div>
                 {estimateItems.map((item) => (
@@ -231,7 +231,7 @@ export default function CoView({ code }: { code: string }) {
             {externalExpenses.length > 0 && (
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
                   <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(externalTotal)}</span>
                 </div>
                 {externalExpenses.map((expense) => (
@@ -250,7 +250,7 @@ export default function CoView({ code }: { code: string }) {
       {isSnapshot && (
         <div className="mb-5 space-y-3">
           {agreed ? (
-            <div className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-success/25 bg-success-soft px-6 text-[15px] font-semibold text-success">
+            <div className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-success/25 bg-success-soft px-6 text-[14px] font-semibold text-success">
               ✓ Смета согласована
             </div>
           ) : (
@@ -258,7 +258,7 @@ export default function CoView({ code }: { code: string }) {
               type="button"
               onClick={agree}
               disabled={agreeBusy}
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[15px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover disabled:opacity-60"
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[14px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover disabled:opacity-60"
             >
               {agreeBusy ? "Сохраняю…" : "Согласовать смету"}
             </button>
@@ -266,7 +266,7 @@ export default function CoView({ code }: { code: string }) {
           {agentPhone && (
             <a
               href={`tel:${agentPhone}`}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 font-semibold text-[14.5px] text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 font-semibold text-[14px] text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
             >
               Связаться с агентом
               {agentName ? ` — ${agentName.split(" ")[0]}` : ""}

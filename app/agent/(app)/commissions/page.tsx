@@ -58,7 +58,7 @@ export default async function CommissionsPage() {
                 <CurrencyRub size={28} weight="duotone" />
               </span>
               <h2 className="font-serif text-[20px] text-ink">Начислений пока нет</h2>
-              <p className="mx-auto mt-1.5 max-w-[340px] text-[13.5px] leading-relaxed text-ink-2">
+              <p className="mx-auto mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-ink-2">
                 Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
               </p>
             </div>
@@ -117,10 +117,10 @@ function SumCard({ icon, label, value, sub, tone = "accent" }: { icon: React.Rea
       <div className="td-core p-5">
       <div className="mb-5 flex items-center justify-between gap-2.5">
         <span className={`grid h-11 w-11 place-items-center rounded-[14px] ${chip}`}>{icon}</span>
-        <span className="text-right text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</span>
+        <span className="text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</span>
       </div>
       <div className="tnum mb-2 font-serif text-[30px] font-semibold leading-none text-ink">{value}</div>
-      <p className="text-[11.5px] text-ink-3">{sub}</p>
+      <p className="text-[11px] text-ink-3">{sub}</p>
       </div>
     </div>
   );

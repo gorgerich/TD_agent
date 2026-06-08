@@ -25,7 +25,7 @@ function CommandTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(COMMAND_OPEN_EVENT))}
-      className="flex w-full items-center gap-2.5 rounded-[11px] border border-line bg-surface-2/60 px-3 py-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
+      className="flex w-full items-center gap-2.5 rounded-[10px] border border-line bg-surface-2/60 px-3 py-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
     >
       <MagnifyingGlass size={16} className="flex-shrink-0" />
       <span className="flex-1 text-left">Поиск и действия</span>
@@ -58,7 +58,7 @@ function Brand() {
         <span className="block h-2 w-2 rounded-full bg-accent" />
       </span>
       <span className="leading-none">
-        <span className="block td-display text-[17px] text-ink">Тихий дом</span>
+        <span className="block td-display text-[16px] text-ink">Тихий дом</span>
         <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
           Кабинет агента
         </span>
@@ -80,7 +80,7 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={[
-              "group relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[13.5px] transition-colors duration-200",
+              "group relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] transition-colors duration-200",
               active
                 ? "bg-surface-2 font-semibold text-ink"
                 : "font-medium text-ink-2 hover:bg-surface-2/55 hover:text-ink",
@@ -99,7 +99,7 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
             />
             {label}
             {badge > 0 && (
-              <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10.5px] font-bold text-white" aria-label={`${badge} просроченных`}>
+              <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white" aria-label={`${badge} просроченных`}>
                 {badge}
               </span>
             )}
@@ -131,14 +131,14 @@ function UserBlock({
           </span>
           <span className="min-w-0 leading-tight">
             <span className="block truncate text-[13px] font-semibold text-ink">{session.name ?? "Агент"}</span>
-            <span className="block text-[11.5px] text-ink-3">{ROLE_LABELS[session.role] ?? session.role}</span>
+            <span className="block text-[11px] text-ink-3">{ROLE_LABELS[session.role] ?? session.role}</span>
           </span>
         </div>
       )}
       <button
         type="button"
         onClick={onStartTour}
-        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12.5px] font-medium text-ink-2 transition-colors hover:bg-surface-2/55 hover:text-ink"
+        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12px] font-medium text-ink-2 transition-colors hover:bg-surface-2/55 hover:text-ink"
       >
         <GraduationCap size={16} className="text-ink-3" />
         Обучение
@@ -146,7 +146,7 @@ function UserBlock({
       <button
         type="button"
         onClick={onLogout}
-        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12.5px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
+        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
       >
         <SignOut size={16} />
         Выйти

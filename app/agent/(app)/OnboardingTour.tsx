@@ -286,7 +286,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
         style={cardStyle}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-accent">
+          <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent">
             <GraduationCap size={13} weight="fill" />
             {isIntro ? "Обучение" : `Шаг ${index + 1} из ${totalSteps}`}
           </span>
@@ -300,10 +300,10 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
           </button>
         </div>
 
-        <h3 className="font-serif text-[19px] leading-tight text-ink">
+        <h3 className="font-serif text-[18px] leading-tight text-ink">
           {isIntro ? tour.intro?.title : current?.title}
         </h3>
-        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+        <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
           {isIntro ? tour.intro?.body : current?.body}
         </p>
 
@@ -325,7 +325,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
           <button
             type="button"
             onClick={() => close(true)}
-            className="text-[12.5px] font-medium text-ink-3 transition-colors hover:text-ink-2"
+            className="text-[12px] font-medium text-ink-3 transition-colors hover:text-ink-2"
           >
             Пропустить
           </button>

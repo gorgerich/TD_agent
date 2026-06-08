@@ -76,7 +76,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
     <div>
       {/* Task list */}
       {tasks.length === 0 && !showForm && (
-        <p className="text-[13.5px] text-ink-3">Нет задач</p>
+        <p className="text-[13px] text-ink-3">Нет задач</p>
       )}
       {open.length > 0 && (
         <ul className="mb-3 space-y-2">
@@ -98,7 +98,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
         <form onSubmit={addTask} className="mt-3 space-y-2.5 rounded-[14px] border border-line bg-surface-2 p-3.5">
           <input
             autoFocus
-            className="w-full rounded-[10px] border border-line bg-surface px-3 py-2 text-[13.5px] text-ink outline-none focus:border-accent"
+            className="w-full rounded-[10px] border border-line bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
             placeholder="Текст задачи"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -160,11 +160,11 @@ function TaskRow({ task, onToggle, onDelete }: { task: Task; onToggle: () => voi
         {task.completedAt && <Check size={11} weight="bold" />}
       </button>
       <span className="min-w-0 flex-1">
-        <span className={`block text-[13.5px] leading-snug ${task.completedAt ? "text-ink-3 line-through" : "text-ink"}`}>
+        <span className={`block text-[13px] leading-snug ${task.completedAt ? "text-ink-3 line-through" : "text-ink"}`}>
           {task.title}
         </span>
         {task.dueAt && (
-          <span className={`flex items-center gap-1 text-[11.5px] ${overdue ? "text-danger" : "text-ink-3"}`}>
+          <span className={`flex items-center gap-1 text-[11px] ${overdue ? "text-danger" : "text-ink-3"}`}>
             {overdue && <Warning size={11} weight="bold" />}
             {fmtDue(task.dueAt)}
           </span>

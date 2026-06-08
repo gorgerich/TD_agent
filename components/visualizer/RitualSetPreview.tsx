@@ -133,7 +133,7 @@ function Placeholder({ node, onDark = false }: { node?: ReactNode; onDark?: bool
     <div className="absolute inset-0 grid place-items-center px-6 text-center">
       <div>
         <ImageSquare size={34} weight="duotone" className={`mx-auto mb-3 ${onDark ? "text-white/40" : "text-ink-3"}`} />
-        <p className={`text-[13.5px] font-semibold ${onDark ? "text-white/80" : "text-ink-2"}`}>Визуализация комплекта</p>
+        <p className={`text-[13px] font-semibold ${onDark ? "text-white/80" : "text-ink-2"}`}>Визуализация комплекта</p>
         <p className={`mt-1 text-[12px] ${onDark ? "text-white/45" : "text-ink-3"}`}>Изображения подбираются по вашему выбору</p>
       </div>
     </div>
@@ -153,7 +153,7 @@ function SummaryRows({ summary }: { summary?: RitualSetSummary }) {
   return (
     <dl className="mt-3 grid gap-1.5">
       {visible.map(([k, v]) => (
-        <div key={k} className="flex gap-2 text-[12.5px]">
+        <div key={k} className="flex gap-2 text-[12px]">
           <dt className="min-w-[64px] flex-shrink-0 font-medium text-ink-3">{k}:</dt>
           <dd className="text-ink-2">{v}</dd>
         </div>
@@ -246,7 +246,7 @@ export default function RitualSetPreview({
 
       {(title || summary) && (
         <div className="mt-3">
-          {title && <p className="text-[12.5px] font-semibold text-ink">{title}</p>}
+          {title && <p className="text-[12px] font-semibold text-ink">{title}</p>}
           <SummaryRows summary={summary} />
         </div>
       )}

@@ -20,9 +20,9 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "min-h-9 px-3.5 text-[12.5px]",
-  md: "min-h-11 px-5 text-[13.5px]",
-  lg: "min-h-12 px-6 text-[14.5px]",
+  sm: "min-h-9 px-3.5 text-[12px]",
+  md: "min-h-11 px-5 text-[13px]",
+  lg: "min-h-12 px-6 text-[14px]",
 };
 
 export function buttonClasses(opts: { variant?: Variant; size?: Size; className?: string } = {}): string {

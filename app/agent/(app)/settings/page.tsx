@@ -25,7 +25,7 @@ export default async function SettingsPage() {
 
       <section className="rise rise-1 td-shell p-5">
         <div className="mb-4 flex items-center gap-3">
-          <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[13px] bg-accent-soft text-accent">
+          <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent">
             <UserCircle size={22} weight="duotone" />
           </span>
           <div>
@@ -48,7 +48,7 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
   return (
     <div className={`flex items-center justify-between gap-4 px-4 py-3 ${last ? "" : "border-b border-line"}`}>
       <span className="text-[13px] text-ink-3">{label}</span>
-      <span className="text-right text-[13.5px] font-medium text-ink">{value}</span>
+      <span className="text-right text-[13px] font-medium text-ink">{value}</span>
     </div>
   );
 }

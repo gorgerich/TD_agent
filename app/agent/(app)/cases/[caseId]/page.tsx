@@ -195,7 +195,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <div>
           <span className="td-eyebrow">Кейс #{id}</span>
           <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]">{lead.name}</h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13.5px] text-ink-2">
+          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
             <StagePill stage={stage} />
             <span>{NEXT_ACTION[stage]}</span>
           </p>
@@ -212,7 +212,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           <span className="td-eyebrow text-accent">Следующее действие</span>
           <div className="mt-1.5 flex flex-wrap items-center gap-2">
             <StagePill stage={stage} />
-            <strong className="text-[17px] font-semibold text-ink">{NEXT_ACTION[stage]}</strong>
+            <strong className="text-[16px] font-semibold text-ink">{NEXT_ACTION[stage]}</strong>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -237,9 +237,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <span className="td-eyebrow">Итог встречи</span>
-            <h2 className="mt-1 text-[17px] font-semibold text-ink">Что уже зафиксировано</h2>
+            <h2 className="mt-1 text-[16px] font-semibold text-ink">Что уже зафиксировано</h2>
           </div>
-          <p className="max-w-[420px] text-[12.5px] leading-relaxed text-ink-2 sm:text-right">{meetingOutcomeAction}</p>
+          <p className="max-w-[420px] text-[12px] leading-relaxed text-ink-2 sm:text-right">{meetingOutcomeAction}</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-4">
           {outcomeRows.map((item) => (
@@ -274,7 +274,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             <p className="mb-3 text-[12px] text-ink-3">Обновляется автоматически по ходу кейса. Рабочие задачи — в блоке «Задачи» ниже.</p>
             <ul className="grid gap-2 sm:grid-cols-2">
               {checklist.map((it) => (
-                <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13.5px]">
+                <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13px]">
                   {it.done
                     ? <Check size={17} weight="bold" className="flex-shrink-0 text-success" />
                     : <Circle size={17} className="flex-shrink-0 text-ink-3" />}
@@ -302,7 +302,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
                     <ClockCounterClockwise size={15} className="text-ink-3" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[13.5px] text-ink">{a.label}</span>
+                    <span className="block text-[13px] text-ink">{a.label}</span>
                     {a.sub && <span className="block text-[12px] text-ink-3">{a.sub}</span>}
                   </span>
                 </li>
@@ -376,7 +376,7 @@ function Timeline({ current }: { current: number }) {
               </span>
               {i < STAGE_ORDER.length - 1 && <span className={`mt-1 w-px flex-1 ${i < current ? "bg-accent/40" : "bg-line"}`} />}
             </span>
-            <span className={`pt-0.5 text-[13.5px] ${active ? "font-semibold text-ink" : done ? "text-ink-2" : "text-ink-3"}`}>{s}</span>
+            <span className={`pt-0.5 text-[13px] ${active ? "font-semibold text-ink" : done ? "text-ink-2" : "text-ink-3"}`}>{s}</span>
           </li>
         );
       })}
@@ -409,12 +409,12 @@ function OutcomeTile({ label, value, tone }: { label: string; value: string; ton
   const dot = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : "bg-accent";
   const bg = tone === "success" ? "bg-success-soft/50" : tone === "warning" ? "bg-warning-soft/55" : "bg-surface-2/55";
   return (
-    <div className={`rounded-[13px] border border-line px-3 py-2.5 ${bg}`}>
-      <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-ink-3">
+    <div className={`rounded-[12px] border border-line px-3 py-2.5 ${bg}`}>
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
         {label}
       </span>
-      <span className="tnum mt-1 block truncate text-[15px] font-semibold text-ink">{value}</span>
+      <span className="tnum mt-1 block truncate text-[14px] font-semibold text-ink">{value}</span>
     </div>
   );
 }
@@ -431,8 +431,8 @@ function StagePill({ stage }: { stage: (typeof STAGE_ORDER)[number] }) {
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
     <div className={`flex items-center justify-between gap-3 py-2.5 ${last ? "" : "border-b border-line"}`}>
-      <span className="text-[12.5px] text-ink-3">{label}</span>
-      <span className="tnum text-right text-[13.5px] font-medium text-ink">{value}</span>
+      <span className="text-[12px] text-ink-3">{label}</span>
+      <span className="tnum text-right text-[13px] font-medium text-ink">{value}</span>
     </div>
   );
 }
@@ -445,7 +445,7 @@ function Action({ href, icon, children, primary, external, compact }: { href: st
     <Link
       href={href}
       {...(external ? { target: "_blank", rel: "noopener" } : {})}
-      className={`flex min-h-11 items-center gap-2.5 rounded-[12px] px-4 text-[13.5px] font-semibold transition-[background-color,border-color,box-shadow] duration-150 ${compact ? "w-auto" : "w-full"} ${cls}`}
+      className={`flex min-h-11 items-center gap-2.5 rounded-[12px] px-4 text-[13px] font-semibold transition-[background-color,border-color,box-shadow] duration-150 ${compact ? "w-auto" : "w-full"} ${cls}`}
     >
       <span className="flex-shrink-0">{icon}</span>
       {children}

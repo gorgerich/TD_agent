@@ -13,14 +13,14 @@ type ClientOption = {
 };
 
 const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 py-2.5 text-[14.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 py-2.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
 
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
       <label htmlFor={id} className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</label>
       {children}
-      {hint && <p className="mt-1.5 text-[11.5px] text-ink-3">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[11px] text-ink-3">{hint}</p>}
     </div>
   );
 }

@@ -108,7 +108,7 @@ export default async function DocumentsPage({
       <header className="rise mb-5">
         <span className="td-eyebrow">Файлы кейсов</span>
         <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Документы</h1>
-        <p className="mt-2 text-[13.5px] text-ink-2">
+        <p className="mt-2 text-[13px] text-ink-2">
           <span className="font-semibold text-ink">{requiredCount}</span> требуется · <span className="font-semibold text-ink">{uploadedCount}</span> загружено
         </p>
       </header>
@@ -122,7 +122,7 @@ export default async function DocumentsPage({
       ) : (
         <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
           {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13.5px] text-ink-3">В этой категории документов нет</div>
+            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этой категории документов нет</div>
           ) : (
             <ul>
               {visible.map((doc) => {
@@ -131,7 +131,7 @@ export default async function DocumentsPage({
                 return (
                   <li key={doc.id} className="border-b border-line last:border-0">
                     <div className="group flex items-center gap-3.5 py-3.5 pl-4 pr-4 transition-colors hover:bg-surface-2/50">
-                      <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[11px] bg-surface-2 ring-1 ring-line">
+                      <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] bg-surface-2 ring-1 ring-line">
                         {isUploaded ? (
                           isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
                         ) : (
@@ -139,8 +139,8 @@ export default async function DocumentsPage({
                         )}
                       </span>
                       <Link href={`/agent/cases/${doc.caseId}`} className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold text-ink">{doc.name}</span>
-                        <span className="mt-1 flex items-center gap-2 text-[12.5px] text-ink-2">
+                        <span className="block truncate text-[14px] font-semibold text-ink">{doc.name}</span>
+                        <span className="mt-1 flex items-center gap-2 text-[12px] text-ink-2">
                           <span className="truncate">{doc.clientName}</span>
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{doc.category}</span>
@@ -157,11 +157,11 @@ export default async function DocumentsPage({
                         </span>
                       </Link>
                       {doc.url ? (
-                        <a href={doc.url} target="_blank" rel="noopener" className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                        <a href={doc.url} target="_blank" rel="noopener" className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
                           Открыть <ArrowSquareOut size={13} />
                         </a>
                       ) : (
-                        <Link href={`/agent/cases/${doc.caseId}`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12.5px] font-semibold text-warning transition-colors hover:bg-warning-soft/70">
+                        <Link href={`/agent/cases/${doc.caseId}`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70">
                           К кейсу <ArrowRight size={13} />
                         </Link>
                       )}
@@ -202,7 +202,7 @@ function FilterTabs({ active, counts, total }: { active: string; counts: Record<
         <Link
           key={item.id}
           href={item.id === "all" ? base : `${base}?cat=${encodeURIComponent(item.id)}`}
-          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12.5px] font-semibold transition-colors ${
+          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-semibold transition-colors ${
             active === item.id ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
           }`}
         >
@@ -220,8 +220,8 @@ function EmptyState() {
       <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
         <Files size={24} weight="duotone" />
       </span>
-      <h2 className="text-[19px] font-semibold text-ink">Документов пока нет</h2>
-      <p className="mx-auto mt-1.5 max-w-[400px] text-[13.5px] leading-relaxed text-ink-2">
+      <h2 className="text-[18px] font-semibold text-ink">Документов пока нет</h2>
+      <p className="mx-auto mt-1.5 max-w-[400px] text-[13px] leading-relaxed text-ink-2">
         Загружайте свидетельства, паспорта и договоры внутри карточки кейса — все файлы соберутся здесь.
       </p>
     </div>

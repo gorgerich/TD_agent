@@ -41,8 +41,8 @@ export default async function TasksPage() {
           <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
             <CheckSquare size={24} weight="duotone" />
           </span>
-          <h2 className="text-[19px] font-semibold text-ink">Задач пока нет</h2>
-          <p className="mx-auto mt-1.5 max-w-[390px] text-[13.5px] leading-relaxed text-ink-2">
+          <h2 className="text-[18px] font-semibold text-ink">Задач пока нет</h2>
+          <p className="mx-auto mt-1.5 max-w-[390px] text-[13px] leading-relaxed text-ink-2">
             Задачи создаются внутри кейса. Когда появятся сроки, они автоматически соберутся здесь по группам: сегодня, просрочены, позже и выполненные.
           </p>
         </div>

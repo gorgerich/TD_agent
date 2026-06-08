@@ -16,7 +16,7 @@ export default function CopyCodeButton({ code }: { code: string }) {
   return (
     <button
       onClick={copy}
-      className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+      className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
     >
       {copied ? <Check size={16} className="text-success" /> : <Copy size={16} />}
       {copied ? "Скопировано" : "Копировать ссылку"}

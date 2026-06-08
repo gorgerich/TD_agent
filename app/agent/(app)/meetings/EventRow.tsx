@@ -60,8 +60,8 @@ export function EventRow({ event: e }: { event: CalEvent }) {
         aria-expanded={open}
         className={`group relative flex w-full items-center gap-3.5 py-3 pl-5 pr-4 text-left transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
       >
-        <span className="tnum w-12 flex-shrink-0 text-[15px] font-semibold text-ink">{e.time}</span>
-        <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium text-ink">{e.name}</span>
+        <span className="tnum w-12 flex-shrink-0 text-[14px] font-semibold text-ink">{e.time}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{e.name}</span>
         <span className="hidden items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2 sm:inline-flex">
           <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />
           {STATUS_LABELS[e.status] ?? e.status}
@@ -87,18 +87,18 @@ export function EventRow({ event: e }: { event: CalEvent }) {
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-[12.5px] text-ink-3">
+              <p className="mt-3 text-[12px] text-ink-3">
                 Смета: {e.hasQuote ? "собрана" : "не собрана"} · Документов: {e.docCount}
               </p>
             </div>
             <div className="flex flex-row gap-2 sm:flex-col">
-              <Link href={`/agent/cases/${e.leadId}`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 text-[12.5px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover">
+              <Link href={`/agent/cases/${e.leadId}`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover">
                 <Briefcase size={14} weight="bold" /> Кейс
               </Link>
-              <Link href={`/agent/meetings/${e.id}/quote`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/meetings/${e.id}/quote`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
                 <FileText size={14} /> Смета
               </Link>
-              <Link href={`/agent/documents`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12.5px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/documents`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
                 <Files size={14} /> Док-ты
               </Link>
             </div>

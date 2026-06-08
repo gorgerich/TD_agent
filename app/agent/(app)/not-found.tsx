@@ -11,7 +11,7 @@ export default function AgentNotFound() {
       <h1 className="mt-4 font-serif text-[30px] leading-tight text-ink sm:text-[36px]">
         Страница не найдена
       </h1>
-      <p className="mx-auto mt-2 max-w-[400px] text-[14.5px] leading-relaxed text-ink-2">
+      <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
         Возможно, запись удалили или ссылка устарела. Вернитесь на главную и продолжите работу.
       </p>
       <Link

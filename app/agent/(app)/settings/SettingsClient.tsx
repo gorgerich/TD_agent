@@ -6,7 +6,7 @@ import { Bell, Key, SignOut, Check, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 
 const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14.5px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(30,84,70,0.14)]";
 
 export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
   const router = useRouter();
@@ -89,7 +89,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
               <Bell size={19} weight="duotone" />
             </span>
             <div>
-              <h2 className="text-[15px] font-semibold text-ink">Уведомления</h2>
+              <h2 className="text-[14px] font-semibold text-ink">Уведомления</h2>
               <p className="text-[13px] text-ink-3">Подсказки о просроченных задачах и встречах внутри кабинета.</p>
             </div>
           </div>
@@ -114,7 +114,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
             <Key size={19} weight="duotone" />
           </span>
           <div>
-            <h2 className="text-[15px] font-semibold text-ink">Смена пароля</h2>
+            <h2 className="text-[14px] font-semibold text-ink">Смена пароля</h2>
             <p className="text-[13px] text-ink-3">Минимум 8 символов.</p>
           </div>
         </div>
@@ -158,7 +158,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
       <section className="td-shell p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-[15px] font-semibold text-ink">Выход из аккаунта</h2>
+            <h2 className="text-[14px] font-semibold text-ink">Выход из аккаунта</h2>
             <p className="text-[13px] text-ink-3">Завершить сессию на этом устройстве.</p>
           </div>
           <Button type="button" variant="danger" loading={outBusy} onClick={logout} leftIcon={<SignOut size={16} weight="bold" />}>

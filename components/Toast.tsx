@@ -59,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <span className={t.type === "success" ? "text-success" : t.type === "error" ? "text-danger" : "text-info"}>
               {ICONS[t.type]}
             </span>
-            <span className="min-w-0 flex-1 text-[13.5px] text-ink">{t.message}</span>
+            <span className="min-w-0 flex-1 text-[13px] text-ink">{t.message}</span>
             {t.action && (
               <button
                 type="button"
@@ -67,7 +67,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   t.action!.onClick();
                   remove(t.id);
                 }}
-                className="flex-shrink-0 rounded-full px-2.5 py-1 text-[12.5px] font-semibold text-accent transition-colors hover:bg-accent-soft"
+                className="flex-shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold text-accent transition-colors hover:bg-accent-soft"
               >
                 {t.action.label}
               </button>

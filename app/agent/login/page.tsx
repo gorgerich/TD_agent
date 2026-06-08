@@ -115,13 +115,13 @@ export default function AgentLoginPage() {
             ].map(([label, value]) => (
               <div key={label} className="rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
-                <p className="mt-2 td-display text-[19px] leading-tight text-on-accent">{value}</p>
+                <p className="mt-2 td-display text-[18px] leading-tight text-on-accent">{value}</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="relative flex items-center gap-2.5 text-[12.5px] text-on-accent/70">
+        <div className="relative flex items-center gap-2.5 text-[12px] text-on-accent/70">
           <ShieldCheck size={16} weight="duotone" />
           Боевой вход хранит аккаунт в постоянной Postgres-БД
         </div>
@@ -165,7 +165,7 @@ export default function AgentLoginPage() {
               <h2 className="mt-5 font-serif text-[32px] leading-tight text-ink">
                 {isRegister ? "Создать профиль агента" : "Войти в кабинет"}
               </h2>
-              <p className="mt-2 text-[14.5px] leading-6 text-ink-2">
+              <p className="mt-2 text-[14px] leading-6 text-ink-2">
                 {isRegister
                   ? "Профиль будет создан в постоянной базе и сразу откроет агентский кабинет."
                   : "Используйте email и пароль агента. Демо-вход оставлен ниже отдельным вариантом."}
@@ -247,7 +247,7 @@ export default function AgentLoginPage() {
                 <button
                   type="submit"
                   disabled={loading !== null || !email || !password || (isRegister && !name)}
-                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[15px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
+                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[14px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
                 >
                   {loading === mode ? (
                     "Проверяю…"
