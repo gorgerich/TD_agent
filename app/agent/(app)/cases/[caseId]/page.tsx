@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import {
   ArrowLeft,
@@ -8,6 +9,9 @@ import {
   ShareNetwork,
   Plus,
   Warning,
+  Phone,
+  User,
+  Hash,
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -177,6 +181,12 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     : firstMeeting
       ? "Откройте встречу и соберите первую смету."
       : "Назначьте встречу и заполните вводные по семье.";
+  const routeMeta = [
+    `${curIdx + 1}/${STAGE_ORDER.length} этап`,
+    meetings.length > 0 ? ruCount(meetings.length, ["встреча", "встречи", "встреч"]) : "встреч нет",
+    versions.length > 0 ? ruCount(versions.length, ["смета", "сметы", "смет"]) : "смет нет",
+    orders.length > 0 ? ruCount(orders.length, ["заказ", "заказа", "заказов"]) : "заказов нет",
+  ];
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -184,47 +194,28 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <ArrowLeft size={15} /> К кейсам
       </Link>
 
-      <header className="rise rise-1 mt-4 mb-6 flex flex-col gap-4 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <header className="rise rise-1 mt-4 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 shadow-[var(--shadow-soft),var(--hl-top)]">
+        <div className="min-w-0">
           <span className="td-eyebrow">Кейс #{id}</span>
           <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]">{lead.name}</h1>
-          <p className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
-            <StagePill stage={stage} />
-            <span>{NEXT_ACTION[stage]}</span>
-          </p>
-        </div>
-        <div className="grid grid-cols-3 gap-2 sm:w-[330px]">
-          <Stat label="Встречи" value={String(meetings.length)} />
-          <Stat label="Сметы" value={String(versions.length)} />
-          <Stat label="Заказы" value={String(orders.length)} />
+          <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+            <MetaPill icon={<Phone size={14} weight="duotone" />} label="Телефон" value={fmtPhone(lead.phone)} href={`tel:${lead.phone}`} />
+            <MetaPill icon={<Hash size={14} weight="duotone" />} label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
+            <MetaPill icon={<User size={14} weight="duotone" />} label="Агент" value={session?.name ?? "—"} />
+            <MetaPill icon={<CalendarDots size={14} weight="duotone" />} label="Заведено" value={dateTime(lead.createdAt)} />
+          </div>
         </div>
       </header>
 
-      <section className="rise rise-1 mb-5 grid gap-3 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        <div className="min-w-0">
-          <span className="td-eyebrow text-accent">Следующее действие</span>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <StagePill stage={stage} />
-            <strong className="text-[16px] font-semibold text-ink">{NEXT_ACTION[stage]}</strong>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {firstMeeting ? (
-            <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary compact>
-              Открыть смету
-            </Action>
-          ) : (
-            <Action href={`/agent/meetings/new?leadId=${id}`} icon={<CalendarDots size={16} />} primary compact>
-              Назначить встречу
-            </Action>
-          )}
-          {cobrowse && (
-            <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
-              Показать клиенту
-            </Action>
-          )}
-        </div>
-      </section>
+      <RouteActionPanel
+        current={curIdx}
+        stage={stage}
+        nextAction={NEXT_ACTION[stage]}
+        meta={routeMeta}
+        firstMeetingId={firstMeeting?.id ?? null}
+        caseId={id}
+        cobrowse={cobrowse}
+      />
 
       <section className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft),var(--hl-top)]">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -255,14 +246,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </section>
       )}
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[190px_minmax(0,1fr)_310px]">
-        {/* LEFT — timeline */}
-        <nav aria-label="Этапы кейса" className="rise rise-1 order-3 min-w-0 lg:order-1">
-          <Timeline current={curIdx} />
-        </nav>
-
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* CENTER — operational (tabbed to kill the card wall) */}
-        <main className="rise rise-2 order-1 min-w-0 lg:order-2">
+        <main className="rise rise-2 order-1 min-w-0">
           <CaseTabs
             caseId={id}
             checklist={checklist}
@@ -276,17 +262,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </main>
 
         {/* RIGHT — info + quick actions */}
-        <aside className="rise rise-2 order-2 min-w-0 space-y-6 lg:order-3">
-          <div className="td-shell p-4">
-            <Row label="Телефон" value={fmtPhone(lead.phone)} />
-            <Row label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
-            <Row label="Этап" value={stage} />
-            <Row label="Агент" value={session?.name ?? "—"} />
-            <Row label="Заведено" value={dateTime(lead.createdAt)} last />
-          </div>
-
+        <aside className="rise rise-2 order-2 min-w-0 space-y-4">
           <div className="td-shell space-y-2.5 p-4">
-            <span className="td-eyebrow">Быстрые действия</span>
+            <span className="td-eyebrow">Действия по кейсу</span>
             {firstMeeting ? (
               <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
                 Открыть смету
@@ -311,37 +289,125 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   );
 }
 
-function Timeline({ current }: { current: number }) {
+function RouteActionPanel({
+  current,
+  stage,
+  nextAction,
+  meta,
+  firstMeetingId,
+  caseId,
+  cobrowse,
+}: {
+  current: number;
+  stage: (typeof STAGE_ORDER)[number];
+  nextAction: string;
+  meta: string[];
+  firstMeetingId: number | null;
+  caseId: number;
+  cobrowse: string | null;
+}) {
   return (
-    <ol className="relative rounded-[var(--radius-card)] border border-line bg-surface p-4">
-      <li className="mb-4 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Маршрут кейса</li>
-      {STAGE_ORDER.map((s, i) => {
-        const done = i < current;
-        const active = i === current;
-        return (
-          <li key={s} className="flex gap-3 pb-5 last:pb-0">
-            <span className="relative flex flex-col items-center">
-              <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold ${
-                active ? "bg-accent text-on-accent" : done ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink-3"
-              }`}>
-                {done ? <Check size={13} weight="bold" /> : i + 1}
-              </span>
-              {i < STAGE_ORDER.length - 1 && <span className={`mt-1 w-px flex-1 ${i < current ? "bg-accent/40" : "bg-line"}`} />}
+    <section className="rise rise-1 mb-5 overflow-hidden rounded-[var(--radius-card)] border border-accent/20 bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+      <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:order-1 lg:border-r lg:border-t-0">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="td-eyebrow">Маршрут кейса</span>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <StagePill stage={stage} />
+                <span className="text-[13px] text-ink-2">{meta.join(" · ")}</span>
+              </div>
+            </div>
+            <span className="tnum w-fit rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[12px] font-semibold text-ink-2">
+              {Math.round(((current + 1) / STAGE_ORDER.length) * 100)}%
             </span>
-            <span className={`pt-0.5 text-[13px] ${active ? "font-semibold text-ink" : done ? "text-ink-2" : "text-ink-3"}`}>{s}</span>
-          </li>
-        );
-      })}
-    </ol>
+          </div>
+          <ol className="grid gap-2 md:grid-cols-6">
+            {STAGE_ORDER.map((s, i) => {
+              const done = i < current;
+              const active = i === current;
+              return (
+                <li
+                  key={s}
+                  className={`relative rounded-[12px] border px-3 py-2.5 ${
+                    active
+                      ? "border-accent/30 bg-accent-soft text-accent"
+                      : done
+                        ? "border-line bg-surface-2/60 text-ink-2"
+                        : "border-line bg-surface text-ink-3"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[10px] font-bold ${
+                      active ? "bg-accent text-on-accent" : done ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink-3"
+                    }`}>
+                      {done ? <Check size={12} weight="bold" /> : i + 1}
+                    </span>
+                    <span className={`truncate text-[12px] ${active ? "font-semibold" : "font-medium"}`}>{s}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+
+        <div className="order-1 bg-accent-soft/70 px-4 py-4 lg:order-2">
+          <span className="td-eyebrow text-accent">Следующее действие</span>
+          <strong className="mt-2 block text-[18px] leading-snug text-ink">{nextAction}</strong>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+            Закройте этот шаг, затем обновите задачи и документы по итогам разговора.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {firstMeetingId ? (
+              <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
+                Открыть смету
+              </Action>
+            ) : (
+              <Action href={`/agent/meetings/new?leadId=${caseId}`} icon={<CalendarDots size={16} />} primary compact>
+                Назначить встречу
+              </Action>
+            )}
+            {cobrowse && (
+              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
+                Клиентский вид
+              </Action>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function ruCount(count: number, forms: [string, string, string]) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const form = mod10 === 1 && mod100 !== 11
+    ? forms[0]
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? forms[1]
+      : forms[2];
+  return `${count} ${form}`;
+}
+
+function MetaPill({ icon, label, value, href }: { icon: ReactNode; label: string; value: string; href?: string }) {
+  const content = (
+    <>
+      <span className="text-accent">{icon}</span>
+      <span className="text-ink-3">{label}</span>
+      <span className="tnum font-semibold text-ink">{value}</span>
+    </>
+  );
+  const cls = "inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface-2/55 px-3 text-[12px] shadow-[var(--hl-top)]";
+  if (href) {
+    return (
+      <a href={href} className={`${cls} transition-colors hover:border-line-strong hover:bg-surface-2`}>
+        {content}
+      </a>
+    );
+  }
   return (
-    <div className="rounded-[12px] border border-line bg-surface-2/55 px-3 py-2">
-      <span className="block text-[11px] text-ink-3">{label}</span>
-      <span className="tnum mt-0.5 block text-[18px] font-semibold text-ink">{value}</span>
-    </div>
+    <span className={cls}>{content}</span>
   );
 }
 
@@ -368,16 +434,7 @@ function StagePill({ stage }: { stage: (typeof STAGE_ORDER)[number] }) {
   );
 }
 
-function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between gap-3 py-2.5 ${last ? "" : "border-b border-line"}`}>
-      <span className="text-[12px] text-ink-3">{label}</span>
-      <span className="tnum text-right text-[13px] font-medium text-ink">{value}</span>
-    </div>
-  );
-}
-
-function Action({ href, icon, children, primary, external, compact }: { href: string; icon: React.ReactNode; children: React.ReactNode; primary?: boolean; external?: boolean; compact?: boolean }) {
+function Action({ href, icon, children, primary, external, compact }: { href: string; icon: ReactNode; children: ReactNode; primary?: boolean; external?: boolean; compact?: boolean }) {
   const cls = primary
     ? "bg-accent text-on-accent hover:bg-accent-hover shadow-[0_1px_2px_rgba(20,30,24,0.25),0_6px_16px_-8px_rgba(20,30,24,0.40),inset_0_1px_0_rgba(255,255,255,0.16)]"
     : "border border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(40,30,18,0.05)]";
