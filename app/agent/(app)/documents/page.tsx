@@ -115,6 +115,14 @@ export default async function DocumentsPage({
   const uploadedCount = docs.filter((d) => d.status === "Загружен").length;
   const readyCount = docs.filter((d) => d.status === "Загружен" && d.caseReady).length;
 
+  // Группировка по клиенту (кейсу) — порядок сохраняется из getDocuments
+  const byCase = new Map<number, { clientName: string; rows: DocRow[] }>();
+  for (const d of visible) {
+    if (!byCase.has(d.caseId)) byCase.set(d.caseId, { clientName: d.clientName, rows: [] });
+    byCase.get(d.caseId)!.rows.push(d);
+  }
+  const groups = [...byCase.entries()];
+
   return (
     <div className="td-page mx-auto w-full max-w-[1180px] overflow-x-hidden px-4 py-5 sm:px-7 sm:py-7">
       <header className="rise mb-5">
@@ -147,58 +155,76 @@ export default async function DocumentsPage({
 
       {docs.length === 0 ? (
         <EmptyState />
+      ) : visible.length === 0 ? (
+        <div className="rise rise-1 td-shell mt-4 px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре документов нет</div>
       ) : (
-        <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
-          {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре документов нет</div>
-          ) : (
-            <ul className="min-w-0">
-              {visible.map((doc) => {
-                const isPdf = doc.mimeType === "application/pdf";
-                const isUploaded = doc.status === "Загружен";
-                return (
-                  <li key={doc.id} className="border-b border-line last:border-0">
-                    <div className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 py-3.5 pl-4 pr-4 transition-colors hover:bg-surface-2/50 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
-                      <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] bg-surface-2 ring-1 ring-line">
-                        {isUploaded ? (
-                          isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
-                        ) : (
-                          <WarningCircle size={20} weight="duotone" className="text-warning" />
-                        )}
-                      </span>
-                      <Link href={`/agent/cases/${doc.caseId}`} className="min-w-0 flex-1">
-                        <span className="block truncate text-[14px] font-semibold text-ink">{doc.name}</span>
-                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
-                          <span className="max-w-full truncate">{doc.clientName}</span>
-                          <span className="text-ink-3">·</span>
-                          <span className="text-ink-3">{doc.category}</span>
-                          <span className="text-ink-3">·</span>
-                          <StatusBadge status={doc.status} />
-                          {doc.size != null && (
-                            <>
+        <div className="rise rise-1 mt-4 space-y-4">
+          {groups.map(([caseId, g]) => {
+            const initials = g.clientName.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
+            const upN = g.rows.filter((r) => r.status === "Загружен").length;
+            const reqN = g.rows.filter((r) => r.status === "Требуется").length;
+            return (
+              <section key={caseId} className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+                <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/45 px-4 py-3">
+                  <Link href={`/agent/cases/${caseId}`} className="group flex min-w-0 items-center gap-2.5">
+                    <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent ring-1 ring-accent/10">{initials}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">{g.clientName}</span>
+                      <span className="block text-[12px] text-ink-3">Кейс #{caseId}</span>
+                    </span>
+                  </Link>
+                  <span className="flex flex-shrink-0 items-center gap-1.5">
+                    {upN > 0 && <span className="tnum rounded-full border border-success/20 bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">{upN} загруж.</span>}
+                    {reqN > 0 && <span className="tnum rounded-full border border-warning/20 bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning">{reqN} нужно</span>}
+                  </span>
+                </div>
+                <ul className="min-w-0">
+                  {g.rows.map((doc) => {
+                    const isPdf = doc.mimeType === "application/pdf";
+                    const isUploaded = doc.status === "Загружен";
+                    return (
+                      <li key={doc.id} className="border-b border-line last:border-0">
+                        <div className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 py-3 pl-4 pr-4 transition-colors hover:bg-surface-2/50 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+                          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] bg-surface-2 ring-1 ring-line">
+                            {isUploaded ? (
+                              isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
+                            ) : (
+                              <WarningCircle size={20} weight="duotone" className="text-warning" />
+                            )}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="block truncate text-[14px] font-semibold text-ink">{doc.name}</span>
+                            <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
+                              <span className="text-ink-3">{doc.category}</span>
                               <span className="text-ink-3">·</span>
-                              <span className="text-ink-3">{fmtSize(doc.size)}</span>
-                            </>
+                              <StatusBadge status={doc.status} />
+                              {doc.size != null && (
+                                <>
+                                  <span className="text-ink-3">·</span>
+                                  <span className="text-ink-3">{fmtSize(doc.size)}</span>
+                                </>
+                              )}
+                              <span className="text-ink-3">·</span>
+                              <span className="text-ink-3">{dateShort(doc.createdAt)}</span>
+                            </span>
+                          </div>
+                          {doc.url ? (
+                            <a href={doc.url} target="_blank" rel="noopener" className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2 sm:col-auto" aria-label={`Открыть документ ${doc.name}`}>
+                              Открыть <ArrowSquareOut size={13} />
+                            </a>
+                          ) : (
+                            <Link href={`/agent/cases/${doc.caseId}`} className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70 sm:col-auto" aria-label={`Перейти к кейсу для документа ${doc.name}`}>
+                              К кейсу <ArrowRight size={13} />
+                            </Link>
                           )}
-                          <span className="text-ink-3">·</span>
-                          <span className="text-ink-3">{dateShort(doc.createdAt)}</span>
-                        </span>
-                      </Link>
-                      {doc.url ? (
-                        <a href={doc.url} target="_blank" rel="noopener" className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2 sm:col-auto" aria-label={`Открыть документ ${doc.name}`}>
-                          Открыть <ArrowSquareOut size={13} />
-                        </a>
-                      ) : (
-                        <Link href={`/agent/cases/${doc.caseId}`} className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70 sm:col-auto" aria-label={`Перейти к кейсу для документа ${doc.name}`}>
-                          К кейсу <ArrowRight size={13} />
-                        </Link>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>
