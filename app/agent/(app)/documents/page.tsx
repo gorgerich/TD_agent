@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, ArrowSquareOut, CheckCircle, Files, FilePdf, FileImage, WarningCircle } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ArrowSquareOut, Briefcase, CheckCircle, Files, FilePdf, FileImage, WarningCircle } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort } from "@/lib/format";
+import { buttonClasses } from "@/components/ui/Button";
 
 type Category = "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее";
 type DocumentFilter = "all" | "required" | "uploaded" | "ready";
@@ -259,14 +260,17 @@ function FilterTabs({ active, counts }: { active: DocumentFilter; counts: Record
 
 function EmptyState() {
   return (
-    <div className="rise rise-1 td-shell mt-4 px-6 py-12 text-center">
+    <div className="rise rise-1 td-shell mt-4 px-6 py-14 text-center">
       <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
         <Files size={24} weight="duotone" />
       </span>
-      <h2 className="text-[18px] font-semibold text-ink">Документов пока нет</h2>
-      <p className="mx-auto mt-1.5 max-w-[400px] text-[13px] leading-relaxed text-ink-2">
+      <h2 className="td-display text-[24px] text-ink">Документов пока нет</h2>
+      <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
         Загружайте свидетельства, паспорта и договоры внутри карточки кейса — все файлы соберутся здесь.
       </p>
+      <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
+        <Briefcase size={16} weight="bold" /> Открыть кейсы
+      </Link>
     </div>
   );
 }

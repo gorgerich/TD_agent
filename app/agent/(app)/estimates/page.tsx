@@ -3,6 +3,7 @@ import { ArrowRight, Briefcase, FileText } from "@phosphor-icons/react/dist/ssr"
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, moneyFromKopecks } from "@/lib/format";
+import { buttonClasses } from "@/components/ui/Button";
 
 type EstimateFilter = "all" | "drafts" | "sent" | "agreed";
 
@@ -181,14 +182,17 @@ function StatusBadge({ status }: { status: EstimateRow["status"] }) {
 
 function EmptyState() {
   return (
-    <div className="rise rise-1 td-shell mt-4 px-6 py-12 text-center">
+    <div className="rise rise-1 td-shell mt-4 px-6 py-14 text-center">
       <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
         <FileText size={24} weight="duotone" />
       </span>
-      <h2 className="text-[18px] font-semibold text-ink">Смет пока нет</h2>
-      <p className="mx-auto mt-1.5 max-w-[360px] text-[13px] leading-relaxed text-ink-2">
-        Смета создаётся из кейса или встречи. Откройте кейс, соберите услуги и сохраните версию.
+      <h2 className="td-display text-[24px] text-ink">Смет пока нет</h2>
+      <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
+        Смета собирается внутри кейса: откройте дело, добавьте услуги и сохраните версию — она появится здесь и у клиента.
       </p>
+      <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
+        <Briefcase size={16} weight="bold" /> Выбрать кейс
+      </Link>
     </div>
   );
 }
