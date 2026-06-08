@@ -20,7 +20,7 @@ const display = Cormorant_Garamond({
 
 const serif = Source_Serif_4({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-serif",
+  variable: "--td-display",
   display: "swap",
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],

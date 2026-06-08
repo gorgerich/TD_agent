@@ -9,7 +9,7 @@ export default function NewCasePage() {
         <ArrowLeft size={14} /> Все кейсы
       </Link>
       <span className="td-eyebrow">Кейсы</span>
-      <h1 className="mb-1 mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Новый кейс</h1>
+      <h1 className="mb-1 mt-4 td-display text-[34px] leading-tight text-ink sm:text-[42px]">Новый кейс</h1>
       <p className="mb-7 text-[14px] text-ink-2">Заполните контактные данные, кейс откроется сразу после создания.</p>
       <NewLeadForm />
     </div>

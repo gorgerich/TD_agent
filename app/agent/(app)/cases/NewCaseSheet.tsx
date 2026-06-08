@@ -83,7 +83,7 @@ export default function NewCaseSheet() {
           <div className="absolute inset-0 bg-[rgba(22,22,22,0.4)]" onClick={() => setOpen(false)} />
           <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop">
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
-              <h2 className="font-serif text-[20px] text-ink">Новый кейс</h2>
+              <h2 className="td-display text-[20px] text-ink">Новый кейс</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">
                 <X size={18} />
               </button>

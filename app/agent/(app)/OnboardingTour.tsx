@@ -300,7 +300,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
           </button>
         </div>
 
-        <h3 className="font-serif text-[18px] leading-tight text-ink">
+        <h3 className="td-display text-[18px] leading-tight text-ink">
           {isIntro ? tour.intro?.title : current?.title}
         </h3>
         <p className="mt-2 text-[13px] leading-relaxed text-ink-2">

@@ -37,7 +37,7 @@ export default async function CommissionsPage() {
     <div className="td-page mx-auto max-w-[1040px] px-4 py-7 sm:px-7 sm:py-10">
       <header className="rise mb-8">
         <span className="td-eyebrow">Финансы</span>
-        <h1 className="mt-4 font-serif text-[34px] leading-tight text-ink sm:text-[42px]">Комиссии</h1>
+        <h1 className="td-display mt-4 text-[34px] text-ink sm:text-[42px]">Комиссии</h1>
       </header>
 
       {/* Summary */}
@@ -57,7 +57,7 @@ export default async function CommissionsPage() {
               <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
                 <CurrencyRub size={28} weight="duotone" />
               </span>
-              <h2 className="font-serif text-[20px] text-ink">Начислений пока нет</h2>
+              <h2 className="td-display text-[20px] text-ink">Начислений пока нет</h2>
               <p className="mx-auto mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-ink-2">
                 Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
               </p>

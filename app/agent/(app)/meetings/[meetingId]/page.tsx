@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, FileText, ArrowSquareOut, Check } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { buttonClasses } from "@/components/ui/Button";
 import MeetingActions from "./MeetingActions";
 import CopyCodeButton from "./CopyCodeButton";
 
@@ -62,8 +63,8 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       {/* Top strip */}
       <div className="rise mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Встреча №{meeting.id}</p>
-          <h1 className="font-serif text-[26px] text-ink sm:text-[30px]">{meeting.lead.name}</h1>
+          <p className="td-eyebrow mb-1.5">Встреча №{meeting.id}</p>
+          <h1 className="td-display text-[26px] text-ink sm:text-[30px]">{meeting.lead.name}</h1>
           <p className="tnum mt-1 text-[13px] text-ink-2">{formatDate(meeting.scheduledAt)}</p>
         </div>
         <div className="flex-shrink-0 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-5 py-4 sm:min-w-[170px] sm:text-right">
@@ -111,18 +112,10 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
 
       {/* Actions row */}
       <div className="rise rise-2 mb-5 flex flex-wrap gap-2.5">
-        <Link
-          href={`/agent/meetings/${meeting.id}/quote`}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover"
-        >
+        <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses()}>
           <FileText size={16} /> Конструктор сметы
         </Link>
-        <a
-          href={`/co/${cobrowseCode}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
-        >
+        <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={buttonClasses({ variant: "secondary" })}>
           <ArrowSquareOut size={16} /> Co-browse
         </a>
         <CopyCodeButton code={cobrowseCode} />

@@ -135,7 +135,7 @@ export default function AgentLoginPage() {
             </span>
             <span className="leading-tight">
               <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-ink-3">Тихий дом</span>
-              <span className="block font-serif text-[16px] text-ink">Кабинет агента</span>
+              <span className="block td-display text-[16px] text-ink">Кабинет агента</span>
             </span>
           </div>
 
@@ -162,7 +162,7 @@ export default function AgentLoginPage() {
               </div>
 
               <span className="td-eyebrow mt-6">{isRegister ? "новый агент" : "боевой вход"}</span>
-              <h2 className="mt-5 font-serif text-[32px] leading-tight text-ink">
+              <h2 className="mt-5 td-display text-[32px] leading-tight text-ink">
                 {isRegister ? "Создать профиль агента" : "Войти в кабинет"}
               </h2>
               <p className="mt-2 text-[14px] leading-6 text-ink-2">

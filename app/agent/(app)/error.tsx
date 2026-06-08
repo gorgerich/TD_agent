@@ -22,7 +22,7 @@ export default function AgentError({
         <WarningCircle size={30} weight="duotone" />
       </span>
       <span className="td-eyebrow">Сбой</span>
-      <h1 className="mt-4 font-serif text-[30px] leading-tight text-ink sm:text-[36px]">
+      <h1 className="mt-4 td-display text-[30px] leading-tight text-ink sm:text-[36px]">
         Что-то пошло не так
       </h1>
       <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">

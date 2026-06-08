@@ -120,7 +120,7 @@ export default function CoView({ code }: { code: string }) {
         <div className="mb-5 grid h-16 w-16 place-items-center rounded-[14px] bg-accent-soft">
           <span className="block h-4 w-4 rounded-full bg-accent" />
         </div>
-        <h2 className="font-serif text-[22px] text-ink">
+        <h2 className="td-display text-[22px] text-ink">
           {checkedOnce ? "Смета ещё не отправлена" : "Проверяем смету"}
         </h2>
         <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
