@@ -3,14 +3,10 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   Check,
-  Circle,
   CalendarDots,
   FileText,
   ShareNetwork,
   Plus,
-  ClockCounterClockwise,
-  Files,
-  ClipboardText,
   Warning,
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
@@ -18,10 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
-import { TasksSection } from "./TasksSection";
-import { NotesSection } from "./NotesSection";
-import { DocumentsSection } from "./DocumentsSection";
-import { IntakeSection } from "./IntakeSection";
+import { CaseTabs } from "./CaseTabs";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -268,59 +261,18 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           <Timeline current={curIdx} />
         </nav>
 
-        {/* CENTER — operational */}
-        <main className="rise rise-2 order-3 space-y-5 lg:order-2">
-          <Card title="Статус оформления" icon={<ClipboardText size={16} weight="duotone" />}>
-            <p className="mb-3 text-[12px] text-ink-3">Обновляется автоматически по ходу кейса. Рабочие задачи — в блоке «Задачи» ниже.</p>
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {checklist.map((it) => (
-                <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13px]">
-                  {it.done
-                    ? <Check size={17} weight="bold" className="flex-shrink-0 text-success" />
-                    : <Circle size={17} className="flex-shrink-0 text-ink-3" />}
-                  <span className={it.done ? "text-ink-2" : "text-ink"}>{it.label}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          <Card title="Потребности семьи" icon={<ClipboardText size={16} weight="duotone" />}>
-            <IntakeSection caseId={id} initial={intake} />
-          </Card>
-
-          {context && (
-            <Card title="Контекст" icon={<FileText size={16} weight="duotone" />}>
-              <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink-2">{context}</p>
-            </Card>
-          )}
-
-          <Card title="Активность" icon={<ClockCounterClockwise size={16} weight="duotone" />}>
-            <ol className="divide-y divide-line">
-              {activity.map((a, i) => (
-                <li key={i} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span className="mt-0.5 flex-shrink-0">
-                    <ClockCounterClockwise size={15} className="text-ink-3" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[13px] text-ink">{a.label}</span>
-                    {a.sub && <span className="block text-[12px] text-ink-3">{a.sub}</span>}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Card>
-
-          <Card title={`Задачи · ${tasks.filter((task) => !task.completedAt).length}`} icon={<ClipboardText size={16} weight="duotone" />}>
-            <TasksSection caseId={id} initial={tasks} />
-          </Card>
-
-          <Card title={`Заметки · ${notes.length}`} icon={<FileText size={16} weight="duotone" />}>
-            <NotesSection caseId={id} initial={notes} />
-          </Card>
-
-          <Card title={`Документы · ${docs.length}`} icon={<Files size={16} weight="duotone" />}>
-            <DocumentsSection caseId={id} initial={docs} />
-          </Card>
+        {/* CENTER — operational (tabbed to kill the card wall) */}
+        <main className="rise rise-2 order-3 lg:order-2">
+          <CaseTabs
+            caseId={id}
+            checklist={checklist}
+            tasks={tasks}
+            docs={docs}
+            notes={notes}
+            intake={intake}
+            context={context}
+            activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
+          />
         </main>
 
         {/* RIGHT — info + quick actions */}
@@ -381,18 +333,6 @@ function Timeline({ current }: { current: number }) {
         );
       })}
     </ol>
-  );
-}
-
-function Card({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <section className="td-shell p-4 sm:p-5">
-      <h2 className="mb-4 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }
 
