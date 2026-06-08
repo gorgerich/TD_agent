@@ -171,16 +171,29 @@ export default async function CasesPage() {
       <div className="grid gap-5 lg:grid-cols-[1fr_310px]">
         <section className="rise rise-1">
           {active.length === 0 ? (
-            <div className="td-shell px-6 py-14 text-center">
+            <div className="td-shell px-6 py-12 text-center">
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
                 <Briefcase size={26} weight="duotone" />
               </span>
-              <h2 className="text-[20px] font-semibold text-ink">Активных кейсов нет</h2>
-              <p className="mx-auto mt-1.5 max-w-[320px] text-[13px] leading-relaxed text-ink-2">
-                Заведите кейс — клиент, документы, смета и оплата будут в одном рабочем контуре.
+              <h2 className="td-display text-[24px] text-ink">Здесь будут ваши кейсы</h2>
+              <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
+                Каждый кейс ведёт клиента от первого контакта до оплаты — встречи, смета, документы и сроки в одном месте.
               </p>
-              <Link href="/agent/leads/new" className={buttonClasses({ className: "mt-5" })}>
-                <Plus size={15} weight="bold" /> Новый кейс
+              <div className="mx-auto mt-7 grid max-w-[560px] gap-2.5 text-left sm:grid-cols-3">
+                {[
+                  ["1", "Заведите клиента", "Имя, телефон и вводные по семье."],
+                  ["2", "Встреча и смета", "Соберите смету и покажите клиенту."],
+                  ["3", "Документы и оплата", "Загрузите файлы, ведите задачи и сроки."],
+                ].map(([n, title, sub]) => (
+                  <div key={n} className="rounded-[12px] border border-line bg-surface-2/45 p-3.5">
+                    <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-[12px] font-bold text-on-accent">{n}</span>
+                    <p className="mt-2 text-[13px] font-semibold text-ink">{title}</p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-ink-3">{sub}</p>
+                  </div>
+                ))}
+              </div>
+              <Link href="/agent/leads/new" className={buttonClasses({ size: "lg", className: "mt-7" })}>
+                <Plus size={16} weight="bold" /> Создать первый кейс
               </Link>
             </div>
           ) : (
