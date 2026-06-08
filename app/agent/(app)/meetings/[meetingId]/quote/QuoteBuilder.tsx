@@ -223,6 +223,14 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         : economics.orderMarginPercent < 15 || itemMarginAlert === "low"
           ? "Низкая маржа: проверьте цену или себестоимость"
           : null;
+  const calculatorStatus =
+    budgetStatus.status === "exceeded"
+      ? { tone: "danger" as const, text: `Бюджет +${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}` }
+      : marginWarning
+        ? { tone: "warning" as const, text: "Проверьте экономику" }
+        : budgetStatus.status === "near_limit"
+          ? { tone: "warning" as const, text: "Бюджет почти выбран" }
+          : { tone: "ok" as const, text: "Можно сохранять" };
   const budgetMessage =
     budgetStatus.status === "not_set"
       ? "Бюджет не указан"
@@ -249,6 +257,15 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   // Co-work sync: атрибутика теперь ведётся через сметные позиции, старый
   // attributes payload сохраняем только для совместимости с ранними сессиями.
   const attrJson = JSON.stringify(attributes);
+
+  useEffect(() => {
+    if (!calculatorOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setCalculatorOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [calculatorOpen]);
 
   // Push: общее состояние (форма + атрибутика) через 400мс после изменения.
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -429,6 +446,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     setOpenSnapshotId(snapshot.id);
     setSnapshotTitle("");
     setSnapshotNote("");
+    setCalculatorTab("versions");
   }
 
   function deleteSnapshot(id: string) {
@@ -448,6 +466,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     if (!cobrowseCode || typeof window === "undefined") return;
     navigator.clipboard.writeText(`${window.location.origin}/co/${cobrowseCode}`).then(() => {
       setCopied(true);
+      toast({ type: "success", message: "Ссылка скопирована" });
       setTimeout(() => setCopied(false), 2000);
     });
   }
@@ -929,42 +948,47 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         {/* ── Floating calculator sheet ────────────────── */}
         <aside className={`${s.panel} ${calculatorOpen ? s.panelOpen : ""}`} aria-label="Детали сметы">
           <div className={s.panelCard}>
-            <div className={s.panelHero}>
-              <div>
-                <span className={s.panelHeroLabel}>Предварительно</span>
-                <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
-                <span className={s.panelHeroMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
-              </div>
-              <button type="button" className={s.sheetClose} onClick={() => setCalculatorOpen(false)} aria-label="Свернуть калькулятор">
-                <X size={18} weight="bold" />
-              </button>
-            </div>
-
-            <div className={s.panelHead}>
-              <span className={s.panelHeadTitle}>Детали сметы</span>
-              {savedCount > 0 && (
-                <span className={s.panelVersions}>сохранено v{savedCount}</span>
-              )}
-            </div>
-
-            <div className={s.sheetTabs} role="tablist" aria-label="Разделы калькулятора">
-              {[
-                ["composition", "Состав"],
-                ["economics", "Экономика"],
-                ["versions", "Версии"],
-                ["actions", "Действия"],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={calculatorTab === id}
-                  className={`${s.sheetTab} ${calculatorTab === id ? s.sheetTabActive : ""}`}
-                  onClick={() => setCalculatorTab(id as CalculatorTab)}
-                >
-                  {label}
+            <div className={s.panelChrome}>
+              <div className={s.panelHero}>
+                <div>
+                  <span className={s.panelHeroLabel}>Предварительно</span>
+                  <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
+                  <span className={s.panelHeroMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
+                </div>
+                <button type="button" className={s.sheetClose} onClick={() => setCalculatorOpen(false)} aria-label="Свернуть калькулятор">
+                  <X size={18} weight="bold" />
                 </button>
-              ))}
+              </div>
+
+              <div className={s.panelHead}>
+                <span className={s.panelHeadTitle}>Детали сметы</span>
+                <span className={`${s.panelStatus} ${s[`panelStatus_${calculatorStatus.tone}`]}`}>
+                  {calculatorStatus.text}
+                </span>
+                {savedCount > 0 && (
+                  <span className={s.panelVersions}>сохранено v{savedCount}</span>
+                )}
+              </div>
+
+              <div className={s.sheetTabs} role="tablist" aria-label="Разделы калькулятора">
+                {[
+                  ["composition", "Состав"],
+                  ["economics", "Экономика"],
+                  ["versions", "Версии"],
+                  ["actions", "Действия"],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={calculatorTab === id}
+                    className={`${s.sheetTab} ${calculatorTab === id ? s.sheetTabActive : ""}`}
+                    onClick={() => setCalculatorTab(id as CalculatorTab)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {calculatorTab === "composition" && (
@@ -1125,6 +1149,21 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               )}
               </div>
             )}
+
+            <div className={s.sheetFooter}>
+              <button
+                type="button"
+                className={s.sheetFooterSummary}
+                onClick={() => setCalculatorTab("composition")}
+                aria-label="Открыть состав сметы"
+              >
+                <span>Итого</span>
+                <strong>{formatCurrency(grandTotal)}</strong>
+              </button>
+              <button type="button" className={s.sheetFooterSave} onClick={saveVersion} disabled={saving}>
+                {saving ? "Сохраняю..." : "Сохранить"}
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -1136,6 +1175,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           <span className={s.mobileBarLabel}>Предварительно</span>
           <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
           <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
+          <span className={`${s.mobileBarStatus} ${s[`mobileBarStatus_${calculatorStatus.tone}`]}`}>
+            {calculatorStatus.text}
+          </span>
           <span className={s.mobileBarMore}>Подробнее <CaretUp size={13} weight="bold" /></span>
         </button>
         <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>

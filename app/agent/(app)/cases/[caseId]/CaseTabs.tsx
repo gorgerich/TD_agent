@@ -47,9 +47,9 @@ export function CaseTabs({
   ];
 
   return (
-    <div className="td-shell overflow-hidden">
+    <div className="td-shell min-w-0 overflow-hidden">
       {/* Tab bar */}
-      <div className="flex gap-1 overflow-x-auto border-b border-line bg-surface-2/45 px-2 py-2">
+      <div className="flex min-w-0 gap-1 overflow-x-auto border-b border-line bg-surface-2/45 px-2 py-2">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (

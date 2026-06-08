@@ -179,7 +179,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       : "Назначьте встречу и заполните вводные по семье.";
 
   return (
-    <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
+    <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
       <Link href="/agent/cases" className="rise inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink">
         <ArrowLeft size={15} /> К кейсам
       </Link>
@@ -255,14 +255,14 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </section>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[190px_1fr_310px]">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[190px_minmax(0,1fr)_310px]">
         {/* LEFT — timeline */}
-        <nav aria-label="Этапы кейса" className="rise rise-1 order-3 lg:order-1">
+        <nav aria-label="Этапы кейса" className="rise rise-1 order-3 min-w-0 lg:order-1">
           <Timeline current={curIdx} />
         </nav>
 
         {/* CENTER — operational (tabbed to kill the card wall) */}
-        <main className="rise rise-2 order-1 lg:order-2">
+        <main className="rise rise-2 order-1 min-w-0 lg:order-2">
           <CaseTabs
             caseId={id}
             checklist={checklist}
@@ -276,7 +276,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </main>
 
         {/* RIGHT — info + quick actions */}
-        <aside className="rise rise-2 order-2 space-y-6 lg:order-3">
+        <aside className="rise rise-2 order-2 min-w-0 space-y-6 lg:order-3">
           <div className="td-shell p-4">
             <Row label="Телефон" value={fmtPhone(lead.phone)} />
             <Row label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />

@@ -1,9 +1,8 @@
 import Link from "next/link";
 import NewCaseSheet from "./NewCaseSheet";
-import { Plus, ArrowRight, CalendarDots, Clock, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
+import { Plus, ArrowRight, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { phone as fmtPhone } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
 import { type Stage, STAGE_DOT, STAGE_ORDER, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
 
@@ -133,7 +132,7 @@ async function getOverdueTasks(agentId: number): Promise<OverdueTask[]> {
 
 export default async function CasesPage() {
   const session = await getAgentSession();
-  const [{ active, todayMeetings, inactive }, overdueTasks] = await Promise.all([
+  const [{ active, todayMeetings }, overdueTasks] = await Promise.all([
     getCases(session?.agentId ?? 0),
     getOverdueTasks(session?.agentId ?? 0),
   ]);
@@ -155,7 +154,7 @@ export default async function CasesPage() {
   }))].slice(0, 6);
 
   return (
-    <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
+    <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-7 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
@@ -168,8 +167,8 @@ export default async function CasesPage() {
         <NewCaseSheet />
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_310px]">
-        <section className="rise rise-1">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
+        <section className="rise rise-1 min-w-0">
           {active.length === 0 ? (
             <div className="td-shell px-6 py-12 text-center">
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
@@ -235,7 +234,7 @@ export default async function CasesPage() {
           )}
         </section>
 
-        <aside className="rise rise-2 space-y-5">
+        <aside className="rise rise-2 min-w-0 space-y-5">
           <RailBlock icon={<CalendarDots size={15} weight="duotone" />} title="Сегодня">
             {todayMeetings.length === 0 ? (
               <RailEmpty>Встреч на сегодня нет</RailEmpty>
