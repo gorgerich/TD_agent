@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +26,8 @@ export default function NewCaseSheet() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []); // портал в body только на клиенте
 
   useEffect(() => {
     if (!open) return;
@@ -78,8 +81,13 @@ export default function NewCaseSheet() {
         <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый кейс</span><span className="sm:hidden">Кейс</span>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-[1000]" role="dialog" aria-modal="true" aria-label="Новый кейс">
+      {mounted && open && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1000 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Новый кейс"
+        >
           <div className="absolute inset-0 bg-[rgba(22,22,22,0.4)]" onClick={() => setOpen(false)} />
           <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop">
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
@@ -133,7 +141,8 @@ export default function NewCaseSheet() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
