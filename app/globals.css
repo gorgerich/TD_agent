@@ -83,6 +83,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  text-wrap: pretty; /* убирает «сирот» в абзацах */
   isolation: isolate;
 }
 
@@ -131,6 +132,7 @@ select, button, input, textarea { font-family: inherit; }
   font-weight: 600;
   letter-spacing: 0.002em;
   line-height: 1.0;
+  text-wrap: balance; /* заголовки без висячих слов */
 }
 .font-serif { letter-spacing: -0.01em; }
 
@@ -149,7 +151,7 @@ button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
 button, a, [role="button"] { touch-action: manipulation; }
 button, [role="button"] { min-height: 44px; }
 button { transition: transform 0.12s var(--ease-out), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
-button:not(:disabled):active { transform: scale(0.99); }
+button:not(:disabled):active { transform: scale(0.97); }
 
 /* Сдержанный hover-подъём (используется точечно) */
 .u-lift { transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out), border-color 0.2s ease; }
@@ -255,3 +257,8 @@ button:not(:disabled):active { transform: scale(0.99); }
   textarea,
   select { font-size: 16px !important; }
 }
+
+/* Плавная смена контента табов карточки — мягкий fade-up (feel-better). */
+@keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.tab-panel { animation: tabfade 0.18s var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .tab-panel { animation: none; } }

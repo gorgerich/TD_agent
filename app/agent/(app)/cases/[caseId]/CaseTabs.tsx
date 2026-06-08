@@ -72,7 +72,7 @@ export function CaseTabs({
         })}
       </div>
 
-      <div className="p-4 sm:p-5">
+      <div key={tab} className="tab-panel p-4 sm:p-5">
         {tab === "work" && (
           <div className="space-y-5">
             <Section title="Статус оформления" hint="Обновляется автоматически по ходу кейса.">

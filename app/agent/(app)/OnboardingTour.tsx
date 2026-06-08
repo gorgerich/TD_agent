@@ -261,7 +261,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
       {/* Затемнение + подсветка цели (или сплошное на интро) */}
       {spot && !isIntro ? (
         <div
-          className="pointer-events-none fixed rounded-[16px] transition-all duration-300 ease-out"
+          className="pointer-events-none fixed rounded-[16px] transition-[top,left,width,height] duration-300 ease-out"
           style={{
             top: spot.top,
             left: spot.left,
@@ -313,7 +313,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
             {steps.map((_, i) => (
               <span
                 key={i}
-                className={`h-1.5 rounded-full transition-all duration-200 ${
+                className={`h-1.5 rounded-full transition-[width,background-color] duration-200 ${
                   i === index ? "w-5 bg-accent" : "w-1.5 bg-line-strong"
                 }`}
               />

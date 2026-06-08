@@ -247,7 +247,7 @@ export default function AgentLoginPage() {
                 <button
                   type="submit"
                   disabled={loading !== null || !email || !password || (isRegister && !name)}
-                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[14px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
+                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[14px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(32,79,67,0.9)] transition-[transform,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
                 >
                   {loading === mode ? (
                     "Проверяю…"

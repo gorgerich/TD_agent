@@ -225,7 +225,7 @@ export default async function CasesPage() {
                         <Stepper progress={c.progress} />
                         <span className="text-[11px] text-ink-3">{c.lastActivityLabel}</span>
                       </span>
-                      <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-all group-hover:translate-x-0.5 group-hover:text-accent" />
+                      <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
                     </Link>
                   </li>
                 );

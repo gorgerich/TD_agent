@@ -86,7 +86,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       onClick={() => onChange(!on)}
       className={`relative h-[22px] w-[40px] flex-shrink-0 rounded-full transition-colors ${on ? "bg-[#c9a44a]" : "bg-white/15"}`}
     >
-      <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white transition-all ${on ? "left-[20px]" : "left-[2px]"}`} />
+      <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white transition-[left] ${on ? "left-[20px]" : "left-[2px]"}`} />
     </button>
   );
 }

@@ -8,7 +8,7 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const BASE =
-  "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-all duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45 active:translate-y-px";
+  "inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,box-shadow,border-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45 active:scale-[0.97]";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
