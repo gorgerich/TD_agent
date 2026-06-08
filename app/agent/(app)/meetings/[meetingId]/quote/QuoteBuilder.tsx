@@ -505,9 +505,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         <div className={s.headerLeft}>
           <span className={s.headerDot} />
           <div>
-            <div className={s.headerBrand}>Тихий дом</div>
+            <div className={s.headerBrand}>Конструктор сметы</div>
             <div className={s.headerSubtitle}>
-              Смета ·{" "}
               {caseId ? (
                 <Link href={`/agent/cases/${caseId}`} className={s.headerCaseLink}>{clientName}</Link>
               ) : (
@@ -519,7 +518,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         <div className={s.headerRight}>
           {cobrowseCode && (
             <button onClick={copyCode} className={s.headerCode} aria-label="Скопировать код клиента">
-              <span className={s.headerCodeLabel}>Код клиента</span>
+              <span className={s.headerCodeLabel}>Код</span>
               <span className={s.headerCodeValue}>
                 {cobrowseCode}
                 {copied && <span className={s.copiedBadge}>скопировано</span>}
@@ -531,6 +530,25 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               Показать клиенту
             </a>
           )}
+        </div>
+      </div>
+
+      <div className={s.dealBar} aria-label="Финансовая сводка сметы">
+        <div className={s.dealMetric}>
+          <span>Итог клиенту</span>
+          <strong>{formatCurrency(grandTotal)}</strong>
+        </div>
+        <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
+          <span>Бюджет</span>
+          <strong>{form.clientBudget ? budgetMessage.replace("В рамках бюджета. ", "").replace("Почти весь бюджет использован. ", "") : "не указан"}</strong>
+        </div>
+        <div className={s.dealMetric}>
+          <span>Экономия агента</span>
+          <strong>{formatCurrency(economics.orderMarginRub)}</strong>
+        </div>
+        <div className={`${s.dealMetric} ${marginWarning ? s.dealMetricDanger : ""}`}>
+          <span>Статус</span>
+          <strong>{calculatorStatus.text}</strong>
         </div>
       </div>
 

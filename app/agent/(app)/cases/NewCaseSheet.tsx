@@ -26,8 +26,6 @@ export default function NewCaseSheet() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []); // портал в body только на клиенте
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +79,7 @@ export default function NewCaseSheet() {
         <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый кейс</span><span className="sm:hidden">Кейс</span>
       </button>
 
-      {mounted && open && createPortal(
+      {open && createPortal(
         <div
           style={{ position: "fixed", inset: 0, zIndex: 1000 }}
           role="dialog"
