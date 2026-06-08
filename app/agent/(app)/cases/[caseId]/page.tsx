@@ -257,12 +257,12 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
       <div className="grid gap-5 lg:grid-cols-[190px_1fr_310px]">
         {/* LEFT — timeline */}
-        <nav aria-label="Этапы кейса" className="rise rise-1 order-1">
+        <nav aria-label="Этапы кейса" className="rise rise-1 order-3 lg:order-1">
           <Timeline current={curIdx} />
         </nav>
 
         {/* CENTER — operational (tabbed to kill the card wall) */}
-        <main className="rise rise-2 order-3 lg:order-2">
+        <main className="rise rise-2 order-1 lg:order-2">
           <CaseTabs
             caseId={id}
             checklist={checklist}

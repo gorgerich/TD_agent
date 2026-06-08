@@ -247,3 +247,11 @@ button:not(:disabled):active { transform: scale(0.99); }
   .sk::after { animation: none; }
   .rise { animation: none; }
 }
+
+/* iOS Safari зумит вьюпорт при фокусе на поле с font-size < 16px.
+   Принудительно 16px на мобильных (десктоп — без изменений). */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select { font-size: 16px !important; }
+}
