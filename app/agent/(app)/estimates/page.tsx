@@ -120,7 +120,7 @@ export default async function EstimatesPage({
                           <StatusBadge status={estimate.status} />
                         </span>
                         <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
-                          <span className="tnum font-semibold text-ink">{moneyFromKopecks(estimate.total)}</span>
+                          <span className="tnum font-semibold text-gold">{moneyFromKopecks(estimate.total)}</span>
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>
                           <span className="text-ink-3">·</span>

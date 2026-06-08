@@ -84,13 +84,19 @@ export default function AgentLoginPage() {
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.08fr_0.92fr]">
       <aside className="relative hidden flex-col justify-between overflow-hidden td-night px-14 py-14 text-on-accent lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.10]"
-          style={{
-            backgroundImage:
-              "radial-gradient(1100px 600px at 12% 6%, rgba(255,255,255,0.6), transparent 62%)",
-          }}
-        />
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          <div
+            className="absolute inset-0 opacity-[0.10]"
+            style={{ backgroundImage: "radial-gradient(1100px 600px at 12% 6%, rgba(255,255,255,0.6), transparent 62%)" }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: "radial-gradient(760px 540px at 100% 100%, var(--color-accent), transparent 60%)" }}
+          />
+          {/* Бренд-мотив: концентричные кольца — «точка» бренда в масштабе */}
+          <div className="absolute -bottom-40 -right-28 h-[460px] w-[460px] rounded-full border border-on-accent/[0.06]" />
+          <div className="absolute -bottom-28 -right-16 h-[320px] w-[320px] rounded-full border border-on-accent/[0.05]" />
+        </div>
         <div className="relative flex items-center gap-3">
           <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-on-accent/10 ring-1 ring-on-accent/15">
             <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
@@ -109,13 +115,14 @@ export default function AgentLoginPage() {
           </h1>
           <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">
             {[
-              ["до встречи", "Бриф и подготовка"],
-              ["встреча", "Смета при семье"],
-              ["после", "Задачи и сроки"],
-            ].map(([label, value]) => (
+              ["01", "до встречи", "Бриф и подготовка"],
+              ["02", "встреча", "Смета при семье"],
+              ["03", "после", "Задачи и сроки"],
+            ].map(([n, label, value]) => (
               <div key={label} className="rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
-                <p className="mt-2 td-display text-[18px] leading-tight text-on-accent">{value}</p>
+                <p className="tnum td-display text-[15px] text-on-accent/35">{n}</p>
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
+                <p className="mt-1 td-display text-[18px] leading-tight text-on-accent">{value}</p>
               </div>
             ))}
           </div>
