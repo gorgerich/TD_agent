@@ -4,8 +4,8 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort } from "@/lib/format";
 
-const CATEGORIES = ["Свидетельство о смерти", "Паспорт", "Договор", "Доверенность", "Прочее"] as const;
-type Category = (typeof CATEGORIES)[number];
+type Category = "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее";
+type DocumentFilter = "all" | "required" | "uploaded" | "ready";
 
 type DocRow = {
   id: string;
@@ -15,6 +15,7 @@ type DocRow = {
   name: string;
   category: string;
   status: "Требуется" | "Загружен";
+  caseReady: boolean;
   url: string | null;
   mimeType: string | null;
   size: number | null;
@@ -52,6 +53,7 @@ async function getDocuments(agentId: number): Promise<DocRow[]> {
       },
     });
     return leads.flatMap((lead) => {
+      const caseReady = REQUIRED_DOCUMENTS.every((template) => lead.documents.some((d) => d.category === template.category));
       const required = REQUIRED_DOCUMENTS.map((template) => {
         const uploaded = lead.documents.find((d) => d.category === template.category);
         return {
@@ -62,6 +64,7 @@ async function getDocuments(agentId: number): Promise<DocRow[]> {
           name: uploaded?.name ?? template.title,
           category: template.category,
           status: uploaded ? "Загружен" : "Требуется",
+          caseReady,
           url: uploaded?.url ?? null,
           mimeType: uploaded?.mimeType ?? null,
           size: uploaded?.size ?? null,
@@ -78,6 +81,7 @@ async function getDocuments(agentId: number): Promise<DocRow[]> {
           name: d.name,
           category: d.category,
           status: "Загружен" as const,
+          caseReady,
           url: d.url,
           mimeType: d.mimeType,
           size: d.size,
@@ -93,18 +97,25 @@ async function getDocuments(agentId: number): Promise<DocRow[]> {
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ cat?: string }>;
+  searchParams?: Promise<{ status?: string }>;
 }) {
   const params = await searchParams;
-  const activeCat = (CATEGORIES as readonly string[]).includes(params?.cat ?? "") ? (params!.cat as Category) : "all";
+  const filterIds: DocumentFilter[] = ["all", "required", "uploaded", "ready"];
+  const activeFilter = filterIds.includes(params?.status as DocumentFilter) ? (params!.status as DocumentFilter) : "all";
   const session = await getAgentSession();
   const docs = await getDocuments(session?.agentId ?? 0);
-  const visible = activeCat === "all" ? docs : docs.filter((d) => d.category === activeCat);
+  const visible = docs.filter((doc) => {
+    if (activeFilter === "required") return doc.status === "Требуется";
+    if (activeFilter === "uploaded") return doc.status === "Загружен";
+    if (activeFilter === "ready") return doc.status === "Загружен" && doc.caseReady;
+    return true;
+  });
   const requiredCount = docs.filter((d) => d.status === "Требуется").length;
   const uploadedCount = docs.filter((d) => d.status === "Загружен").length;
+  const readyCount = docs.filter((d) => d.status === "Загружен" && d.caseReady).length;
 
   return (
-    <div className="td-page mx-auto max-w-[1180px] px-4 py-5 sm:px-7 sm:py-7">
+    <div className="td-page mx-auto w-full max-w-[1180px] overflow-x-hidden px-4 py-5 sm:px-7 sm:py-7">
       <header className="rise mb-5">
         <span className="td-eyebrow">Файлы кейсов</span>
         <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Документы</h1>
@@ -114,7 +125,23 @@ export default async function DocumentsPage({
       </header>
 
       {docs.length > 0 && (
-        <FilterTabs active={activeCat} counts={Object.fromEntries(CATEGORIES.map((c) => [c, docs.filter((d) => d.category === c).length])) as Record<string, number>} total={docs.length} />
+        <div className="rise mb-3 grid min-w-0 grid-cols-3 gap-2">
+          <Stat label="Требуются" value={String(requiredCount)} tone="warning" />
+          <Stat label="Загружены" value={String(uploadedCount)} tone="success" />
+          <Stat label="Готово" value={String(readyCount)} />
+        </div>
+      )}
+
+      {docs.length > 0 && (
+        <FilterTabs
+          active={activeFilter}
+          counts={{
+            all: docs.length,
+            required: requiredCount,
+            uploaded: uploadedCount,
+            ready: readyCount,
+          }}
+        />
       )}
 
       {docs.length === 0 ? (
@@ -122,15 +149,15 @@ export default async function DocumentsPage({
       ) : (
         <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
           {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этой категории документов нет</div>
+            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре документов нет</div>
           ) : (
-            <ul>
+            <ul className="min-w-0">
               {visible.map((doc) => {
                 const isPdf = doc.mimeType === "application/pdf";
                 const isUploaded = doc.status === "Загружен";
                 return (
                   <li key={doc.id} className="border-b border-line last:border-0">
-                    <div className="group flex items-center gap-3.5 py-3.5 pl-4 pr-4 transition-colors hover:bg-surface-2/50">
+                    <div className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 py-3.5 pl-4 pr-4 transition-colors hover:bg-surface-2/50 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
                       <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] bg-surface-2 ring-1 ring-line">
                         {isUploaded ? (
                           isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
@@ -140,8 +167,8 @@ export default async function DocumentsPage({
                       </span>
                       <Link href={`/agent/cases/${doc.caseId}`} className="min-w-0 flex-1">
                         <span className="block truncate text-[14px] font-semibold text-ink">{doc.name}</span>
-                        <span className="mt-1 flex items-center gap-2 text-[12px] text-ink-2">
-                          <span className="truncate">{doc.clientName}</span>
+                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
+                          <span className="max-w-full truncate">{doc.clientName}</span>
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{doc.category}</span>
                           <span className="text-ink-3">·</span>
@@ -157,11 +184,11 @@ export default async function DocumentsPage({
                         </span>
                       </Link>
                       {doc.url ? (
-                        <a href={doc.url} target="_blank" rel="noopener" className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                        <a href={doc.url} target="_blank" rel="noopener" className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2 sm:col-auto" aria-label={`Открыть документ ${doc.name}`}>
                           Открыть <ArrowSquareOut size={13} />
                         </a>
                       ) : (
-                        <Link href={`/agent/cases/${doc.caseId}`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70">
+                        <Link href={`/agent/cases/${doc.caseId}`} className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70 sm:col-auto" aria-label={`Перейти к кейсу для документа ${doc.name}`}>
                           К кейсу <ArrowRight size={13} />
                         </Link>
                       )}
@@ -173,6 +200,20 @@ export default async function DocumentsPage({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "warning" | "success" }) {
+  const cls = tone === "warning"
+    ? "border-warning/20 bg-warning-soft text-warning"
+    : tone === "success"
+      ? "border-success/20 bg-success-soft text-success"
+      : "border-line bg-surface text-ink";
+  return (
+    <div className={`min-w-0 rounded-[14px] border px-3 py-2.5 shadow-[var(--hl-top)] ${cls}`}>
+      <div className="truncate text-[11px] font-medium opacity-75">{label}</div>
+      <div className="tnum mt-0.5 truncate text-[15px] font-semibold">{value}</div>
     </div>
   );
 }
@@ -190,18 +231,20 @@ function StatusBadge({ status }: { status: DocRow["status"] }) {
   );
 }
 
-function FilterTabs({ active, counts, total }: { active: string; counts: Record<string, number>; total: number }) {
+function FilterTabs({ active, counts }: { active: DocumentFilter; counts: Record<DocumentFilter, number> }) {
   const base = "/agent/documents";
-  const items: Array<{ id: string; label: string; count: number }> = [
-    { id: "all", label: "Все", count: total },
-    ...CATEGORIES.map((c) => ({ id: c, label: c, count: counts[c] ?? 0 })),
+  const items: Array<{ id: DocumentFilter; label: string; count: number }> = [
+    { id: "all", label: "Все", count: counts.all },
+    { id: "required", label: "Требуются", count: counts.required },
+    { id: "uploaded", label: "Загружены", count: counts.uploaded },
+    { id: "ready", label: "Готово", count: counts.ready },
   ];
   return (
-    <nav className="rise flex gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр документов">
+    <nav className="rise flex min-w-0 gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр документов">
       {items.map((item) => (
         <Link
           key={item.id}
-          href={item.id === "all" ? base : `${base}?cat=${encodeURIComponent(item.id)}`}
+          href={item.id === "all" ? base : `${base}?status=${item.id}`}
           className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-semibold transition-colors ${
             active === item.id ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
           }`}

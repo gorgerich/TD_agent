@@ -67,18 +67,30 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
 export default async function CalendarPage() {
   const session = await getAgentSession();
   const days = await getCalendar(session?.agentId ?? 0);
+  const events = days.flatMap((day) => day.events);
+  const todayCount = days.find((day) => day.label === "Сегодня")?.events.length ?? 0;
+  const needQuoteCount = events.filter((event) => !event.hasQuote && !event.past).length;
+  const activeCount = events.filter((event) => !event.past).length;
 
   return (
-    <div className="td-page mx-auto max-w-[1040px] px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-7 flex items-end justify-between gap-4">
+    <div className="td-page mx-auto w-full max-w-[1040px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
+      <header className="rise mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Расписание</span>
           <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[36px]">Календарь</h1>
         </div>
-        <Link href="/agent/meetings/new" data-tour="meetings-new" className={buttonClasses({ className: "flex-shrink-0" })}>
+        <Link href="/agent/meetings/new" data-tour="meetings-new" className={buttonClasses({ size: "sm", className: "self-start flex-shrink-0" })}>
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое событие</span><span className="sm:hidden">Событие</span>
         </Link>
       </header>
+
+      {events.length > 0 && (
+        <div className="rise mb-4 grid min-w-0 grid-cols-3 gap-2">
+          <Stat label="Сегодня" value={String(todayCount)} />
+          <Stat label="Активные" value={String(activeCount)} />
+          <Stat label="Без сметы" value={String(needQuoteCount)} />
+        </div>
+      )}
 
       {days.length === 0 ? (
         <div className="rise rise-1 td-shell px-6 py-16 text-center">
@@ -94,9 +106,9 @@ export default async function CalendarPage() {
           </Link>
         </div>
       ) : (
-        <div className="rise rise-1 space-y-5">
+        <div className="rise rise-1 min-w-0 space-y-5">
           {days.map((day) => (
-            <section key={day.key} className="td-shell overflow-hidden">
+            <section key={day.key} className="td-shell min-w-0 overflow-hidden">
               <h2 className="border-b border-line bg-surface-2/55 px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
               <ul>
                 {day.events.map((e) => <EventRow key={e.id} event={e} />)}
@@ -105,6 +117,15 @@ export default async function CalendarPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3 py-2.5 shadow-[var(--hl-top)]">
+      <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
+      <div className="tnum mt-0.5 truncate text-[15px] font-semibold text-ink">{value}</div>
     </div>
   );
 }

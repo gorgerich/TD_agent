@@ -58,9 +58,9 @@ export function EventRow({ event: e }: { event: CalEvent }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`group relative flex w-full items-center gap-3.5 py-3 pl-5 pr-4 text-left transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
+        className={`group relative grid w-full min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2.5 py-3 pl-5 pr-4 text-left transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[52px_minmax(0,1fr)_auto_auto] sm:gap-3.5 ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
       >
-        <span className="tnum w-12 flex-shrink-0 text-[14px] font-semibold text-ink">{e.time}</span>
+        <span className="tnum text-[14px] font-semibold text-ink">{e.time}</span>
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{e.name}</span>
         <span className="hidden items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2 sm:inline-flex">
           <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />
@@ -71,10 +71,10 @@ export function EventRow({ event: e }: { event: CalEvent }) {
 
       {open && (
         <div className="border-t border-line bg-surface-2/40 px-5 py-4">
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-            <div>
+          <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
               <p className="td-eyebrow text-accent">Подготовка к встрече</p>
-              <p className="mt-1.5 flex items-center gap-2 text-[13px] text-ink-2">
+              <p className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-medium text-accent">{e.stage}</span>
                 <span className="text-ink-3">·</span>
                 <a href={`tel:${e.phone}`} className="inline-flex items-center gap-1 text-ink-2 hover:text-accent"><Phone size={13} /> {fmtPhone(e.phone)}</a>
@@ -91,14 +91,14 @@ export function EventRow({ event: e }: { event: CalEvent }) {
                 Смета: {e.hasQuote ? "собрана" : "не собрана"} · Документов: {e.docCount}
               </p>
             </div>
-            <div className="flex flex-row gap-2 sm:flex-col">
-              <Link href={`/agent/cases/${e.leadId}`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover">
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-col">
+              <Link href={`/agent/cases/${e.leadId}`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-accent px-3 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover">
                 <Briefcase size={14} weight="bold" /> Кейс
               </Link>
-              <Link href={`/agent/meetings/${e.id}/quote`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/meetings/${e.id}/quote`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
                 <FileText size={14} /> Смета
               </Link>
-              <Link href={`/agent/documents`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/documents`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
                 <Files size={14} /> Док-ты
               </Link>
             </div>

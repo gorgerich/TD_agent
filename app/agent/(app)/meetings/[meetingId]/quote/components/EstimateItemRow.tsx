@@ -1,6 +1,6 @@
 "use client";
 
-import { type EstimateItem, formatCurrency } from "@/lib/calculationUtils";
+import type { EstimateItem } from "@/lib/calculationUtils";
 import s from "../QuoteBuilder.module.css";
 
 export function EstimateItemRow({

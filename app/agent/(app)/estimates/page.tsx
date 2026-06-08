@@ -70,10 +70,17 @@ export default async function EstimatesPage({
   const session = await getAgentSession();
   const estimates = await getEstimates(session?.agentId ?? 0);
   const visible = activeFilter === "all" ? estimates : estimates.filter((row) => row.filter === activeFilter);
+  const counts = {
+    all: estimates.length,
+    drafts: estimates.filter((row) => row.filter === "drafts").length,
+    sent: estimates.filter((row) => row.filter === "sent").length,
+    agreed: estimates.filter((row) => row.filter === "agreed").length,
+  };
+  const liveTotal = estimates.reduce((sum, row) => sum + row.total, 0);
 
   return (
-    <div className="td-page mx-auto max-w-[1180px] px-4 py-5 sm:px-7 sm:py-7">
-      <header className="rise mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="td-page mx-auto w-full max-w-[1180px] overflow-x-hidden px-4 py-5 sm:px-7 sm:py-7">
+      <header className="rise mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Расчёты</span>
           <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Сметы</h1>
@@ -83,12 +90,16 @@ export default async function EstimatesPage({
         </Link>
       </header>
 
-      <FilterTabs base="/agent/estimates" active={activeFilter} counts={{
-        all: estimates.length,
-        drafts: estimates.filter((row) => row.filter === "drafts").length,
-        sent: estimates.filter((row) => row.filter === "sent").length,
-        agreed: estimates.filter((row) => row.filter === "agreed").length,
-      }} />
+      {estimates.length > 0 && (
+        <div className="rise mb-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Всего смет" value={String(counts.all)} />
+          <Stat label="Черновики" value={String(counts.drafts)} />
+          <Stat label="Согласованы" value={String(counts.agreed)} />
+          <Stat label="Сумма в работе" value={moneyFromKopecks(liveTotal)} />
+        </div>
+      )}
+
+      <FilterTabs base="/agent/estimates" active={activeFilter} counts={counts} />
 
       {estimates.length === 0 ? (
         <EmptyState />
@@ -97,18 +108,18 @@ export default async function EstimatesPage({
           {visible.length === 0 ? (
             <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре смет нет</div>
           ) : (
-            <ul>
+            <ul className="min-w-0">
               {visible.map((estimate) => {
                 const bar = estimate.filter === "agreed" ? "before:bg-success" : estimate.filter === "sent" ? "before:bg-info" : "before:bg-ink-3";
                 return (
                   <li key={estimate.id} className="border-b border-line last:border-0">
-                    <div className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}>
+                    <div className={`group relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}>
                       <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
+                        <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="truncate text-[14px] font-semibold text-ink">{estimate.clientName}</span>
                           <StatusBadge status={estimate.status} />
                         </span>
-                        <span className="mt-1 flex items-center gap-2 text-[12px] text-ink-2">
+                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
                           <span className="tnum font-semibold text-ink">{moneyFromKopecks(estimate.total)}</span>
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>
@@ -116,7 +127,7 @@ export default async function EstimatesPage({
                           <span className="text-ink-3">Кейс #{estimate.caseId}</span>
                         </span>
                       </Link>
-                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-9 w-fit flex-shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2">
+                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2" aria-label={`Открыть смету клиента ${estimate.clientName}`}>
                         Открыть <ArrowRight size={13} />
                       </Link>
                     </div>
@@ -131,9 +142,18 @@ export default async function EstimatesPage({
   );
 }
 
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3 py-2.5 shadow-[var(--hl-top)]">
+      <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
+      <div className="tnum mt-0.5 truncate text-[15px] font-semibold text-ink">{value}</div>
+    </div>
+  );
+}
+
 function FilterTabs({ active, base, counts }: { active: EstimateFilter; base: string; counts: Record<EstimateFilter, number> }) {
   return (
-    <nav className="rise flex gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр смет">
+    <nav className="rise flex min-w-0 gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр смет">
       {FILTERS.map((item) => (
         <Link
           key={item.id}
