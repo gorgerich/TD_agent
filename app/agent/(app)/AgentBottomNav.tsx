@@ -19,7 +19,7 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
   return (
     <nav
       aria-label="Основная навигация"
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="td-dock fixed inset-x-0 bottom-0 z-40 flex bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
       {TABS.map(({ href, icon: Icon, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);

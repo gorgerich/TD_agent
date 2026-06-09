@@ -351,7 +351,7 @@ function RouteActionPanel({
           </ol>
         </div>
 
-        <div className="order-1 bg-accent-soft/70 px-4 py-4 lg:order-2">
+        <div className="td-accent-panel order-1 px-4 py-4 lg:order-2">
           <span className="td-eyebrow text-accent">Следующее действие</span>
           <strong className="mt-2 block text-[18px] leading-snug text-ink">{nextAction}</strong>
           <p className="mt-2 text-[13px] leading-relaxed text-ink-2">

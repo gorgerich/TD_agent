@@ -197,6 +197,26 @@ button:not(:disabled):active { transform: scale(0.97); }
   border-radius: var(--radius-card);
 }
 
+/* Боковой рельс — материал + мягкая краевая тень (плавает над канвой). */
+.td-rail {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--color-surface) 90%, #ffffff),
+    var(--color-surface) 38%,
+    color-mix(in srgb, var(--color-surface) 93%, var(--color-surface-2)));
+  box-shadow: 1px 0 0 var(--color-line), 10px 0 30px -20px rgba(40, 30, 18, 0.22);
+}
+/* Нижняя панель (mobile dock) — материал + верхняя тень. */
+.td-dock {
+  box-shadow: 0 -1px 0 var(--color-line), 0 -12px 28px -20px rgba(40, 30, 18, 0.20);
+}
+/* Акцентная панель (след. действие) — материал вместо плоской заливки. */
+.td-accent-panel {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--color-accent-soft) 72%, #ffffff),
+    var(--color-accent-soft) 55%,
+    color-mix(in srgb, var(--color-accent-soft) 86%, var(--color-accent)));
+}
+
 /* Тёмная поверхность — ровный тёплый эспрессо-хвоя. */
 .td-night {
   background: linear-gradient(160deg, var(--color-night), var(--color-night-2));

@@ -187,7 +187,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
   return (
     <>
       {/* Desktop sidebar — тихий отельный рельс */}
-      <nav className="fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col border-r border-line bg-surface lg:flex">
+      <nav className="td-rail fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col lg:flex">
         <div className="px-6 pb-6 pt-7">
           <Brand />
         </div>
