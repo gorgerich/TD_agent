@@ -114,23 +114,6 @@ export default function AgentLoginPage() {
           <h1 className="td-display rise rise-2 mt-6 text-[54px] leading-[1.02] text-on-accent">
             Кабинет для реальной работы агента и отдельный безопасный демо-вход.
           </h1>
-          <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">
-            {[
-              ["01", "до встречи", "Бриф и подготовка"],
-              ["02", "встреча", "Смета при семье"],
-              ["03", "после", "Задачи и сроки"],
-            ].map(([n, label, value], i) => (
-              <div
-                key={label}
-                className="rise rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4"
-                style={{ animationDelay: `${0.28 + i * 0.09}s` }}
-              >
-                <p className="tnum td-display text-[15px] text-on-accent/35">{n}</p>
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
-                <p className="mt-1 td-display text-[18px] leading-tight text-on-accent">{value}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div className="rise relative flex items-center gap-2.5 text-[12px] text-on-accent/70" style={{ animationDelay: "0.55s" }}>
