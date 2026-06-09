@@ -165,7 +165,7 @@ export default function CoView({ code }: { code: string }) {
       </div>
 
       {/* Grand total hero */}
-      <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_16px_40px_-20px_rgba(31,92,76,0.45)]">
+      <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_16px_40px_-20px_rgba(37,99,235,0.45)]">
         <div className="px-6 py-5 sm:px-8 sm:py-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-accent/60">
             {isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}
@@ -258,7 +258,7 @@ export default function CoView({ code }: { code: string }) {
               type="button"
               onClick={agree}
               disabled={agreeBusy}
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[14px] text-on-accent shadow-[0_14px_32px_-16px_rgba(31,92,76,0.55)] transition-colors hover:bg-accent-hover disabled:opacity-60"
+              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[14px] text-on-accent shadow-[0_14px_32px_-16px_rgba(37,99,235,0.55)] transition-colors hover:bg-accent-hover disabled:opacity-60"
             >
               {agreeBusy ? "Сохраняю…" : "Согласовать смету"}
             </button>

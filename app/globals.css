@@ -14,50 +14,50 @@
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности — тёплый овёс/лён/камень. Высота через тон, не через тень. */
-  --color-canvas: #f3efe7;     /* фон приложения — oat */
-  --color-surface: #fcfbf7;    /* карточки — linen, светлее канвы → приподняты */
-  --color-surface-2: #eae5db;  /* вторичные заливки, hover — stone */
-  --color-surface-3: #e1dbcd;  /* редкое тональное бандирование */
-  --color-line: rgba(45, 36, 24, 0.09);        /* тёплый волосок */
-  --color-line-strong: rgba(45, 36, 24, 0.15);
+  /* Поверхности — чистый белый + холодный воздух. Глубина через тень. */
+  --color-canvas: #f4f7fb;     /* фон приложения — очень светлый прохладный */
+  --color-surface: #ffffff;    /* карточки — белые, приподняты тенью */
+  --color-surface-2: #eef2f8;  /* вторичные заливки, hover */
+  --color-surface-3: #e2e8f1;  /* редкое тональное бандирование */
+  --color-line: rgba(15, 30, 60, 0.10);        /* прохладный волосок */
+  --color-line-strong: rgba(15, 30, 60, 0.17);
 
-  /* Текст — тёплый эспрессо, не чистый чёрный */
-  --color-ink: #221d15;
-  --color-ink-2: #685f52;
-  --color-ink-3: #8d8474;
+  /* Текст — холодный почти-чёрный, не чистый */
+  --color-ink: #0f1b2d;
+  --color-ink-2: #4a5b72;
+  --color-ink-3: #8595a9;
 
-  /* Акцент — глубокий приглушённый хвойный (бренд), используется дозированно */
-  --color-accent: #1e5446;
-  --color-accent-hover: #163d33;
-  --color-accent-soft: #e7ece9;
-  --color-on-accent: #fbfaf5;
+  /* Акцент — синий (бренд), используется уверенно */
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #e6eefe;
+  --color-on-accent: #ffffff;
 
-  /* Дозированный тёплый акцент (редко: комиссии/печати). Глина-бронза. */
-  --color-gold: #8a6535;
-  --color-gold-soft: #efe9dd;
+  /* Дозированный тёплый акцент на ценности (деньги) — тёплый пятак на холодном */
+  --color-gold: #b4791f;
+  --color-gold-soft: #f7ecd6;
 
-  /* Тёмная поверхность (вход) — тёплый эспрессо-хвоя */
-  --color-night: #181c19;
-  --color-night-2: #21261f;
+  /* Тёмная поверхность (вход) — глубокий синий */
+  --color-night: #0c1730;
+  --color-night-2: #142a52;
 
-  /* Семантика — спокойная, земляная, читаемая (AA) */
-  --color-success: #2f7553;
-  --color-success-soft: #e7efe7;
-  --color-warning: #94701f;
-  --color-warning-soft: #f3ecd9;
-  --color-danger: #b0443a;
-  --color-danger-soft: #f4e6e1;
-  --color-info: #345f82;
-  --color-info-soft: #e8eef4;
+  /* Семантика — читаемая (AA) на белом */
+  --color-success: #1f9d57;
+  --color-success-soft: #e2f6ea;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fcefd6;
+  --color-danger: #dc2b3f;
+  --color-danger-soft: #fde3e6;
+  --color-info: #2563eb;
+  --color-info-soft: #e6eefe;
 
-  /* Радиусы — сдержанные. Тени — тёплые, минимальные. */
+  /* Радиусы — сдержанные. Тени — холодные, чистые. */
   --radius-card: 14px;
   --radius-inner: 10px;
-  /* Многослойная мягкая глубина — «вещь на льне», не плоско, но сдержанно */
-  --shadow-soft: 0 1px 1px rgba(40, 30, 18, 0.05), 0 2px 4px rgba(40, 30, 18, 0.05), 0 6px 16px -8px rgba(40, 30, 18, 0.10);
-  --shadow-lift: 0 2px 6px rgba(40, 30, 18, 0.06), 0 10px 22px -10px rgba(40, 30, 18, 0.14), 0 24px 48px -24px rgba(40, 30, 18, 0.20);
-  --shadow-pop: 0 16px 44px -14px rgba(40, 30, 18, 0.24);
+  /* Многослойная мягкая глубина — холодная, на белом */
+  --shadow-soft: 0 1px 1px rgba(15, 30, 60, 0.05), 0 2px 4px rgba(15, 30, 60, 0.06), 0 6px 16px -8px rgba(15, 30, 60, 0.12);
+  --shadow-lift: 0 2px 6px rgba(15, 30, 60, 0.07), 0 10px 22px -10px rgba(15, 30, 60, 0.16), 0 24px 48px -24px rgba(15, 30, 60, 0.22);
+  --shadow-pop: 0 16px 44px -14px rgba(15, 30, 60, 0.26);
   /* Верхний внутренний блик — лёгкое «тиснение» по светлым поверхностям */
   --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -95,7 +95,7 @@ body::before {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.5;
+  opacity: 0.3;
   mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.045'/></svg>");
 }
