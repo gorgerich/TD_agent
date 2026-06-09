@@ -415,7 +415,7 @@ function OutcomeTile({ label, value, tone }: { label: string; value: string; ton
   const dot = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : "bg-accent";
   const bg = tone === "success" ? "bg-success-soft/50" : tone === "warning" ? "bg-warning-soft/55" : "bg-surface-2/55";
   return (
-    <div className={`rounded-[12px] border border-line px-3 py-2.5 ${bg}`}>
+    <div className={`rounded-[12px] border border-line px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] ${bg}`}>
       <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
         {label}
