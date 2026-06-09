@@ -62,10 +62,11 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (!lead) notFound();
 
   // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
-  const [rawTasks, rawNotes, rawDocs] = await Promise.all([
+  const [rawTasks, rawNotes, rawDocs, rawPayments] = await Promise.all([
     prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
+    prisma.casePayment.findMany({ where: { leadId: id }, orderBy: { paidAt: "desc" } }).catch(() => []),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
@@ -93,6 +94,11 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     budget: lead.budget ?? "",
     religion: lead.religion ?? "",
     needs: decryptField(lead.needs) ?? "",
+    deceasedName: decryptField(lead.deceasedName) ?? "",
+    deceasedDate: lead.deceasedDate ? lead.deceasedDate.toISOString().slice(0, 10) : "",
+    morgue: lead.morgue ?? "",
+    ceremonyAt: lead.ceremonyAt ? lead.ceremonyAt.toISOString().slice(0, 16) : "",
+    ceremonyPlace: lead.ceremonyPlace ?? "",
   };
 
   // Derived checklist (read-only статусы - без отдельной таблицы)
@@ -111,6 +117,14 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     mimeType: d.mimeType,
     size: d.size,
     createdAt: d.createdAt.toISOString(),
+  }));
+  const payments = rawPayments.map((p) => ({
+    id: p.id,
+    amountKopecks: p.amountKopecks,
+    kind: p.kind,
+    method: p.method,
+    note: p.note,
+    paidAt: p.paidAt.toISOString(),
   }));
 
   // Derived activity feed
@@ -140,6 +154,13 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (orders.length > 0 && !paid) risks.push({ tone: "warning", label: "Оплата не завершена" });
   if ((stage === "Договор" || stage === "Оплата") && docs.length === 0) risks.push({ tone: "warning", label: "Нет документов" });
   if (stale) risks.push({ tone: "warning", label: "Без движения >7 дней" });
+  // Церемония — жёсткий дедлайн: близко и не готово = красный
+  const ceremonyMs = lead.ceremonyAt?.getTime() ?? null;
+  const hoursToCeremony = ceremonyMs ? Math.round((ceremonyMs - nowMs) / 3_600_000) : null;
+  if (hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48) {
+    if (versions.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч — сметы нет` });
+    if (docs.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч — документов нет` });
+  }
 
   const latestVersion = versions.reduce<(typeof versions)[number] | null>((latest, version) => {
     if (!latest) return version;
@@ -205,6 +226,19 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             <MetaPill icon={<User size={14} weight="duotone" />} label="Агент" value={session?.name ?? "-"} />
             <MetaPill icon={<CalendarDots size={14} weight="duotone" />} label="Заведено" value={dateTime(lead.createdAt)} />
           </div>
+          {(intake.deceasedName || lead.ceremonyAt) && (
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-3 text-[13px] text-ink-2">
+              {intake.deceasedName && <span className="font-medium text-ink">{intake.deceasedName}</span>}
+              {intake.morgue && <span className="text-ink-3">· {intake.morgue}</span>}
+              {lead.ceremonyAt && (
+                <span className={hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48 ? "font-semibold text-danger" : "text-ink-2"}>
+                  · Церемония: {dateTime(lead.ceremonyAt)}
+                  {intake.ceremonyPlace ? `, ${intake.ceremonyPlace}` : ""}
+                  {hoursToCeremony !== null && hoursToCeremony > 0 ? ` (через ${hoursToCeremony} ч)` : ""}
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </header>
 
@@ -258,6 +292,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
             notes={notes}
             intake={intake}
             context={context}
+            payments={payments}
             activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
           />
         </main>

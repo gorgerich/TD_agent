@@ -142,6 +142,7 @@ model Agent {
   tasks        Task[]       // NEW (P5)
   notes        CaseNote[]   // NEW (P5)
   documents    Document[]   // NEW (P0): реальные файлы кейса
+  casePayments CasePayment[] // NEW (P0): оплаты по кейсам
 
   createdAt    DateTime     @default(now())
 
@@ -168,10 +169,17 @@ model ClientLead {
   budget       String? // бюджетная вилка
   religion     String? // конфессия/традиция
   needs        String? // особые пожелания (ПДн — шифровать через encryptField)
+  // NEW (P0, MVP-домен): усопший и церемония — главный дедлайн кейса
+  deceasedName  String?   // ФИО усопшего (ПДн — encryptField)
+  deceasedDate  DateTime? // дата смерти
+  morgue        String?   // морг / где находится
+  ceremonyAt    DateTime? // дата и время церемонии (жёсткий дедлайн кейса)
+  ceremonyPlace String?   // кладбище / крематорий
   meetings  Meeting[]
   tasks     Task[]    // NEW (P5)
   notes     CaseNote[] // NEW (P5)
   documents Document[] // NEW (P0): реальные файлы кейса
+  payments  CasePayment[] // NEW (P0): оплаты, фиксируемые агентом
   createdAt DateTime  @default(now())
 
   @@index([agentId])
@@ -297,6 +305,24 @@ model CaseNote {
   agent     Agent      @relation(fields: [agentId], references: [id])
   body      String     // ПДн — шифровать на уровне app (encryptField), как ClientLead.context
   createdAt DateTime   @default(now())
+
+  @@index([leadId])
+  @@index([agentId])
+}
+
+// NEW (P0): оплаты по кейсу, фиксируемые агентом (аванс/остаток).
+// Намеренно отдельно от B2C Order/Payment — их не трогаем.
+model CasePayment {
+  id            Int        @id @default(autoincrement())
+  leadId        Int
+  lead          ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId       Int
+  agent         Agent      @relation(fields: [agentId], references: [id])
+  amountKopecks Int
+  kind          String     // "аванс" | "остаток" | "полная"
+  method        String     // "наличные" | "карта" | "счёт"
+  note          String?
+  paidAt        DateTime   @default(now())
 
   @@index([leadId])
   @@index([agentId])

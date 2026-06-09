@@ -8,6 +8,12 @@ export type Intake = {
   budget: string;
   religion: string;
   needs: string;
+  // P0-домен: усопший и церемония
+  deceasedName: string;
+  deceasedDate: string;   // yyyy-mm-dd
+  morgue: string;
+  ceremonyAt: string;     // yyyy-mm-ddThh:mm
+  ceremonyPlace: string;
 };
 
 const CEREMONY = ["кремация", "погребение"] as const;
@@ -50,6 +56,33 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
 
   return (
     <div className="space-y-3">
+      {/* Усопший и церемония — главный дедлайн кейса */}
+      <div className="rounded-[12px] border border-line bg-surface-2/45 p-3">
+        <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Усопший и церемония</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">ФИО усопшего</label>
+            <input className={inputCls} placeholder="Иванов Иван Иванович" value={v.deceasedName} onChange={(e) => set("deceasedName", e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Дата смерти</label>
+            <input type="date" className={inputCls} value={v.deceasedDate} onChange={(e) => set("deceasedDate", e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Морг / где находится</label>
+            <input className={inputCls} placeholder="например, морг ГКБ №1" value={v.morgue} onChange={(e) => set("morgue", e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Дата и время церемонии</label>
+            <input type="datetime-local" className={inputCls} value={v.ceremonyAt} onChange={(e) => set("ceremonyAt", e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Кладбище / крематорий</label>
+            <input className={inputCls} placeholder="например, Хованское кладбище" value={v.ceremonyPlace} onChange={(e) => set("ceremonyPlace", e.target.value)} />
+          </div>
+        </div>
+      </div>
+
       <div>
         <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Тип церемонии</label>
         <div className="td-segmented rounded-[12px]">

@@ -6,6 +6,7 @@ import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
 import { DocumentsSection } from "./DocumentsSection";
 import { IntakeSection, type Intake } from "./IntakeSection";
+import { PaymentsSection, type PaymentItem } from "./PaymentsSection";
 
 type TaskItem = { id: number; title: string; dueAt: string | null; completedAt: string | null };
 type NoteItem = { id: number; body: string; createdAt: string };
@@ -23,6 +24,7 @@ export function CaseTabs({
   notes,
   intake,
   context,
+  payments,
   activity,
 }: {
   caseId: number;
@@ -32,6 +34,7 @@ export function CaseTabs({
   notes: NoteItem[];
   intake: Intake;
   context: string | null;
+  payments: PaymentItem[];
   activity: ActivityItem[];
 }) {
   const [tab, setTab] = useState<TabId>("work");
@@ -90,6 +93,9 @@ export function CaseTabs({
             </Section>
             <Section title={`Задачи · ${openTasks} открыто`}>
               <TasksSection caseId={caseId} initial={tasks} />
+            </Section>
+            <Section title="Оплата" hint="Фиксация аванса и остатка по договорённости с семьёй.">
+              <PaymentsSection caseId={caseId} initial={payments} />
             </Section>
           </div>
         )}
