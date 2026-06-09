@@ -8,16 +8,16 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const BASE =
-  "td-press relative isolate inline-flex select-none items-center justify-center gap-2 overflow-hidden rounded-full font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45";
+  "relative isolate inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45 disabled:active:scale-100";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.24),0_10px_22px_-12px_rgba(0,58,53,0.78),inset_0_1px_0_rgba(255,255,255,0.18)] before:pointer-events-none before:absolute before:inset-x-3 before:top-0 before:h-px before:bg-white/35 hover:bg-accent-hover hover:shadow-[0_2px_4px_rgba(0,31,39,0.24),0_14px_28px_-12px_rgba(0,58,53,0.82),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    "bg-accent text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_6px_14px_-12px_rgba(0,58,53,0.42)] hover:bg-accent-hover hover:shadow-[0_1px_2px_rgba(0,31,39,0.18),0_8px_18px_-14px_rgba(0,58,53,0.44)]",
   secondary:
-    "border border-line bg-surface text-ink shadow-[0_1px_2px_rgba(0,31,39,0.05),inset_0_1px_0_rgba(255,255,255,0.65)] hover:border-line-strong hover:bg-surface-2 hover:shadow-[0_6px_18px_-14px_rgba(0,31,39,0.28),inset_0_1px_0_rgba(255,255,255,0.72)]",
+    "border border-line bg-surface text-ink shadow-[var(--hl-top)] hover:border-line-strong hover:bg-surface-2",
   ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
   danger:
-    "bg-danger text-white shadow-[0_1px_2px_rgba(0,31,39,0.2),0_10px_22px_-14px_rgba(220,43,63,0.72),inset_0_1px_0_rgba(255,255,255,0.18)] hover:brightness-95",
+    "bg-danger text-white shadow-[0_1px_2px_rgba(0,31,39,0.16)] hover:brightness-95",
 };
 
 const SIZES: Record<Size, string> = {

@@ -189,7 +189,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16)] transition-colors duration-150 hover:bg-accent-hover disabled:opacity-55"
         >
           <FileArrowUp size={15} weight="bold" /> {busy ? "Загружаю…" : "Загрузить"}
         </button>

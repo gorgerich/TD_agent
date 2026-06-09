@@ -54,8 +54,7 @@ const ROLE_LABELS: Record<string, string> = {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="relative grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-[14px] border border-accent/20 bg-accent text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_12px_24px_-18px_rgba(0,58,53,0.9)]">
-        <span className="absolute inset-x-2 top-1 h-px rounded-full bg-white/35" />
+      <span className="relative grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-[14px] border border-accent/20 bg-accent text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_7px_16px_-13px_rgba(0,58,53,0.42)]">
         <span className="block h-2.5 w-2.5 rounded-full bg-on-accent shadow-[0_0_0_4px_rgba(247,251,246,0.14)]" />
       </span>
       <span className="leading-none">

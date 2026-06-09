@@ -342,7 +342,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
             <button
               type="button"
               onClick={goNext}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(0,58,53,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_6px_14px_-12px_rgba(0,58,53,0.42)] transition-colors duration-150 hover:bg-accent-hover"
             >
               {isIntro ? (
                 <>Начать <CaretRight size={13} weight="bold" /></>

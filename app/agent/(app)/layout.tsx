@@ -4,7 +4,6 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AgentSidebar from "./AgentSidebar";
 import AgentBottomNav from "./AgentBottomNav";
-import AgentJourneyBar from "./AgentJourneyBar";
 import OnboardingTour from "./OnboardingTour";
 import CommandPalette from "@/components/CommandPalette";
 import { ToastProvider } from "@/components/Toast";
@@ -54,7 +53,6 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
       <div className="min-h-[100dvh]">
         <AgentSidebar session={session} overdue={overdue} />
         <main id="main-content" className="relative min-h-[100dvh] pb-[104px] pt-14 lg:pb-0 lg:pl-[260px] lg:pt-0">
-          <AgentJourneyBar />
           {children}
         </main>
         <AgentBottomNav overdue={overdue} />
