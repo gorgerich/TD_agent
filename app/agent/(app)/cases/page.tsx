@@ -203,7 +203,7 @@ export default async function CasesPage() {
                   <li key={c.id} className="border-b border-line last:border-0">
                     <Link
                       href={`/agent/cases/${c.id}`}
-                      className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
+                      className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-[background-color,box-shadow] duration-150 hover:z-10 hover:bg-surface-2/60 hover:shadow-[0_8px_24px_-16px_rgba(40,30,18,0.3)] before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
                     >
                       <Avatar name={c.name} urgent={c.urgent} />
                       <span className="min-w-0 flex-1">
