@@ -4,7 +4,7 @@ import { Compass, House } from "@phosphor-icons/react/dist/ssr";
 export default function AgentNotFound() {
   return (
     <div className="td-page mx-auto flex min-h-[70dvh] max-w-[560px] flex-col items-center justify-center px-5 py-16 text-center">
-      <span className="mb-5 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
+      <span className="mb-5 grid h-16 w-16 place-items-center rounded-full icon-3d text-accent">
         <Compass size={30} weight="duotone" />
       </span>
       <span className="td-eyebrow">Ошибка 404</span>

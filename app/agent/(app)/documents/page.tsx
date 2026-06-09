@@ -290,7 +290,7 @@ function FilterTabs({ active, counts }: { active: DocumentFilter; counts: Record
 function EmptyState() {
   return (
     <div className="rise rise-1 td-shell mt-4 px-6 py-14 text-center">
-      <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+      <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
         <Files size={24} weight="duotone" />
       </span>
       <h2 className="td-display text-[24px] text-ink">Документов пока нет</h2>

@@ -171,7 +171,7 @@ export default async function CasesPage() {
         <section className="rise rise-1 min-w-0">
           {active.length === 0 ? (
             <div className="td-shell px-6 py-12 text-center">
-              <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+              <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
                 <Briefcase size={26} weight="duotone" />
               </span>
               <h2 className="td-display text-[24px] text-ink">Здесь будут ваши кейсы</h2>

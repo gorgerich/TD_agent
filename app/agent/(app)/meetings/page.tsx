@@ -94,7 +94,7 @@ export default async function CalendarPage() {
 
       {days.length === 0 ? (
         <div className="rise rise-1 td-shell px-6 py-16 text-center">
-          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
             <CalendarDots size={26} weight="duotone" />
           </span>
           <h2 className="text-[20px] font-semibold text-ink">Событий пока нет</h2>

@@ -85,7 +85,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
       <section className="td-shell p-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent">
+            <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] icon-3d text-accent">
               <Bell size={19} weight="duotone" />
             </span>
             <div>
@@ -110,7 +110,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
       {/* Смена пароля */}
       <section className="td-shell p-5">
         <div className="mb-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent">
+          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] icon-3d text-accent">
             <Key size={19} weight="duotone" />
           </span>
           <div>

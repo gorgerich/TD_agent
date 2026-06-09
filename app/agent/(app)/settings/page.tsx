@@ -25,7 +25,7 @@ export default async function SettingsPage() {
 
       <section className="rise rise-1 td-shell p-5">
         <div className="mb-4 flex items-center gap-3">
-          <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px] bg-accent-soft text-accent">
+          <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-[12px] icon-3d text-accent">
             <UserCircle size={22} weight="duotone" />
           </span>
           <div>

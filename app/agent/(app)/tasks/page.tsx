@@ -38,7 +38,7 @@ export default async function TasksPage() {
 
       {tasks.length === 0 ? (
         <div className="rise rise-1 td-shell px-6 py-12 text-center">
-          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent">
+          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
             <CheckSquare size={24} weight="duotone" />
           </span>
           <h2 className="text-[18px] font-semibold text-ink">Задач пока нет</h2>

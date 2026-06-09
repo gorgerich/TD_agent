@@ -54,7 +54,7 @@ export default async function CommissionsPage() {
           <div className="td-core overflow-hidden">
           {commissions.length === 0 ? (
             <div className="px-6 py-16 text-center">
-              <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
+              <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full icon-3d text-accent">
                 <CurrencyRub size={28} weight="duotone" />
               </span>
               <h2 className="td-display text-[20px] text-ink">Начислений пока нет</h2>
