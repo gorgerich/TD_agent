@@ -29,10 +29,10 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors ${active ? "text-accent" : "text-ink-3"}`}
+            className={`td-press flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium ${active ? "text-accent" : "text-ink-3"}`}
           >
             <span
-              className={`relative grid h-7 w-12 place-items-center rounded-full transition-colors ${active ? "bg-accent-soft" : "bg-transparent"}`}
+              className={`relative grid h-7 w-12 place-items-center rounded-full transition-[background-color,box-shadow] ${active ? "bg-accent-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" : "bg-transparent"}`}
             >
               <Icon size={21} weight={active ? "fill" : "regular"} />
               {badge > 0 && (

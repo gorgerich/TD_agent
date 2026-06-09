@@ -71,13 +71,14 @@ export default function NewCaseSheet() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[13px] font-semibold text-on-accent transition-colors duration-200 hover:bg-accent-hover"
+        leftIcon={<Plus size={15} weight="bold" />}
+        className="flex-shrink-0"
       >
-        <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новый кейс</span><span className="sm:hidden">Кейс</span>
-      </button>
+        <span className="hidden sm:inline">Новый кейс</span><span className="sm:hidden">Кейс</span>
+      </Button>
 
       {open && createPortal(
         <div
@@ -90,7 +91,7 @@ export default function NewCaseSheet() {
           <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop" style={{ animation: "sheetInRight 0.36s var(--ease-drawer)" }}>
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <h2 className="td-display text-[20px] text-ink">Новый кейс</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">
+              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="td-icon-button h-9 w-9">
                 <X size={18} />
               </button>
             </div>
@@ -104,15 +105,14 @@ export default function NewCaseSheet() {
               </Field>
 
               <Field label="Тип церемонии">
-                <div className="grid grid-cols-2 gap-2">
+                <div className="td-segmented rounded-[12px]">
                   {(["кремация", "погребение"] as const).map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setCeremony(ceremony === c ? "" : c)}
-                      className={`min-h-11 rounded-[12px] border text-[13px] font-medium capitalize transition-colors ${
-                        ceremony === c ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-ink-2 hover:border-line-strong"
-                      }`}
+                      data-active={ceremony === c ? "true" : undefined}
+                      className="td-segment min-h-10 flex-1 capitalize"
                     >
                       {c}
                     </button>

@@ -19,6 +19,7 @@ import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
 import { CaseTabs } from "./CaseTabs";
+import { buttonClasses } from "@/components/ui/Button";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -435,14 +436,11 @@ function StagePill({ stage }: { stage: (typeof STAGE_ORDER)[number] }) {
 }
 
 function Action({ href, icon, children, primary, external, compact }: { href: string; icon: ReactNode; children: ReactNode; primary?: boolean; external?: boolean; compact?: boolean }) {
-  const cls = primary
-    ? "bg-accent text-on-accent hover:bg-accent-hover shadow-[0_1px_2px_rgba(20,30,24,0.25),0_6px_16px_-8px_rgba(20,30,24,0.40),inset_0_1px_0_rgba(255,255,255,0.16)]"
-    : "border border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_1px_2px_rgba(40,30,18,0.05)]";
   return (
     <Link
       href={href}
       {...(external ? { target: "_blank", rel: "noopener" } : {})}
-      className={`flex min-h-11 items-center gap-2.5 rounded-[12px] px-4 text-[13px] font-semibold transition-[background-color,border-color,box-shadow] duration-150 ${compact ? "w-auto" : "w-full"} ${cls}`}
+      className={buttonClasses({ variant: primary ? "primary" : "secondary", size: compact ? "sm" : "md", className: compact ? "w-auto" : "w-full justify-start" })}
     >
       <span className="flex-shrink-0">{icon}</span>
       {children}

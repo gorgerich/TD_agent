@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CaretDown, Phone, FileText, Files, Briefcase, Check } from "@phosphor-icons/react";
 import { phone as fmtPhone } from "@/lib/format";
 import type { Stage } from "@/lib/case";
+import { buttonClasses } from "@/components/ui/Button";
 
 export type CalEvent = {
   id: number;
@@ -58,7 +59,7 @@ export function EventRow({ event: e }: { event: CalEvent }) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`group relative grid w-full min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2.5 py-3 pl-5 pr-4 text-left transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[52px_minmax(0,1fr)_auto_auto] sm:gap-3.5 ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
+        className={`td-entity-row group relative grid w-full min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2.5 py-3 pl-5 pr-4 text-left before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[52px_minmax(0,1fr)_auto_auto] sm:gap-3.5 ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
       >
         <span className="tnum text-[14px] font-semibold text-ink">{e.time}</span>
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{e.name}</span>
@@ -92,13 +93,13 @@ export function EventRow({ event: e }: { event: CalEvent }) {
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-col">
-              <Link href={`/agent/cases/${e.leadId}`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full bg-accent px-3 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover">
+              <Link href={`/agent/cases/${e.leadId}`} className={buttonClasses({ size: "sm", className: "justify-center" })}>
                 <Briefcase size={14} weight="bold" /> Кейс
               </Link>
-              <Link href={`/agent/meetings/${e.id}/quote`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/meetings/${e.id}/quote`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
                 <FileText size={14} /> Смета
               </Link>
-              <Link href={`/agent/documents`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2">
+              <Link href={`/agent/documents`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
                 <Files size={14} /> Док-ты
               </Link>
             </div>

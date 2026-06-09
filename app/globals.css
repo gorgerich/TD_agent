@@ -200,6 +200,178 @@ button:not(:disabled):active { transform: scale(0.97); }
   border-radius: var(--radius-card);
 }
 
+/* ── 21st-style UI primitives, adapted to TD tokens ─────────────
+   Registry-паттерны без runtime-зависимостей: entity rows, segmented
+   controls, command surfaces, compact metrics. Один ритм вместо пачки
+   похожих inline-стилей. */
+.td-glass {
+  border: 1px solid var(--color-line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.72)),
+    var(--color-surface);
+  box-shadow: var(--shadow-soft), var(--hl-top);
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+
+.td-entity-list {
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft), var(--hl-top);
+}
+
+.td-entity-row {
+  position: relative;
+  isolation: isolate;
+  transition:
+    background-color 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out);
+}
+.td-entity-row::after {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+  opacity: 0;
+  transition: opacity 0.18s var(--ease-out);
+  pointer-events: none;
+}
+.td-entity-row:hover {
+  z-index: 2;
+  background: color-mix(in srgb, var(--color-surface-2) 70%, #ffffff);
+  box-shadow: 0 10px 30px -24px rgba(15, 30, 60, 0.32);
+}
+.td-entity-row:hover::after { opacity: 1; }
+.td-entity-row:active { transform: scale(0.997); }
+
+.td-mini-row {
+  border-radius: 10px;
+  transition:
+    background-color 0.16s var(--ease-out),
+    color 0.16s var(--ease-out),
+    transform 0.12s var(--ease-out);
+}
+.td-mini-row:hover { background: var(--color-surface-2); color: var(--color-ink); }
+.td-mini-row:active { transform: scale(0.99); }
+
+.td-segmented {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 82%, #fff), var(--color-surface-2));
+  padding: 4px;
+  box-shadow: var(--hl-top);
+}
+.td-segment {
+  display: inline-flex;
+  min-height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--color-ink-2);
+  transition:
+    background-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    transform 0.12s var(--ease-out);
+}
+.td-segment:hover { background: rgba(255, 255, 255, 0.72); color: var(--color-ink); }
+.td-segment:active { transform: scale(0.98); }
+.td-segment[data-active="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  box-shadow:
+    0 1px 2px rgba(15, 30, 60, 0.16),
+    0 8px 18px -12px rgba(37, 99, 235, 0.68),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.td-metric {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 90%, #fff), var(--color-surface));
+  padding: 10px 12px;
+  box-shadow: var(--hl-top);
+}
+.td-metric-success {
+  border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.td-metric-warning {
+  border-color: color-mix(in srgb, var(--color-warning) 22%, transparent);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.td-metric-danger {
+  border-color: color-mix(in srgb, var(--color-danger) 22%, transparent);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.td-pill {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 84%, var(--color-surface-2));
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-2);
+  box-shadow: var(--hl-top);
+}
+
+.td-icon-button {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--color-ink-3);
+  transition:
+    background-color 0.16s var(--ease-out),
+    color 0.16s var(--ease-out),
+    transform 0.12s var(--ease-out);
+}
+.td-icon-button:hover { background: var(--color-surface-2); color: var(--color-ink); }
+.td-icon-button:active { transform: scale(0.96); }
+
+.td-popover {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  box-shadow: var(--shadow-pop), var(--hl-top);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.td-press {
+  transition:
+    transform 0.12s var(--ease-out),
+    background-color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    box-shadow 0.2s var(--ease-out);
+}
+.td-press:active { transform: scale(0.96); }
+
 /* Боковой рельс — материал + мягкая краевая тень (плавает над канвой). */
 .td-rail {
   background: linear-gradient(180deg,
@@ -322,3 +494,13 @@ button:not(:disabled):active { transform: scale(0.97); }
 /* Вход правой панели (sheet) — drawer-кривая Emil. reduced-motion гасит глобально. */
 @keyframes sheetInRight { from { transform: translateX(100%); } to { transform: none; } }
 @keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tdToastIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes tdPopoverIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.td-toast-in { animation: tdToastIn 0.24s var(--ease-out) both; }
+.td-popover-in { animation: tdPopoverIn 0.22s var(--ease-out) both; }

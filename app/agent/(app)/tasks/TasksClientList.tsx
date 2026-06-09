@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { ArrowRight, Check, Clock, Warning } from "@phosphor-icons/react";
+import { buttonClasses } from "@/components/ui/Button";
 
 export type TaskListRow = {
   id: number;
@@ -87,7 +88,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
       {GROUPS.map((group) => {
         const items = groups[group.id];
         return (
-          <section key={group.id} className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+          <section key={group.id} className="td-entity-list">
             <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/55 px-4 py-2.5">
               <div className="flex items-center gap-2">
                 <GroupIcon group={group.id} />
@@ -96,7 +97,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
                   <p className="text-[11px] text-ink-3">{group.hint}</p>
                 </div>
               </div>
-              <span className="tnum rounded-full border border-line bg-surface px-2.5 py-1 text-[11px] font-semibold text-ink-2">{items.length}</span>
+              <span className="td-pill tnum text-[11px]">{items.length}</span>
             </header>
             {items.length === 0 ? (
               <div className="px-4 py-4 text-[13px] text-ink-3">Нет задач в группе</div>
@@ -113,7 +114,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
                   return (
                     <li
                       key={task.id}
-                      className={`relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/40 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}
+                      className={`td-entity-row relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}
                     >
                       <Link href={`/agent/cases/${task.leadId}`} className="min-w-0 flex-1">
                         <span className={`block truncate text-[14px] font-semibold ${task.completedAt ? "text-ink-3 line-through" : "text-ink"}`}>{task.title}</span>
@@ -134,7 +135,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
                           type="button"
                           onClick={() => markDone(task)}
                           disabled={pendingId === task.id}
-                          className="inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full bg-accent px-3.5 text-[12px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
+                          className={buttonClasses({ size: "sm", className: "w-fit" })}
                         >
                           <Check size={13} weight="bold" />
                           {pendingId === task.id ? "Сохраняю" : "Отметить"}
@@ -154,14 +155,14 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
 
 function SummaryCell({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" | "success" }) {
   const cls = tone === "danger"
-    ? "border-danger/20 bg-danger-soft text-danger"
+    ? "td-metric-danger"
     : tone === "warning"
-      ? "border-warning/20 bg-warning-soft text-warning"
+      ? "td-metric-warning"
       : tone === "success"
-        ? "border-success/20 bg-success-soft text-success"
-        : "border-line bg-surface text-ink";
+        ? "td-metric-success"
+        : "text-ink";
   return (
-    <div className={`min-w-0 rounded-[14px] border px-3 py-2.5 shadow-[var(--hl-top)] ${cls}`}>
+    <div className={`td-metric ${cls}`}>
       <div className="truncate text-[11px] font-medium opacity-75">{label}</div>
       <div className="tnum mt-0.5 truncate text-[15px] font-semibold">{value}</div>
     </div>

@@ -164,7 +164,7 @@ export default async function DocumentsPage({
             const upN = g.rows.filter((r) => r.status === "Загружен").length;
             const reqN = g.rows.filter((r) => r.status === "Требуется").length;
             return (
-              <section key={caseId} className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+              <section key={caseId} className="td-entity-list">
                 <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/45 px-4 py-3">
                   <Link href={`/agent/cases/${caseId}`} className="group flex min-w-0 items-center gap-2.5">
                     <span
@@ -187,7 +187,7 @@ export default async function DocumentsPage({
                     const isUploaded = doc.status === "Загружен";
                     return (
                       <li key={doc.id} className="border-b border-line last:border-0">
-                        <div className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 py-3 pl-4 pr-4 transition-colors hover:bg-surface-2/50 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
+                        <div className="td-entity-row group grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-3 py-3 pl-4 pr-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center">
                           <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[10px] bg-surface-2 ring-1 ring-line">
                             {isUploaded ? (
                               isPdf ? <FilePdf size={20} weight="duotone" className="text-danger" /> : <FileImage size={20} weight="duotone" className="text-info" />
@@ -212,11 +212,11 @@ export default async function DocumentsPage({
                             </span>
                           </div>
                           {doc.url ? (
-                            <a href={doc.url} target="_blank" rel="noopener" className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2 sm:col-auto" aria-label={`Открыть документ ${doc.name}`}>
+                            <a href={doc.url} target="_blank" rel="noopener" className={buttonClasses({ variant: "secondary", size: "sm", className: "col-start-2 w-fit sm:col-auto" })} aria-label={`Открыть документ ${doc.name}`}>
                               Открыть <ArrowSquareOut size={13} />
                             </a>
                           ) : (
-                            <Link href={`/agent/cases/${doc.caseId}`} className="col-start-2 inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning transition-colors hover:bg-warning-soft/70 sm:col-auto" aria-label={`Перейти к кейсу для документа ${doc.name}`}>
+                            <Link href={`/agent/cases/${doc.caseId}`} className="td-press col-start-2 inline-flex min-h-9 w-fit items-center gap-1.5 rounded-full border border-warning/25 bg-warning-soft px-3.5 text-[12px] font-semibold text-warning hover:bg-warning-soft/70 sm:col-auto" aria-label={`Перейти к кейсу для документа ${doc.name}`}>
                               К кейсу <ArrowRight size={13} />
                             </Link>
                           )}
@@ -236,12 +236,12 @@ export default async function DocumentsPage({
 
 function Stat({ label, value, tone }: { label: string; value: string; tone?: "warning" | "success" }) {
   const cls = tone === "warning"
-    ? "border-warning/20 bg-warning-soft text-warning"
+    ? "td-metric-warning"
     : tone === "success"
-      ? "border-success/20 bg-success-soft text-success"
-      : "border-line bg-surface text-ink";
+      ? "td-metric-success"
+      : "text-ink";
   return (
-    <div className={`min-w-0 rounded-[14px] border px-3 py-2.5 shadow-[var(--hl-top)] ${cls}`}>
+    <div className={`td-metric ${cls}`}>
       <div className="truncate text-[11px] font-medium opacity-75">{label}</div>
       <div className="tnum mt-0.5 truncate text-[15px] font-semibold">{value}</div>
     </div>
@@ -270,14 +270,13 @@ function FilterTabs({ active, counts }: { active: DocumentFilter; counts: Record
     { id: "ready", label: "Готово", count: counts.ready },
   ];
   return (
-    <nav className="rise flex min-w-0 gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр документов">
+    <nav className="rise td-segmented" aria-label="Фильтр документов">
       {items.map((item) => (
         <Link
           key={item.id}
           href={item.id === "all" ? base : `${base}?status=${item.id}`}
-          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-semibold transition-colors ${
-            active === item.id ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-          }`}
+          data-active={active === item.id ? "true" : undefined}
+          className="td-segment"
         >
           {item.label}
           <span className={`tnum text-[11px] ${active === item.id ? "text-on-accent/75" : "text-ink-3"}`}>{item.count}</span>

@@ -49,7 +49,8 @@ export function CaseTabs({
   return (
     <div className="td-shell min-w-0 overflow-hidden">
       {/* Tab bar */}
-      <div className="flex min-w-0 gap-1 overflow-x-auto border-b border-line bg-surface-2/45 px-2 py-2">
+      <div className="border-b border-line bg-surface-2/45 px-2 py-2">
+        <div className="td-segmented border-0 bg-transparent p-0 shadow-none">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -58,9 +59,8 @@ export function CaseTabs({
               type="button"
               onClick={() => setTab(t.id)}
               aria-current={active ? "true" : undefined}
-              className={`inline-flex min-h-9 flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold transition-colors ${
-                active ? "bg-surface text-ink shadow-[0_1px_2px_rgba(40,30,18,0.06)]" : "text-ink-2 hover:bg-surface/60 hover:text-ink"
-              }`}
+              data-active={active ? "true" : undefined}
+              className="td-segment"
             >
               <span className={active ? "text-accent" : "text-ink-3"}>{t.icon}</span>
               {t.label}
@@ -70,6 +70,7 @@ export function CaseTabs({
             </button>
           );
         })}
+        </div>
       </div>
 
       <div key={tab} className="tab-panel p-4 sm:p-5">

@@ -143,13 +143,13 @@ export default function CommandPalette() {
       aria-label="Командная палитра"
       onMouseDown={close}
     >
-      <div className="absolute inset-0 bg-[rgba(20,16,11,0.5)] backdrop-blur-[2px]" />
+      <div className="absolute inset-0 bg-[rgba(8,14,28,0.42)] backdrop-blur-[3px]" />
       <div
-        className="relative w-full max-w-[560px] overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-pop"
+        className="td-popover td-popover-in relative w-full max-w-[560px] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
       >
-        <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
+        <div className="flex items-center gap-3 border-b border-line bg-surface/72 px-4 py-3.5">
           <MagnifyingGlass size={18} className="flex-shrink-0 text-ink-3" />
           <input
             ref={inputRef}
@@ -178,12 +178,12 @@ export default function CommandPalette() {
                   data-idx={i}
                   onMouseEnter={() => setActive(i)}
                   onClick={c.run}
-                  className={`flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-colors ${
-                    isActive ? "bg-accent-soft text-accent" : "text-ink-2 hover:bg-surface-2"
+                  className={`td-entity-row flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-left ${
+                    isActive ? "bg-accent-soft text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]" : "text-ink-2 hover:bg-surface-2"
                   }`}
                 >
                   <span
-                    className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] ${
+                    className={`grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] ${
                       isActive ? "bg-accent text-on-accent" : "bg-surface-2 text-ink-3"
                     }`}
                   >

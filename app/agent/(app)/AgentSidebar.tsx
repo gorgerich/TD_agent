@@ -25,7 +25,7 @@ function CommandTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(COMMAND_OPEN_EVENT))}
-      className="flex w-full items-center gap-2.5 rounded-[10px] border border-line bg-surface-2/60 px-3 py-2.5 text-[13px] text-ink-3 transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
+      className="td-press flex w-full items-center gap-2.5 rounded-[12px] border border-line bg-surface px-3 py-2.5 text-[13px] text-ink-3 shadow-[var(--hl-top)] hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
     >
       <MagnifyingGlass size={16} className="flex-shrink-0" />
       <span className="flex-1 text-left">Поиск и действия</span>
@@ -80,9 +80,9 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
             className={[
-              "group relative flex min-h-11 items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] transition-colors duration-200",
+              "td-press group relative flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2 text-[13px]",
               active
-                ? "bg-surface-2 font-semibold text-ink"
+                ? "bg-surface-2 font-semibold text-ink shadow-[var(--hl-top)]"
                 : "font-medium text-ink-2 hover:bg-surface-2/55 hover:text-ink",
             ].join(" ")}
           >
@@ -126,7 +126,7 @@ function UserBlock({
     <div className="space-y-1.5">
       {session && (
         <div className="flex items-center gap-3 px-1.5 py-1.5">
-          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-semibold text-accent">
+          <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full icon-3d text-[12px] font-semibold text-accent">
             {initials}
           </span>
           <span className="min-w-0 leading-tight">
@@ -138,7 +138,7 @@ function UserBlock({
       <button
         type="button"
         onClick={onStartTour}
-        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12px] font-medium text-ink-2 transition-colors hover:bg-surface-2/55 hover:text-ink"
+        className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-2"
       >
         <GraduationCap size={16} className="text-ink-3" />
         Обучение
@@ -146,7 +146,7 @@ function UserBlock({
       <button
         type="button"
         onClick={onLogout}
-        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-[12px] font-medium text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger"
+        className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-3 hover:bg-danger-soft hover:text-danger"
       >
         <SignOut size={16} />
         Выйти
@@ -211,7 +211,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           aria-expanded={open}
           aria-controls="agent-mobile-menu"
           aria-label="Открыть меню"
-          className="grid h-11 w-11 place-items-center rounded-[12px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
+          className="td-icon-button h-11 w-11 border border-line bg-surface text-ink hover:bg-surface-2"
         >
           <List size={22} />
         </button>
@@ -240,7 +240,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
               type="button"
               onClick={() => setOpen(false)}
               aria-label="Закрыть меню"
-              className="grid h-10 w-10 place-items-center rounded-[12px] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
+              className="td-icon-button h-10 w-10 border border-line bg-surface text-ink hover:bg-surface-2"
             >
               <X size={20} />
             </button>

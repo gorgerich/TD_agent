@@ -108,7 +108,7 @@ export default async function CalendarPage() {
       ) : (
         <div className="rise rise-1 min-w-0 space-y-5">
           {days.map((day) => (
-            <section key={day.key} className="td-shell min-w-0 overflow-hidden">
+            <section key={day.key} className="td-entity-list min-w-0">
               <h2 className="border-b border-line bg-surface-2/55 px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
               <ul>
                 {day.events.map((e) => <EventRow key={e.id} event={e} />)}
@@ -123,7 +123,7 @@ export default async function CalendarPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3 py-2.5 shadow-[var(--hl-top)]">
+    <div className="td-metric">
       <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
       <div className="tnum mt-0.5 truncate text-[15px] font-semibold text-ink">{value}</div>
     </div>

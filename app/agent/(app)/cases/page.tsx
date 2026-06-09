@@ -196,14 +196,14 @@ export default async function CasesPage() {
               </Link>
             </div>
           ) : (
-            <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+            <ul className="td-entity-list">
               {active.map((c) => {
                 const bar = c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
                 return (
                   <li key={c.id} className="border-b border-line last:border-0">
                     <Link
                       href={`/agent/cases/${c.id}`}
-                      className={`group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 transition-[background-color,box-shadow] duration-150 hover:z-10 hover:bg-surface-2/60 hover:shadow-[0_8px_24px_-16px_rgba(40,30,18,0.3)] before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
+                      className={`td-entity-row group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
                     >
                       <Avatar name={c.name} urgent={c.urgent} />
                       <span className="min-w-0 flex-1">
@@ -240,7 +240,7 @@ export default async function CasesPage() {
               <RailEmpty>Встреч на сегодня нет</RailEmpty>
             ) : (
               todayMeetings.map((c) => (
-                <Link key={c.id} href={`/agent/cases/${c.id}`} className="group flex items-center justify-between gap-2 rounded-[10px] px-2 py-2 text-[13px] text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink">
+                <Link key={c.id} href={`/agent/cases/${c.id}`} className="td-mini-row group flex items-center justify-between gap-2 px-2 py-2 text-[13px] text-ink-2">
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-ink">{c.name}</span>
                     <span className="block text-[11px] text-ink-3">{c.nextAction}</span>
@@ -256,7 +256,7 @@ export default async function CasesPage() {
               <RailEmpty>Просроченных задач нет</RailEmpty>
             ) : (
               overdueTasks.map((t, i) => (
-                <Link key={`${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="group block rounded-[10px] px-2 py-2 text-[13px] transition-colors hover:bg-surface-2">
+                <Link key={`${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="td-mini-row group block px-2 py-2 text-[13px]">
                   <span className="block truncate font-medium text-ink">{t.title}</span>
                   <span className="block truncate text-[12px] text-ink-3">{t.leadName}</span>
                 </Link>

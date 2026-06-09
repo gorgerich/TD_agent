@@ -53,8 +53,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role={t.type === "error" ? "alert" : "status"}
-            className="pointer-events-auto flex w-full max-w-[420px] items-center gap-3 rounded-[14px] border border-line bg-surface px-4 py-3 shadow-pop"
-            style={{ animation: "toastIn 0.22s cubic-bezier(0.22,1,0.36,1) both" }}
+            className={`td-toast-in pointer-events-auto flex w-full max-w-[420px] items-center gap-3 rounded-[14px] border bg-surface/94 px-4 py-3 shadow-pop backdrop-blur-md ${
+              t.type === "success" ? "border-success/25" : t.type === "error" ? "border-danger/25" : "border-info/20"
+            }`}
           >
             <span className={t.type === "success" ? "text-success" : t.type === "error" ? "text-danger" : "text-info"}>
               {ICONS[t.type]}
@@ -67,7 +68,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   t.action!.onClick();
                   remove(t.id);
                 }}
-                className="flex-shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold text-accent transition-colors hover:bg-accent-soft"
+                className="td-press flex-shrink-0 rounded-full px-2.5 py-1 text-[12px] font-semibold text-accent hover:bg-accent-soft"
               >
                 {t.action.label}
               </button>
@@ -76,14 +77,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               type="button"
               onClick={() => remove(t.id)}
               aria-label="Закрыть уведомление"
-              className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+              className="td-icon-button h-7 w-7 flex-shrink-0 rounded-full"
             >
               <X size={14} />
             </button>
           </div>
         ))}
       </div>
-      <style>{`@keyframes toastIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }`}</style>
     </Ctx.Provider>
   );
 }

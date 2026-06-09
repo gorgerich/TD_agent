@@ -86,7 +86,7 @@ export default async function EstimatesPage({
           <span className="td-eyebrow">Расчёты</span>
           <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Сметы</h1>
         </div>
-        <Link href="/agent/cases" className="inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
+        <Link href="/agent/cases" className={buttonClasses({ size: "sm", className: "self-start flex-shrink-0" })}>
           <Briefcase size={14} weight="bold" /> Выбрать кейс для сметы
         </Link>
       </header>
@@ -105,7 +105,7 @@ export default async function EstimatesPage({
       {estimates.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="rise rise-1 mt-4 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+        <div className="rise rise-1 td-entity-list mt-4">
           {visible.length === 0 ? (
             <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре смет нет</div>
           ) : (
@@ -114,7 +114,7 @@ export default async function EstimatesPage({
                 const bar = estimate.filter === "agreed" ? "before:bg-success" : estimate.filter === "sent" ? "before:bg-info" : "before:bg-ink-3";
                 return (
                   <li key={estimate.id} className="border-b border-line last:border-0">
-                    <div className={`group relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 transition-colors hover:bg-surface-2/50 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}>
+                    <div className={`td-entity-row group relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}>
                       <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0 flex-1">
                         <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="truncate text-[14px] font-semibold text-ink">{estimate.clientName}</span>
@@ -128,7 +128,7 @@ export default async function EstimatesPage({
                           <span className="text-ink-3">Кейс #{estimate.caseId}</span>
                         </span>
                       </Link>
-                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className="inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-line bg-surface px-3.5 text-[12px] font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition-colors hover:border-line-strong hover:bg-surface-2" aria-label={`Открыть смету клиента ${estimate.clientName}`}>
+                      <Link href={`/agent/meetings/${estimate.meetingId}/quote`} className={buttonClasses({ variant: "secondary", size: "sm", className: "w-fit" })} aria-label={`Открыть смету клиента ${estimate.clientName}`}>
                         Открыть <ArrowRight size={13} />
                       </Link>
                     </div>
@@ -145,7 +145,7 @@ export default async function EstimatesPage({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-line bg-surface px-3 py-2.5 shadow-[var(--hl-top)]">
+    <div className="td-metric">
       <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
       <div className="tnum mt-0.5 truncate text-[15px] font-semibold text-ink">{value}</div>
     </div>
@@ -154,14 +154,13 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function FilterTabs({ active, base, counts }: { active: EstimateFilter; base: string; counts: Record<EstimateFilter, number> }) {
   return (
-    <nav className="rise flex min-w-0 gap-1.5 overflow-x-auto rounded-full border border-line bg-surface p-1" aria-label="Фильтр смет">
+    <nav className="rise td-segmented" aria-label="Фильтр смет">
       {FILTERS.map((item) => (
         <Link
           key={item.id}
           href={item.id === "all" ? base : `${base}?status=${item.id}`}
-          className={`inline-flex min-h-9 flex-shrink-0 items-center gap-2 rounded-full px-3 text-[12px] font-semibold transition-colors ${
-            active === item.id ? "bg-accent text-on-accent" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-          }`}
+          data-active={active === item.id ? "true" : undefined}
+          className="td-segment"
         >
           {item.label}
           <span className={`tnum text-[11px] ${active === item.id ? "text-on-accent/75" : "text-ink-3"}`}>{counts[item.id]}</span>

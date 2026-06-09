@@ -25,7 +25,7 @@ export function Badge({
 }) {
   const t = TONES[tone];
   return (
-    <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium ${t.wrap} ${className}`}>
+    <span className={`tnum inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold leading-none shadow-[var(--hl-top)] ${t.wrap} ${className}`}>
       {dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
       {children}
     </span>
