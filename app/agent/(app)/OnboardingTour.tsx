@@ -25,7 +25,7 @@ async function persistCompleted() {
   try {
     await fetch("/api/agent/onboarding", { method: "POST" });
   } catch {
-    /* офлайн/ошибка — не критично, статус подхватится при следующем заходе */
+    /* офлайн/ошибка - не критично, статус подхватится при следующем заходе */
   }
 }
 
@@ -40,7 +40,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
 
   const activeTour = TOURS.find((t) => t.match(pathname)) ?? null;
 
-  // Подобрать видимые шаги (пропустить optional без элемента — определяем при измерении).
+  // Подобрать видимые шаги (пропустить optional без элемента - определяем при измерении).
   const close = useCallback(
     (markDone: boolean) => {
       if (markDone && !done) {
@@ -101,7 +101,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     return () => window.clearTimeout(timer);
   }, [pathname, begin]);
 
-  // Если ушли со страницы тура — закрываем без отметки (вернётся при возврате,
+  // Если ушли со страницы тура - закрываем без отметки (вернётся при возврате,
   // если ещё не пройден). Корректировка состояния при смене pathname делается
   // во время рендера (рекомендованный паттерн React вместо эффекта).
   if (tour && (!activeTour || activeTour.id !== tour.id)) {
@@ -135,7 +135,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     if (el) {
       const mob = window.innerWidth < 640;
       if (mob) {
-        // На мобильном карточка — нижний лист. Цель нужно вывести в видимую
+        // На мобильном карточка - нижний лист. Цель нужно вывести в видимую
         // зону НАД листом, иначе подсказка перекрывает обучаемый элемент.
         const vh = window.innerHeight;
         const topBar = 64; // фиксированный верхний бар кабинета
@@ -229,7 +229,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
   let cardStyle: React.CSSProperties;
   if (mobile) {
     // Лист снизу по умолчанию. Но если цель оказалась в нижней половине
-    // (последний/низкий элемент — страницу не прокрутить выше листа), уводим
+    // (последний/низкий элемент - страницу не прокрутить выше листа), уводим
     // карточку НАВЕРХ, чтобы не перекрывать подсветку.
     const vhM = window.innerHeight;
     const lowTarget = !isIntro && !!spot && spot.top > vhM * 0.5;
@@ -252,7 +252,7 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
       cardStyle = { bottom: vh - spot.top + GAP, left };
     }
   }
-  // На мобильном лист не должен занимать весь экран — оставляем место для цели.
+  // На мобильном лист не должен занимать весь экран - оставляем место для цели.
   cardStyle.maxHeight = mobile ? "42vh" : "min(72vh, 560px)";
   cardStyle.overflowY = "auto";
 

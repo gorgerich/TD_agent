@@ -21,7 +21,7 @@ async function getOnboardingCompleted(agentId: number): Promise<boolean> {
   }
 }
 
-// Просроченные задачи — для бейджа в навигации (in-app напоминание).
+// Просроченные задачи - для бейджа в навигации (in-app напоминание).
 async function getOverdueCount(agentId: number, notify: boolean): Promise<number> {
   if (!agentId || !notify) return 0;
   try {

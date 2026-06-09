@@ -30,7 +30,7 @@ function Swatch({ item }: { item: AttrItem }) {
       </span>
     );
   }
-  // coffin / textile — заливка цветом материала
+  // coffin / textile - заливка цветом материала
   return <span className="block h-full w-full rounded-[8px]" style={{ background: r.color }} />;
 }
 

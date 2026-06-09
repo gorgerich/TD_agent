@@ -60,7 +60,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const lead = await getCase(id, session?.agentId ?? 0);
   if (!lead) notFound();
 
-  // Tasks + Notes (P5) — fetched separately; notes body decrypted server-side.
+  // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
   const [rawTasks, rawNotes, rawDocs] = await Promise.all([
     prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
@@ -94,7 +94,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     needs: decryptField(lead.needs) ?? "",
   };
 
-  // Derived checklist (read-only статусы — без отдельной таблицы)
+  // Derived checklist (read-only статусы - без отдельной таблицы)
   const checklist: { label: string; done: boolean }[] = [
     { label: "Клиент заведён", done: true },
     { label: "Назначена встреча", done: meetings.length > 0 },
@@ -118,14 +118,14 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt) });
   }
   for (const v of versions) activity.push({ at: v.createdAt.getTime(), label: "Смета сохранена" });
-  for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ — ${o.status}` });
+  for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ - ${o.status}` });
   for (const m of meetings) {
     if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt) });
     if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt) });
   }
   activity.sort((a, b) => b.at - a.at);
 
-  // Risk-flags — производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
+  // Risk-flags - производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
   // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker for case risk signals
   const nowMs = Date.now();
   const overdueCount = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt).getTime() < nowMs).length;
@@ -135,7 +135,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const stale = stage !== "Завершено" && nowMs - lastAt > 7 * 86_400_000;
   const risks: { tone: "danger" | "warning"; label: string }[] = [];
   if (overdueCount > 0) risks.push({ tone: "danger", label: `Просрочено задач: ${overdueCount}` });
-  if (meetingSoon && versions.length === 0) risks.push({ tone: "warning", label: "Встреча скоро — сметы нет" });
+  if (meetingSoon && versions.length === 0) risks.push({ tone: "warning", label: "Встреча скоро - сметы нет" });
   if (orders.length > 0 && !paid) risks.push({ tone: "warning", label: "Оплата не завершена" });
   if ((stage === "Договор" || stage === "Оплата") && docs.length === 0) risks.push({ tone: "warning", label: "Нет документов" });
   if (stale) risks.push({ tone: "warning", label: "Без движения >7 дней" });
@@ -201,7 +201,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           <div className="mt-3 flex min-w-0 flex-wrap gap-2">
             <MetaPill icon={<Phone size={14} weight="duotone" />} label="Телефон" value={fmtPhone(lead.phone)} href={`tel:${lead.phone}`} />
             <MetaPill icon={<Hash size={14} weight="duotone" />} label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
-            <MetaPill icon={<User size={14} weight="duotone" />} label="Агент" value={session?.name ?? "—"} />
+            <MetaPill icon={<User size={14} weight="duotone" />} label="Агент" value={session?.name ?? "-"} />
             <MetaPill icon={<CalendarDots size={14} weight="duotone" />} label="Заведено" value={dateTime(lead.createdAt)} />
           </div>
         </div>
@@ -247,7 +247,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       )}
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        {/* CENTER — operational (tabbed to kill the card wall) */}
+        {/* CENTER - operational (tabbed to kill the card wall) */}
         <main className="rise rise-2 order-1 min-w-0">
           <CaseTabs
             caseId={id}
@@ -261,7 +261,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           />
         </main>
 
-        {/* RIGHT — info + quick actions */}
+        {/* RIGHT - info + quick actions */}
         <aside className="rise rise-2 order-2 min-w-0 space-y-4">
           <div className="td-shell space-y-2.5 p-4">
             <span className="td-eyebrow">Действия по кейсу</span>

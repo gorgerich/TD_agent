@@ -1,7 +1,7 @@
 "use client";
 
 // 2.5D layered-визуализатор ритуального комплекта. Без WebGL/Three.js.
-// Слои-картинки накладываются в premium-карточке. Нет ассета — graceful
+// Слои-картинки накладываются в premium-карточке. Нет ассета - graceful
 // placeholder, без сломанных img.
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -27,8 +27,8 @@ export type RitualSetPreviewProps = {
   title?: string;
   fallback?: ReactNode;
   enableZoom?: boolean;
-  // "card" — premium-карточка с подписью (по умолчанию).
-  // "bare" — заполнить родителя без рамки/фона (для тёмной сцены конфигуратора).
+  // "card" - premium-карточка с подписью (по умолчанию).
+  // "bare" - заполнить родителя без рамки/фона (для тёмной сцены конфигуратора).
   variant?: "card" | "bare";
   className?: string;
 };
@@ -86,7 +86,7 @@ function LayerStack({
       {wreathSrc && <LayerImg src={shadowPath("wreath")} z={3} alt="" />}
       {/* объекты */}
       {crossSrc && <LayerImg src={crossSrc} z={4} alt="Православный крест" />}
-      {/* coffin отдельно — его ошибка переключает на placeholder */}
+      {/* coffin отдельно - его ошибка переключает на placeholder */}
       <CoffinLayer src={coffinSrc} onError={onCoffinError} />
       <LayerImg src={upholsterySrc} z={6} alt="Обивка" />
       {wreathSrc && <LayerImg src={wreathSrc} z={7} alt="Православный венок" />}
@@ -181,7 +181,7 @@ export default function RitualSetPreview({
   const wreathSrc = showWreath ? assetPath("wreaths", wreathId) : undefined;
   const crossSrc = showCross ? assetPath("crosses", crossId) : undefined;
 
-  // Сброс ошибки гроба при смене модели — корректировка во время рендера.
+  // Сброс ошибки гроба при смене модели - корректировка во время рендера.
   const [coffinErr, setCoffinErr] = useState(false);
   const [prevCoffin, setPrevCoffin] = useState(coffinSrc);
   if (prevCoffin !== coffinSrc) {

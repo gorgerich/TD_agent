@@ -4,7 +4,7 @@ export function SkLine({ w = "100%", h = 14, className = "" }: { w?: string | nu
   return <span className={`sk block ${className}`} style={{ width: w, height: h }} />;
 }
 
-/** Скелет страницы-списка (заголовок + строки) — leads/meetings/commissions. */
+/** Скелет страницы-списка (заголовок + строки) - leads/meetings/commissions. */
 export function ListPageSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
@@ -30,7 +30,7 @@ export function ListPageSkeleton({ rows = 6 }: { rows?: number }) {
   );
 }
 
-/** Скелет страницы-формы (заголовок + поля + кнопка) — leads/new, meetings/new. */
+/** Скелет страницы-формы (заголовок + поля + кнопка) - leads/new, meetings/new. */
 export function FormPageSkeleton({ fields = 4 }: { fields?: number }) {
   return (
     <div className="td-page mx-auto max-w-[640px] px-4 py-7 sm:px-7 sm:py-10">

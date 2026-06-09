@@ -14,7 +14,7 @@ const SOURCES = [
   { value: "other", label: "Другое" },
 ];
 
-// Создание кейса за 30–60 сек: правый sheet поверх списка дел. Минимум полей.
+// Создание кейса за 30-60 сек: правый sheet поверх списка дел. Минимум полей.
 export default function NewCaseSheet() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -86,8 +86,8 @@ export default function NewCaseSheet() {
           aria-modal="true"
           aria-label="Новый кейс"
         >
-          <div className="absolute inset-0 bg-[rgba(22,22,22,0.4)]" onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop">
+          <div className="absolute inset-0 bg-[rgba(10,18,32,0.45)]" style={{ animation: "overlayFade 0.2s ease-out" }} onClick={() => setOpen(false)} />
+          <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop" style={{ animation: "sheetInRight 0.36s var(--ease-drawer)" }}>
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <h2 className="td-display text-[20px] text-ink">Новый кейс</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink">

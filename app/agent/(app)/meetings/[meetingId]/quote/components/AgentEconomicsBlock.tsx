@@ -53,7 +53,7 @@ export function AgentEconomicsBlock({
             <Metric label="Итог клиенту" value={formatCurrency(economics.orderClientTotal)} />
             <Metric
               label={budgetStatus === "exceeded" ? "Превышение" : "Остаток"}
-              value={budgetStatus === "not_set" ? "—" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
+              value={budgetStatus === "not_set" ? "-" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
             />
             <Metric label="Себестоимость" value={formatCurrency(economics.orderCostTotal)} />
             <Metric label="Экономия агента" value={formatCurrency(economics.orderMarginRub)} />

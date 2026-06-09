@@ -115,7 +115,7 @@ export default async function DocumentsPage({
   const uploadedCount = docs.filter((d) => d.status === "Загружен").length;
   const readyCount = docs.filter((d) => d.status === "Загружен" && d.caseReady).length;
 
-  // Группировка по клиенту (кейсу) — порядок сохраняется из getDocuments
+  // Группировка по клиенту (кейсу) - порядок сохраняется из getDocuments
   const byCase = new Map<number, { clientName: string; rows: DocRow[] }>();
   for (const d of visible) {
     if (!byCase.has(d.caseId)) byCase.set(d.caseId, { clientName: d.clientName, rows: [] });
@@ -295,7 +295,7 @@ function EmptyState() {
       </span>
       <h2 className="td-display text-[24px] text-ink">Документов пока нет</h2>
       <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
-        Загружайте свидетельства, паспорта и договоры внутри карточки кейса — все файлы соберутся здесь.
+        Загружайте свидетельства, паспорта и договоры внутри карточки кейса - все файлы соберутся здесь.
       </p>
       <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
         <Briefcase size={16} weight="bold" /> Открыть кейсы

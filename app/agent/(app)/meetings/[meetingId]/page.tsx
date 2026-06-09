@@ -23,7 +23,7 @@ async function getMeeting(meetingId: number, agentId: number) {
 }
 
 function formatDate(d: Date | null | undefined) {
-  if (!d) return "—";
+  if (!d) return "-";
   return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
 }
 
@@ -146,7 +146,7 @@ function DealFunnel({
     { label: "Подписание", done: hasOrder, href: undefined },
     { label: "Заказ", done: completed, href: undefined },
   ];
-  // Текущий этап — первый незавершённый (если сделка не отменена).
+  // Текущий этап - первый незавершённый (если сделка не отменена).
   const currentIndex = cancelled ? -1 : stages.findIndex((s) => !s.done);
 
   return (

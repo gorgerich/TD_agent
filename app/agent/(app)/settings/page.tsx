@@ -30,12 +30,12 @@ export default async function SettingsPage() {
           </span>
           <div>
             <h2 className="text-[16px] font-semibold text-ink">Агентский профиль</h2>
-            <p className="text-[13px] text-ink-3">{session?.role ?? "AGENT"} · ID {session?.agentId ?? "—"}</p>
+            <p className="text-[13px] text-ink-3">{session?.role ?? "AGENT"} · ID {session?.agentId ?? "-"}</p>
           </div>
         </div>
         <div className="divide-y divide-line rounded-[12px] border border-line bg-surface">
-          <Row label="Имя" value={session?.name ?? "—"} />
-          <Row label="Роль" value={session?.role ?? "—"} last />
+          <Row label="Имя" value={session?.name ?? "-"} />
+          <Row label="Роль" value={session?.role ?? "-"} last />
         </div>
       </section>
 

@@ -188,7 +188,7 @@ function EmptyState() {
       </span>
       <h2 className="td-display text-[24px] text-ink">Смет пока нет</h2>
       <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
-        Смета собирается внутри кейса: откройте дело, добавьте услуги и сохраните версию — она появится здесь и у клиента.
+        Смета собирается внутри кейса: откройте дело, добавьте услуги и сохраните версию - она появится здесь и у клиента.
       </p>
       <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
         <Briefcase size={16} weight="bold" /> Выбрать кейс

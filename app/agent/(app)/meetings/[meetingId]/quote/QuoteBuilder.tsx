@@ -492,7 +492,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
       }
     } catch {
       setSaveError("Сеть недоступна");
-      toast({ type: "error", message: "Сеть недоступна — смета не сохранена" });
+      toast({ type: "error", message: "Сеть недоступна - смета не сохранена" });
     } finally {
       setSaving(false);
     }
@@ -764,7 +764,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               value={form.cemetery}
               onChange={(e) => setField("cemetery", e.target.value)}
             >
-              <option value="">— не выбрано —</option>
+              <option value="">- не выбрано -</option>
               {form.serviceType === "burial" ? (
                 <>
                   <optgroup label="Москва">
@@ -946,7 +946,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 onClick={saveVersion}
                 disabled={saving}
               >
-                {saving ? "Сохраняю…" : "Готово — сохранить смету"}
+                {saving ? "Сохраняю…" : "Готово - сохранить смету"}
                 {!saving && <Check size={14} weight="bold" />}
               </button>
             )}
@@ -1187,7 +1187,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
       </div>
 
-      {/* Floating calculator — сумма и сохранение всегда под рукой */}
+      {/* Floating calculator - сумма и сохранение всегда под рукой */}
       <div className={s.mobileBar} data-tour="quote-summary">
         <button type="button" className={s.mobileBarSum} onClick={() => setCalculatorOpen(true)} aria-expanded={calculatorOpen}>
           <span className={s.mobileBarLabel}>Предварительно</span>

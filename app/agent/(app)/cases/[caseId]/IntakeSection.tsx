@@ -71,7 +71,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Бюджет</label>
-          <input className={inputCls} placeholder="например, 80–120 тыс ₽" value={v.budget} onChange={(e) => set("budget", e.target.value)} />
+          <input className={inputCls} placeholder="например, 80-120 тыс ₽" value={v.budget} onChange={(e) => set("budget", e.target.value)} />
         </div>
         <div>
           <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Традиция / конфессия</label>

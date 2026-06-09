@@ -179,14 +179,14 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
     if (onTourPage) {
       window.dispatchEvent(new CustomEvent(TOUR_START_EVENT));
     } else {
-      // С любой страницы — на дашборд с принудительным запуском тура.
+      // С любой страницы - на дашборд с принудительным запуском тура.
       router.push("/agent/dashboard#tour");
     }
   }
 
   return (
     <>
-      {/* Desktop sidebar — тихий отельный рельс */}
+      {/* Desktop sidebar - тихий отельный рельс */}
       <nav className="td-rail fixed inset-y-0 left-0 z-40 hidden w-[260px] flex-col lg:flex">
         <div className="px-6 pb-6 pt-7">
           <Brand />

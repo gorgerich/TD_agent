@@ -176,7 +176,7 @@ export default async function CasesPage() {
               </span>
               <h2 className="td-display text-[24px] text-ink">Здесь будут ваши кейсы</h2>
               <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
-                Каждый кейс ведёт клиента от первого контакта до оплаты — встречи, смета, документы и сроки в одном месте.
+                Каждый кейс ведёт клиента от первого контакта до оплаты - встречи, смета, документы и сроки в одном месте.
               </p>
               <div className="mx-auto mt-7 grid max-w-[560px] gap-2.5 text-left sm:grid-cols-3">
                 {[
@@ -307,7 +307,7 @@ function StageChip({ stage }: { stage: Stage }) {
   );
 }
 
-// Мини-степпер этапов (6 сегментов) — заполнено до текущего, активный ярче.
+// Мини-степпер этапов (6 сегментов) - заполнено до текущего, активный ярче.
 function Stepper({ progress }: { progress: number }) {
   return (
     <span className="flex items-center gap-1" aria-label={`Этап ${progress} из ${STAGE_ORDER.length}`}>

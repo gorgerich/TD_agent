@@ -15,7 +15,7 @@ const Ctx = createContext<ToastCtx | null>(null);
 
 export function useToast(): ToastCtx {
   const ctx = useContext(Ctx);
-  if (!ctx) return () => {}; // вне провайдера — no-op, не падаем
+  if (!ctx) return () => {}; // вне провайдера - no-op, не падаем
   return ctx;
 }
 

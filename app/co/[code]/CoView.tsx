@@ -82,7 +82,7 @@ export default function CoView({ code }: { code: string }) {
           setIsSnapshot(true);
           setAgentName(data.agentName ?? null);
           setAgentPhone(data.agentPhone ?? null);
-          // Stop polling — snapshot is static
+          // Stop polling - snapshot is static
           if (intervalId) { clearInterval(intervalId); intervalId = null; }
         }
 
@@ -219,7 +219,7 @@ export default function CoView({ code }: { code: string }) {
                   <div key={item.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">
                       {item.name}
-                      {item.selectedColor ? ` — ${item.selectedColor}` : ""}
+                      {item.selectedColor ? ` - ${item.selectedColor}` : ""}
                       {item.quantity > 1 ? ` ×${item.quantity}` : ""}
                     </span>
                     <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">{formatCurrency(item.clientPrice * item.quantity)}</span>
@@ -246,7 +246,7 @@ export default function CoView({ code }: { code: string }) {
         </section>
       )}
 
-      {/* Client actions (snapshot only — live cobrowse has no final agree yet) */}
+      {/* Client actions (snapshot only - live cobrowse has no final agree yet) */}
       {isSnapshot && (
         <div className="mb-5 space-y-3">
           {agreed ? (
@@ -269,7 +269,7 @@ export default function CoView({ code }: { code: string }) {
               className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 font-semibold text-[14px] text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
             >
               Связаться с агентом
-              {agentName ? ` — ${agentName.split(" ")[0]}` : ""}
+              {agentName ? ` - ${agentName.split(" ")[0]}` : ""}
             </a>
           )}
         </div>

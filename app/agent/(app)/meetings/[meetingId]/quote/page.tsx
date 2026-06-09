@@ -33,7 +33,7 @@ export default async function QuoteBuilderPage({
       select: { id: true, cobrowseCode: true, lead: { select: { id: true, name: true } } },
     });
   } catch {
-    // DB not configured in local dev — proceed with nulls
+    // DB not configured in local dev - proceed with nulls
   }
 
   const clientName = meeting?.lead?.name ?? "Клиент";

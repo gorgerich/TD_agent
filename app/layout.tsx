@@ -9,7 +9,7 @@ const sans = Onest({
   display: "swap",
 });
 
-// Дисплейная гарнитура — высококонтрастный гуманистический серив (Cormorant
+// Дисплейная гарнитура - высококонтрастный гуманистический серив (Cormorant
 // Garamond, есть кириллица). Память, достоинство, «тихая» редакционная подача.
 const display = Cormorant_Garamond({
   subsets: ["latin", "cyrillic"],
@@ -34,7 +34,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Тихий дом — кабинет агента",
+  title: "Тихий дом - кабинет агента",
   description: "Кабинет агента Тихого дома: лиды, встречи, сметы и комиссии.",
   robots: { index: false, follow: false },
 };

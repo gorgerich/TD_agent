@@ -1,6 +1,6 @@
 "use client";
 
-// Командная палитра (⌘K / Ctrl+K). Быстрая навигация и действия с клавиатуры —
+// Командная палитра (⌘K / Ctrl+K). Быстрая навигация и действия с клавиатуры -
 // big-tech-паттерн (Linear/Raycast/Vercel). Только агентский кабинет.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";

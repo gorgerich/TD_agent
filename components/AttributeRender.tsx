@@ -2,8 +2,8 @@
 
 // Публичный компонент визуализации ритуального комплекта.
 // API сохранён: { selection, selectedItems, className, compact }.
-// Основной режим — интерактивная 3D-сцена (Three.js). Если WebGL недоступен
-// или комплект ещё пуст — показываем лёгкий SVG-предпросмотр (graceful fallback).
+// Основной режим - интерактивная 3D-сцена (Three.js). Если WebGL недоступен
+// или комплект ещё пуст - показываем лёгкий SVG-предпросмотр (graceful fallback).
 
 import { type CSSProperties } from "react";
 import { getItem, type AttrSelection } from "@/lib/attributes";

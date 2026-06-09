@@ -60,7 +60,10 @@
   --shadow-pop: 0 16px 44px -14px rgba(15, 30, 60, 0.26);
   /* Верхний внутренний блик — лёгкое «тиснение» по светлым поверхностям */
   --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Сильные кривые (Emil Kowalski): встроенные слишком вялые. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -315,3 +318,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 @keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .tab-panel { animation: tabfade 0.18s var(--ease-out); }
 @media (prefers-reduced-motion: reduce) { .tab-panel { animation: none; } }
+
+/* Вход правой панели (sheet) — drawer-кривая Emil. reduced-motion гасит глобально. */
+@keyframes sheetInRight { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }

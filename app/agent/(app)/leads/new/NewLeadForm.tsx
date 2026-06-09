@@ -55,7 +55,7 @@ export default function NewLeadForm() {
           </select>
         </Field>
 
-        <Field id="lead-context" label="Контекст" hint="ПДн — храните только необходимый минимум">
+        <Field id="lead-context" label="Контекст" hint="ПДн - храните только необходимый минимум">
           <textarea id="lead-context" className={`${inputCls} min-h-[88px] resize-y`} placeholder="Краткие сведения: ситуация, пожелания, бюджет" value={context} onChange={(e) => setContext(e.target.value)} />
         </Field>
 

@@ -93,7 +93,7 @@ export default function AgentLoginPage() {
             className="absolute inset-0 opacity-[0.07]"
             style={{ backgroundImage: "radial-gradient(760px 540px at 100% 100%, var(--color-accent), transparent 60%)" }}
           />
-          {/* Бренд-мотив: концентричные кольца — «точка» бренда в масштабе */}
+          {/* Бренд-мотив: концентричные кольца - «точка» бренда в масштабе */}
           <div className="absolute -bottom-40 -right-28 h-[460px] w-[460px] rounded-full border border-on-accent/[0.06]" />
           <div className="absolute -bottom-28 -right-16 h-[320px] w-[320px] rounded-full border border-on-accent/[0.05]" />
         </div>
