@@ -47,10 +47,10 @@ export function CaseTabs({
   ];
 
   return (
-    <div className="td-shell min-w-0 overflow-hidden">
+    <div className="td-shell min-w-0 overflow-hidden sm:grid sm:grid-cols-[190px_minmax(0,1fr)]">
       {/* Tab bar */}
-      <div className="border-b border-line bg-surface-2/45 px-2 py-2">
-        <div className="td-segmented border-0 bg-transparent p-0 shadow-none">
+      <div className="border-b border-line bg-surface-2/45 px-2 py-2 sm:border-b-0 sm:border-r sm:bg-surface/70 sm:p-3">
+        <div className="flex min-w-0 gap-1 overflow-x-auto sm:flex-col sm:overflow-visible">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
@@ -60,12 +60,14 @@ export function CaseTabs({
               onClick={() => setTab(t.id)}
               aria-current={active ? "true" : undefined}
               data-active={active ? "true" : undefined}
-              className="td-segment"
+              className={`td-side-nav-item td-press group flex min-h-11 flex-shrink-0 items-center gap-2.5 px-2.5 text-left text-[13px] ${
+                active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink"
+              }`}
             >
-              <span className={active ? "text-accent" : "text-ink-3"}>{t.icon}</span>
-              {t.label}
+              <span className="td-nav-orb h-8 w-8 rounded-[13px]" data-active={active ? "true" : undefined}>{t.icon}</span>
+              <span>{t.label}</span>
               {t.badge && (
-                <span className={`tnum rounded-full px-1.5 text-[11px] ${active ? "bg-accent-soft text-accent" : "bg-surface-2 text-ink-3"}`}>{t.badge}</span>
+                <span className={`tnum ml-auto rounded-full px-1.5 text-[11px] ${active ? "bg-accent text-on-accent" : "bg-surface-2 text-ink-3"}`}>{t.badge}</span>
               )}
             </button>
           );

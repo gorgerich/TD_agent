@@ -38,7 +38,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.statValueAccent { color: #2563eb; }
+.statValueAccent { color: var(--color-info); }
 .statValueGreen { color: #16a34a; }
 
 .statSub {
@@ -73,9 +73,9 @@
   color: white;
 }
 .actionPrimary:hover {
-  background: #1d4ed8;
+  background: var(--color-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 58, 53, 0.3);
 }
 
 .actionSecondary {
@@ -107,7 +107,7 @@
 
 .sectionLink {
   font-size: 13px;
-  color: #3b82f6;
+  color: var(--color-info);
   text-decoration: none;
   font-weight: 500;
 }
@@ -156,7 +156,7 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.badgeScheduled { background: #eff6ff; color: #1d4ed8; }
+.badgeScheduled { background: var(--color-info-soft); color: var(--color-info); }
 .badgeInProgress { background: #fef3c7; color: #92400e; }
 .badgeCompleted { background: #f0fdf4; color: #15803d; }
 .badgeCancelled { background: #fef2f2; color: #b91c1c; }

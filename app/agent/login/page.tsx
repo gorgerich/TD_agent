@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/ui/Field";
+import { Button, buttonClasses } from "@/components/ui/Button";
 import {
   ArrowRight,
   EnvelopeSimple,
@@ -152,7 +153,7 @@ export default function AgentLoginPage() {
 
           <section className="td-shell">
             <div className="td-core p-5 sm:p-7">
-              <div className="inline-grid w-full grid-cols-2 rounded-full border border-line bg-surface-2 p-1">
+              <div className="td-segmented w-full">
                 {(["login", "register"] as const).map((item) => (
                   <button
                     key={item}
@@ -161,11 +162,8 @@ export default function AgentLoginPage() {
                       setMode(item);
                       setError(null);
                     }}
-                    className={`min-h-10 rounded-full px-4 text-[13px] font-semibold transition-colors ${
-                      mode === item
-                        ? "bg-surface text-ink shadow-[0_8px_18px_-16px_rgba(33,26,19,0.8)]"
-                        : "text-ink-3 hover:text-ink-2"
-                    }`}
+                    data-active={mode === item ? "true" : undefined}
+                    className="td-segment flex-1"
                   >
                     {item === "login" ? "Войти" : "Регистрация"}
                   </button>
@@ -242,7 +240,7 @@ export default function AgentLoginPage() {
                       onClick={() => setShowPw((v) => !v)}
                       aria-label={showPw ? "Скрыть пароль" : "Показать пароль"}
                       aria-pressed={showPw}
-                      className="grid h-9 w-9 place-items-center rounded-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink-2"
+                      className="td-icon-button h-9 w-9"
                     >
                       {showPw ? <EyeSlash size={17} /> : <Eye size={17} />}
                     </button>
@@ -255,22 +253,20 @@ export default function AgentLoginPage() {
                   </p>
                 )}
 
-                <button
+                <Button
                   type="submit"
                   disabled={loading !== null || !email || !password || (isRegister && !name)}
-                  className="group mt-2 flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-accent py-3 pl-5 pr-3 text-[14px] font-semibold text-on-accent shadow-[0_18px_34px_-22px_rgba(37,99,235,0.9)] transition-[transform,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-accent-hover disabled:cursor-default disabled:opacity-45"
+                  size="lg"
+                  loading={loading === mode}
+                  className="group mt-2 w-full pr-3"
                 >
-                  {loading === mode ? (
-                    "Проверяю…"
-                  ) : (
-                    <>
-                      {isRegister ? "Создать и войти" : "Войти"}
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-on-accent/12 transition-transform group-hover:translate-x-0.5">
-                        <ArrowRight size={17} />
-                      </span>
-                    </>
+                  {isRegister ? "Создать и войти" : "Войти"}
+                  {loading !== mode && (
+                    <span className="grid h-9 w-9 place-items-center rounded-full bg-on-accent/12 transition-transform group-hover:translate-x-0.5">
+                      <ArrowRight size={17} />
+                    </span>
                   )}
-                </button>
+                </Button>
               </form>
 
               <div className="my-6 flex items-center gap-3">
@@ -283,7 +279,7 @@ export default function AgentLoginPage() {
                 type="button"
                 onClick={enterDemo}
                 disabled={loading !== null}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface text-[14px] font-semibold text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+                className={buttonClasses({ variant: "secondary", size: "lg", className: "w-full" })}
               >
                 {loading === "demo" ? "Открываю демо…" : "Войти в демо-кабинет"}
               </button>
@@ -297,4 +293,3 @@ export default function AgentLoginPage() {
     </div>
   );
 }
-

@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /*
-  Тихий дом — дизайн-система кабинета агента.
-  Направление: QUIET LUXURY. Статус через сдержанность, а не декор.
-  Палитра: тёплая нейтральная семья (oat / linen / stone / espresso) + один
-  глубокий хвойный акцент. Материал важнее теней. Дозированная сериф-типографика.
+  Тихий дом: дизайн-система кабинета агента.
+  Направление: premium operational product. Статус через порядок, материал,
+  плотность и спокойный контроль.
+  Палитра: SAGE GREEN / EVERGREEN / INKBLACK / BRIGHT MARINE.
   Дайлы: variance 4 · motion 2 · density 3 (операционная плотность, editorial-тон).
 */
 
@@ -14,50 +14,50 @@
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности — чистый белый + холодный воздух. Глубина через тень. */
-  --color-canvas: #f4f7fb;     /* фон приложения — очень светлый прохладный */
-  --color-surface: #ffffff;    /* карточки — белые, приподняты тенью */
-  --color-surface-2: #eef2f8;  /* вторичные заливки, hover */
-  --color-surface-3: #e2e8f1;  /* редкое тональное бандирование */
-  --color-line: rgba(15, 30, 60, 0.10);        /* прохладный волосок */
-  --color-line-strong: rgba(15, 30, 60, 0.17);
+  /* Поверхности: тёплый sage-tinted ivory, не стерильный белый. */
+  --color-canvas: #eef3ed;
+  --color-surface: #fbfcf8;
+  --color-surface-2: #edf4eb;
+  --color-surface-3: #dde8dc;
+  --color-line: rgba(0, 31, 39, 0.12);
+  --color-line-strong: rgba(0, 31, 39, 0.2);
 
-  /* Текст — холодный почти-чёрный, не чистый */
-  --color-ink: #0f1b2d;
-  --color-ink-2: #4a5b72;
-  --color-ink-3: #8595a9;
+  /* Текст: INKBLACK, без чистого чёрного. */
+  --color-ink: #001f27;
+  --color-ink-2: #35535b;
+  --color-ink-3: #748d92;
 
-  /* Акцент — синий (бренд), используется уверенно */
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-soft: #e6eefe;
-  --color-on-accent: #ffffff;
+  /* Primary: EVERGREEN. Marine только для digital/help states. */
+  --color-accent: #003a35;
+  --color-accent-hover: #005149;
+  --color-accent-soft: #e4eee2;
+  --color-on-accent: #f7fbf6;
 
   /* Дозированный тёплый акцент на ценности (деньги) — тёплый пятак на холодном */
   --color-gold: #b4791f;
   --color-gold-soft: #f7ecd6;
 
-  /* Тёмная поверхность (вход) — глубокий синий */
-  --color-night: #0c1730;
-  --color-night-2: #142a52;
+  /* Тёмная поверхность: INKBLACK + EVERGREEN. */
+  --color-night: #001f27;
+  --color-night-2: #003a35;
 
   /* Семантика — читаемая (AA) на белом */
-  --color-success: #1f9d57;
-  --color-success-soft: #e2f6ea;
+  --color-success: #719a73;
+  --color-success-soft: #e5efe4;
   --color-warning: #b7791f;
   --color-warning-soft: #fcefd6;
   --color-danger: #dc2b3f;
   --color-danger-soft: #fde3e6;
-  --color-info: #2563eb;
-  --color-info-soft: #e6eefe;
+  --color-info: #1f73c2;
+  --color-info-soft: #e4f0fb;
 
   /* Радиусы — сдержанные. Тени — холодные, чистые. */
   --radius-card: 14px;
   --radius-inner: 10px;
-  /* Многослойная мягкая глубина — холодная, на белом */
-  --shadow-soft: 0 1px 1px rgba(15, 30, 60, 0.05), 0 2px 4px rgba(15, 30, 60, 0.06), 0 6px 16px -8px rgba(15, 30, 60, 0.12);
-  --shadow-lift: 0 2px 6px rgba(15, 30, 60, 0.07), 0 10px 22px -10px rgba(15, 30, 60, 0.16), 0 24px 48px -24px rgba(15, 30, 60, 0.22);
-  --shadow-pop: 0 16px 44px -14px rgba(15, 30, 60, 0.26);
+  /* Многослойная мягкая глубина на evergreen/ink основе. */
+  --shadow-soft: 0 1px 1px rgba(0, 31, 39, 0.05), 0 2px 4px rgba(0, 31, 39, 0.06), 0 8px 18px -10px rgba(0, 31, 39, 0.14);
+  --shadow-lift: 0 2px 6px rgba(0, 31, 39, 0.08), 0 12px 26px -12px rgba(0, 31, 39, 0.18), 0 26px 54px -28px rgba(0, 31, 39, 0.28);
+  --shadow-pop: 0 18px 48px -16px rgba(0, 31, 39, 0.32);
   /* Верхний внутренний блик — лёгкое «тиснение» по светлым поверхностям */
   --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   /* Сильные кривые (Emil Kowalski): встроенные слишком вялые. */
@@ -244,7 +244,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 .td-entity-row:hover {
   z-index: 2;
   background: color-mix(in srgb, var(--color-surface-2) 70%, #ffffff);
-  box-shadow: 0 10px 30px -24px rgba(15, 30, 60, 0.32);
+  box-shadow: 0 10px 30px -24px rgba(0, 31, 39, 0.32);
 }
 .td-entity-row:hover::after { opacity: 1; }
 .td-entity-row:active { transform: scale(0.997); }
@@ -295,8 +295,8 @@ button:not(:disabled):active { transform: scale(0.97); }
   background: var(--color-accent);
   color: var(--color-on-accent);
   box-shadow:
-    0 1px 2px rgba(15, 30, 60, 0.16),
-    0 8px 18px -12px rgba(37, 99, 235, 0.68),
+    0 1px 2px rgba(0, 31, 39, 0.16),
+    0 8px 18px -12px rgba(0, 58, 53, 0.68),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
@@ -372,6 +372,127 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .td-press:active { transform: scale(0.96); }
 
+.td-nav-orb {
+  position: relative;
+  display: grid;
+  height: 34px;
+  width: 34px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-line) 72%, transparent);
+  border-radius: 13px;
+  background:
+    radial-gradient(120% 120% at 28% 18%, rgba(255, 255, 255, 0.86), transparent 42%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 72%, var(--color-accent-soft)), var(--color-surface-2));
+  color: var(--color-ink-3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -8px 14px rgba(0, 31, 39, 0.045),
+    0 7px 16px -12px rgba(0, 31, 39, 0.45);
+  transform: translateZ(0);
+  transition:
+    transform 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    background-color 0.18s var(--ease-out);
+}
+.td-nav-orb::after {
+  content: "";
+  position: absolute;
+  inset: 6px 8px auto 8px;
+  height: 1px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  opacity: 0.72;
+  pointer-events: none;
+}
+.group:hover .td-nav-orb,
+.td-nav-orb:hover {
+  transform: translateY(-1px) scale(1.035);
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -8px 16px rgba(0, 58, 53, 0.05),
+    0 12px 22px -15px rgba(0, 31, 39, 0.58);
+}
+.td-nav-orb[data-active="true"] {
+  border-color: color-mix(in srgb, var(--color-accent) 32%, transparent);
+  background:
+    radial-gradient(120% 120% at 28% 18%, rgba(255, 255, 255, 0.35), transparent 40%),
+    linear-gradient(145deg, color-mix(in srgb, var(--color-accent) 82%, var(--color-info)), var(--color-accent));
+  color: var(--color-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -9px 18px rgba(0, 31, 39, 0.22),
+    0 13px 26px -15px rgba(0, 58, 53, 0.75);
+}
+
+.td-side-nav-item {
+  position: relative;
+  min-height: 50px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  transition:
+    background-color 0.18s var(--ease-out),
+    border-color 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    transform 0.12s var(--ease-out);
+}
+.td-side-nav-item:hover {
+  border-color: var(--color-line);
+  background: color-mix(in srgb, var(--color-surface) 74%, var(--color-surface-2));
+  box-shadow: var(--hl-top), 0 10px 22px -18px rgba(0, 31, 39, 0.32);
+}
+.td-side-nav-item[data-active="true"] {
+  border-color: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-accent-soft) 70%, var(--color-surface)), var(--color-surface));
+  box-shadow: var(--hl-top), 0 10px 26px -20px rgba(0, 58, 53, 0.42);
+}
+
+.td-mobile-dock {
+  left: 12px;
+  right: 12px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  border: 1px solid color-mix(in srgb, var(--color-line) 80%, transparent);
+  border-radius: 24px;
+  background:
+    radial-gradient(130% 150% at 50% -20%, rgba(255, 255, 255, 0.86), transparent 42%),
+    color-mix(in srgb, var(--color-surface) 88%, transparent);
+  box-shadow:
+    0 -1px 0 rgba(255, 255, 255, 0.74),
+    0 18px 48px -18px rgba(0, 31, 39, 0.38);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+.td-mobile-dock-item {
+  position: relative;
+  border-radius: 18px;
+  transform-style: preserve-3d;
+  perspective: 800px;
+}
+.td-mobile-dock-item:active { transform: scale(0.96); }
+.td-mobile-dock-item[data-active="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  transform: translateX(-50%);
+}
+
+.td-journey-bar {
+  border-bottom: 1px solid var(--color-line);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-surface) 78%, transparent));
+  backdrop-filter: blur(16px) saturate(1.05);
+}
+
 /* Боковой рельс — материал + мягкая краевая тень (плавает над канвой). */
 .td-rail {
   background: linear-gradient(180deg,
@@ -393,8 +514,8 @@ button:not(:disabled):active { transform: scale(0.97); }
     color-mix(in srgb, var(--color-accent-soft) 78%, var(--color-accent)));
   box-shadow:
     inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -3px 6px rgba(15, 30, 60, 0.08),
-    0 4px 10px -3px rgba(15, 30, 60, 0.22);
+    inset 0 -3px 6px rgba(0, 31, 39, 0.08),
+    0 4px 10px -3px rgba(0, 31, 39, 0.22);
 }
 
 /* Акцентная панель (след. действие) — материал вместо плоской заливки. */

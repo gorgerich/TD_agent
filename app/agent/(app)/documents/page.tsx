@@ -169,7 +169,7 @@ export default async function DocumentsPage({
                   <Link href={`/agent/cases/${caseId}`} className="group flex min-w-0 items-center gap-2.5">
                     <span
                       style={{ background: "radial-gradient(125% 125% at 30% 22%, color-mix(in srgb, var(--color-accent-soft) 62%, #fff), var(--color-accent-soft))" }}
-                      className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[12px] font-semibold text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(40,30,18,0.14)] ring-1 ring-accent/12 transition-transform duration-200 ease-out group-hover:scale-[1.06]"
+                      className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[12px] font-semibold text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(0,31,39,0.14)] ring-1 ring-accent/12 transition-transform duration-200 ease-out group-hover:scale-[1.06]"
                     >{initials}</span>
                     <span className="min-w-0">
                       <span className="block truncate text-[14px] font-semibold text-ink transition-colors group-hover:text-accent">{g.clientName}</span>

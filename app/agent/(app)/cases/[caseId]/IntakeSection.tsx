@@ -12,7 +12,7 @@ export type Intake = {
 
 const CEREMONY = ["кремация", "погребение"] as const;
 const inputCls =
-  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]";
+  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_rgba(0,58,53,0.12)]";
 
 export function IntakeSection({ caseId, initial }: { caseId: number; initial: Intake }) {
   const [v, setV] = useState<Intake>(initial);
@@ -52,15 +52,14 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
     <div className="space-y-3">
       <div>
         <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Тип церемонии</label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="td-segmented rounded-[12px]">
           {CEREMONY.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => set("ceremonyType", v.ceremonyType === c ? "" : c)}
-              className={`min-h-10 rounded-[10px] border text-[13px] font-medium capitalize transition-colors ${
-                v.ceremonyType === c ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-ink-2 hover:border-line-strong"
-              }`}
+              data-active={v.ceremonyType === c ? "true" : undefined}
+              className="td-segment min-h-10 flex-1 capitalize"
             >
               {c}
             </button>
@@ -95,7 +94,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
           type="button"
           onClick={save}
           disabled={busy}
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(20,30,24,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.2),inset_0_1px_0_rgba(255,255,255,0.14)] transition-colors hover:bg-accent-hover disabled:opacity-55"
         >
           {busy ? "Сохраняю…" : "Сохранить потребности"}
         </button>

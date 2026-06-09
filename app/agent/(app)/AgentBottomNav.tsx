@@ -19,7 +19,7 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
   return (
     <nav
       aria-label="Основная навигация"
-      className="td-dock fixed inset-x-0 bottom-0 z-40 flex bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="td-mobile-dock fixed z-40 grid grid-cols-4 px-2 py-2 lg:hidden"
     >
       {TABS.map(({ href, icon: Icon, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -29,10 +29,12 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`td-press flex flex-1 flex-col items-center gap-1 py-2.5 text-[10px] font-medium ${active ? "text-accent" : "text-ink-3"}`}
+            data-active={active ? "true" : undefined}
+            className={`td-mobile-dock-item td-press flex min-h-[58px] flex-col items-center justify-center gap-1 text-[10px] font-semibold ${active ? "text-accent" : "text-ink-3"}`}
           >
             <span
-              className={`relative grid h-7 w-12 place-items-center rounded-full transition-[background-color,box-shadow] ${active ? "bg-accent-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]" : "bg-transparent"}`}
+              className="td-nav-orb h-9 w-9 rounded-[15px]"
+              data-active={active ? "true" : undefined}
             >
               <Icon size={21} weight={active ? "fill" : "regular"} />
               {badge > 0 && (
@@ -41,7 +43,7 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
                 </span>
               )}
             </span>
-            {label}
+            <span className="leading-none">{label}</span>
           </Link>
         );
       })}

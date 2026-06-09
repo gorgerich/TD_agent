@@ -37,7 +37,7 @@
   font-variant-numeric: tabular-nums;
 }
 .summaryValueGreen { color: #16a34a; }
-.summaryValueBlue { color: #2563eb; }
+.summaryValueBlue { color: var(--color-info); }
 
 .summarySub { font-size: 12px; color: #94a3b8; margin-top: 6px; }
 
@@ -77,7 +77,7 @@
   white-space: nowrap;
 }
 .badgeAccrued { background: #fef3c7; color: #92400e; }
-.badgeApproved { background: #eff6ff; color: #1d4ed8; }
+.badgeApproved { background: var(--color-info-soft); color: var(--color-info); }
 .badgePaid { background: #f0fdf4; color: #15803d; }
 
 .emptyState {

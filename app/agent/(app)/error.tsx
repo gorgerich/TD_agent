@@ -36,7 +36,7 @@ export default function AgentError({
         <button
           type="button"
           onClick={reset}
-          className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(37,99,235,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
+          className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-on-accent shadow-[0_14px_30px_-20px_rgba(0,58,53,0.8)] transition-transform duration-200 hover:-translate-y-0.5 hover:bg-accent-hover"
         >
           <ArrowClockwise size={16} weight="bold" /> Попробовать снова
         </button>

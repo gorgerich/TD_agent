@@ -25,7 +25,7 @@
   transition: background 0.15s;
   flex-shrink: 0;
 }
-.newBtn:hover { background: #1d4ed8; }
+.newBtn:hover { background: var(--color-accent-hover); }
 
 /* ── Filter tabs ─────────────────────────────────────── */
 .filters {
@@ -80,7 +80,7 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #eff6ff;
+  background: var(--color-info-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -109,7 +109,7 @@
   font-weight: 700;
   white-space: nowrap;
 }
-.badgeScheduled { background: #eff6ff; color: #1d4ed8; }
+.badgeScheduled { background: var(--color-info-soft); color: var(--color-info); }
 .badgeInProgress { background: #fef3c7; color: #92400e; }
 .badgeCompleted { background: #f0fdf4; color: #15803d; }
 .badgeCancelled { background: #fef2f2; color: #b91c1c; }
@@ -121,7 +121,7 @@
   font-size: 14px;
 }
 .emptyIcon { font-size: 32px; margin-bottom: 10px; }
-.emptyLink { color: #3b82f6; text-decoration: none; font-weight: 500; }
+.emptyLink { color: var(--color-info); text-decoration: none; font-weight: 500; }
 .emptyLink:hover { text-decoration: underline; }
 
 /* ── Detail page ─────────────────────────────────────── */
@@ -205,7 +205,7 @@
 }
 
 .actionPrimary { background: #0f172a; color: white; }
-.actionPrimary:hover { background: #1d4ed8; }
+.actionPrimary:hover { background: var(--color-accent-hover); }
 
 .actionSecondary { background: white; color: #0f172a; border: 1.5px solid #e2e8f0; }
 .actionSecondary:hover { border-color: #94a3b8; }
@@ -241,7 +241,7 @@
   transition: border-color 0.15s;
   outline: none;
 }
-.input:focus, .select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+.input:focus, .select:focus { border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(0,58,53,0.1); }
 
 .hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
 
@@ -257,7 +257,7 @@
   transition: background 0.15s;
   font-family: inherit;
 }
-.submitBtn:hover:not(:disabled) { background: #1d4ed8; }
+.submitBtn:hover:not(:disabled) { background: var(--color-accent-hover); }
 .submitBtn:disabled { opacity: 0.5; cursor: default; }
 
 .error { font-size: 13px; color: #dc2626; margin-top: 12px; }

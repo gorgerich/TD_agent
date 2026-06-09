@@ -54,11 +54,12 @@ const ROLE_LABELS: Record<string, string> = {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] border border-line-strong bg-surface">
-        <span className="block h-2 w-2 rounded-full bg-accent" />
+      <span className="relative grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-[14px] border border-accent/20 bg-accent text-on-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_12px_24px_-18px_rgba(0,58,53,0.9)]">
+        <span className="absolute inset-x-2 top-1 h-px rounded-full bg-white/35" />
+        <span className="block h-2.5 w-2.5 rounded-full bg-on-accent shadow-[0_0_0_4px_rgba(247,251,246,0.14)]" />
       </span>
       <span className="leading-none">
-        <span className="block td-display text-[16px] text-ink">Тихий дом</span>
+        <span className="block text-[16px] font-semibold tracking-[-0.01em] text-ink">Тихий дом</span>
         <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
           Кабинет агента
         </span>
@@ -79,24 +80,15 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
             href={href}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
+            data-active={active ? "true" : undefined}
             className={[
-              "td-press group relative flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2 text-[13px]",
-              active
-                ? "bg-surface-2 font-semibold text-ink shadow-[var(--hl-top)]"
-                : "font-medium text-ink-2 hover:bg-surface-2/55 hover:text-ink",
+              "td-side-nav-item td-press group flex items-center gap-3 px-3 py-2 text-[13px]",
+              active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink",
             ].join(" ")}
           >
-            <span
-              className={[
-                "absolute left-0 top-1/2 h-5 w-[2.5px] -translate-y-1/2 rounded-full bg-accent transition-opacity duration-200",
-                active ? "opacity-100" : "opacity-0",
-              ].join(" ")}
-            />
-            <Icon
-              size={18}
-              weight={active ? "fill" : "regular"}
-              className={active ? "text-accent" : "text-ink-3 group-hover:text-ink-2"}
-            />
+            <span className="td-nav-orb" data-active={active ? "true" : undefined}>
+              <Icon size={18} weight={active ? "fill" : "duotone"} />
+            </span>
             {label}
             {badge > 0 && (
               <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white" aria-label={`${badge} просроченных`}>

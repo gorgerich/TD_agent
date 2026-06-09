@@ -100,7 +100,7 @@
 
 .input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
   background: #ffffff;
 }
@@ -122,7 +122,7 @@
 
 .codeInput:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: var(--color-accent);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
   background: #ffffff;
 }
@@ -149,9 +149,9 @@
 }
 
 .btn:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--color-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(29, 78, 216, 0.3);
+  box-shadow: 0 6px 16px rgba(0, 58, 53, 0.3);
 }
 
 .btn:active:not(:disabled) {

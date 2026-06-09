@@ -37,7 +37,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: var(--color-info);
   animation: pulse 1.5s ease-in-out infinite;
 }
 

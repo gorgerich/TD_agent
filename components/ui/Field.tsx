@@ -4,7 +4,7 @@ import * as React from "react";
 // На наших токенах, без внешних зависимостей. Паттерн - 21st/Ark, наша стилистика.
 
 const inputBase =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface text-[14px] text-ink outline-none transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_1px_2px_rgba(15,30,60,0.04)] focus:border-accent focus:bg-white focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_0_0_3px_rgba(37,99,235,0.14),0_8px_18px_-16px_rgba(15,30,60,0.32)] disabled:opacity-50";
+  "min-h-12 w-full rounded-[12px] border border-line bg-surface text-[14px] text-ink outline-none transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.62),0_1px_2px_rgba(0,31,39,0.04)] focus:border-accent focus:bg-surface focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_0_0_3px_rgba(0,58,53,0.14),0_8px_18px_-16px_rgba(0,31,39,0.32)] disabled:opacity-50";
 
 export interface FieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "id"> {
   id: string;
