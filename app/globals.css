@@ -183,7 +183,13 @@ button:not(:disabled):active { transform: scale(0.97); }
 .td-shell {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
-  background: var(--color-surface);
+  /* Материал, а не плоская заливка: лёгкий вертикальный сдвиг тона (верх светлее)
+     + верхний блик. Читается как бумага/лён, убирает «плоский AI» вид. */
+  background:
+    linear-gradient(177deg,
+      color-mix(in srgb, var(--color-surface) 86%, #ffffff),
+      var(--color-surface) 42%,
+      color-mix(in srgb, var(--color-surface) 90%, var(--color-surface-2)));
   box-shadow: var(--shadow-soft), var(--hl-top);
 }
 /* Внутренний слой больше не декоративен: только скругление контента. */

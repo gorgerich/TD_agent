@@ -97,7 +97,7 @@ export default function AgentLoginPage() {
           <div className="absolute -bottom-40 -right-28 h-[460px] w-[460px] rounded-full border border-on-accent/[0.06]" />
           <div className="absolute -bottom-28 -right-16 h-[320px] w-[320px] rounded-full border border-on-accent/[0.05]" />
         </div>
-        <div className="relative flex items-center gap-3">
+        <div className="rise relative flex items-center gap-3">
           <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-on-accent/10 ring-1 ring-on-accent/15">
             <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
           </span>
@@ -107,10 +107,10 @@ export default function AgentLoginPage() {
         </div>
 
         <div className="relative max-w-[560px]">
-          <span className="inline-flex rounded-full border border-on-accent/12 bg-on-accent/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-accent/64">
+          <span className="rise rise-1 inline-flex rounded-full border border-on-accent/12 bg-on-accent/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-on-accent/64">
             агентская платформа
           </span>
-          <h1 className="td-display mt-6 text-[54px] leading-[1.02] text-on-accent">
+          <h1 className="td-display rise rise-2 mt-6 text-[54px] leading-[1.02] text-on-accent">
             Кабинет для реальной работы агента и отдельный безопасный демо-вход.
           </h1>
           <div className="mt-9 grid max-w-[520px] grid-cols-3 gap-3">
@@ -118,8 +118,12 @@ export default function AgentLoginPage() {
               ["01", "до встречи", "Бриф и подготовка"],
               ["02", "встреча", "Смета при семье"],
               ["03", "после", "Задачи и сроки"],
-            ].map(([n, label, value]) => (
-              <div key={label} className="rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4">
+            ].map(([n, label, value], i) => (
+              <div
+                key={label}
+                className="rise rounded-[14px] border border-on-accent/10 bg-on-accent/[0.07] p-4"
+                style={{ animationDelay: `${0.28 + i * 0.09}s` }}
+              >
                 <p className="tnum td-display text-[15px] text-on-accent/35">{n}</p>
                 <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-on-accent/45">{label}</p>
                 <p className="mt-1 td-display text-[18px] leading-tight text-on-accent">{value}</p>
@@ -128,7 +132,7 @@ export default function AgentLoginPage() {
           </div>
         </div>
 
-        <div className="relative flex items-center gap-2.5 text-[12px] text-on-accent/70">
+        <div className="rise relative flex items-center gap-2.5 text-[12px] text-on-accent/70" style={{ animationDelay: "0.55s" }}>
           <ShieldCheck size={16} weight="duotone" />
           Боевой вход хранит аккаунт в постоянной Postgres-БД
         </div>
