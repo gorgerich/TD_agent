@@ -1,29 +1,14 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Onest, Source_Serif_4, Cormorant_Garamond, JetBrains_Mono } from "next/font/google";
+import { Onest, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
+// v2 «Quiet Operations»: один гротеск на всё (заголовки = вес/трекинг,
+// не смена гарнитуры). Серифы убраны как декор.
 const sans = Onest({
   subsets: ["latin", "cyrillic"],
   variable: "--font-sans",
   display: "swap",
-});
-
-// Дисплейная гарнитура - высококонтрастный гуманистический серив (Cormorant
-// Garamond, есть кириллица). Память, достоинство, «тихая» редакционная подача.
-const display = Cormorant_Garamond({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-display",
-  display: "swap",
-  weight: ["500", "600"],
-});
-
-const serif = Source_Serif_4({
-  subsets: ["latin", "cyrillic"],
-  variable: "--td-display",
-  display: "swap",
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
 });
 
 const mono = JetBrains_Mono({
@@ -41,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" className={`${sans.variable} ${serif.variable} ${display.variable} ${mono.variable}`}>
+    <html lang="ru" className={`${sans.variable} ${mono.variable}`}>
       <body>
         <a href="#main-content" className="skip-link">К основному содержимому</a>
         {children}

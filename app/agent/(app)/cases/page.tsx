@@ -274,8 +274,7 @@ function Avatar({ name, urgent }: { name: string; urgent?: boolean }) {
   return (
     <span
       aria-hidden="true"
-      style={{ background: "radial-gradient(125% 125% at 30% 22%, color-mix(in srgb, var(--color-accent-soft) 62%, #fff), var(--color-accent-soft))" }}
-      className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[12px] font-semibold text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_1px_2px_rgba(0,31,39,0.14)] ring-1 ring-accent/12 transition-transform duration-200 ease-out group-hover:scale-[1.07] ${urgent ? "ring-2 ring-danger/30" : ""}`}
+            className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[12px] font-semibold text-accent bg-accent-soft ${urgent ? "ring-2 ring-danger/30" : ""}`}
     >
       {initials}
     </span>
