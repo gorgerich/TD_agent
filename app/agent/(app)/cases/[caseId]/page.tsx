@@ -158,8 +158,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const ceremonyMs = lead.ceremonyAt?.getTime() ?? null;
   const hoursToCeremony = ceremonyMs ? Math.round((ceremonyMs - nowMs) / 3_600_000) : null;
   if (hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48) {
-    if (versions.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч — сметы нет` });
-    if (docs.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч — документов нет` });
+    if (versions.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч - сметы нет` });
+    if (docs.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч - документов нет` });
   }
 
   const latestVersion = versions.reduce<(typeof versions)[number] | null>((latest, version) => {

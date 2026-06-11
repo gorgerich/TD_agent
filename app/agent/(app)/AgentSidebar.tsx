@@ -194,7 +194,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
       </nav>
 
       {/* Mobile top bar */}
-      <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-line bg-surface/95 px-4 backdrop-blur-md lg:hidden">
+      <header className="td-glass fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between px-4 lg:hidden">
         <Brand />
         <button
           type="button"

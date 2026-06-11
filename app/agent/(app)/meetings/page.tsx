@@ -47,9 +47,11 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
       groups.get(key)!.events.push({
         id: m.id,
         leadId: lead.id,
+        kind: "meeting",
         name: lead.name,
         phone: lead.phone,
         time: fmtTime.format(d),
+        sortKey: d.getTime(),
         status: m.status,
         past: d.getTime() < now,
         stage,
@@ -58,7 +60,43 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
         docCount: lead._count.documents,
       });
     }
-    return [...groups.values()];
+
+    // Церемонии — дедлайны кейсов в том же календаре (сегодня и дальше)
+    const ceremonies = await prisma.clientLead.findMany({
+      where: { agentId, ceremonyAt: { gte: todayStart } },
+      select: { id: true, name: true, phone: true, ceremonyAt: true, ceremonyPlace: true },
+    });
+    for (const c of ceremonies) {
+      const d = c.ceremonyAt!;
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (!groups.has(key)) {
+        const label = d.getTime() >= todayStart.getTime() && d.getTime() < todayStart.getTime() + 86_400_000
+          ? "Сегодня" : fmtDay.format(d);
+        groups.set(key, { key, label, events: [] });
+      }
+      groups.get(key)!.events.push({
+        id: c.id,
+        leadId: c.id,
+        kind: "ceremony",
+        name: `Церемония · ${c.name}`,
+        phone: c.phone,
+        time: fmtTime.format(d),
+        sortKey: d.getTime(),
+        status: "CEREMONY",
+        past: d.getTime() < now,
+        stage: "Оплата",
+        nextAction: "",
+        hasQuote: false,
+        docCount: 0,
+        place: c.ceremonyPlace,
+      });
+    }
+
+    // Дни и события — по времени
+    const days = [...groups.values()];
+    for (const day of days) day.events.sort((a, b) => a.sortKey - b.sortKey);
+    days.sort((a, b) => (a.events[0]?.sortKey ?? 0) - (b.events[0]?.sortKey ?? 0));
+    return days;
   } catch {
     return [];
   }
@@ -111,7 +149,7 @@ export default async function CalendarPage() {
             <section key={day.key} className="td-entity-list min-w-0">
               <h2 className="border-b border-line bg-surface-2/55 px-4 py-2.5 text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-3 first-letter:uppercase">{day.label}</h2>
               <ul>
-                {day.events.map((e) => <EventRow key={e.id} event={e} />)}
+                {day.events.map((e) => <EventRow key={`${e.kind}-${e.id}`} event={e} />)}
               </ul>
             </section>
           ))}

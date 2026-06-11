@@ -18,6 +18,10 @@ type CaseRow = {
   urgent: boolean;
   soon: boolean;
   stale: boolean;
+  ceremonyAt: number | null;
+  ceremonyLabel: string;       // «10 июн, 11:00»
+  hoursToCeremony: number | null;
+  ceremonySoon: boolean;       // церемония в ближайшие 48 ч — высший приоритет
   nextMeetingAt: number | null;
   nextMeetingTime: string;
   nextMeetingDate: string;
@@ -77,6 +81,11 @@ async function getCases(agentId: number): Promise<CasesData> {
       const soon = nextMeetingAt ? nextMeetingAt - now < DAY : false;
       const stale = stage !== "Завершено" && now - lastActivity > 7 * DAY;
 
+      // Церемония — настоящий дедлайн кейса (важнее встреч)
+      const ceremonyAt = lead.ceremonyAt && stage !== "Завершено" ? lead.ceremonyAt.getTime() : null;
+      const hoursToCeremony = ceremonyAt && ceremonyAt > now ? Math.round((ceremonyAt - now) / 3_600_000) : null;
+      const ceremonySoon = hoursToCeremony !== null && hoursToCeremony <= 48;
+
       return {
         id: lead.id,
         name: lead.name,
@@ -85,17 +94,27 @@ async function getCases(agentId: number): Promise<CasesData> {
         progress: stageIndex(stage) + 1,
         nextAction: NEXT_ACTION[stage],
         lastActivityLabel: relTime(lastActivity, now),
-        priority: soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
-        urgent: soon || stale,
+        priority: ceremonySoon || soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
+        urgent: ceremonySoon || soon || stale,
         soon,
         stale,
+        ceremonyAt,
+        ceremonyLabel: ceremonyAt ? `${fmtDate.format(ceremonyAt)}, ${fmtTime.format(ceremonyAt)}` : "",
+        hoursToCeremony,
+        ceremonySoon,
         nextMeetingAt,
         nextMeetingTime: nextMeetingAt ? fmtTime.format(nextMeetingAt) : "",
         nextMeetingDate: nextMeetingAt ? fmtDate.format(nextMeetingAt) : "",
       };
     });
 
-    const sorted = [...rows].sort((a, b) => (a.urgent === b.urgent ? 0 : a.urgent ? -1 : 1));
+    // Сортировка дня: ближайшая церемония → срочные → остальные
+    const sorted = [...rows].sort((a, b) => {
+      if (a.ceremonySoon !== b.ceremonySoon) return a.ceremonySoon ? -1 : 1;
+      if (a.ceremonySoon && b.ceremonySoon) return (a.ceremonyAt ?? 0) - (b.ceremonyAt ?? 0);
+      if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
+      return 0;
+    });
     const active = sorted.filter((c) => c.stage !== "Завершено");
 
     const todayMeetings = rows
@@ -148,6 +167,10 @@ export default async function CasesPage() {
     urgent: true,
     soon: false,
     stale: false,
+    ceremonyAt: null,
+    ceremonyLabel: "",
+    hoursToCeremony: null,
+    ceremonySoon: false,
     nextMeetingAt: null,
     nextMeetingTime: "",
     nextMeetingDate: "",
@@ -198,7 +221,7 @@ export default async function CasesPage() {
           ) : (
             <ul className="td-entity-list">
               {active.map((c) => {
-                const bar = c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
+                const bar = c.ceremonySoon ? "before:bg-danger" : c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
                 return (
                   <li key={c.id} className="border-b border-line last:border-0">
                     <Link
@@ -210,7 +233,9 @@ export default async function CasesPage() {
                         <span className="flex items-center gap-2">
                           <span className="truncate text-[14px] font-semibold text-ink">{c.name}</span>
                           <StageChip stage={c.stage} />
-                          {c.soon ? (
+                          {c.ceremonySoon ? (
+                            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Церемония через {c.hoursToCeremony} ч</span>
+                          ) : c.soon ? (
                             <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">Встреча скоро</span>
                           ) : c.stale ? (
                             <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-warning">Без движения</span>
@@ -219,6 +244,9 @@ export default async function CasesPage() {
                         <span className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-2">
                           <ArrowRight size={12} weight="bold" className="flex-shrink-0 text-ink-3" />
                           <span className="truncate">{c.nextAction}</span>
+                          {c.ceremonyLabel && !c.ceremonySoon && (
+                            <span className="hidden flex-shrink-0 text-ink-3 sm:inline">· церемония {c.ceremonyLabel}</span>
+                          )}
                         </span>
                       </span>
                       <span className="hidden flex-shrink-0 flex-col items-end gap-2 pr-1 sm:flex">
