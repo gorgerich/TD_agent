@@ -191,7 +191,7 @@ export default async function CasesPage() {
       </header>
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
-        <section className="rise rise-1 min-w-0">
+        <section className="rise rise-1 order-2 min-w-0 lg:order-1">
           {active.length === 0 ? (
             <div className="td-shell px-6 py-12 text-center">
               <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
@@ -262,7 +262,7 @@ export default async function CasesPage() {
           )}
         </section>
 
-        <aside className="rise rise-2 min-w-0 space-y-5">
+        <aside className="rise rise-2 order-1 min-w-0 space-y-5 lg:order-2">
           <RailBlock icon={<CalendarDots size={15} weight="duotone" />} title="Сегодня">
             {todayMeetings.length === 0 ? (
               <RailEmpty>Встреч на сегодня нет</RailEmpty>

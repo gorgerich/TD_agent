@@ -81,7 +81,13 @@ export function CaseTabs({
       <div key={tab} className="tab-panel p-4 sm:p-5">
         {tab === "work" && (
           <div className="space-y-5">
-            <Section title="Статус оформления" hint="Обновляется автоматически по ходу кейса.">
+            <Section title={`Задачи · ${openTasks} открыто`}>
+              <TasksSection caseId={caseId} initial={tasks} />
+            </Section>
+            <Section title="Оплата" hint="Фиксация аванса и остатка по договорённости с семьёй.">
+              <PaymentsSection caseId={caseId} initial={payments} />
+            </Section>
+            <Section title="Статус оформления" hint="Справка. Обновляется автоматически по ходу кейса.">
               <ul className="grid gap-2 sm:grid-cols-2">
                 {checklist.map((it) => (
                   <li key={it.label} className="flex items-center gap-2.5 rounded-[12px] border border-line bg-surface-2/45 px-3 py-2.5 text-[13px]">
@@ -90,12 +96,6 @@ export function CaseTabs({
                   </li>
                 ))}
               </ul>
-            </Section>
-            <Section title={`Задачи · ${openTasks} открыто`}>
-              <TasksSection caseId={caseId} initial={tasks} />
-            </Section>
-            <Section title="Оплата" hint="Фиксация аванса и остатка по договорённости с семьёй.">
-              <PaymentsSection caseId={caseId} initial={payments} />
             </Section>
           </div>
         )}

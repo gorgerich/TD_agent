@@ -252,6 +252,20 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         cobrowse={cobrowse}
       />
 
+      {risks.length > 0 && (
+        <section className="rise rise-1 mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3">
+          <span className="td-eyebrow mr-1 text-danger">Риски</span>
+          {risks.map((r) => (
+            <span
+              key={r.label}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium ${r.tone === "danger" ? "border-danger/20 bg-danger-soft text-danger" : "border-warning/20 bg-warning-soft text-warning"}`}
+            >
+              <Warning size={12} weight="bold" /> {r.label}
+            </span>
+          ))}
+        </section>
+      )}
+
       <section className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft),var(--hl-top)]">
         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -266,20 +280,6 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           ))}
         </div>
       </section>
-
-      {risks.length > 0 && (
-        <section className="rise rise-1 mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3">
-          <span className="td-eyebrow mr-1 text-danger">Риски</span>
-          {risks.map((r) => (
-            <span
-              key={r.label}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium ${r.tone === "danger" ? "border-danger/20 bg-danger-soft text-danger" : "border-warning/20 bg-warning-soft text-warning"}`}
-            >
-              <Warning size={12} weight="bold" /> {r.label}
-            </span>
-          ))}
-        </section>
-      )}
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* CENTER - operational (tabbed to kill the card wall) */}
