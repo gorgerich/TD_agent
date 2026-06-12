@@ -537,3 +537,20 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .td-toast-in { animation: tdToastIn 0.24s var(--ease-out) both; }
 .td-popover-in { animation: tdPopoverIn 0.22s var(--ease-out) both; }
+
+/* Spring-поп — упругое появление активных маркеров (Apple-bounce, дозированно). */
+@keyframes tdSpringPop {
+  0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
+  62% { transform: translateX(-50%) scale(1.35); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+.td-mobile-dock-item[data-active="true"]::after { animation: tdSpringPop 0.32s var(--ease-out); }
+@keyframes tdSegPop {
+  0% { transform: scale(0.96); }
+  60% { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+.td-segment[data-active="true"] { animation: tdSegPop 0.26s var(--ease-out); }
+@media (prefers-reduced-motion: reduce) {
+  .td-mobile-dock-item[data-active="true"]::after, .td-segment[data-active="true"] { animation: none; }
+}
