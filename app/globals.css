@@ -18,6 +18,9 @@
   --color-surface: #ffffff;
   --color-surface-2: #eef1ee;
   --color-surface-3: #e3e8e3;
+  /* Тёплая бумага tihiydom.com — ТОЛЬКО клиентские экраны (/co): клиент
+     приходит с B2C-сайта и видит тот же материал. В кабинете не использовать. */
+  --color-paper: #f6f5f3;
   --color-line: rgba(0, 31, 39, 0.10);
   --color-line-strong: rgba(0, 31, 39, 0.18);
 
@@ -553,4 +556,24 @@ button:not(:disabled):active { transform: scale(0.97); }
 .td-segment[data-active="true"] { animation: tdSegPop 0.26s var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   .td-mobile-dock-item[data-active="true"]::after, .td-segment[data-active="true"] { animation: none; }
+}
+
+/* ── View Transitions (список ↔ кейс) ──────────────────────────
+   Корень - тихий crossfade с подъёмом 6px (как .rise, но межстраничный).
+   Имя клиента несёт viewTransitionName: case-<id> - браузер морфит его
+   между строкой списка и заголовком кейса. Без поддержки API - обычная
+   навигация. Глобальный reduced-motion не достаёт до ::view-transition-*,
+   поэтому отдельный блок. */
+@keyframes vtFadeOut { to { opacity: 0; } }
+@keyframes vtRiseIn { from { opacity: 0; transform: translateY(6px); } }
+::view-transition-old(root) { animation: vtFadeOut 0.14s var(--ease-out) both; }
+::view-transition-new(root) { animation: vtRiseIn 0.22s var(--ease-out) both; }
+::view-transition-group(*) {
+  animation-duration: 0.26s;
+  animation-timing-function: var(--ease-drawer);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }

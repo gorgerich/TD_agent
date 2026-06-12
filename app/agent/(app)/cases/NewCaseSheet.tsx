@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+import { useSwipeX } from "@/lib/useSwipeX";
 
 const SOURCES = [
   { value: "agent", label: "Агент" },
@@ -24,20 +25,45 @@ export default function NewCaseSheet() {
   const [source, setSource] = useState("agent");
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const closingRef = useRef(false);
+
+  // Drag-to-close: панель тянется вправо за пальцем, флик или 140px - закрытие.
+  // Поля ввода жест не перехватывают (ignore по умолчанию в хуке).
+  const swipe = useSwipeX({
+    dir: "right",
+    threshold: 140,
+    velocity: 0.5,
+    enabled: open && !saving,
+    onCommit: () => close(),
+  });
+
+  function close() {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+      closingRef.current = false;
+      swipe.reset();
+    }, 220);
+  }
 
   useEffect(() => {
     if (!open) return;
     nameRef.current?.focus();
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const valid = name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10;
@@ -87,11 +113,32 @@ export default function NewCaseSheet() {
           aria-modal="true"
           aria-label="Новый кейс"
         >
-          <div className="absolute inset-0 bg-[rgba(10,18,32,0.45)]" style={{ animation: "overlayFade 0.2s ease-out" }} onClick={() => setOpen(false)} />
-          <div className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop" style={{ animation: "sheetInRight 0.36s var(--ease-drawer)" }}>
+          <div
+            className="absolute inset-0 bg-[rgba(10,18,32,0.45)]"
+            style={{
+              animation: closing ? undefined : "overlayFade 0.2s ease-out",
+              opacity: closing ? 0 : 1 - swipe.progress * 0.4,
+              transition: swipe.dragging ? "none" : "opacity 0.2s ease-out",
+            }}
+            onClick={close}
+          />
+          <div
+            {...swipe.bind}
+            className="absolute inset-y-0 right-0 flex w-full max-w-[440px] flex-col bg-surface shadow-pop"
+            style={{
+              animation: closing ? undefined : "sheetInRight 0.36s var(--ease-drawer)",
+              transform: closing
+                ? "translateX(100%)"
+                : swipe.dx > 0
+                ? `translateX(${swipe.dx}px)`
+                : undefined,
+              transition: swipe.dragging ? "none" : "transform 0.26s var(--ease-drawer)",
+              touchAction: "pan-y",
+            }}
+          >
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <h2 className="td-display text-[20px] text-ink">Новый кейс</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" className="td-icon-button h-9 w-9">
+              <button type="button" onClick={close} aria-label="Закрыть" className="td-icon-button h-9 w-9">
                 <X size={18} />
               </button>
             </div>

@@ -4,10 +4,10 @@
 .root {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 12px 16px 150px;
+  padding: 12px 16px 96px;
 }
 @media (min-width: 640px) {
-  .root { padding: 18px 28px 150px; }
+  .root { padding: 18px 28px 108px; }
 }
 @media (min-width: 980px) {
   .root { max-width: 1040px; padding: 18px 28px 128px; }
@@ -82,6 +82,298 @@
   font-size: 9px; font-weight: 600; letter-spacing: 0.04em;
   background: var(--color-success); color: var(--color-on-accent);
   border-radius: 999px; padding: 2px 7px;
+}
+
+/* ── B2C-style plan overview ───────────────────────────── */
+.planShell {
+  margin: 0 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, #fff), var(--color-surface));
+  box-shadow: var(--shadow-soft), var(--hl-top);
+  padding: 18px;
+}
+.planHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.planEyebrow {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.planTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 760;
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+.planSubtitle {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: var(--color-ink-2);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.planTotal {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--color-surface-2) 72%, #fff);
+  padding: 14px 16px;
+  text-align: left;
+}
+.planTotal span {
+  display: block;
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.planTotal strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: clamp(30px, 5vw, 42px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.planModeSwitch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  margin: 18px 0 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 26px;
+  background: var(--color-surface-2);
+  padding: 5px;
+}
+.planModeSwitch p {
+  grid-column: 1 / -1;
+  margin: 4px 8px 7px;
+  color: var(--color-ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.planModeBtn {
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink-2);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+.planModeBtn:hover { color: var(--color-ink); }
+.planModeBtnActive {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: 0 1px 2px rgba(0, 31, 39, 0.08), var(--hl-top);
+}
+.planRows {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+  padding: 10px 0;
+}
+.planRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 12px 0;
+}
+.planRow + .planRow { border-top: 1px solid color-mix(in srgb, var(--color-line) 72%, transparent); }
+.planRow span {
+  display: block;
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+.planRow ul {
+  display: grid;
+  gap: 4px;
+  margin: 7px 0 0 12px;
+  padding: 0;
+  color: var(--color-ink-3);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.planRow li { padding-left: 2px; }
+.planRow strong {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.planEmpty {
+  padding: 18px 0;
+  color: var(--color-ink-3);
+  font-size: 14px;
+  text-align: center;
+}
+.planActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+.planPrimary,
+.planSecondary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+.planPrimary {
+  border: 1px solid var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.planPrimary:hover { background: var(--color-night-2); border-color: var(--color-night-2); }
+.planSecondary {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+.planSecondary:hover { border-color: var(--color-line-strong); background: var(--color-surface); }
+.planSecondary:disabled { opacity: 0.55; cursor: default; }
+.planActions p {
+  margin: 0;
+  color: var(--color-ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.b2cWizardIntro {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+.b2cStageRail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(104px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.b2cStageRail::-webkit-scrollbar { display: none; }
+.b2cStageChip {
+  display: grid;
+  gap: 7px;
+  min-height: 72px;
+  align-content: center;
+  justify-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-surface-2) 70%, #fff);
+  color: var(--color-ink-3);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.b2cStageChip:hover {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+  transform: translateY(-1px);
+}
+.b2cStageChip span {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 800;
+}
+.b2cStageChip strong {
+  font-size: 12px;
+  font-weight: 800;
+}
+.b2cStageChipActive {
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-surface);
+}
+.b2cStageChipActive span {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border-color: transparent;
+}
+.b2cStageChipDone:not(.b2cStageChipActive) {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.b2cStageHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 18px;
+}
+.b2cStageNumber {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  box-shadow: var(--hl-top);
+}
+.b2cStageKicker {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--color-ink-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.b2cStageHead h2 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 22px;
+  line-height: 1.1;
+}
+.b2cStageHead p {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--color-ink-2);
+  font-size: 14px;
+  line-height: 1.5;
+}
+@media (min-width: 720px) {
+  .planShell { padding: 24px 28px 26px; }
+  .planHero { grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); align-items: start; }
+  .planTotal { text-align: center; }
+  .planActions { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── Deal overview and flow navigation ─────────────────── */
@@ -262,6 +554,7 @@
   justify-content: space-between;
   gap: 10px;
   margin-top: 4px;
+  padding-top: 4px;
 }
 .stepBack,
 .stepForward {
@@ -295,6 +588,28 @@
   background: var(--color-success);
 }
 .stepForwardDone:hover:not(:disabled) { background: color-mix(in srgb, var(--color-success) 86%, #000); border-color: color-mix(in srgb, var(--color-success) 86%, #000); }
+.stepTotal {
+  display: inline-grid;
+  gap: 2px;
+  min-height: 46px;
+  place-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface-2);
+  padding: 6px 16px;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+.stepTotal span {
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 700;
+}
+.stepTotal strong {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Layout ─────────────────────────────────────────────── */
 .layout {
@@ -303,11 +618,22 @@
   gap: 16px;
   align-items: start;
 }
+.b2cWizardShell {
+  margin-top: -2px;
+  border: 1px solid var(--color-line);
+  border-radius: 28px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft), var(--hl-top);
+  padding: 16px;
+}
 @media (min-width: 980px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .b2cWizardShell { padding: 22px 28px 24px; }
 }
 
 .form { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.formCollapsed { display: none; }
+.b2cWizardShell .form { gap: 14px; }
 
 /* ── Card ───────────────────────────────────────────────── */
 .card {
@@ -318,6 +644,31 @@
   box-shadow: var(--shadow-soft);
 }
 @media (min-width: 640px) { .card { padding: 18px 20px; } }
+.b2cWizardShell .card {
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--color-surface-2) 42%, #fff);
+  box-shadow: none;
+}
+@media (max-width: 520px) {
+  .b2cStageRail { grid-template-columns: repeat(5, minmax(88px, 1fr)); }
+  .b2cStageChip { min-height: 64px; border-radius: 16px; }
+  .b2cStageChip strong { font-size: 11px; }
+  .b2cStageHead { gap: 11px; }
+  .b2cStageHead h2 { font-size: 20px; }
+  .stepFooter {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .stepTotal {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .stepBack,
+  .stepForward {
+    justify-content: center;
+    padding-inline: 12px;
+  }
+}
 
 .cardTitle {
   margin: 0 0 14px;
@@ -462,6 +813,8 @@
 .toggleRowMain { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .toggleRowText { min-width: 0; }
 .toggleRowLabel { font-size: 14px; font-weight: 500; color: var(--color-ink); }
+/* Описание услуги простыми словами (язык B2C tihiydom.com) */
+.toggleRowHint { margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--color-ink-3); }
 .toggleRowPrice {
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 12px; color: var(--color-ink-2); margin-top: 2px;
@@ -1667,7 +2020,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   position: fixed;
   left: 10px;
   right: 10px;
-  bottom: calc(58px + env(safe-area-inset-bottom));
+  bottom: calc(104px + env(safe-area-inset-bottom));
   z-index: 55;
   display: flex;
   align-items: center;
@@ -1862,3 +2215,70 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
 }
 .optColors { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 11px; }
+
+/* ── Паттерны wizard tihiydom.com (B2C /wizard) ──────────────────
+   Radio-карточки, карточки длительности, маршрут-чипы, буллеты пакетов.
+   Палитра - токены кабинета (evergreen вместо чёрного B2C). */
+.radioCards { display: grid; gap: 8px; }
+.radioCard {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left; font: inherit; appearance: none;
+  padding: 13px 16px;
+  border-radius: 14px; border: 1px solid var(--color-line);
+  background: var(--color-surface); cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.12s var(--ease-out);
+}
+.radioCard:hover { border-color: var(--color-line-strong); }
+.radioCard:active { transform: scale(0.995); }
+.radioCardActive { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.radioDot {
+  width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0;
+  border: 1.5px solid var(--color-line-strong); background: var(--color-surface);
+  display: grid; place-items: center;
+  transition: border-color 0.16s ease;
+}
+.radioCardActive .radioDot { border-color: var(--color-accent); }
+.radioCardActive .radioDot::after {
+  content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--color-accent);
+}
+.radioCardText { min-width: 0; flex: 1; }
+.radioCardLabel { display: block; font-size: 14px; font-weight: 500; color: var(--color-ink); }
+.radioCardSub { display: block; margin-top: 1px; font-size: 12px; color: var(--color-ink-3); }
+.radioCardPrice {
+  flex-shrink: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; color: var(--color-ink-2);
+}
+
+.durationGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.durationCard {
+  display: grid; gap: 2px; justify-items: center; align-content: center;
+  min-height: 64px; padding: 10px;
+  font: inherit; appearance: none;
+  border-radius: 14px; border: 1px solid var(--color-line);
+  background: var(--color-surface); cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, transform 0.12s var(--ease-out);
+}
+.durationCard:hover { border-color: var(--color-line-strong); }
+.durationCard:active { transform: scale(0.99); }
+.durationCardActive { border-color: var(--color-accent); background: var(--color-accent-soft); }
+.durationVal { font-size: 14px; font-weight: 600; color: var(--color-ink); }
+.durationPrice { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--color-ink-2); }
+
+.routeLabel { margin-top: 12px; font-size: 12px; font-weight: 500; color: var(--color-ink-3); }
+.routeChips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.routeChip {
+  display: inline-flex; align-items: center; min-height: 30px; padding: 5px 12px;
+  border-radius: 999px; background: var(--color-night); color: var(--color-on-accent);
+  font-size: 12px; font-weight: 600;
+}
+.routeArrow { display: inline-flex; color: var(--color-ink-3); }
+
+.pkgFeatures { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; }
+.pkgFeatures li {
+  position: relative; padding-left: 10px;
+  font-size: 11px; line-height: 1.45; color: var(--color-ink-3);
+}
+.pkgFeatures li::before {
+  content: ""; position: absolute; left: 0; top: 0.55em;
+  width: 3px; height: 3px; border-radius: 999px; background: var(--color-ink-3);
+}

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { QuietShader, type QuietShaderHandle } from "@/components/QuietShader";
+import { useCountUp } from "@/lib/useCountUp";
 import {
   calculateOrder,
   calculateEstimateItemsTotal,
@@ -110,6 +112,18 @@ export default function CoView({ code }: { code: string }) {
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
   const externalTotal = externalExpenses.reduce((sum, e) => sum + e.clientPrice, 0);
   const grandTotal = (result?.total ?? 0) + estimateTotal + externalTotal;
+
+  // Сумма «доезжает» плавно, а шейдер под ней отвечает мягким всплеском -
+  // клиент видит, что смета живая (DELIGHT: shader на hero-сумме).
+  const animatedTotal = useCountUp(grandTotal);
+  const shaderRef = useRef<QuietShaderHandle>(null);
+  const prevTotal = useRef(grandTotal);
+  useEffect(() => {
+    if (grandTotal !== prevTotal.current) {
+      prevTotal.current = grandTotal;
+      shaderRef.current?.pulse(0.22, 0.55, 0.9);
+    }
+  }, [grandTotal]);
   const sections = result?.sections.filter((s) => s.total > 0) ?? [];
   const hasItems = sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0;
 
@@ -165,13 +179,21 @@ export default function CoView({ code }: { code: string }) {
       </div>
 
       {/* Grand total hero */}
-      <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_10px_24px_-18px_rgba(0,58,53,0.36)]">
-        <div className="px-6 py-5 sm:px-8 sm:py-6">
+      <div className="relative mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_10px_24px_-18px_rgba(0,58,53,0.36)]">
+        <QuietShader ref={shaderRef} palette="accent" className="absolute inset-0 h-full w-full" />
+        <div className="relative px-6 py-5 sm:px-8 sm:py-6">
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-accent/60">
             {isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}
           </p>
-          <p className="mt-1 font-serif text-[38px] font-semibold tracking-tight text-on-accent sm:text-[44px]">
-            {formatCurrency(grandTotal)}
+          <p className="tnum mt-1 text-[38px] font-semibold tracking-tight text-on-accent sm:text-[44px]">
+            {formatCurrency(Math.round(animatedTotal))}
+          </p>
+          {/* Trust-строка tihiydom.com - один язык обещаний на обеих платформах */}
+          <p className="mt-2 text-[12px] leading-5 text-on-accent/64">
+            Без скрытых платежей и доплат.{" "}
+            {isSnapshot
+              ? "Итоговая цена фиксируется в договоре."
+              : "Ничего не фиксируется без вашего подтверждения."}
           </p>
         </div>
       </div>

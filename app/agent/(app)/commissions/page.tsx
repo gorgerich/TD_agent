@@ -119,7 +119,7 @@ function SumCard({ icon, label, value, sub, tone = "accent" }: { icon: React.Rea
         <span className={`grid h-11 w-11 place-items-center rounded-[14px] ${chip}`}>{icon}</span>
         <span className="text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</span>
       </div>
-      <div className="tnum mb-2 font-serif text-[30px] font-semibold leading-none text-ink">{value}</div>
+      <div className="tnum mb-2 text-[30px] font-semibold leading-none text-ink">{value}</div>
       <p className="text-[11px] text-ink-3">{sub}</p>
       </div>
     </div>

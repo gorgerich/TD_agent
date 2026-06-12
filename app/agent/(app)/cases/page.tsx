@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
 import { Plus, ArrowRight, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
@@ -231,7 +231,7 @@ export default async function CasesPage() {
                       <Avatar name={c.name} urgent={c.urgent} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
-                          <span className="truncate text-[14px] font-semibold text-ink">{c.name}</span>
+                          <span className="truncate text-[14px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
                           <StageChip stage={c.stage} />
                           {c.ceremonySoon ? (
                             <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Церемония через {c.hoursToCeremony} ч</span>

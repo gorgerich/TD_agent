@@ -22,6 +22,7 @@
     "@tailwindcss/postcss": "^4.3.0",
     "@vercel/blob": "^2.4.0",
     "next": "^16.0.9",
+    "next-view-transitions": "^0.3.5",
     "postcss": "^8.5.15",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
@@ -36,6 +37,7 @@
     "eslint-config-next": "16.0.5",
     "playwright": "^1.60.0",
     "prisma": "^5.20.0",
+    "shadcn": "^4.11.0",
     "tsx": "^4.22.4",
     "typescript": "^5"
   }

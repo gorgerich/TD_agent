@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import {
@@ -219,7 +219,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       <header className="rise rise-1 mt-4 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 shadow-[var(--shadow-soft),var(--hl-top)]">
         <div className="min-w-0">
           <span className="td-eyebrow">Кейс #{id}</span>
-          <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]">{lead.name}</h1>
+          <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
           <div className="mt-3 flex min-w-0 flex-wrap gap-2">
             <MetaPill icon={<Phone size={14} weight="duotone" />} label="Телефон" value={fmtPhone(lead.phone)} href={`tel:${lead.phone}`} />
             <MetaPill icon={<Hash size={14} weight="duotone" />} label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />

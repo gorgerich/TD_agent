@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { Link } from "next-view-transitions";
+import { useMemo, useState } from "react";
 import { ArrowRight, Check, Clock, Warning } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
+import { useSwipeX } from "@/lib/useSwipeX";
+import { hapticTap } from "@/lib/haptics";
 
 export type TaskListRow = {
   id: number;
@@ -47,7 +49,6 @@ function dueLabel(value: string | null) {
 export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [pendingId, setPendingId] = useState<number | null>(null);
-  const [, startTransition] = useTransition();
 
   const groups = useMemo(() => {
     const map: Record<GroupId, TaskListRow[]> = { overdue: [], today: [], later: [], done: [] };
@@ -56,24 +57,27 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
   }, [tasks]);
   const openCount = tasks.filter((task) => !task.completedAt).length;
 
-  function markDone(task: TaskListRow) {
+  // Возвращает успех, чтобы swipe-ряд мог откатить жест при ошибке сети.
+  async function markDone(task: TaskListRow): Promise<boolean> {
     setPendingId(task.id);
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/agent/cases/${task.leadId}/tasks/${task.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ completed: true }),
-        });
-        if (!res.ok) return;
-        const { task: updated } = await res.json();
-        setTasks((current) => current.map((item) => (
-          item.id === task.id ? { ...item, completedAt: updated.completedAt } : item
-        )));
-      } finally {
-        setPendingId(null);
-      }
-    });
+    try {
+      const res = await fetch(`/api/agent/cases/${task.leadId}/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: true }),
+      });
+      if (!res.ok) return false;
+      const { task: updated } = await res.json();
+      setTasks((current) => current.map((item) => (
+        item.id === task.id ? { ...item, completedAt: updated.completedAt } : item
+      )));
+      hapticTap();
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setPendingId(null);
+    }
   }
 
   return (
@@ -103,53 +107,104 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
               <div className="px-4 py-4 text-[13px] text-ink-3">Нет задач в группе</div>
             ) : (
               <ul className="divide-y divide-line">
-                {items.map((task) => {
-                  const bar = task.completedAt
-                    ? "before:bg-success"
-                    : group.id === "overdue"
-                    ? "before:bg-danger"
-                    : group.id === "today"
-                    ? "before:bg-warning"
-                    : "before:bg-accent";
-                  return (
-                    <li
-                      key={task.id}
-                      className={`td-entity-row relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}
-                    >
-                      <Link href={`/agent/cases/${task.leadId}`} className="min-w-0 flex-1">
-                        <span className={`block truncate text-[14px] font-semibold ${task.completedAt ? "text-ink-3 line-through" : "text-ink"}`}>{task.title}</span>
-                        <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
-                          <span className="truncate">{task.clientName}</span>
-                          <span className="text-ink-3">·</span>
-                          <span className="text-ink-3">Кейс #{task.leadId}</span>
-                          <span className="text-ink-3">·</span>
-                          <span className="text-ink-3">{dueLabel(task.dueAt)}</span>
-                        </span>
-                      </Link>
-                      {task.completedAt ? (
-                        <span className="inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-success/20 bg-success-soft px-3 text-[12px] font-semibold text-success">
-                          <Check size={13} weight="bold" /> Выполнена
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => markDone(task)}
-                          disabled={pendingId === task.id}
-                          className={buttonClasses({ size: "sm", className: "w-fit" })}
-                        >
-                          <Check size={13} weight="bold" />
-                          {pendingId === task.id ? "Сохраняю" : "Отметить"}
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
+                {items.map((task) => (
+                  <SwipeableTaskRow
+                    key={task.id}
+                    task={task}
+                    group={group.id}
+                    pending={pendingId === task.id}
+                    onComplete={() => markDone(task)}
+                  />
+                ))}
               </ul>
             )}
           </section>
         );
       })}
     </div>
+  );
+}
+
+// Свайп вправо = выполнить (touch/pen; мышь и десктоп - кнопка «Отметить»).
+// Под рядом - success-подложка с галкой, растёт по мере жеста. Откат при ошибке.
+function SwipeableTaskRow({ task, group, pending, onComplete }: {
+  task: TaskListRow;
+  group: GroupId;
+  pending: boolean;
+  onComplete: () => Promise<boolean>;
+}) {
+  const [out, setOut] = useState(false);
+  const swipe = useSwipeX({
+    dir: "right",
+    threshold: 88,
+    enabled: !task.completedAt && !pending,
+    onCommit: () => {
+      setOut(true);
+      hapticTap();
+      void onComplete().then((ok) => {
+        if (!ok) {
+          setOut(false);
+          swipe.reset();
+        }
+      });
+    },
+  });
+
+  const bar = task.completedAt
+    ? "before:bg-success"
+    : group === "overdue"
+    ? "before:bg-danger"
+    : group === "today"
+    ? "before:bg-warning"
+    : "before:bg-accent";
+  const reveal = out ? 1 : swipe.progress;
+
+  return (
+    <li className="td-entity-row relative overflow-hidden">
+      <div
+        aria-hidden
+        className="absolute inset-0 flex items-center bg-success-soft pl-5 text-success"
+        style={{ opacity: reveal }}
+      >
+        <Check size={18} weight="bold" style={{ transform: `scale(${0.6 + 0.4 * reveal})` }} />
+      </div>
+      <div
+        {...swipe.bind}
+        className={`relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}
+        style={{
+          transform: out ? "translateX(calc(100% + 24px))" : `translateX(${swipe.dx}px)`,
+          transition: swipe.dragging ? "none" : "transform 0.24s var(--ease-out)",
+          touchAction: "pan-y",
+          backgroundColor: out || swipe.dx !== 0 ? "var(--color-surface)" : undefined,
+        }}
+      >
+        <Link href={`/agent/cases/${task.leadId}`} className="min-w-0 flex-1">
+          <span className={`block truncate text-[14px] font-semibold ${task.completedAt ? "text-ink-3 line-through" : "text-ink"}`}>{task.title}</span>
+          <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
+            <span className="truncate">{task.clientName}</span>
+            <span className="text-ink-3">·</span>
+            <span className="text-ink-3">Кейс #{task.leadId}</span>
+            <span className="text-ink-3">·</span>
+            <span className="text-ink-3">{dueLabel(task.dueAt)}</span>
+          </span>
+        </Link>
+        {task.completedAt ? (
+          <span className="inline-flex min-h-10 w-fit items-center gap-1.5 rounded-full border border-success/20 bg-success-soft px-3 text-[12px] font-semibold text-success">
+            <Check size={13} weight="bold" /> Выполнена
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onComplete()}
+            disabled={pending}
+            className={buttonClasses({ size: "sm", className: "w-fit" })}
+          >
+            <Check size={13} weight="bold" />
+            {pending ? "Сохраняю" : "Отметить"}
+          </button>
+        )}
+      </div>
+    </li>
   );
 }
 

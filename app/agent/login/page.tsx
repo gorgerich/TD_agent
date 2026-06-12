@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/ui/Field";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { QuietShader } from "@/components/QuietShader";
 import {
   ArrowRight,
   EnvelopeSimple,
@@ -84,8 +85,9 @@ export default function AgentLoginPage() {
 
   return (
     <div className="grid min-h-[100dvh] lg:grid-cols-[1.08fr_0.92fr]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden td-night px-14 py-14 text-on-accent lg:flex">
+      <aside data-shader-host className="relative hidden flex-col justify-between overflow-hidden td-night px-14 py-14 text-on-accent lg:flex">
         <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {/* CSS-фолбэк под канвасом: если WebGL недоступен, обложка остаётся прежней */}
           <div
             className="absolute inset-0 opacity-[0.10]"
             style={{ backgroundImage: "radial-gradient(1100px 600px at 12% 6%, rgba(255,255,255,0.6), transparent 62%)" }}
@@ -94,9 +96,11 @@ export default function AgentLoginPage() {
             className="absolute inset-0 opacity-[0.07]"
             style={{ backgroundImage: "radial-gradient(760px 540px at 100% 100%, var(--color-accent), transparent 60%)" }}
           />
+          {/* Живая обложка: тихое волновое поле, ripple под курсором (DELIGHT) */}
+          <QuietShader palette="night" interactive className="absolute inset-0 h-full w-full" />
           {/* Бренд-мотив: концентричные кольца - «точка» бренда в масштабе */}
-          <div className="absolute -bottom-40 -right-28 h-[460px] w-[460px] rounded-full border border-on-accent/[0.06]" />
-          <div className="absolute -bottom-28 -right-16 h-[320px] w-[320px] rounded-full border border-on-accent/[0.05]" />
+          <div className="pointer-events-none absolute -bottom-40 -right-28 h-[460px] w-[460px] rounded-full border border-on-accent/[0.06]" />
+          <div className="pointer-events-none absolute -bottom-28 -right-16 h-[320px] w-[320px] rounded-full border border-on-accent/[0.05]" />
         </div>
         <div className="rise relative flex items-center gap-3">
           <span className="grid h-12 w-12 place-items-center rounded-[14px] bg-on-accent/10 ring-1 ring-on-accent/15">

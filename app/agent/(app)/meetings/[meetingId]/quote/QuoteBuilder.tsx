@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Check, CaretLeft, CaretRight, CaretUp, Copy, Eye, PaperPlaneTilt, X } from "@phosphor-icons/react";
+import { Check, CaretLeft, CaretRight, Copy, Eye, PaperPlaneTilt, X } from "@phosphor-icons/react";
 import { useToast } from "@/components/Toast";
 import s from "./QuoteBuilder.module.css";
 import {
@@ -128,6 +128,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [calculatorTab, setCalculatorTab] = useState<CalculatorTab>("composition");
 
   const stepIndex = STEPS.findIndex((item) => item.id === step);
+  const activeStep = STEPS[stepIndex] ?? STEPS[0];
   const prevStep = stepIndex > 0 ? STEPS[stepIndex - 1] : null;
   const nextStep = stepIndex < STEPS.length - 1 ? STEPS[stepIndex + 1] : null;
 
@@ -151,10 +152,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
   const grandTotal = result.total + estimateTotal + externalTotal;
-  const estimateItemCount = useMemo(
-    () => estimateItems.reduce((sum, item) => sum + item.quantity, 0),
-    [estimateItems],
-  );
   const baseLineCount = useMemo(
     () => result.sections.reduce((sum, section) => sum + (section.items?.length ?? (section.total > 0 ? 1 : 0)), 0),
     [result.sections],
@@ -245,6 +242,38 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
       ? p.id.startsWith("cremation")
       : !p.id.startsWith("cremation"),
   );
+  const selectedPackage = relevantPackages.find((p) => p.id === form.packageType);
+  const planMode = form.packageType === "custom" ? "custom" : "package";
+  const planTitle = selectedPackage ? `Тариф «${selectedPackage.name}»` : "План по позициям";
+  const planSubtitle = planMode === "custom"
+    ? "Базовый план можно расширить атрибутикой, транспортом, поминками и внешними расходами."
+    : "Готовый набор услуг. Детали можно изменить под разговор с семьёй.";
+  const planRows = [
+    ...result.sections
+      .filter((section) => section.total > 0 || (section.items?.length ?? 0) > 0)
+      .map((section) => ({
+        key: `section-${section.title}`,
+        title: section.title,
+        total: section.total,
+        details: section.items?.slice(0, 6).map((item) =>
+          item.included ? `${item.label} · включено` : item.price != null ? `${item.label} · ${formatCurrency(item.price)}` : item.label,
+        ) ?? [],
+      })),
+    ...(estimateItems.length > 0 ? [{
+      key: "estimate-items",
+      title: "Атрибутика",
+      total: estimateTotal,
+      details: estimateItems.slice(0, 6).map((item) =>
+        `${item.name}${item.selectedColor ? ` · ${item.selectedColor}` : ""}${item.quantity > 1 ? ` ×${item.quantity}` : ""}`,
+      ),
+    }] : []),
+    ...(externalExpenses.length > 0 ? [{
+      key: "external-expenses",
+      title: "Внешние расходы",
+      total: externalTotal,
+      details: externalExpenses.slice(0, 6).map((expense) => `${expense.category}: ${expense.name}`),
+    }] : []),
+  ];
 
   const visibleCemeteries =
     form.serviceType === "cremation"
@@ -533,60 +562,110 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         </div>
       </div>
 
-      <div className={s.dealBar} aria-label="Финансовая сводка сметы">
-        <div className={s.dealMetric}>
-          <span>Итог клиенту</span>
-          <strong>{formatCurrency(grandTotal)}</strong>
+      <section className={s.planShell} aria-label="Сводка плана">
+        <div className={s.planHero}>
+          <div>
+            <span className={s.planEyebrow}>План прощания</span>
+            <h1 className={s.planTitle}>{planTitle}</h1>
+            <p className={s.planSubtitle}>{planSubtitle}</p>
+          </div>
+          {planMode === "package" && (
+            <div className={s.planTotal}>
+              <span>Итого</span>
+              <strong>{formatCurrency(grandTotal)}</strong>
+            </div>
+          )}
         </div>
-        <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
-          <span>Бюджет</span>
-          <strong>{form.clientBudget ? budgetMessage.replace("В рамках бюджета. ", "").replace("Почти весь бюджет использован. ", "") : "не указан"}</strong>
-        </div>
-        <div className={s.dealMetric}>
-          <span>Экономия агента</span>
-          <strong>{formatCurrency(economics.orderMarginRub)}</strong>
-        </div>
-        <div className={`${s.dealMetric} ${marginWarning ? s.dealMetricDanger : ""}`}>
-          <span>Статус</span>
-          <strong>{calculatorStatus.text}</strong>
-        </div>
-      </div>
 
-      <nav className={s.stepper} aria-label="Этапы конструктора сметы" data-tour="quote-stepper">
-        <ol className={s.stepperList}>
-          {STEPS.map((stepItem, index) => {
-            const active = step === stepItem.id;
-            const done = !active && visited.has(stepItem.id);
-            const count =
-              stepItem.id === "attributes" ? estimateItemCount :
-              stepItem.id === "expenses" ? externalExpenses.length : 0;
-            return (
-              <li key={stepItem.id} className={s.stepperItem}>
-                <button
-                  type="button"
-                  aria-current={active ? "step" : undefined}
-                  className={`${s.stepNode} ${active ? s.stepNodeActive : ""} ${done ? s.stepNodeDone : ""}`}
-                  onClick={() => goToStep(stepItem.id)}
-                >
-                  <span className={s.stepBadge} aria-hidden="true">
-                    {done ? <Check size={12} weight="bold" /> : index + 1}
-                  </span>
-                  <span className={s.stepLabel}>{stepItem.label}</span>
-                  {count > 0 && <span className={s.stepCount}>{count}</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+        <div className={s.planModeSwitch} role="group" aria-label="Режим сборки сметы">
+          <button
+            type="button"
+            className={`${s.planModeBtn} ${planMode === "package" ? s.planModeBtnActive : ""}`}
+            onClick={() => {
+              const firstPackage = relevantPackages[0];
+              if (firstPackage) setField("packageType", firstPackage.id);
+            }}
+          >
+            Готовые решения
+          </button>
+          <button
+            type="button"
+            className={`${s.planModeBtn} ${planMode === "custom" ? s.planModeBtnActive : ""}`}
+            onClick={() => setField("packageType", "custom")}
+          >
+            Собрать свой план
+          </button>
+          <p>{planMode === "custom" ? "Агент собирает смету по позициям. Клиент видит понятный состав и итог." : "Можно начать с тарифа, затем изменить детали под клиента."}</p>
+        </div>
 
-      <div className={s.stepIntro} data-tour="quote-intro">
-        <span className={s.stepKicker}>Шаг {stepIndex + 1} из {STEPS.length}</span>
-        <p className={s.stepHint}>{STEPS[stepIndex].hint}</p>
-      </div>
+        {planMode === "package" ? (
+          <>
+            <div className={s.planRows}>
+              {planRows.length === 0 ? (
+                <div className={s.planEmpty}>Выберите услуги, и план появится здесь.</div>
+              ) : (
+                planRows.map((row) => (
+                  <div key={row.key} className={s.planRow}>
+                    <div>
+                      <span>{row.title}</span>
+                      {row.details.length > 0 && (
+                        <ul>
+                          {row.details.map((detail) => <li key={detail}>{detail}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                    <strong>{formatCurrency(row.total)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className={s.planActions}>
+              <button type="button" className={s.planPrimary} onClick={() => setField("packageType", "custom")}>
+                Изменить детали
+              </button>
+              <button type="button" className={s.planSecondary} onClick={saveVersion} disabled={saving}>
+                {saving ? "Сохраняю…" : "Сохранить план"}
+              </button>
+              <p>Оплата не требуется. Сначала агент фиксирует договорённости, затем отправляет клиентскую ссылку.</p>
+            </div>
+          </>
+        ) : (
+          <div className={s.b2cWizardIntro} aria-label="Этапы сборки плана">
+            <div className={s.b2cStageRail}>
+              {STEPS.map((stepItem, index) => {
+                const active = step === stepItem.id;
+                const done = !active && visited.has(stepItem.id);
+                return (
+                  <button
+                    key={stepItem.id}
+                    type="button"
+                    className={`${s.b2cStageChip} ${active ? s.b2cStageChipActive : ""} ${done ? s.b2cStageChipDone : ""}`}
+                    aria-current={active ? "step" : undefined}
+                    onClick={() => goToStep(stepItem.id)}
+                  >
+                    <span>{done ? <Check size={12} weight="bold" /> : index + 1}</span>
+                    <strong>{stepItem.label}</strong>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className={s.b2cStageHead}>
+              <span className={s.b2cStageNumber}>{stepIndex + 1}</span>
+              <div>
+                <span className={s.b2cStageKicker}>Этап {stepIndex + 1}: {activeStep.label}</span>
+                <h2>{activeStep.label}</h2>
+                <p>{activeStep.hint}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ── Main layout ────────────────────────────────── */}
-      <div className={s.layout}>
+      {planMode === "custom" && (
+      <div className={`${s.layout} ${s.b2cWizardShell}`}>
 
         {/* ── Form ─────────────────────────────────────── */}
         <div className={s.form}>
@@ -655,6 +734,13 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                   )}
                   <div className={s.pkgName}>{p.name}</div>
                   <div className={s.pkgPrice}>{formatCurrency(p.price)}</div>
+                  {/* Состав как на B2C-wizard: видно, что внутри, без клика */}
+                  {p.features.length > 0 && (
+                    <ul className={s.pkgFeatures}>
+                      {p.features.slice(0, 3).map((f) => <li key={f}>{f}</li>)}
+                      {p.features.length > 3 && <li>и ещё {p.features.length - 3}</li>}
+                    </ul>
+                  )}
                 </button>
               ))}
             </div>
@@ -666,44 +752,58 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
             <ToggleRow
               label="Зал прощания"
+              hint="Церемония прощания с родными в отдельном зале"
               price={form.hasHall ? PRICES.hallDuration[form.hallDuration as keyof typeof PRICES.hallDuration] : undefined}
               checked={form.hasHall}
               onChange={(v) => setField("hasHall", v)}
             >
-              <div className={s.pills}>
-                {([30, 60, 90] as const).map((min) => (
-                  <button
-                    key={min}
-                    className={`${s.pill} ${form.hallDuration === min ? s.pillActive : ""}`}
-                    onClick={() => setField("hallDuration", min)}
-                  >
-                    {min} мин
-                    {PRICES.hallDuration[min] > 0
-                      ? ` · +${formatCurrency(PRICES.hallDuration[min])}`
-                      : " · базово"}
-                  </button>
-                ))}
-              </div>
+              <>
+                <p className={s.fieldHint}>Рекомендуем 60-90 мин</p>
+                <div className={s.durationGrid} role="radiogroup" aria-label="Длительность зала">
+                  {([30, 60, 90] as const).map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      role="radio"
+                      aria-checked={form.hallDuration === min}
+                      className={`${s.durationCard} ${form.hallDuration === min ? s.durationCardActive : ""}`}
+                      onClick={() => setField("hallDuration", min)}
+                    >
+                      <span className={s.durationVal}>{min} мин</span>
+                      <span className={s.durationPrice}>
+                        {PRICES.hallDuration[min] > 0 ? `+${formatCurrency(PRICES.hallDuration[min])}` : "базово"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
             </ToggleRow>
 
             <div className={s.divider} />
 
             <p className={s.subLabel}>Тип церемонии</p>
-            <div className={s.pills}>
+            <div className={s.radioCards} role="radiogroup" aria-label="Тип церемонии">
               {(
                 [
-                  { v: "civil", l: "Гражданская" },
-                  { v: "religious", l: "Религиозная", delta: 15000 },
-                  { v: "combined", l: "Комбинированная", delta: 20000 },
-                ] as { v: string; l: string; delta?: number }[]
-              ).map(({ v, l, delta }) => (
+                  { v: "civil", l: "Гражданская", sub: "Без религиозных обрядов" },
+                  { v: "religious", l: "Религиозная", sub: "С участием священнослужителя", delta: 15000 },
+                  { v: "combined", l: "Комбинированная", sub: "Светская + религиозная часть", delta: 20000 },
+                ] as { v: string; l: string; sub: string; delta?: number }[]
+              ).map(({ v, l, sub, delta }) => (
                 <button
                   key={v}
-                  className={`${s.pill} ${form.ceremonyType === v ? s.pillActive : ""}`}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.ceremonyType === v}
+                  className={`${s.radioCard} ${form.ceremonyType === v ? s.radioCardActive : ""}`}
                   onClick={() => setField("ceremonyType", v)}
                 >
-                  {l}
-                  {delta ? ` · +${formatCurrency(delta)}` : ""}
+                  <span className={s.radioDot} aria-hidden />
+                  <span className={s.radioCardText}>
+                    <span className={s.radioCardLabel}>{l}</span>
+                    <span className={s.radioCardSub}>{sub}</span>
+                  </span>
+                  {delta ? <span className={s.radioCardPrice}>+{formatCurrency(delta)}</span> : null}
                 </button>
               ))}
             </div>
@@ -717,15 +817,35 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
             <ToggleRow
               label="Катафалк"
+              hint="Специализированный автомобиль для перевозки гроба"
               price={PRICES.hearse}
               checked={form.needsHearse}
               onChange={(v) => setField("needsHearse", v)}
-            />
+            >
+              {/* Маршрут как на B2C-wizard: агент проговаривает день по станциям */}
+              <div>
+                <p className={s.routeLabel}>Маршрут</p>
+                <div className={s.routeChips} aria-label="Маршрут катафалка">
+                  {[
+                    "Морг",
+                    ...(form.hasHall ? ["Зал прощания"] : []),
+                    ...(form.ceremonyType !== "civil" ? ["Церковь"] : []),
+                    form.serviceType === "cremation" ? "Крематорий" : "Кладбище",
+                  ].map((stop, i) => (
+                    <span key={stop} className="contents">
+                      {i > 0 && <span className={s.routeArrow} aria-hidden><CaretRight size={12} weight="bold" /></span>}
+                      <span className={s.routeChip}>{stop}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </ToggleRow>
 
             <div className={s.divider} />
 
             <ToggleRow
               label="Транспорт для близких"
+              hint="Автобус или микроавтобус, чтобы семья ехала вместе"
               price={form.needsFamilyTransport ? PRICES.familyTransport[form.familyTransportSeats as keyof typeof PRICES.familyTransport] : undefined}
               checked={form.needsFamilyTransport}
               onChange={(v) => setField("needsFamilyTransport", v)}
@@ -747,6 +867,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
             <ToggleRow
               label="Носильщики"
+              hint="Бригада для погрузки, выноса и заноса гроба"
               price={PRICES.pallbearers}
               checked={form.needsPallbearers}
               onChange={(v) => setField("needsPallbearers", v)}
@@ -935,6 +1056,10 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             ) : (
               <span />
             )}
+            <button type="button" className={s.stepTotal} onClick={() => setCalculatorOpen(true)}>
+              <span>Шаг {stepIndex + 1} из {STEPS.length}</span>
+              <strong>{formatCurrency(grandTotal)}</strong>
+            </button>
             {nextStep ? (
               <button type="button" className={s.stepForward} onClick={() => goToStep(nextStep.id)}>
                 Далее: {nextStep.label} <CaretRight size={14} weight="bold" />
@@ -1186,22 +1311,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         </aside>
 
       </div>
-
-      {/* Floating calculator - сумма и сохранение всегда под рукой */}
-      <div className={s.mobileBar} data-tour="quote-summary">
-        <button type="button" className={s.mobileBarSum} onClick={() => setCalculatorOpen(true)} aria-expanded={calculatorOpen}>
-          <span className={s.mobileBarLabel}>Предварительно</span>
-          <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
-          <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
-          <span className={`${s.mobileBarStatus} ${s[`mobileBarStatus_${calculatorStatus.tone}`]}`}>
-            {calculatorStatus.text}
-          </span>
-          <span className={s.mobileBarMore}>Подробнее <CaretUp size={13} weight="bold" /></span>
-        </button>
-        <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>
-          {saving ? "Сохраняю…" : "Сохранить"}
-        </button>
-      </div>
+      )}
     </div>
   );
 }

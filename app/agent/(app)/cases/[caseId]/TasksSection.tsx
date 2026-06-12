@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Check, Trash, Plus, Warning } from "@phosphor-icons/react";
+import { hapticTap } from "@/lib/haptics";
 
 type Task = {
   id: number;
@@ -58,6 +59,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
       if (!res.ok) return;
       const { task: updated } = await res.json();
       setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, completedAt: updated.completedAt } : t));
+      if (next) hapticTap();
     });
   }
 
