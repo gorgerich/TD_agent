@@ -13,11 +13,19 @@
   --font-serif: var(--font-serif), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Поверхности: нейтральное поле с шёпотом sage. Цвет живёт в акценте. */
-  --color-canvas: #f4f6f4;
-  --color-surface: #ffffff;
-  --color-surface-2: #eef1ee;
-  --color-surface-3: #e3e8e3;
+  /* ── Поверхности (v3): 5 различимых слоёв глубины ──────────────────
+     bg (поле) → surface (карточка) → elevated (поповер/raised) →
+     interactive (hover/инпут) → modal. Различие = тон + теневая высота
+     (Linear/Mercury-подход: поле чуть глубже, белое всплывает). */
+  --color-canvas: #eaeeea;          /* поле приложения — глубже белого */
+  --color-surface: #ffffff;          /* карточка в покое */
+  --color-surface-2: #f3f5f2;        /* hover/инпут-тинт: светлее поля, темнее белого */
+  --color-surface-3: #e6ebe6;
+  --surface-bg: #eaeeea;
+  --surface-card: #ffffff;
+  --surface-elevated: #ffffff;       /* отличается тенью elevated */
+  --surface-interactive: #f3f5f2;    /* hover/инпут */
+  --surface-modal: #ffffff;
   /* Тёплая бумага tihiydom.com — ТОЛЬКО клиентские экраны (/co): клиент
      приходит с B2C-сайта и видит тот же материал. В кабинете не использовать. */
   --color-paper: #f6f5f3;
@@ -53,14 +61,35 @@
   --color-info: #1f73c2;
   --color-info-soft: #e4f0fb;
 
-  /* Радиусы — инструментальные. Тени — минимальные, одна роль: поднять поверхность. */
-  --radius-card: 12px;
-  --radius-inner: 8px;
-  --shadow-soft: 0 1px 2px rgba(0, 31, 39, 0.05);
-  --shadow-lift: 0 4px 12px -4px rgba(0, 31, 39, 0.12);
-  --shadow-pop: 0 12px 32px -12px rgba(0, 31, 39, 0.22);
-  /* Блик отключён (v2): декоративное тиснение убрано, токен оставлен для совместимости */
-  --hl-top: 0 0 #0000;
+  /* Радиусы (v3): шкала вместо двух значений. */
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-card: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-inner: 10px;
+
+  /* ── Теневая шкала (v3): слоистая глубина (ambient + contact + ring) ──
+     Премиум-продукты не плоские: мягкая дальняя тень + тонкая контактная
+     + волосковое кольцо вместо жёсткой рамки. Тёплый ink-замес. */
+  --shadow-xs: 0 1px 2px rgba(0, 31, 39, 0.04);
+  --shadow-soft:
+    0 0 0 1px rgba(0, 31, 39, 0.025),
+    0 1px 2px rgba(0, 31, 39, 0.05),
+    0 3px 8px -3px rgba(0, 31, 39, 0.06);
+  --shadow-lift:
+    0 0 0 1px rgba(0, 31, 39, 0.035),
+    0 2px 4px rgba(0, 31, 39, 0.04),
+    0 8px 20px -6px rgba(0, 31, 39, 0.12);
+  --shadow-pop:
+    0 0 0 1px rgba(0, 31, 39, 0.045),
+    0 8px 16px -6px rgba(0, 31, 39, 0.14),
+    0 24px 48px -16px rgba(0, 31, 39, 0.22);
+  --shadow-accent:
+    0 1px 2px rgba(0, 31, 39, 0.18),
+    0 10px 24px -12px rgba(0, 58, 53, 0.45);
+  /* Блик-тиснение (v3): тонкий верхний хайлайт возвращён для премиум-объёма. */
+  --hl-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   /* Сильные кривые (Emil Kowalski): встроенные слишком вялые. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -116,12 +145,23 @@ select, button, input, textarea { font-family: inherit; }
    гарнитуры. Сериф убран (декор). */
 .td-display {
   font-family: var(--font-sans);
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
+  font-weight: 660;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
   text-wrap: balance; /* заголовки без висячих слов */
 }
 .font-serif { letter-spacing: -0.01em; }
+
+/* ── Строгая типошкала (v3): роли, не случайные размеры ──────────────
+   Иерархия через вес + трекинг + цвет, не зоопарк кеглей.
+   display → h1 → h2 → section → card-title → body → caption → label */
+.t-display { font: 660 clamp(30px, 4.4vw, 42px)/1.04 var(--font-sans); letter-spacing: -0.028em; text-wrap: balance; color: var(--color-ink); }
+.t-h1 { font: 650 28px/1.1 var(--font-sans); letter-spacing: -0.022em; color: var(--color-ink); }
+.t-h2 { font: 640 20px/1.2 var(--font-sans); letter-spacing: -0.016em; color: var(--color-ink); }
+.t-card-title { font: 600 15px/1.3 var(--font-sans); letter-spacing: -0.01em; color: var(--color-ink); }
+.t-body { font: 400 14px/1.55 var(--font-sans); color: var(--color-ink-2); }
+.t-caption { font: 400 13px/1.5 var(--font-sans); color: var(--color-ink-2); }
+.t-label { font: 600 12px/1.3 var(--font-sans); letter-spacing: 0.01em; color: var(--color-ink-3); }
 
 /* Надзаголовок секции — простая капс-подпись, без декора (v2). */
 .td-eyebrow {
@@ -155,12 +195,18 @@ button:not(:disabled):active { transform: scale(0.97); }
   z-index: 1;
 }
 
-/* Карточка — белая плоскость + hairline + одна минимальная тень (v2). */
+/* Карточка (v3) — слоистая глубина: тень-кольцо вместо жёсткой рамки +
+   ambient + верхний блик. Премиум-объём, не плоский прямоугольник. */
 .td-shell {
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  background: var(--surface-card);
+  box-shadow: var(--shadow-soft), var(--hl-top);
+}
+/* Поднятая карточка (raised) — больше высота, для важных блоков. */
+.td-shell-elevated {
+  border-radius: var(--radius-lg);
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-lift), var(--hl-top);
 }
 /* Внутренний слой больше не декоративен: только скругление контента. */
 .td-core {
@@ -196,9 +242,8 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 .td-entity-list {
   overflow: hidden;
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
-  background: var(--color-surface);
+  background: var(--surface-card);
   box-shadow: var(--shadow-soft), var(--hl-top);
 }
 
@@ -265,10 +310,10 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 .td-metric {
   min-width: 0;
-  border: 1px solid var(--color-line);
   border-radius: var(--radius-card);
-  background: var(--color-surface);
-  padding: 10px 12px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-soft), var(--hl-top);
+  padding: 12px 14px;
 }
 .td-metric-success {
   border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
