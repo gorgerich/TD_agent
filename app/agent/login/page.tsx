@@ -54,7 +54,7 @@ export default function AgentLoginPage() {
       router.push("/agent/cases");
       router.refresh();
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setLoading(null);
     }
@@ -75,7 +75,7 @@ export default function AgentLoginPage() {
       router.push("/agent/cases");
       router.refresh();
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setLoading(null);
     }

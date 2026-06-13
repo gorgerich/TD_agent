@@ -60,7 +60,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
       setCur("");
       setNxt("");
     } catch {
-      setPwErr("Сеть недоступна");
+      setPwErr("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setPwBusy(false);
     }

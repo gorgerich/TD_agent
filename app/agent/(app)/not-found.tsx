@@ -12,7 +12,7 @@ export default function AgentNotFound() {
         Страница не найдена
       </h1>
       <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
-        Возможно, запись удалили или ссылка устарела. Вернитесь на главную и продолжите работу.
+        Возможно, кейс удалили или ссылка устарела. Вернитесь на главную и продолжите работу.
       </p>
       <Link
         href="/agent/cases"

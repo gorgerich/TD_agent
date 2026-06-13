@@ -507,7 +507,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        const msg = data.error ?? "Ошибка сохранения";
+        const msg = data.error ?? "Не удалось сохранить смету. Попробуйте ещё раз.";
         setSaveError(msg);
         toast({ type: "error", message: msg });
       } else {
@@ -516,8 +516,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         toast({ type: "success", message: "Смета сохранена" });
       }
     } catch {
-      setSaveError("Сеть недоступна");
-      toast({ type: "error", message: "Сеть недоступна - смета не сохранена" });
+      setSaveError("Нет связи. Проверьте интернет и попробуйте снова.");
+      toast({ type: "error", message: "Нет связи — смета не сохранена. Проверьте интернет." });
     } finally {
       setSaving(false);
     }

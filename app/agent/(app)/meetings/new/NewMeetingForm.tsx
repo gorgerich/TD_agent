@@ -44,11 +44,11 @@ function FormInner({ clients }: { clients: ClientOption[] }) {
         body: JSON.stringify({ leadId: Number(leadId), scheduledAt: scheduledAt || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Ошибка создания встречи"); return; }
+      if (!res.ok) { setError(data.error ?? "Не удалось создать встречу. Попробуйте снова."); return; }
       router.push(`/agent/meetings/${data.id}`);
       router.refresh();
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setLoading(false);
     }
@@ -76,7 +76,7 @@ function FormInner({ clients }: { clients: ClientOption[] }) {
           </Field>
         ) : (
           <Field id="meeting-lead-id" label="Клиент" hint="Клиенты не загрузились. Можно временно указать номер дела вручную">
-            <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Например: 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
+            <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Номер дела, например 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
           </Field>
         )}
 

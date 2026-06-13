@@ -78,7 +78,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
     <div>
       {/* Task list */}
       {tasks.length === 0 && !showForm && (
-        <p className="text-[13px] text-ink-3">Нет задач</p>
+        <p className="text-[13px] text-ink-3">Задач нет. Добавьте, что нужно сделать по кейсу.</p>
       )}
       {open.length > 0 && (
         <ul className="mb-3 space-y-2">
@@ -101,7 +101,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
           <input
             autoFocus
             className="w-full rounded-[10px] border border-line bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
-            placeholder="Текст задачи"
+            placeholder="Что нужно сделать"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={500}

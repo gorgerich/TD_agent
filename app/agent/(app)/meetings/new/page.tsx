@@ -27,7 +27,7 @@ export default async function NewMeetingPage() {
       <Link href="/agent/meetings" className="mb-6 inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-[12px] font-semibold text-ink-2 transition-colors hover:bg-accent-soft hover:text-ink">
         <ArrowLeft size={14} /> Все встречи
       </Link>
-      <span className="td-eyebrow">CRM</span>
+      <span className="td-eyebrow">Встреча с семьёй</span>
       <h1 className="mb-3 mt-4 td-display text-[34px] leading-tight text-ink sm:text-[42px]">Новая встреча</h1>
       <div className="mb-7 flex flex-wrap gap-2">
         <span className="rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] font-semibold text-ink-2">Клиент</span>

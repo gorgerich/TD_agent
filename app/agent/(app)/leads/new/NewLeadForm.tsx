@@ -25,11 +25,11 @@ export default function NewLeadForm() {
         body: JSON.stringify({ name, phone, source, context }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Ошибка создания кейса"); return; }
+      if (!res.ok) { setError(data.error ?? "Не удалось создать кейс. Проверьте данные и попробуйте снова."); return; }
       router.push(`/agent/cases/${data.id}`);
       router.refresh();
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setLoading(false);
     }
@@ -55,7 +55,7 @@ export default function NewLeadForm() {
           </select>
         </Field>
 
-        <Field id="lead-context" label="Контекст" hint="ПДн - храните только необходимый минимум">
+        <Field id="lead-context" label="Сведения о ситуации" hint="Храните только необходимый минимум данных клиента">
           <textarea id="lead-context" className={`${inputCls} min-h-[88px] resize-y`} placeholder="Краткие сведения: ситуация, пожелания, бюджет" value={context} onChange={(e) => setContext(e.target.value)} />
         </Field>
 

@@ -43,12 +43,12 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        setErr(d.error ?? "Не удалось сохранить");
+        setErr(d.error ?? "Не удалось сохранить. Попробуйте снова.");
         return;
       }
       setOk(true);
     } catch {
-      setErr("Сеть недоступна");
+      setErr("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setBusy(false);
     }

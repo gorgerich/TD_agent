@@ -50,13 +50,13 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setErr(data.error ?? "Не удалось сохранить");
+        setErr(data.error ?? "Не удалось сохранить оплату. Попробуйте снова.");
         return;
       }
       setItems((prev) => [{ ...data.payment, paidAt: new Date(data.payment.paidAt).toISOString() }, ...prev]);
       setAmount("");
     } catch {
-      setErr("Сеть недоступна");
+      setErr("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setBusy(false);
     }

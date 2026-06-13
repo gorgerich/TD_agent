@@ -89,7 +89,7 @@ export default function NewCaseSheet() {
       router.push(`/agent/cases/${data.id}`); // сразу открываем кейс
       router.refresh();
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setSaving(false);
     }

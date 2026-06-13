@@ -67,12 +67,12 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
       const res = await fetch(`/api/agent/cases/${caseId}/documents`, { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Не удалось загрузить");
+        setError(data.error ?? "Не удалось загрузить файл. Попробуйте снова.");
         return;
       }
       setDocs((prev) => [{ ...data.document, createdAt: new Date(data.document.createdAt).toISOString() }, ...prev]);
     } catch {
-      setError("Сеть недоступна");
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
