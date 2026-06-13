@@ -17,7 +17,8 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
-import { STAGE_ORDER, STAGE_DOT, NEXT_ACTION, deriveStage, stageIndex } from "@/lib/case";
+import { STAGE_ORDER } from "@/lib/case";
+import { deriveCaseStatus, type StatusTone } from "@/lib/caseStatus";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
 
@@ -83,8 +84,26 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const meetings = lead.meetings;
   const versions = meetings.flatMap((m) => m.quotes.flatMap((q) => q.versions));
   const orders = meetings.flatMap((m) => m.orders);
-  const stage = deriveStage(orders, versions.length, meetings.length);
-  const curIdx = stageIndex(stage);
+
+  // Операционный статус кейса — единый движок (см. lib/caseStatus.ts).
+  // eslint-disable-next-line react-hooks/purity -- server freshness marker
+  const statusNow = Date.now();
+  const requiredDocCats = ["Свидетельство о смерти", "Паспорт", "Договор"];
+  const caseStatus = deriveCaseStatus({
+    meetingsLen: meetings.length,
+    hasUpcomingMeeting: meetings.some((m) => m.scheduledAt && m.scheduledAt.getTime() > statusNow),
+    quotesLen: versions.length,
+    orders,
+    hasCobrowse: meetings.some((m) => m.cobrowseCode),
+    clientViewed: meetings.some((m) => m.coViewedAt),
+    clientAgreed: meetings.some((m) => m.coAgreedAt),
+    docsComplete: requiredDocCats.every((c) => rawDocs.some((d) => d.category === c)),
+    intakeComplete: Boolean(decryptField(lead.deceasedName)) && Boolean(lead.ceremonyType),
+    ceremonyAt: lead.ceremonyAt?.getTime() ?? null,
+    nowMs: statusNow,
+  });
+  const curIdx = caseStatus.stageIdx;
+  const stage = STAGE_ORDER[curIdx] ?? STAGE_ORDER[0];
 
   const firstMeeting = meetings[0] ?? null;
   const cobrowse = meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null;
@@ -244,8 +263,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
       <RouteActionPanel
         current={curIdx}
-        stage={stage}
-        nextAction={NEXT_ACTION[stage]}
+        statusLabel={caseStatus.label}
+        statusTone={caseStatus.tone}
+        nextAction={caseStatus.next}
         meta={routeMeta}
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
@@ -327,7 +347,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
 function RouteActionPanel({
   current,
-  stage,
+  statusLabel,
+  statusTone,
   nextAction,
   meta,
   firstMeetingId,
@@ -335,7 +356,8 @@ function RouteActionPanel({
   cobrowse,
 }: {
   current: number;
-  stage: (typeof STAGE_ORDER)[number];
+  statusLabel: string;
+  statusTone: StatusTone;
   nextAction: string;
   meta: string[];
   firstMeetingId: number | null;
@@ -348,9 +370,9 @@ function RouteActionPanel({
         <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:order-1 lg:border-r lg:border-t-0">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <span className="td-eyebrow">Маршрут кейса</span>
+              <span className="td-eyebrow">Статус кейса</span>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <StagePill stage={stage} />
+                <StatusChip label={statusLabel} tone={statusTone} />
                 <span className="text-[13px] text-ink-2">{meta.join(" · ")}</span>
               </div>
             </div>
@@ -461,11 +483,21 @@ function OutcomeTile({ label, value, tone }: { label: string; value: string; ton
   );
 }
 
-function StagePill({ stage }: { stage: (typeof STAGE_ORDER)[number] }) {
+const STATUS_CHIP: Record<StatusTone, { wrap: string; dot: string }> = {
+  neutral: { wrap: "border-line bg-surface text-ink-2", dot: "bg-ink-3" },
+  info: { wrap: "border-info/20 bg-info-soft text-info", dot: "bg-info" },
+  accent: { wrap: "border-accent/20 bg-accent-soft text-accent", dot: "bg-accent" },
+  warning: { wrap: "border-warning/20 bg-warning-soft text-warning", dot: "bg-warning" },
+  success: { wrap: "border-success/20 bg-success-soft text-success", dot: "bg-success" },
+  danger: { wrap: "border-danger/20 bg-danger-soft text-danger", dot: "bg-danger" },
+};
+
+function StatusChip({ label, tone }: { label: string; tone: StatusTone }) {
+  const c = STATUS_CHIP[tone];
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-semibold text-ink-2">
-      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
-      {stage}
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold ${c.wrap}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />
+      {label}
     </span>
   );
 }

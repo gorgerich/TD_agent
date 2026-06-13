@@ -122,7 +122,7 @@ export default function AgentLoginPage() {
 
         <div className="rise relative flex items-center gap-2.5 text-[12px] text-on-accent/70" style={{ animationDelay: "0.55s" }}>
           <ShieldCheck size={16} weight="duotone" />
-          Боевой вход хранит аккаунт в постоянной Postgres-БД
+          Рабочий вход сохраняет ваши кейсы и данные клиентов
         </div>
       </aside>
 
@@ -157,7 +157,7 @@ export default function AgentLoginPage() {
                 ))}
               </div>
 
-              <span className="td-eyebrow mt-6">{isRegister ? "новый агент" : "боевой вход"}</span>
+              <span className="td-eyebrow mt-6">{isRegister ? "новый агент" : "вход для агента"}</span>
               <h2 className="mt-5 td-display text-[32px] leading-tight text-ink">
                 {isRegister ? "Создать профиль агента" : "Войти в кабинет"}
               </h2>

@@ -4,13 +4,17 @@ import { Plus, ArrowRight, CalendarDots, Briefcase, Warning } from "@phosphor-ic
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
-import { type Stage, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
+import { type Stage, relTime } from "@/lib/case";
+import { deriveCaseStatus, statusStage, type StatusTone, type WaitingOn } from "@/lib/caseStatus";
 
 type CaseRow = {
   id: number;
   name: string;
   phone: string;
   stage: Stage;
+  statusLabel: string;
+  statusTone: StatusTone;
+  waiting: WaitingOn;
   progress: number;
   nextAction: string;
   lastActivityLabel: string;
@@ -46,10 +50,14 @@ async function getCases(agentId: number): Promise<CasesData> {
       where: { agentId },
       orderBy: { createdAt: "desc" },
       include: {
+        documents: { select: { category: true } },
         meetings: {
           orderBy: { scheduledAt: "desc" },
           select: {
             scheduledAt: true,
+            cobrowseCode: true,
+            coViewedAt: true,
+            coAgreedAt: true,
             quotes: { select: { id: true } },
             orders: { select: { status: true } },
           },
@@ -62,10 +70,11 @@ async function getCases(agentId: number): Promise<CasesData> {
     todayEnd.setHours(23, 59, 59, 999);
     const todayEndMs = todayEnd.getTime();
 
+    const REQUIRED_DOC_CATEGORIES = ["Свидетельство о смерти", "Паспорт", "Договор"];
+
     const rows: CaseRow[] = leads.map((lead) => {
       const quotesLen = lead.meetings.reduce((n, m) => n + m.quotes.length, 0);
       const orders = lead.meetings.flatMap((m) => m.orders);
-      const stage = deriveStage(orders, quotesLen, lead.meetings.length);
 
       const future = lead.meetings
         .map((m) => m.scheduledAt?.getTime())
@@ -78,11 +87,27 @@ async function getCases(agentId: number): Promise<CasesData> {
         lead.createdAt.getTime(),
       );
 
+      // Операционный статус — что сейчас и что делать дальше (движок caseStatus).
+      const status = deriveCaseStatus({
+        meetingsLen: lead.meetings.length,
+        hasUpcomingMeeting: nextMeetingAt != null,
+        quotesLen,
+        orders,
+        hasCobrowse: lead.meetings.some((m) => m.cobrowseCode),
+        clientViewed: lead.meetings.some((m) => m.coViewedAt),
+        clientAgreed: lead.meetings.some((m) => m.coAgreedAt),
+        docsComplete: REQUIRED_DOC_CATEGORIES.every((c) => lead.documents.some((d) => d.category === c)),
+        intakeComplete: Boolean(lead.deceasedName) && Boolean(lead.ceremonyType),
+        ceremonyAt: lead.ceremonyAt?.getTime() ?? null,
+        nowMs: now,
+      });
+      const stage = statusStage(status);
+
       const soon = nextMeetingAt ? nextMeetingAt - now < DAY : false;
-      const stale = stage !== "Завершено" && now - lastActivity > 7 * DAY;
+      const stale = status.key !== "done" && now - lastActivity > 7 * DAY;
 
       // Церемония — настоящий дедлайн кейса (важнее встреч)
-      const ceremonyAt = lead.ceremonyAt && stage !== "Завершено" ? lead.ceremonyAt.getTime() : null;
+      const ceremonyAt = lead.ceremonyAt && status.key !== "done" ? lead.ceremonyAt.getTime() : null;
       const hoursToCeremony = ceremonyAt && ceremonyAt > now ? Math.round((ceremonyAt - now) / 3_600_000) : null;
       const ceremonySoon = hoursToCeremony !== null && hoursToCeremony <= 48;
 
@@ -91,8 +116,11 @@ async function getCases(agentId: number): Promise<CasesData> {
         name: lead.name,
         phone: lead.phone,
         stage,
-        progress: stageIndex(stage) + 1,
-        nextAction: NEXT_ACTION[stage],
+        statusLabel: status.label,
+        statusTone: status.tone,
+        waiting: status.waiting,
+        progress: status.stageIdx + 1,
+        nextAction: status.next,
         lastActivityLabel: relTime(lastActivity, now),
         priority: ceremonySoon || soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
         urgent: ceremonySoon || soon || stale,
@@ -160,6 +188,9 @@ export default async function CasesPage() {
     name: t.leadName,
     phone: "",
     stage: "Лид" as Stage,
+    statusLabel: "Просрочена задача",
+    statusTone: "danger" as StatusTone,
+    waiting: null as WaitingOn,
     progress: 1,
     nextAction: t.title,
     lastActivityLabel: "просрочено",
@@ -244,7 +275,7 @@ export default async function CasesPage() {
                         <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
                       </span>
                       <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
-                        {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.stage}
+                        {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
                       </span>
                       <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
                     </Link>
