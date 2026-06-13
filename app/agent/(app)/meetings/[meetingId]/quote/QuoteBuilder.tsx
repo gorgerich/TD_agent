@@ -45,6 +45,8 @@ import {
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
+import { hydratePackage, withoutPackageItems, PACKAGE_ITEM_SOURCE } from "@/lib/packagePresets";
+import { formatDelta } from "@/lib/calculationUtils";
 import RitualConfigurator from "@/components/configurator/RitualConfigurator";
 import { ToggleRow } from "./components/ToggleRow";
 import { MemorialBlock } from "./components/MemorialBlock";
@@ -124,6 +126,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("basics");
   const [visited, setVisited] = useState<Set<Step>>(() => new Set<Step>(["basics"]));
+  // Якорь тарифа: после «Изменить детали» помним исходную цену пакета,
+  // чтобы показывать дельту (клиент выбрал тариф 400к, поменял гроб → −15к).
+  const [baseline, setBaseline] = useState<{ id: string; name: string; price: number } | null>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [calculatorTab, setCalculatorTab] = useState<CalculatorTab>("composition");
 
@@ -244,36 +249,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   );
   const selectedPackage = relevantPackages.find((p) => p.id === form.packageType);
   const planMode = form.packageType === "custom" ? "custom" : "package";
-  const planTitle = selectedPackage ? `Тариф «${selectedPackage.name}»` : "План по позициям";
+  const baselineDelta = baseline ? grandTotal - baseline.price : 0;
+  const planTitle =
+    planMode === "package"
+      ? selectedPackage
+        ? `Тариф «${selectedPackage.name}»`
+        : "Готовые решения"
+      : baseline
+        ? `Тариф «${baseline.name}» + детали`
+        : "План по позициям";
   const planSubtitle = planMode === "custom"
-    ? "Базовый план можно расширить атрибутикой, транспортом, поминками и внешними расходами."
-    : "Готовый набор услуг. Детали можно изменить под разговор с семьёй.";
-  const planRows = [
-    ...result.sections
-      .filter((section) => section.total > 0 || (section.items?.length ?? 0) > 0)
-      .map((section) => ({
-        key: `section-${section.title}`,
-        title: section.title,
-        total: section.total,
-        details: section.items?.slice(0, 6).map((item) =>
-          item.included ? `${item.label} · включено` : item.price != null ? `${item.label} · ${formatCurrency(item.price)}` : item.label,
-        ) ?? [],
-      })),
-    ...(estimateItems.length > 0 ? [{
-      key: "estimate-items",
-      title: "Атрибутика",
-      total: estimateTotal,
-      details: estimateItems.slice(0, 6).map((item) =>
-        `${item.name}${item.selectedColor ? ` · ${item.selectedColor}` : ""}${item.quantity > 1 ? ` ×${item.quantity}` : ""}`,
-      ),
-    }] : []),
-    ...(externalExpenses.length > 0 ? [{
-      key: "external-expenses",
-      title: "Внешние расходы",
-      total: externalTotal,
-      details: externalExpenses.slice(0, 6).map((expense) => `${expense.category}: ${expense.name}`),
-    }] : []),
-  ];
+    ? baseline
+      ? "Тариф разложен на позиции. Меняйте гроб, зал, транспорт - итог пересчитается, дельта от тарифа видна рядом."
+      : "Базовый план можно расширить атрибутикой, транспортом, поминками и внешними расходами."
+    : "Готовый набор услуг. «Изменить детали» раскладывает тариф на позиции - всё можно заменить.";
 
   const visibleCemeteries =
     form.serviceType === "cremation"
@@ -371,8 +360,15 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
       if (current.some((e) => e.catalogItemId === item.id)) {
         return current.filter((e) => e.catalogItemId !== item.id);
       }
+      // Замена позиции тарифа наследует его source: «гроб из тарифа» остаётся
+      // частью тарифной раскладки, а не доп. позицией поверх пакета.
+      const replaced = SINGLE_CATEGORIES.has(item.category)
+        ? current.find((e) => e.category === item.category)
+        : undefined;
       const base = SINGLE_CATEGORIES.has(item.category) ? current.filter((e) => e.category !== item.category) : current;
-      return addCatalogItemToEstimate(base, item, getSelectedCatalogColor(item));
+      const next = addCatalogItemToEstimate(base, item, getSelectedCatalogColor(item));
+      if (replaced?.source !== PACKAGE_ITEM_SOURCE) return next;
+      return next.map((e) => (e.catalogItemId === item.id ? { ...e, source: PACKAGE_ITEM_SOURCE } : e));
     });
   }
 
@@ -527,6 +523,27 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     }
   }
 
+  // «Изменить детали»: раскладывает выбранный тариф на позиции конструктора.
+  // Гроб, зал, транспорт становятся обычными редактируемыми строками,
+  // итог пересчитывается, дельта от цены тарифа видна у якоря.
+  function editPackageDetails() {
+    if (!selectedPackage) return;
+    const hydrated = hydratePackage(selectedPackage, form);
+    if (!hydrated) {
+      setField("packageType", "custom");
+      return;
+    }
+    setForm((f) => ({ ...f, ...hydrated.formPatch }));
+    setEstimateItems((current) => [...withoutPackageItems(current), ...hydrated.items]);
+    setBaseline({ id: selectedPackage.id, name: selectedPackage.name, price: selectedPackage.price });
+    goToStep("basics");
+  }
+
+  function resetBaseline() {
+    setBaseline(null);
+    setEstimateItems((current) => withoutPackageItems(current));
+  }
+
   return (
     <div className={s.root}>
       {/* ── Meeting header ──────────────────────────────── */}
@@ -569,10 +586,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             <h1 className={s.planTitle}>{planTitle}</h1>
             <p className={s.planSubtitle}>{planSubtitle}</p>
           </div>
-          {planMode === "package" && (
+          {(planMode === "package" || baseline) && (
             <div className={s.planTotal}>
               <span>Итого</span>
               <strong>{formatCurrency(grandTotal)}</strong>
+              {planMode === "custom" && baseline && baselineDelta !== 0 && (
+                <em className={baselineDelta > 0 ? s.deltaUp : s.deltaDown}>
+                  {formatDelta(baselineDelta)} к тарифу
+                </em>
+              )}
+              {planMode === "custom" && baseline && (
+                <button type="button" className={s.baselineReset} onClick={resetBaseline}>
+                  Сбросить тариф
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -583,7 +610,19 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             className={`${s.planModeBtn} ${planMode === "package" ? s.planModeBtnActive : ""}`}
             onClick={() => {
               const firstPackage = relevantPackages[0];
-              if (firstPackage) setField("packageType", firstPackage.id);
+              if (!firstPackage) return;
+              // Возврат к тарифам: убираем тарифные позиции и form-поля раскладки,
+              // иначе блоб тарифа задвоится с собственным содержимым.
+              const returnTo = baseline?.id ?? firstPackage.id;
+              setBaseline(null);
+              setEstimateItems((current) => withoutPackageItems(current));
+              setForm((f) => ({
+                ...DEFAULT_FORM,
+                serviceType: f.serviceType,
+                clientBudget: f.clientBudget,
+                cemetery: f.cemetery,
+                packageType: returnTo,
+              }));
             }}
           >
             Готовые решения
@@ -600,34 +639,41 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
         {planMode === "package" ? (
           <>
-            <div className={s.planRows}>
-              {planRows.length === 0 ? (
-                <div className={s.planEmpty}>Выберите услуги, и план появится здесь.</div>
-              ) : (
-                planRows.map((row) => (
-                  <div key={row.key} className={s.planRow}>
-                    <div>
-                      <span>{row.title}</span>
-                      {row.details.length > 0 && (
-                        <ul>
-                          {row.details.map((detail) => <li key={detail}>{detail}</li>)}
-                        </ul>
-                      )}
-                    </div>
-                    <strong>{formatCurrency(row.total)}</strong>
-                  </div>
-                ))
-              )}
+            {/* Карусель тарифов как на B2C: полный состав виден без клика */}
+            <div className={s.tariffCarousel} role="radiogroup" aria-label="Тарифы">
+              {relevantPackages.map((p) => {
+                const active = form.packageType === p.id;
+                return (
+                  <article key={p.id} className={`${s.tariffCard} ${active ? s.tariffCardActive : ""}`}>
+                    {"popular" in p && p.popular && <span className={s.tariffBadge}>Чаще выбирают</span>}
+                    <h3 className={s.tariffName}>{p.name}</h3>
+                    <p className={s.tariffDesc}>{p.description}</p>
+                    <p className={s.tariffPrice}>{formatCurrency(p.price)}</p>
+                    <ul className={s.tariffFeatures}>
+                      {p.features.map((f) => <li key={f}>{f}</li>)}
+                    </ul>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={`${s.tariffPick} ${active ? s.tariffPickActive : ""}`}
+                      onClick={() => setField("packageType", p.id)}
+                    >
+                      {active ? <><Check size={14} weight="bold" /> Выбран</> : "Выбрать"}
+                    </button>
+                  </article>
+                );
+              })}
             </div>
 
             <div className={s.planActions}>
-              <button type="button" className={s.planPrimary} onClick={() => setField("packageType", "custom")}>
-                Изменить детали
-              </button>
-              <button type="button" className={s.planSecondary} onClick={saveVersion} disabled={saving}>
+              <button type="button" className={s.planPrimary} onClick={saveVersion} disabled={saving}>
                 {saving ? "Сохраняю…" : "Сохранить план"}
               </button>
-              <p>Оплата не требуется. Сначала агент фиксирует договорённости, затем отправляет клиентскую ссылку.</p>
+              <button type="button" className={s.planSecondary} onClick={editPackageDetails}>
+                Изменить детали
+              </button>
+              <p>«Изменить детали» раскладывает тариф на позиции: гроб, зал, транспорт. Любую можно заменить - итог пересчитается, дельта от тарифа останется на виду.</p>
             </div>
           </>
         ) : (
@@ -652,9 +698,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             </div>
 
             <div className={s.b2cStageHead}>
-              <span className={s.b2cStageNumber}>{stepIndex + 1}</span>
               <div>
-                <span className={s.b2cStageKicker}>Этап {stepIndex + 1}: {activeStep.label}</span>
                 <h2>{activeStep.label}</h2>
                 <p>{activeStep.hint}</p>
               </div>
@@ -679,14 +723,17 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 <button
                   key={t}
                   className={`${s.serviceBtn} ${form.serviceType === t ? s.serviceBtnActive : ""}`}
-                  onClick={() =>
+                  onClick={() => {
                     setForm((f) => ({
                       ...f,
                       serviceType: t,
                       packageType: "custom",
                       cemetery: "",
-                    }))
-                  }
+                    }));
+                    // Тариф другого типа услуги теряет смысл - чистим якорь и его позиции
+                    setBaseline(null);
+                    setEstimateItems((current) => withoutPackageItems(current));
+                  }}
                 >
                   {t === "burial" ? "Погребение" : "Кремация"}
                 </button>
@@ -703,46 +750,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 onChange={(event) => setBudgetValue(event.target.value)}
               />
               <div className={s.fieldHint}>Необязательно. Нужно только для внутреннего расчёта агента.</div>
-            </div>
-          </div>
-
-          {/* Package */}
-          <div className={s.card}>
-            <p className={s.cardTitle}>Пакет</p>
-            <div className={s.packageGrid}>
-              {/* "No package" card */}
-              <button
-                type="button"
-                aria-pressed={form.packageType === "custom"}
-                className={`${s.pkgCard} ${s.pkgCardCustom} ${form.packageType === "custom" ? s.pkgCardActive : ""}`}
-                onClick={() => setField("packageType", "custom")}
-              >
-                <div className={s.pkgName}>Без пакета</div>
-                <div className={s.pkgCustomLabel}>позиционно</div>
-              </button>
-
-              {relevantPackages.map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  aria-pressed={form.packageType === p.id}
-                  className={`${s.pkgCard} ${form.packageType === p.id ? s.pkgCardActive : ""}`}
-                  onClick={() => setField("packageType", p.id)}
-                >
-                  {"popular" in p && p.popular && (
-                    <span className={s.pkgBadge}>Чаще выбирают</span>
-                  )}
-                  <div className={s.pkgName}>{p.name}</div>
-                  <div className={s.pkgPrice}>{formatCurrency(p.price)}</div>
-                  {/* Состав как на B2C-wizard: видно, что внутри, без клика */}
-                  {p.features.length > 0 && (
-                    <ul className={s.pkgFeatures}>
-                      {p.features.slice(0, 3).map((f) => <li key={f}>{f}</li>)}
-                      {p.features.length > 3 && <li>и ещё {p.features.length - 3}</li>}
-                    </ul>
-                  )}
-                </button>
-              ))}
             </div>
           </div>
 

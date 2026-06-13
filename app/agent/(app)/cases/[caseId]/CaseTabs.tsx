@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Circle, ClipboardText, Files, FileText, ClockCounterClockwise, UsersThree } from "@phosphor-icons/react";
+import { Check, Circle, ClipboardText, ClockCounterClockwise, Files, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
 import { DocumentsSection } from "./DocumentsSection";
@@ -42,11 +42,11 @@ export function CaseTabs({
   const openTasks = tasks.filter((t) => !t.completedAt).length;
   const missingDocs = docs.length === 0;
 
-  const TABS: { id: TabId; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: "work", label: "Работа", icon: <ClipboardText size={15} weight="duotone" />, badge: openTasks > 0 ? String(openTasks) : undefined },
-    { id: "docs", label: "Документы", icon: <Files size={15} weight="duotone" />, badge: docs.length ? String(docs.length) : undefined },
-    { id: "family", label: "Семья", icon: <UsersThree size={15} weight="duotone" /> },
-    { id: "history", label: "История", icon: <ClockCounterClockwise size={15} weight="duotone" /> },
+  const TABS: { id: TabId; label: string; icon: Icon; badge?: string }[] = [
+    { id: "work", label: "Работа", icon: ClipboardText, badge: openTasks > 0 ? String(openTasks) : undefined },
+    { id: "docs", label: "Документы", icon: Files, badge: docs.length ? String(docs.length) : undefined },
+    { id: "family", label: "Семья", icon: UsersThree },
+    { id: "history", label: "История", icon: ClockCounterClockwise },
   ];
 
   return (
@@ -56,6 +56,7 @@ export function CaseTabs({
         <div className="flex min-w-0 gap-1 overflow-x-auto sm:flex-col sm:overflow-visible">
         {TABS.map((t) => {
           const active = tab === t.id;
+          const IconComponent = t.icon;
           return (
             <button
               key={t.id}
@@ -63,11 +64,13 @@ export function CaseTabs({
               onClick={() => setTab(t.id)}
               aria-current={active ? "true" : undefined}
               data-active={active ? "true" : undefined}
-              className={`td-side-nav-item td-press group flex min-h-11 flex-shrink-0 items-center gap-2.5 px-2.5 text-left text-[13px] ${
+              className={`td-side-nav-item td-press group flex min-h-[60px] flex-shrink-0 items-center gap-2.5 px-2.5 text-left text-[13px] ${
                 active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink"
               }`}
             >
-              <span className="td-nav-orb h-8 w-8 rounded-[13px]" data-active={active ? "true" : undefined}>{t.icon}</span>
+              <span className="td-nav-orb" data-active={active ? "true" : undefined}>
+                <IconComponent size={26} weight="fill" />
+              </span>
               <span>{t.label}</span>
               {t.badge && (
                 <span className={`tnum ml-auto rounded-full px-1.5 text-[11px] ${active ? "bg-accent text-on-accent" : "bg-surface-2 text-ink-3"}`}>{t.badge}</span>
@@ -112,7 +115,7 @@ export function CaseTabs({
               <IntakeSection caseId={caseId} initial={intake} />
             </Section>
             {context && (
-              <Section title="Контекст" icon={<FileText size={15} weight="duotone" />}>
+              <Section title="Контекст" icon={<FileText size={16} weight="fill" />}>
                 <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink-2">{context}</p>
               </Section>
             )}
@@ -128,7 +131,9 @@ export function CaseTabs({
               <ol className="divide-y divide-line">
                 {activity.map((a, i) => (
                   <li key={i} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
-                    <ClockCounterClockwise size={15} className="mt-0.5 flex-shrink-0 text-ink-3" />
+                    <span className="td-nav-orb td-nav-orb-sm mt-0.5 flex-shrink-0">
+                      <ClockCounterClockwise size={18} weight="fill" />
+                    </span>
                     <span className="min-w-0">
                       <span className="block text-[13px] text-ink">{a.label}</span>
                       {a.sub && <span className="block text-[12px] text-ink-3">{a.sub}</span>}

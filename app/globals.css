@@ -341,36 +341,58 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .td-press:active { transform: scale(0.96); }
 
-/* v2: плоская иконко-плитка вместо «орба» — без градиентов и бликов. */
+/* Premium filled navigation icons: dense SF Symbols-like geometry, no thin outline look. */
 .td-nav-orb {
   position: relative;
   display: grid;
-  height: 34px;
-  width: 34px;
+  height: 48px;
+  width: 48px;
   flex-shrink: 0;
   place-items: center;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--color-ink-3);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--color-ink) 7%, var(--color-surface));
+  color: color-mix(in srgb, var(--color-ink) 82%, var(--color-ink-3));
   transition:
     color 0.16s var(--ease-out),
-    background-color 0.16s var(--ease-out);
+    background-color 0.16s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    transform 0.16s var(--ease-out);
+}
+.td-nav-orb > svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+  color: currentColor;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.10));
+}
+.td-nav-orb-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+}
+.td-nav-orb-sm > svg {
+  width: 18px;
+  height: 18px;
 }
 .group:hover .td-nav-orb,
 .td-nav-orb:hover {
   color: var(--color-ink);
-  background: var(--color-surface-2);
+  background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+  transform: translateY(-1px);
 }
 .td-nav-orb[data-active="true"] {
   background: var(--color-accent);
   color: var(--color-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 16px 28px -16px rgba(0, 58, 53, 0.78);
 }
 
 .td-side-nav-item {
   position: relative;
-  min-height: 50px;
+  min-height: 62px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 20px;
   transition:
     background-color 0.18s var(--ease-out),
     border-color 0.18s var(--ease-out),
@@ -381,45 +403,68 @@ button:not(:disabled):active { transform: scale(0.97); }
   background: var(--color-surface-2);
 }
 .td-side-nav-item[data-active="true"] {
-  background: var(--color-accent-soft);
+  border-color: color-mix(in srgb, var(--color-ink) 9%, var(--color-line));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 92%, #fff), color-mix(in srgb, var(--color-accent-soft) 38%, var(--color-surface)));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 14px 34px -28px rgba(0, 31, 39, 0.42);
 }
 
 .td-mobile-dock {
-  left: 12px;
-  right: 12px;
-  bottom: max(10px, env(safe-area-inset-bottom));
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  border-radius: 18px;
+  left: 10px;
+  right: 10px;
+  bottom: max(9px, env(safe-area-inset-bottom));
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 30px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.60), rgba(255, 255, 255, 0.26)),
-    rgba(255, 255, 255, 0.38);
-  backdrop-filter: blur(22px) saturate(165%);
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(255, 255, 255, 0.34)),
+    rgba(244, 247, 243, 0.76);
+  backdrop-filter: blur(24px) saturate(175%);
+  -webkit-backdrop-filter: blur(24px) saturate(175%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.62),
-    0 10px 28px -14px rgba(0, 31, 39, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 20px 48px -24px rgba(0, 31, 39, 0.34);
 }
 @media (prefers-reduced-transparency: reduce) {
   .td-mobile-dock { background: rgba(255, 255, 255, 0.97); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 .td-mobile-dock-item {
   position: relative;
-  border-radius: 18px;
+  border: 1px solid transparent;
+  border-radius: 26px;
   transform-style: preserve-3d;
   perspective: 800px;
+  color: var(--color-ink-3);
+  transition:
+    background-color 0.18s var(--ease-out),
+    color 0.18s var(--ease-out),
+    box-shadow 0.2s var(--ease-out),
+    transform 0.14s var(--ease-out);
 }
 .td-mobile-dock-item:active { transform: scale(0.96); }
-.td-mobile-dock-item[data-active="true"]::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 5px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
+.td-mobile-dock-item[data-active="true"] {
+  border-color: rgba(0, 31, 39, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.48), rgba(0, 31, 39, 0.12)),
+    color-mix(in srgb, var(--color-ink) 16%, transparent);
+  color: var(--color-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 12px 24px -14px rgba(0, 31, 39, 0.55);
+}
+.td-mobile-dock-item[data-active="true"] .td-nav-orb {
   background: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
-  transform: translateX(-50%);
+  color: var(--color-on-accent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 13px 24px -15px rgba(0, 58, 53, 0.82);
+  transform: none;
+}
+.td-mobile-dock-item .td-nav-orb > svg {
+  width: 27px;
+  height: 27px;
 }
 
 /* Боковой рельс — плоская поверхность + hairline (v2). */
@@ -547,7 +592,6 @@ button:not(:disabled):active { transform: scale(0.97); }
   62% { transform: translateX(-50%) scale(1.35); opacity: 1; }
   100% { transform: translateX(-50%) scale(1); opacity: 1; }
 }
-.td-mobile-dock-item[data-active="true"]::after { animation: tdSpringPop 0.32s var(--ease-out); }
 @keyframes tdSegPop {
   0% { transform: scale(0.96); }
   60% { transform: scale(1.03); }
@@ -555,7 +599,7 @@ button:not(:disabled):active { transform: scale(0.97); }
 }
 .td-segment[data-active="true"] { animation: tdSegPop 0.26s var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
-  .td-mobile-dock-item[data-active="true"]::after, .td-segment[data-active="true"] { animation: none; }
+  .td-segment[data-active="true"] { animation: none; }
 }
 
 /* ── View Transitions (список ↔ кейс) ──────────────────────────

@@ -4,7 +4,7 @@ import { Plus, ArrowRight, CalendarDots, Briefcase, Warning } from "@phosphor-ic
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
-import { type Stage, STAGE_DOT, STAGE_ORDER, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
+import { type Stage, NEXT_ACTION, deriveStage, stageIndex, relTime } from "@/lib/case";
 
 type CaseRow = {
   id: number;
@@ -230,28 +230,21 @@ export default async function CasesPage() {
                     >
                       <Avatar name={c.name} urgent={c.urgent} />
                       <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2">
-                          <span className="truncate text-[14px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
-                          <StageChip stage={c.stage} />
+                        <span className="flex items-center gap-2.5">
+                          <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
+                          {/* Бейдж - только исключение. Спокойный кейс молчит. */}
                           {c.ceremonySoon ? (
-                            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Церемония через {c.hoursToCeremony} ч</span>
+                            <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
                           ) : c.soon ? (
-                            <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">Встреча скоро</span>
+                            <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
                           ) : c.stale ? (
-                            <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-warning">Без движения</span>
+                            <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
                           ) : null}
                         </span>
-                        <span className="mt-1 flex items-center gap-1.5 text-[12px] text-ink-2">
-                          <ArrowRight size={12} weight="bold" className="flex-shrink-0 text-ink-3" />
-                          <span className="truncate">{c.nextAction}</span>
-                          {c.ceremonyLabel && !c.ceremonySoon && (
-                            <span className="hidden flex-shrink-0 text-ink-3 sm:inline">· церемония {c.ceremonyLabel}</span>
-                          )}
-                        </span>
+                        <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
                       </span>
-                      <span className="hidden flex-shrink-0 flex-col items-end gap-2 pr-1 sm:flex">
-                        <Stepper progress={c.progress} />
-                        <span className="text-[11px] text-ink-3">{c.lastActivityLabel}</span>
+                      <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
+                        {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.stage}
                       </span>
                       <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
                     </Link>
@@ -323,24 +316,4 @@ function RailBlock({ icon, title, children }: { icon: React.ReactNode; title: st
 
 function RailEmpty({ children }: { children: React.ReactNode }) {
   return <p className="py-1.5 text-[13px] text-ink-3">{children}</p>;
-}
-
-function StageChip({ stage }: { stage: Stage }) {
-  return (
-    <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[12px] font-medium text-ink-2">
-      <span className={`h-1.5 w-1.5 rounded-full ${STAGE_DOT[stage]}`} />
-      {stage}
-    </span>
-  );
-}
-
-// Мини-степпер этапов (6 сегментов) - заполнено до текущего, активный ярче.
-function Stepper({ progress }: { progress: number }) {
-  return (
-    <span className="flex items-center gap-1" aria-label={`Этап ${progress} из ${STAGE_ORDER.length}`}>
-      {STAGE_ORDER.map((stage, i) => (
-        <span key={stage} className={`h-1 w-4 rounded-full ${i < progress ? "bg-accent" : "bg-surface-2"}`} />
-      ))}
-    </span>
-  );
 }

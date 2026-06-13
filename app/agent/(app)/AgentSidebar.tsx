@@ -6,15 +6,16 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Briefcase,
   CalendarDots,
+  CheckSquare,
+  FileText,
+  Files,
+  GearSix,
   SignOut,
   List,
   X,
   GraduationCap,
   MagnifyingGlass,
-  FileText,
-  Files,
-  CheckSquare,
-  GearSix,
+  type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
 import { TOURS, TOUR_START_EVENT } from "@/lib/tour";
@@ -41,7 +42,7 @@ const NAV = [
   { href: "/agent/documents", icon: Files, label: "Документы" },
   { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
   { href: "/agent/settings", icon: GearSix, label: "Настройки" },
-];
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
 const ROLE_LABELS: Record<string, string> = {
   AGENT: "Агент",
@@ -70,7 +71,7 @@ function Brand() {
 function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onNavigate?: () => void; overdue?: number }) {
   return (
     <div className="space-y-0.5">
-      {NAV.map(({ href, icon: Icon, label }) => {
+      {NAV.map(({ href, icon: IconComponent, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         const badge = href === "/agent/tasks" && overdue > 0 ? overdue : 0;
         return (
@@ -86,7 +87,7 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
             ].join(" ")}
           >
             <span className="td-nav-orb" data-active={active ? "true" : undefined}>
-              <Icon size={18} weight={active ? "fill" : "duotone"} />
+              <IconComponent size={26} weight="fill" />
             </span>
             {label}
             {badge > 0 && (

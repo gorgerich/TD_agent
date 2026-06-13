@@ -2282,3 +2282,139 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   content: ""; position: absolute; left: 0; top: 0.55em;
   width: 3px; height: 3px; border-radius: 999px; background: var(--color-ink-3);
 }
+
+/* ── Карусель тарифов (B2C «Готовые решения») ──────────────────────── */
+.tariffCarousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(86%, 320px);
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 10px;
+  scrollbar-width: none;
+}
+.tariffCarousel::-webkit-scrollbar { display: none; }
+@media (min-width: 920px) {
+  .tariffCarousel {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+}
+.tariffCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  scroll-snap-align: start;
+  border: 1px solid var(--color-line);
+  border-radius: 18px;
+  background: var(--color-surface);
+  padding: 18px 16px 16px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.tariffCard:hover { border-color: var(--color-line-strong); }
+.tariffCardActive {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-soft);
+}
+.tariffBadge {
+  position: absolute;
+  top: -9px;
+  left: 14px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tariffName { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.02em; color: var(--color-ink); }
+.tariffDesc { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-ink-2); }
+.tariffPrice {
+  margin: 10px 0 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 24px;
+  font-weight: 650;
+  color: var(--color-ink);
+}
+.tariffFeatures {
+  flex: 1;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--color-line);
+  list-style: none;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+}
+.tariffFeatures li {
+  position: relative;
+  padding-left: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.tariffFeatures li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+.tariffPick {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.12s var(--ease-out);
+}
+.tariffPick:hover { border-color: var(--color-line-strong); }
+.tariffPick:active { transform: scale(0.98); }
+.tariffPickActive {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* Дельта от якоря тарифа + сброс */
+.planTotal em {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 650;
+}
+.deltaUp { color: var(--color-warning); }
+.deltaDown { color: var(--color-success); }
+.baselineReset {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-3);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.baselineReset:hover { color: var(--color-ink); }
