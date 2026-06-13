@@ -15,6 +15,7 @@ type CaseRow = {
   statusLabel: string;
   statusTone: StatusTone;
   waiting: WaitingOn;
+  bucket: Bucket;
   progress: number;
   nextAction: string;
   lastActivityLabel: string;
@@ -30,6 +31,16 @@ type CaseRow = {
   nextMeetingTime: string;
   nextMeetingDate: string;
 };
+
+type Bucket = "critical" | "today" | "awaitClient" | "awaitPayment" | "progress";
+
+const BUCKETS: Array<{ id: Bucket; label: string; tone: string }> = [
+  { id: "critical", label: "Срочное", tone: "text-danger" },
+  { id: "today", label: "Сегодня", tone: "text-accent" },
+  { id: "awaitClient", label: "Ждём клиента", tone: "text-ink-3" },
+  { id: "awaitPayment", label: "Ждём оплату", tone: "text-warning" },
+  { id: "progress", label: "В работе", tone: "text-ink-3" },
+];
 
 type CasesData = {
   active: CaseRow[];
@@ -111,6 +122,15 @@ async function getCases(agentId: number): Promise<CasesData> {
       const hoursToCeremony = ceremonyAt && ceremonyAt > now ? Math.round((ceremonyAt - now) / 3_600_000) : null;
       const ceremonySoon = hoursToCeremony !== null && hoursToCeremony <= 48;
 
+      // Бакет дашборда — приоритет по срочности (первое совпадение).
+      const todayMeeting = nextMeetingAt != null && nextMeetingAt <= todayEndMs;
+      const bucket: Bucket =
+        ceremonySoon || stale ? "critical"
+        : todayMeeting ? "today"
+        : status.waiting === "client" ? "awaitClient"
+        : status.waiting === "payment" ? "awaitPayment"
+        : "progress";
+
       return {
         id: lead.id,
         name: lead.name,
@@ -119,6 +139,7 @@ async function getCases(agentId: number): Promise<CasesData> {
         statusLabel: status.label,
         statusTone: status.tone,
         waiting: status.waiting,
+        bucket,
         progress: status.stageIdx + 1,
         nextAction: status.next,
         lastActivityLabel: relTime(lastActivity, now),
@@ -191,6 +212,7 @@ export default async function CasesPage() {
     statusLabel: "Просрочена задача",
     statusTone: "danger" as StatusTone,
     waiting: null as WaitingOn,
+    bucket: "critical" as Bucket,
     progress: 1,
     nextAction: t.title,
     lastActivityLabel: "просрочено",
@@ -250,39 +272,23 @@ export default async function CasesPage() {
               </Link>
             </div>
           ) : (
-            <ul className="td-entity-list">
-              {active.map((c) => {
-                const bar = c.ceremonySoon ? "before:bg-danger" : c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
+            <div className="space-y-6">
+              {BUCKETS.map(({ id, label, tone }) => {
+                const rows = active.filter((c) => c.bucket === id);
+                if (rows.length === 0) return null;
                 return (
-                  <li key={c.id} className="border-b border-line last:border-0">
-                    <Link
-                      href={`/agent/cases/${c.id}`}
-                      className={`td-entity-row group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
-                    >
-                      <Avatar name={c.name} urgent={c.urgent} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-2.5">
-                          <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
-                          {/* Бейдж - только исключение. Спокойный кейс молчит. */}
-                          {c.ceremonySoon ? (
-                            <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
-                          ) : c.soon ? (
-                            <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
-                          ) : c.stale ? (
-                            <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
-                          ) : null}
-                        </span>
-                        <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
-                      </span>
-                      <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
-                        {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
-                      </span>
-                      <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
-                    </Link>
-                  </li>
+                  <div key={id}>
+                    <div className="mb-2 flex items-center gap-2 px-1">
+                      <span className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${tone}`}>{label}</span>
+                      <span className="tnum text-[11px] font-semibold text-ink-3">{rows.length}</span>
+                    </div>
+                    <ul className="td-entity-list">
+                      {rows.map((c) => <CaseRowItem key={c.id} c={c} />)}
+                    </ul>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
         </section>
 
@@ -318,6 +324,38 @@ export default async function CasesPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function CaseRowItem({ c }: { c: CaseRow }) {
+  const bar = c.ceremonySoon ? "before:bg-danger" : c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
+  return (
+    <li className="border-b border-line last:border-0">
+      <Link
+        href={`/agent/cases/${c.id}`}
+        className={`td-entity-row group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
+      >
+        <Avatar name={c.name} urgent={c.urgent} />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2.5">
+            <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
+            {/* Бейдж - только исключение. Спокойный кейс молчит. */}
+            {c.ceremonySoon ? (
+              <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
+            ) : c.soon ? (
+              <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
+            ) : c.stale ? (
+              <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
+            ) : null}
+          </span>
+          <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
+        </span>
+        <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
+          {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
+        </span>
+        <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
+      </Link>
+    </li>
   );
 }
 

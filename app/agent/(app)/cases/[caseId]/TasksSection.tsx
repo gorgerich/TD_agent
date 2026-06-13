@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, Trash, Plus, Warning } from "@phosphor-icons/react";
 import { hapticTap } from "@/lib/haptics";
+import { useToast } from "@/components/Toast";
 
 type Task = {
   id: number;
@@ -26,6 +27,7 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
   const [adding, setAdding] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [, startTransition] = useTransition();
+  const toast = useToast();
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
@@ -37,12 +39,14 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim(), dueAt: dueAt || null }),
       });
-      if (!res.ok) return;
+      if (!res.ok) { toast({ type: "error", message: "Не удалось добавить задачу. Попробуйте снова." }); return; }
       const { task } = await res.json();
       setTasks((prev) => [{ ...task, dueAt: task.dueAt ? new Date(task.dueAt).toISOString() : null, completedAt: null }, ...prev]);
       setTitle("");
       setDueAt("");
       setShowForm(false);
+    } catch {
+      toast({ type: "error", message: "Нет связи. Задача не добавлена." });
     } finally {
       setAdding(false);
     }
@@ -51,23 +55,31 @@ export function TasksSection({ caseId, initial }: { caseId: number; initial: Tas
   function toggleTask(task: Task) {
     const next = task.completedAt ? false : true;
     startTransition(async () => {
-      const res = await fetch(`/api/agent/cases/${caseId}/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: next }),
-      });
-      if (!res.ok) return;
-      const { task: updated } = await res.json();
-      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, completedAt: updated.completedAt } : t));
-      if (next) hapticTap();
+      try {
+        const res = await fetch(`/api/agent/cases/${caseId}/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completed: next }),
+        });
+        if (!res.ok) { toast({ type: "error", message: "Не удалось обновить задачу. Попробуйте снова." }); return; }
+        const { task: updated } = await res.json();
+        setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, completedAt: updated.completedAt } : t));
+        if (next) hapticTap();
+      } catch {
+        toast({ type: "error", message: "Нет связи. Задача не обновлена." });
+      }
     });
   }
 
   function deleteTask(id: number) {
     startTransition(async () => {
-      const res = await fetch(`/api/agent/cases/${caseId}/tasks/${id}`, { method: "DELETE" });
-      if (!res.ok) return;
-      setTasks((prev) => prev.filter((t) => t.id !== id));
+      try {
+        const res = await fetch(`/api/agent/cases/${caseId}/tasks/${id}`, { method: "DELETE" });
+        if (!res.ok) { toast({ type: "error", message: "Не удалось удалить задачу. Попробуйте снова." }); return; }
+        setTasks((prev) => prev.filter((t) => t.id !== id));
+      } catch {
+        toast({ type: "error", message: "Нет связи. Задача не удалена." });
+      }
     });
   }
 

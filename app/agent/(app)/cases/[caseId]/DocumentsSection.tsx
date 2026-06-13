@@ -81,8 +81,13 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
 
   function remove(id: number) {
     startTransition(async () => {
-      const res = await fetch(`/api/agent/cases/${caseId}/documents/${id}`, { method: "DELETE" });
-      if (res.ok) setDocs((prev) => prev.filter((d) => d.id !== id));
+      try {
+        const res = await fetch(`/api/agent/cases/${caseId}/documents/${id}`, { method: "DELETE" });
+        if (res.ok) { setDocs((prev) => prev.filter((d) => d.id !== id)); setError(null); }
+        else setError("Не удалось удалить файл. Попробуйте снова.");
+      } catch {
+        setError("Нет связи. Файл не удалён.");
+      }
     });
   }
 

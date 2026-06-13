@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Trash, Plus } from "@phosphor-icons/react";
+import { useToast } from "@/components/Toast";
 
 type Note = {
   id: number;
@@ -19,6 +20,7 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [, startTransition] = useTransition();
+  const toast = useToast();
 
   async function addNote(e: React.FormEvent) {
     e.preventDefault();
@@ -30,11 +32,13 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: body.trim() }),
       });
-      if (!res.ok) return;
+      if (!res.ok) { toast({ type: "error", message: "Не удалось сохранить заметку. Попробуйте снова." }); return; }
       const { note } = await res.json();
       setNotes((prev) => [{ ...note, createdAt: new Date(note.createdAt).toISOString() }, ...prev]);
       setBody("");
       setShowForm(false);
+    } catch {
+      toast({ type: "error", message: "Нет связи. Заметка не сохранена." });
     } finally {
       setSaving(false);
     }
@@ -42,9 +46,13 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
 
   function deleteNote(id: number) {
     startTransition(async () => {
-      const res = await fetch(`/api/agent/cases/${caseId}/notes/${id}`, { method: "DELETE" });
-      if (!res.ok) return;
-      setNotes((prev) => prev.filter((n) => n.id !== id));
+      try {
+        const res = await fetch(`/api/agent/cases/${caseId}/notes/${id}`, { method: "DELETE" });
+        if (!res.ok) { toast({ type: "error", message: "Не удалось удалить заметку. Попробуйте снова." }); return; }
+        setNotes((prev) => prev.filter((n) => n.id !== id));
+      } catch {
+        toast({ type: "error", message: "Нет связи. Заметка не удалена." });
+      }
     });
   }
 
