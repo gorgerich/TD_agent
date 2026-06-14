@@ -1,7 +1,9 @@
 /**
- * Демо-данные для MVP-демонстрации. Идемпотентно: если у демо-агента уже есть
- * лиды — выходим. Безопасно запускать только против ВЫДЕЛЕННОЙ td_agent БД
- * (не общей, не nox). Запуск: `npm run db:seed`.
+ * Демо-данные для MVP-демонстрации. RE-SEED: при каждом запуске СТИРАЕТ данные
+ * ТОЛЬКО демо-агента (scoped по agentId, не глобальный wipe) и пересоздаёт их со
+ * свежими датами — чтобы операционные статусы и бакеты дашборда были живыми
+ * (Срочное / Сегодня / Ждём клиента / Ждём оплату / В работе), а не «всё устарело».
+ * Запуск: `npm run db:seed`. Трогает только демо-агента — безопасно и на общей БД.
  */
 import { PrismaClient } from "@prisma/client";
 import { encryptField } from "../lib/crypto";
@@ -11,6 +13,28 @@ const DEMO_EMAIL = "demo@tihiydom.local";
 const DAY = 86_400_000;
 const now = Date.now();
 const at = (deltaDays: number, hour = 11) => new Date(now + deltaDays * DAY - (new Date().getHours() - hour) * 3_600_000);
+
+async function resetAgentData(agentId: number) {
+  // Порядок учитывает FK: версии → сметы → заказы → платежи → встречи → дела.
+  // Дети дела (task/note/payment/document) каскадятся при удалении лида.
+  const meetings = await prisma.meeting.findMany({ where: { agentId }, select: { id: true } });
+  const meetingIds = meetings.map((m) => m.id);
+
+  await prisma.commission.deleteMany({ where: { agentId } });
+  await prisma.payout.deleteMany({ where: { agentId } });
+  await prisma.payment.deleteMany({ where: { OR: [{ order: { agentId } }, { meetingId: { in: meetingIds } }] } });
+  await prisma.quoteVersion.deleteMany({ where: { quote: { meetingId: { in: meetingIds } } } });
+  await prisma.quote.deleteMany({ where: { meetingId: { in: meetingIds } } });
+  await prisma.order.deleteMany({ where: { agentId } });
+  await prisma.task.deleteMany({ where: { agentId } });
+  await prisma.caseNote.deleteMany({ where: { agentId } });
+  await prisma.casePayment.deleteMany({ where: { agentId } });
+  await prisma.document.deleteMany({ where: { agentId } });
+  // AgentSession → Meeting (RESTRICT): co-browse сессии держат встречу, чистим первыми.
+  await prisma.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
+  await prisma.meeting.deleteMany({ where: { agentId } });
+  await prisma.clientLead.deleteMany({ where: { agentId } });
+}
 
 async function main() {
   const tier = await prisma.agentTier.upsert({
@@ -30,11 +54,7 @@ async function main() {
     create: { userId: user.id, status: "ACTIVE", selfEmployed: true, tierId: tier.id },
   });
 
-  const existing = await prisma.clientLead.count({ where: { agentId: agent.id } });
-  if (existing >= 10) {
-    console.log(`Демо уже засеяно (${existing} дел). Пропуск.`);
-    return;
-  }
+  await resetAgentData(agent.id);
 
   // Клиент-плейсхолдер для заказов (Order.userId).
   const client = await prisma.user.upsert({
@@ -47,20 +67,35 @@ async function main() {
     name: string; phone: string; ctx: string;
     stage: "lead" | "docs" | "estimate" | "contract" | "paid" | "done";
     meetingIn?: number; stale?: boolean; total?: number;
+    deceased?: string; ceremonyType?: string;
+    ceremonyInDays?: number; ceremonyPlace?: string;
+    viewed?: boolean; agreed?: boolean;
   };
+  // Спеки покрывают ВСЕ бакеты дашборда:
+  //   critical (церемония <48ч / застой), today (встреча сегодня),
+  //   awaitClient (смета отправлена/смотрит), awaitPayment (договор без оплаты),
+  //   progress (оплачено / в работе).
   const specs: Spec[] = [
-    { name: "Семён Иванов", phone: "+79123456789", ctx: "Отец, 78 лет. Бюджет до 90 000 ₽, гражданская церемония.", stage: "docs", meetingIn: 0 },
-    { name: "Ирина Соколова", phone: "+79261234567", ctx: "Мать. Рассматривают кремацию, ждут расчёт.", stage: "estimate", meetingIn: 0, total: 124000 },
-    { name: "Михаил Петров", phone: "+79031112233", ctx: "Дедушка. Полный пакет, зал прощания.", stage: "contract", meetingIn: 2, total: 215000 },
-    { name: "Анна Кузнецова", phone: "+79154445566", ctx: "Супруг. Уточняет состав.", stage: "docs", stale: true },
-    { name: "Дмитрий Орлов", phone: "+79167778899", ctx: "Брат. Кремация, минимальный пакет.", stage: "paid", total: 98000 },
-    { name: "Ольга Морозова", phone: "+79052223344", ctx: "Мать. Согласовали смету, готовят оплату.", stage: "paid", meetingIn: 1, total: 176000 },
+    // critical — церемония в ближайшие 48 ч
+    { name: "Семён Иванов", phone: "+79123456789", ctx: "Отец, 78 лет. Бюджет до 90 000 ₽, гражданская церемония.", stage: "docs", meetingIn: 0, deceased: "Иванов Иван Петрович", ceremonyType: "погребение", ceremonyInDays: 1, ceremonyPlace: "Хованское кладбище" },
+    // critical — застой
+    { name: "Анна Кузнецова", phone: "+79154445566", ctx: "Супруг. Уточняет состав.", stage: "docs", stale: true, deceased: "Кузнецов Олег Иванович", ceremonyType: "погребение" },
     { name: "Сергей Волков", phone: "+79188889900", ctx: "Отец. Открытый бюджет.", stage: "lead", stale: true },
+    // today — встреча сегодня
+    { name: "Ирина Соколова", phone: "+79261234567", ctx: "Мать. Рассматривают кремацию, ждут расчёт.", stage: "estimate", meetingIn: 0, total: 124000, deceased: "Соколова Мария Ильинична", ceremonyType: "кремация" },
+    { name: "Владимир Соловьёв", phone: "+79294443322", ctx: "Отец. Кремация, урна улучшенная.", stage: "estimate", meetingIn: 0, total: 118000, deceased: "Соловьёв Пётр Кузьмич", ceremonyType: "кремация" },
+    // awaitClient — клиент смотрит смету
+    { name: "Алексей Новиков", phone: "+79233334455", ctx: "Тесть. Погребение, зал на 60 минут.", stage: "estimate", meetingIn: 3, total: 142000, deceased: "Новиков Борис Семёнович", ceremonyType: "погребение", viewed: true },
+    // awaitPayment — договор без оплаты
+    { name: "Михаил Петров", phone: "+79031112233", ctx: "Дедушка. Полный пакет, зал прощания.", stage: "contract", meetingIn: 2, total: 215000, deceased: "Петров Семён Фёдорович", ceremonyType: "погребение", agreed: true },
+    { name: "Наталья Павлова", phone: "+79101112200", ctx: "Мать. Договор подписан, ждём оплату.", stage: "contract", total: 198000, deceased: "Павлова Зоя Андреевна", ceremonyType: "погребение", agreed: true },
+    // progress — оплачено, церемония запланирована
+    { name: "Дмитрий Орлов", phone: "+79167778899", ctx: "Брат. Кремация, минимальный пакет.", stage: "paid", total: 98000, deceased: "Орлов Игорь Николаевич", ceremonyType: "кремация", ceremonyInDays: 4, ceremonyPlace: "Николо-Архангельский крематорий" },
+    { name: "Ольга Морозова", phone: "+79052223344", ctx: "Мать. Согласовали смету, готовят оплату.", stage: "paid", meetingIn: 1, total: 176000, deceased: "Морозова Тамара Петровна", ceremonyType: "погребение" },
+    // progress — в работе, документы
+    { name: "Елена Зайцева", phone: "+79276665544", ctx: "Свекровь. Уточняют документы.", stage: "docs", deceased: "Зайцева Лидия Сергеевна", ceremonyType: "погребение" },
+    // done — в архиве (не показывается в активных)
     { name: "Татьяна Лебедева", phone: "+79219998877", ctx: "Бабушка. Полное сопровождение.", stage: "done", total: 254000 },
-    { name: "Алексей Новиков", phone: "+79233334455", ctx: "Тесть. Погребение, зал на 60 минут.", stage: "estimate", meetingIn: 3, total: 142000 },
-    { name: "Елена Зайцева", phone: "+79276665544", ctx: "Свекровь. Уточняют документы.", stage: "docs", stale: true },
-    { name: "Владимир Соловьёв", phone: "+79294443322", ctx: "Отец. Кремация, урна улучшенная.", stage: "estimate", meetingIn: 0, total: 118000 },
-    { name: "Наталья Павлова", phone: "+79101112200", ctx: "Мать. Договор подписан, ждём оплату.", stage: "contract", total: 198000 },
   ];
 
   for (const s of specs) {
@@ -68,7 +103,11 @@ async function main() {
       data: {
         agentId: agent.id, name: s.name, phone: s.phone,
         context: encryptField(s.ctx) ?? s.ctx, source: "agent",
-        createdAt: s.stale ? new Date(now - 9 * DAY) : new Date(now - Math.random() * 3 * DAY),
+        deceasedName: s.deceased ? encryptField(s.deceased) : null,
+        ceremonyType: s.ceremonyType ?? null,
+        ceremonyAt: s.ceremonyInDays !== undefined ? at(s.ceremonyInDays, 10) : null,
+        ceremonyPlace: s.ceremonyPlace ?? null,
+        createdAt: s.stale ? new Date(now - 9 * DAY) : new Date(now - Math.random() * 2 * DAY),
       },
     });
 
@@ -80,7 +119,10 @@ async function main() {
           leadId: created.id, agentId: agent.id,
           status: "SCHEDULED",
           cobrowseCode: Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString("hex").toUpperCase(),
-          scheduledAt: s.meetingIn !== undefined ? at(s.meetingIn) : null,
+          // meetingIn:0 — встреча сегодня, но в БУДУЩЕМ (now+2ч), чтобы попасть в бакет «Сегодня».
+          scheduledAt: s.meetingIn === 0 ? new Date(now + 2 * 3_600_000) : s.meetingIn !== undefined ? at(s.meetingIn) : null,
+          coViewedAt: s.viewed || s.agreed ? new Date(now - 3 * 3_600_000) : null,
+          coAgreedAt: s.agreed ? new Date(now - 2 * 3_600_000) : null,
         },
       });
       meetingId = m.id;
@@ -102,6 +144,17 @@ async function main() {
           userId: client.id, agentId: agent.id, meetingId,
           status: orderStage[s.stage as keyof typeof orderStage],
           serviceType: "funeral", totalAmount: (s.total ?? 150000) * 100, meta: "{}",
+        },
+      });
+    }
+
+    // Аванс по оплаченным — оплата видна в кейсе
+    if (s.stage === "paid") {
+      await prisma.casePayment.create({
+        data: {
+          leadId: created.id, agentId: agent.id,
+          amountKopecks: Math.round((s.total ?? 150000) * 100 * 0.5),
+          kind: "аванс", method: "наличные",
         },
       });
     }
@@ -128,7 +181,7 @@ async function main() {
     prisma.task.count({ where: { agentId: agent.id } }),
     prisma.caseNote.count({ where: { agentId: agent.id } }),
   ]);
-  console.log(`Засеяно: ${leads} дел, ${tasks} задач, ${notes} заметок. Агент: ${DEMO_EMAIL}`);
+  console.log(`Пересеяно: ${leads} дел, ${tasks} задач, ${notes} заметок. Агент: ${DEMO_EMAIL}`);
 }
 
 main()
