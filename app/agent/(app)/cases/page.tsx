@@ -210,46 +210,32 @@ export default async function CasesPage() {
     getCases(session?.agentId ?? 0),
     getOverdueTasks(session?.agentId ?? 0),
   ]);
-  const attention = [...active.filter((c) => c.urgent), ...overdueTasks.map((t) => ({
-    id: t.leadId,
-    name: t.leadName,
-    phone: "",
-    stage: "Лид" as Stage,
-    statusLabel: "Просрочена задача",
-    statusTone: "danger" as StatusTone,
-    waiting: null as WaitingOn,
-    bucket: "critical" as Bucket,
-    cobrowse: null,
-    firstMeetingId: null,
-    progress: 1,
-    nextAction: t.title,
-    lastActivityLabel: "просрочено",
-    priority: "Высокий" as const,
-    urgent: true,
-    soon: false,
-    stale: false,
-    ceremonyAt: null,
-    ceremonyLabel: "",
-    hoursToCeremony: null,
-    ceremonySoon: false,
-    nextMeetingAt: null,
-    nextMeetingTime: "",
-    nextMeetingDate: "",
-  }))].slice(0, 6);
+  // KPI команд-центра — выводимы из текущих данных (без новых таблиц).
+  // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker
+  const kpiNow = Date.now();
+  const kpiTodayEnd = new Date(); kpiTodayEnd.setHours(23, 59, 59, 999);
+  const attentionCases = active.filter((c) => c.urgent).length;
+  const ceremonyToday = active.filter((c) => c.ceremonyAt && c.ceremonyAt >= kpiNow && c.ceremonyAt <= kpiTodayEnd.getTime()).length;
+  const awaitingPayment = active.filter((c) => c.bucket === "awaitPayment").length;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-7 flex items-end justify-between gap-4">
+      <header className="rise mb-5 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
           <h1 className="td-display mt-2.5 text-[34px] text-ink sm:text-[42px]">Кейсы</h1>
-          <p className="mt-2 text-[13px] text-ink-2">
-            <span className="font-semibold text-ink">{active.length}</span> в работе
-            {attention.length > 0 && <> · <span className="font-semibold text-danger">{attention.length}</span> требуют внимания</>}
-          </p>
         </div>
         <NewCaseSheet />
       </header>
+
+      {active.length > 0 && (
+        <div className="rise mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+          <Kpi label="В работе" value={active.length} />
+          <Kpi label="Требуют внимания" value={attentionCases} tone={attentionCases > 0 ? "danger" : "ok"} />
+          <Kpi label="Церемонии сегодня" value={ceremonyToday} tone={ceremonyToday > 0 ? "accent" : "ok"} />
+          <Kpi label="Ждут оплату" value={awaitingPayment} tone={awaitingPayment > 0 ? "warning" : "ok"} />
+        </div>
+      )}
 
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
         <section className="rise rise-1 order-2 min-w-0 lg:order-1">
@@ -331,6 +317,21 @@ export default async function CasesPage() {
           </RailBlock>
         </aside>
       </div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, tone = "ok" }: { label: string; value: number; tone?: "ok" | "accent" | "warning" | "danger" }) {
+  const valueColor =
+    value === 0 ? "text-ink-3"
+    : tone === "danger" ? "text-danger"
+    : tone === "warning" ? "text-warning"
+    : tone === "accent" ? "text-accent"
+    : "text-ink";
+  return (
+    <div className="td-metric">
+      <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
+      <div className={`tnum mt-1 text-[26px] font-semibold leading-none ${valueColor}`}>{value}</div>
     </div>
   );
 }
