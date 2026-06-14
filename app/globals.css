@@ -190,6 +190,10 @@ button:not(:disabled):active { transform: scale(0.97); }
 /* Числа, суммы, коды — табличные моноширинные */
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* Скрытый скроллбар — для листающихся рядов пилюль/чипов (тач-свайп). */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
 .td-page {
   position: relative;
   z-index: 1;

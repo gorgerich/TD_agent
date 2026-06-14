@@ -1,6 +1,6 @@
 import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
-import { CaseRowActions } from "./CaseRowActions";
+import { CasesList, type Bucket } from "./CasesList";
 import { Plus, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -34,16 +34,6 @@ type CaseRow = {
   nextMeetingTime: string;
   nextMeetingDate: string;
 };
-
-type Bucket = "critical" | "today" | "awaitClient" | "awaitPayment" | "progress";
-
-const BUCKETS: Array<{ id: Bucket; label: string; tone: string }> = [
-  { id: "critical", label: "Срочное", tone: "text-danger" },
-  { id: "today", label: "Сегодня", tone: "text-accent" },
-  { id: "awaitClient", label: "Ждём клиента", tone: "text-ink-3" },
-  { id: "awaitPayment", label: "Ждём оплату", tone: "text-warning" },
-  { id: "progress", label: "В работе", tone: "text-ink-3" },
-];
 
 type CasesData = {
   active: CaseRow[];
@@ -266,23 +256,24 @@ export default async function CasesPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-6">
-              {BUCKETS.map(({ id, label, tone }) => {
-                const rows = active.filter((c) => c.bucket === id);
-                if (rows.length === 0) return null;
-                return (
-                  <div key={id}>
-                    <div className="mb-2 flex items-center gap-2 px-1">
-                      <span className={`text-[11px] font-semibold uppercase tracking-[0.1em] ${tone}`}>{label}</span>
-                      <span className="tnum text-[11px] font-semibold text-ink-3">{rows.length}</span>
-                    </div>
-                    <ul className="td-entity-list">
-                      {rows.map((c) => <CaseRowItem key={c.id} c={c} />)}
-                    </ul>
-                  </div>
-                );
-              })}
-            </div>
+            <CasesList
+              rows={active.map((c) => ({
+                id: c.id,
+                name: c.name,
+                phone: c.phone,
+                bucket: c.bucket,
+                cobrowse: c.cobrowse,
+                firstMeetingId: c.firstMeetingId,
+                nextAction: c.nextAction,
+                statusLabel: c.statusLabel,
+                ceremonyLabel: c.ceremonyLabel,
+                hoursToCeremony: c.hoursToCeremony,
+                urgent: c.urgent,
+                soon: c.soon,
+                stale: c.stale,
+                ceremonySoon: c.ceremonySoon,
+              }))}
+            />
           )}
         </section>
 
@@ -333,49 +324,6 @@ function Kpi({ label, value, tone = "ok" }: { label: string; value: number; tone
       <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
       <div className={`tnum mt-1 text-[26px] font-semibold leading-none ${valueColor}`}>{value}</div>
     </div>
-  );
-}
-
-function CaseRowItem({ c }: { c: CaseRow }) {
-  const bar = c.ceremonySoon ? "before:bg-danger" : c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
-  return (
-    <li className="border-b border-line last:border-0">
-      <div className={`td-entity-row group relative flex items-center pr-2 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}>
-        <Link href={`/agent/cases/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3.5 py-3.5 pl-5 pr-2">
-          <Avatar name={c.name} urgent={c.urgent} />
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-2.5">
-              <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
-              {/* Бейдж - только исключение. Спокойный кейс молчит. */}
-              {c.ceremonySoon ? (
-                <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
-              ) : c.soon ? (
-                <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
-              ) : c.stale ? (
-                <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
-              ) : null}
-            </span>
-            <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
-          </span>
-          <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
-            {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
-          </span>
-        </Link>
-        <CaseRowActions caseId={c.id} phone={c.phone} cobrowse={c.cobrowse} firstMeetingId={c.firstMeetingId} />
-      </div>
-    </li>
-  );
-}
-
-function Avatar({ name, urgent }: { name: string; urgent?: boolean }) {
-  const initials = name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
-  return (
-    <span
-      aria-hidden="true"
-            className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-full text-[12px] font-semibold text-accent bg-accent-soft ${urgent ? "ring-2 ring-danger/30" : ""}`}
-    >
-      {initials}
-    </span>
   );
 }
 
