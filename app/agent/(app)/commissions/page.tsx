@@ -3,6 +3,7 @@ import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { moneyFromKopecks, dateLong } from "@/lib/format";
+import { CommissionsTable } from "./CommissionsTable";
 
 type CommissionRow = { id: number; orderId: number; status: string; amount: number; order?: { id: number; createdAt: Date } | null };
 type PayoutRow = { id: number; amount: number; paidAt: Date | null };
@@ -26,9 +27,6 @@ async function getCommissions(agentId: number): Promise<{ commissions: Commissio
   }
 }
 
-const STATUS_LABELS: Record<string, string> = { ACCRUED: "Начислено", APPROVED: "Подтверждено", PAID: "Выплачено" };
-const STATUS_DOT: Record<string, string> = { ACCRUED: "bg-warning", APPROVED: "bg-info", PAID: "bg-success" };
-
 export default async function CommissionsPage() {
   const session = await getAgentSession();
   const { commissions, payouts, accrued, approved, paid } = await getCommissions(session?.agentId ?? 0);
@@ -50,39 +48,27 @@ export default async function CommissionsPage() {
       {/* Commission history */}
       <section className="rise rise-2 mb-7">
         <p className="mb-3 td-eyebrow">История начислений</p>
-        <div className="td-shell overflow-hidden">
-          <div className="td-core overflow-hidden">
-          {commissions.length === 0 ? (
-            <div className="px-6 py-16 text-center">
-              <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full icon-3d text-accent">
-                <CurrencyRub size={28} weight="duotone" />
-              </span>
-              <h2 className="td-display text-[20px] text-ink">Начислений пока нет</h2>
-              <p className="mx-auto mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-ink-2">
-                Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-line">
-              {commissions.map((c) => (
-                <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
-                  <span className="min-w-0">
-                    <span className="tnum block text-[14px] font-medium text-ink">Заказ №{c.orderId}</span>
-                    <span className="tnum mt-0.5 block text-[12px] text-ink-3">{dateLong(c.order?.createdAt)}</span>
-                  </span>
-                  <span className="flex items-center gap-4">
-                    <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-2">
-                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[c.status] ?? "bg-ink-3"}`} />
-                      <span className="hidden sm:inline">{STATUS_LABELS[c.status] ?? c.status}</span>
-                    </span>
-                    <span className="tnum text-[14px] font-semibold text-ink">{moneyFromKopecks(c.amount)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        {commissions.length === 0 ? (
+          <div className="td-shell px-6 py-16 text-center">
+            <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full icon-3d text-accent">
+              <CurrencyRub size={28} weight="duotone" />
+            </span>
+            <h2 className="td-display text-[20px] text-ink">Начислений пока нет</h2>
+            <p className="mx-auto mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-ink-2">
+              Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
+            </p>
           </div>
-        </div>
+        ) : (
+          <CommissionsTable
+            rows={commissions.map((c) => ({
+              id: c.id,
+              orderId: c.orderId,
+              status: c.status,
+              amount: c.amount,
+              createdAt: c.order?.createdAt ? c.order.createdAt.toISOString() : null,
+            }))}
+          />
+        )}
       </section>
 
       {/* Payouts */}

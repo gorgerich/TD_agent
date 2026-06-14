@@ -4,7 +4,7 @@ export function SkLine({ w = "100%", h = 14, className = "" }: { w?: string | nu
   return <span className={`sk block ${className}`} style={{ width: w, height: h }} />;
 }
 
-/** Скелет страницы-списка (заголовок + строки) - leads/meetings/commissions. */
+/** Скелет страницы-списка (заголовок + строки-сущности) - кейсы/leads/meetings. */
 export function ListPageSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div className="td-page mx-auto max-w-[1160px] px-4 py-7 sm:px-7 sm:py-10">
@@ -15,17 +15,37 @@ export function ListPageSkeleton({ rows = 6 }: { rows?: number }) {
         </div>
         <SkLine w={140} h={48} className="!rounded-full" />
       </div>
+      {/* Бакет-заголовок + строки-сущности (аватар + имя + действие), как в живом списке. */}
+      <SkLine w={90} h={11} className="mb-2.5 ml-1" />
       <div className="td-shell overflow-hidden">
-        <div className="td-core overflow-hidden">
-          {Array.from({ length: rows }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 border-b border-line px-5 py-4 last:border-0">
-              <SkLine w={180} h={16} />
-              <SkLine w={120} h={13} className="ml-auto" />
-              <SkLine w={70} h={13} />
-            </div>
-          ))}
-        </div>
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3.5 border-b border-line px-5 py-3.5 last:border-0">
+            <span className="sk h-9 w-9 flex-shrink-0 !rounded-full" />
+            <span className="min-w-0 flex-1">
+              <SkLine w={i % 2 ? 150 : 190} h={15} />
+              <SkLine w={i % 2 ? 210 : 170} h={12} className="mt-1.5" />
+            </span>
+            <SkLine w={84} h={12} className="hidden sm:block" />
+          </div>
+        ))}
       </div>
+    </div>
+  );
+}
+
+/** Скелет списка-сущностей без шапки страницы — для вложенных секций. */
+export function EntityRowsSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="td-shell overflow-hidden">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3.5 border-b border-line px-5 py-3.5 last:border-0">
+          <span className="sk h-9 w-9 flex-shrink-0 !rounded-full" />
+          <span className="min-w-0 flex-1">
+            <SkLine w={i % 2 ? 150 : 190} h={15} />
+            <SkLine w={i % 2 ? 210 : 170} h={12} className="mt-1.5" />
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

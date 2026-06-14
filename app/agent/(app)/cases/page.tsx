@@ -1,6 +1,7 @@
 import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
-import { Plus, ArrowRight, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
+import { CaseRowActions } from "./CaseRowActions";
+import { Plus, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
@@ -16,6 +17,8 @@ type CaseRow = {
   statusTone: StatusTone;
   waiting: WaitingOn;
   bucket: Bucket;
+  cobrowse: string | null;
+  firstMeetingId: number | null;
   progress: number;
   nextAction: string;
   lastActivityLabel: string;
@@ -65,6 +68,7 @@ async function getCases(agentId: number): Promise<CasesData> {
         meetings: {
           orderBy: { scheduledAt: "desc" },
           select: {
+            id: true,
             scheduledAt: true,
             cobrowseCode: true,
             coViewedAt: true,
@@ -140,6 +144,8 @@ async function getCases(agentId: number): Promise<CasesData> {
         statusTone: status.tone,
         waiting: status.waiting,
         bucket,
+        cobrowse: lead.meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null,
+        firstMeetingId: lead.meetings[lead.meetings.length - 1]?.id ?? null,
         progress: status.stageIdx + 1,
         nextAction: status.next,
         lastActivityLabel: relTime(lastActivity, now),
@@ -213,6 +219,8 @@ export default async function CasesPage() {
     statusTone: "danger" as StatusTone,
     waiting: null as WaitingOn,
     bucket: "critical" as Bucket,
+    cobrowse: null,
+    firstMeetingId: null,
     progress: 1,
     nextAction: t.title,
     lastActivityLabel: "просрочено",
@@ -331,30 +339,29 @@ function CaseRowItem({ c }: { c: CaseRow }) {
   const bar = c.ceremonySoon ? "before:bg-danger" : c.soon ? "before:bg-accent" : c.stale ? "before:bg-warning" : "before:bg-transparent";
   return (
     <li className="border-b border-line last:border-0">
-      <Link
-        href={`/agent/cases/${c.id}`}
-        className={`td-entity-row group relative flex items-center gap-3.5 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}
-      >
-        <Avatar name={c.name} urgent={c.urgent} />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2.5">
-            <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
-            {/* Бейдж - только исключение. Спокойный кейс молчит. */}
-            {c.ceremonySoon ? (
-              <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
-            ) : c.soon ? (
-              <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
-            ) : c.stale ? (
-              <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
-            ) : null}
+      <div className={`td-entity-row group relative flex items-center pr-2 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full ${bar}`}>
+        <Link href={`/agent/cases/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3.5 py-3.5 pl-5 pr-2">
+          <Avatar name={c.name} urgent={c.urgent} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2.5">
+              <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
+              {/* Бейдж - только исключение. Спокойный кейс молчит. */}
+              {c.ceremonySoon ? (
+                <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
+              ) : c.soon ? (
+                <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
+              ) : c.stale ? (
+                <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
+              ) : null}
+            </span>
+            <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
           </span>
-          <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
-        </span>
-        <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
-          {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
-        </span>
-        <ArrowRight size={16} className="flex-shrink-0 text-ink-3 transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-accent" />
-      </Link>
+          <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
+            {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
+          </span>
+        </Link>
+        <CaseRowActions caseId={c.id} phone={c.phone} cobrowse={c.cobrowse} firstMeetingId={c.firstMeetingId} />
+      </div>
     </li>
   );
 }

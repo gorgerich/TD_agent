@@ -4,6 +4,7 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 
 type Category = "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее";
 type DocumentFilter = "all" | "required" | "uploaded" | "ready";
@@ -142,14 +143,16 @@ export default async function DocumentsPage({
       )}
 
       {docs.length > 0 && (
-        <FilterTabs
+        <SegmentedTabs
+          ariaLabel="Фильтр документов"
           active={activeFilter}
-          counts={{
-            all: docs.length,
-            required: requiredCount,
-            uploaded: uploadedCount,
-            ready: readyCount,
-          }}
+          segments={[
+            { id: "all", label: "Все", count: docs.length },
+            { id: "required", label: "Требуются", count: requiredCount },
+            { id: "uploaded", label: "Загружены", count: uploadedCount },
+            { id: "ready", label: "Готово", count: readyCount },
+          ]}
+          hrefFor={(id) => (id === "all" ? "/agent/documents" : `/agent/documents?status=${id}`)}
         />
       )}
 
@@ -257,31 +260,6 @@ function StatusBadge({ status }: { status: DocRow["status"] }) {
       <Icon size={11} weight={status === "Загружен" ? "fill" : "duotone"} />
       {status}
     </span>
-  );
-}
-
-function FilterTabs({ active, counts }: { active: DocumentFilter; counts: Record<DocumentFilter, number> }) {
-  const base = "/agent/documents";
-  const items: Array<{ id: DocumentFilter; label: string; count: number }> = [
-    { id: "all", label: "Все", count: counts.all },
-    { id: "required", label: "Требуются", count: counts.required },
-    { id: "uploaded", label: "Загружены", count: counts.uploaded },
-    { id: "ready", label: "Готово", count: counts.ready },
-  ];
-  return (
-    <nav className="rise td-segmented" aria-label="Фильтр документов">
-      {items.map((item) => (
-        <Link
-          key={item.id}
-          href={item.id === "all" ? base : `${base}?status=${item.id}`}
-          data-active={active === item.id ? "true" : undefined}
-          className="td-segment"
-        >
-          {item.label}
-          <span className={`tnum text-[11px] ${active === item.id ? "text-on-accent/75" : "text-ink-3"}`}>{item.count}</span>
-        </Link>
-      ))}
-    </nav>
   );
 }
 

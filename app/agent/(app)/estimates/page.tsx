@@ -4,6 +4,7 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, moneyFromKopecks } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
+import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 
 type EstimateFilter = "all" | "drafts" | "sent" | "agreed";
 
@@ -100,7 +101,12 @@ export default async function EstimatesPage({
         </div>
       )}
 
-      <FilterTabs base="/agent/estimates" active={activeFilter} counts={counts} />
+      <SegmentedTabs
+        ariaLabel="Фильтр смет"
+        active={activeFilter}
+        segments={FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts[f.id] }))}
+        hrefFor={(id) => (id === "all" ? "/agent/estimates" : `/agent/estimates?status=${id}`)}
+      />
 
       {estimates.length === 0 ? (
         <EmptyState />
@@ -149,24 +155,6 @@ function Stat({ label, value }: { label: string; value: string }) {
       <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
       <div className="tnum mt-0.5 truncate text-[15px] font-semibold text-ink">{value}</div>
     </div>
-  );
-}
-
-function FilterTabs({ active, base, counts }: { active: EstimateFilter; base: string; counts: Record<EstimateFilter, number> }) {
-  return (
-    <nav className="rise td-segmented" aria-label="Фильтр смет">
-      {FILTERS.map((item) => (
-        <Link
-          key={item.id}
-          href={item.id === "all" ? base : `${base}?status=${item.id}`}
-          data-active={active === item.id ? "true" : undefined}
-          className="td-segment"
-        >
-          {item.label}
-          <span className={`tnum text-[11px] ${active === item.id ? "text-on-accent/75" : "text-ink-3"}`}>{counts[item.id]}</span>
-        </Link>
-      ))}
-    </nav>
   );
 }
 
