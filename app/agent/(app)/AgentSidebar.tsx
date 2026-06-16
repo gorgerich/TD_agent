@@ -15,6 +15,7 @@ import {
   X,
   GraduationCap,
   MagnifyingGlass,
+  Package,
   type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
@@ -39,6 +40,7 @@ const NAV = [
   { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/estimates", icon: FileText, label: "Сметы" },
+  { href: "/agent/catalog", icon: Package, label: "Каталог" },
   { href: "/agent/documents", icon: Files, label: "Документы" },
   { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
   { href: "/agent/settings", icon: GearSix, label: "Настройки" },
