@@ -38,6 +38,8 @@ import {
   PACKAGES,
   ADDITIONAL_SERVICES,
   AGENT_ATTRIBUTION_CATALOG,
+  readShortlist,
+  writeShortlist,
   DEFAULT_MEMORIAL_DATA,
   EXTERNAL_EXPENSE_PRESETS,
   MOSCOW_CEMETERIES,
@@ -114,6 +116,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
   const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
+  // Подборка из маркетплейса (localStorage) — для переноса в смету одним нажатием.
+  const [shortlist, setShortlist] = useState<ReturnType<typeof readShortlist>>([]);
   const [memorialData, setMemorialData] = useState<MemorialData>(DEFAULT_MEMORIAL_DATA);
   const [externalExpenses, setExternalExpenses] = useState<ExternalExpense[]>([]);
   const [expenseDraft, setExpenseDraft] = useState<ExternalExpense>(
@@ -379,6 +383,45 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         ? current.map((e) => (e.catalogItemId === item.id ? { ...e, selectedColor: color } : e))
         : current,
     );
+  }
+
+  // Синхронизация подборки из маркетплейса (другая вкладка / эта вкладка).
+  useEffect(() => {
+    const sync = () => setShortlist(readShortlist());
+    sync();
+    window.addEventListener("td-shortlist-change", sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener("td-shortlist-change", sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const shortlistPending = useMemo(
+    () => shortlist.filter((e) => !estimateItems.some((x) => x.catalogItemId === e.id)),
+    [shortlist, estimateItems],
+  );
+
+  // Перенести подборку из каталога в смету: добавляем только новые позиции,
+  // с учётом radio-семантики одиночных категорий (гроб/постель/урна).
+  function importShortlistToEstimate() {
+    const entries = readShortlist();
+    if (!entries.length) return;
+    setEstimateItems((current) => {
+      let next = current;
+      for (const e of entries) {
+        const item = AGENT_ATTRIBUTION_CATALOG.find((i) => i.id === e.id);
+        if (!item || next.some((x) => x.catalogItemId === item.id)) continue;
+        const base = SINGLE_CATEGORIES.has(item.category)
+          ? next.filter((x) => x.category !== item.category)
+          : next;
+        next = addCatalogItemToEstimate(base, item, e.color ?? getSelectedCatalogColor(item));
+      }
+      return next;
+    });
+    writeShortlist([]);
+    setShortlist([]);
+    toast({ type: "success", message: "Подборка добавлена в смету" });
   }
 
   function changeEstimateQuantity(id: string, quantity: number) {
@@ -979,6 +1022,23 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               </div>
               <span className={s.catalogCount}>{filteredCatalogItems.length}</span>
             </div>
+
+            {/* Перенос подборки из маркетплейса в эту смету */}
+            {shortlistPending.length > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[12px] border border-accent/45 bg-accent-soft px-3.5 py-2.5">
+                <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
+                  В подборке из каталога <b>{shortlistPending.length}</b>{" "}
+                  {shortlistPending.length === 1 ? "новая позиция" : "новых позиций"} — добавить в эту смету?
+                </span>
+                <button
+                  type="button"
+                  onClick={importShortlistToEstimate}
+                  className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 text-[12px] font-semibold text-on-accent transition-[filter] hover:brightness-95"
+                >
+                  <Check size={13} weight="bold" /> Добавить в смету
+                </button>
+              </div>
+            )}
 
             {/* Большое превью комплекта + разворот на весь экран */}
             <div className={s.configuratorSlot}>

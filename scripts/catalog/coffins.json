@@ -1,0 +1,198 @@
+[
+ {
+  "out": "fs-4.jpg",
+  "page": 3,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fs-6.jpg",
+  "page": 3,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsn-4.jpg",
+  "page": 4,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsn-6s.jpg",
+  "page": 4,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsr-4.jpg",
+  "page": 5,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsr-6.jpg",
+  "page": 5,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fkl-6s.jpg",
+  "page": 6,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fkl-6t.jpg",
+  "page": 6,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fklv-6s.jpg",
+  "page": 7,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fko-6.jpg",
+  "page": 7,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsi-6.jpg",
+  "page": 8,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsi-6b.jpg",
+  "page": 8,
+  "canvas": [
+   1280,
+   960
+  ],
+  "box": [
+   0.05,
+   0.63,
+   0.63,
+   0.875
+  ],
+  "mode": "rect",
+  "rect_inset": 0.05
+ },
+ {
+  "out": "fsi-6s.jpg",
+  "page": 9,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fsi-6t.jpg",
+  "page": 9,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fv-2.jpg",
+  "page": 31,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fva-2.jpg",
+  "page": 32,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fvp-2s.jpg",
+  "page": 33,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fch-2.jpg",
+  "page": 35,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fo-2.jpg",
+  "page": 36,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fh-2.jpg",
+  "page": 36,
+  "zone": "coffin_bottom",
+  "canvas": [
+   1280,
+   960
+  ]
+ },
+ {
+  "out": "fvk-2s.jpg",
+  "page": 38,
+  "zone": "coffin_top",
+  "canvas": [
+   1280,
+   960
+  ]
+ }
+]

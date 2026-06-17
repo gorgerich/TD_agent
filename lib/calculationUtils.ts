@@ -1323,57 +1323,98 @@ export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
     availableColors: ["белый"],
     tags: ["Сириус", "сосна"],
   },
+  // ── Двухкрышечники: реальные серии ПО «Фаворит» (фото-вырезы из каталога) ──
   {
     id: "coffin-premium-lacquered",
-    name: "«Америка» ФА-2",
+    name: "«Вегас» ФВ-2",
     category: "Гробы",
-    description: "Двухкрышечник. МДФ/сосна, постель атлас золото, лифт. 2,0 м.",
-    imageUrl: "/catalog/coffins/fa-2.jpg",
-    imagePlaceholder: "ФА-2",
+    description: "Серия Вегас, двухкрышечник. Сосна, постель атлас, лифт. Размер 2,0 м.",
+    imageUrl: "/catalog/coffins/fv-2.jpg",
+    imagePlaceholder: "ФВ-2",
     clientPrice: 65000,
     costPrice: 36000,
     quantityDefault: 1,
     availableColors: ["махагон", "тёмный"],
-    tags: ["Двухкрышечник", "премиум", "лифт"],
+    isRecommended: true,
+    tags: ["Вегас", "двухкрышечник", "премиум"],
   },
   {
-    id: "coffin-fp-2",
-    name: "«Пекин» ФП-2",
+    id: "coffin-fva-2",
+    name: "«Вегас» ФВА-2",
     category: "Гробы",
-    description: "Двухкрышечник. Сосна, постель велюр, матовое. Размер 2,0 м.",
-    imageUrl: "/catalog/coffins/fp-2.jpg",
-    imagePlaceholder: "ФП-2",
+    description: "Серия Вегас, двухкрышечник. Сосна, накладка-икона, постель атлас. 2,0 м.",
+    imageUrl: "/catalog/coffins/fva-2.jpg",
+    imagePlaceholder: "ФВА-2",
     clientPrice: 0,
     costPrice: 0,
     quantityDefault: 1,
-    availableColors: ["вишня"],
-    tags: ["Двухкрышечник", "велюр"],
+    availableColors: ["махагон", "тёмный"],
+    tags: ["Вегас", "двухкрышечник", "икона"],
   },
   {
-    id: "coffin-fe-2t",
-    name: "«Элегант» ФЭ-2Т",
+    id: "coffin-fvp-2s",
+    name: "«Вегас» ФВП-2С",
     category: "Гробы",
-    description: "Двухкрышечник. ЛДСП/сосна, постель атлас, глянец. 2,0 м.",
-    imageUrl: "/catalog/coffins/fe-2t.jpg",
-    imagePlaceholder: "ФЭ-2Т",
+    description: "Серия Вегас, двухкрышечник. Сосна, глянец. Размер 2,0 м.",
+    imageUrl: "/catalog/coffins/fvp-2s.jpg",
+    imagePlaceholder: "ФВП-2С",
+    clientPrice: 0,
+    costPrice: 0,
+    quantityDefault: 1,
+    availableColors: ["вишня", "махагон"],
+    tags: ["Вегас", "двухкрышечник"],
+  },
+  {
+    id: "coffin-fp-2",
+    name: "«Чикаго» ФЧ-2",
+    category: "Гробы",
+    description: "Серия Двухкрышечники. Сосна, постель велюр, матовое. Размер 2,0 м.",
+    imageUrl: "/catalog/coffins/fch-2.jpg",
+    imagePlaceholder: "ФЧ-2",
     clientPrice: 0,
     costPrice: 0,
     quantityDefault: 1,
     availableColors: ["тёмный", "махагон"],
-    tags: ["Двухкрышечник", "атлас"],
+    tags: ["Чикаго", "двухкрышечник", "велюр"],
+  },
+  {
+    id: "coffin-fe-2t",
+    name: "«Оксфорд» ФО-2",
+    category: "Гробы",
+    description: "Серия Двухкрышечники. ЛДСП/сосна, постель атлас, глянец. 2,0 м.",
+    imageUrl: "/catalog/coffins/fo-2.jpg",
+    imagePlaceholder: "ФО-2",
+    clientPrice: 0,
+    costPrice: 0,
+    quantityDefault: 1,
+    availableColors: ["тёмный", "махагон"],
+    tags: ["Оксфорд", "двухкрышечник", "атлас"],
   },
   {
     id: "coffin-fe-2v",
-    name: "«Элегант» ФЭ-2В",
+    name: "«Хьюстон» ФХ-2",
     category: "Гробы",
-    description: "Двухкрышечник. ЛДСП/сосна, постель атлас, глянец. 2,0 м.",
-    imageUrl: "/catalog/coffins/fe-2v.jpg",
-    imagePlaceholder: "ФЭ-2В",
+    description: "Серия Двухкрышечники. Сосна, постель атлас, глянец. Размер 2,0 м.",
+    imageUrl: "/catalog/coffins/fh-2.jpg",
+    imagePlaceholder: "ФХ-2",
     clientPrice: 0,
     costPrice: 0,
     quantityDefault: 1,
     availableColors: ["махагон", "светлый"],
-    tags: ["Двухкрышечник", "атлас"],
+    tags: ["Хьюстон", "двухкрышечник", "атлас"],
+  },
+  {
+    id: "coffin-fvk-2s",
+    name: "«Виктория» ФВК-2С",
+    category: "Гробы",
+    description: "Серия Двухкрышечники. Сосна, глянец, резьба. Размер 2,0 м.",
+    imageUrl: "/catalog/coffins/fvk-2s.jpg",
+    imagePlaceholder: "ФВК-2С",
+    clientPrice: 0,
+    costPrice: 0,
+    quantityDefault: 1,
+    availableColors: ["махагон", "тёмный"],
+    tags: ["Виктория", "двухкрышечник", "резьба"],
   },
   {
     id: "lining-standard",
@@ -1448,14 +1489,78 @@ export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
     tags: ["венок", "крест"],
   },
   {
+    id: "wreath-standart-red",
+    name: "Венок «Стандарт» красный",
+    category: "Венки",
+    description: "Серия Стандарт. Хвоя, красные розы. Размеры 90 / 110 / 120 / 140 см.",
+    imageUrl: "/catalog/wreaths/standart-red.jpg",
+    imagePlaceholder: "ВС",
+    clientPrice: 4500,
+    costPrice: 1800,
+    quantityDefault: 1,
+    tags: ["венок", "стандарт", "красный"],
+  },
+  {
+    id: "wreath-standart-blue",
+    name: "Венок «Стандарт» сине-белый",
+    category: "Венки",
+    description: "Серия Стандарт. Хвоя, синие и белые цветы. Размеры 90 / 110 / 120 / 140 см.",
+    imageUrl: "/catalog/wreaths/standart-blue.jpg",
+    imagePlaceholder: "ВС",
+    clientPrice: 4500,
+    costPrice: 1800,
+    quantityDefault: 1,
+    tags: ["венок", "стандарт", "синий"],
+  },
+  {
+    id: "wreath-standart-mix",
+    name: "Венок «Стандарт» ассорти",
+    category: "Венки",
+    description: "Серия Стандарт. Хвоя, смешанная цветочная композиция. Размеры 90 / 110 / 120 / 140 см.",
+    imageUrl: "/catalog/wreaths/standart-mix.jpg",
+    imagePlaceholder: "ВС",
+    clientPrice: 5000,
+    costPrice: 2000,
+    quantityDefault: 1,
+    tags: ["венок", "стандарт", "ассорти"],
+  },
+  // ── Кресты: реальные деревянные кресты ПО «Фаворит» (фото-вырезы) ──────────
+  {
     id: "cross-wood-catalog",
-    name: "Крест деревянный",
+    name: "Крест деревянный КДС-18",
     category: "Кресты / таблички",
-    description: "Временный деревянный крест",
-    imagePlaceholder: "КР",
+    description: "Крест на могилу, сосна, фигурный с орнаментом. Высота 220 см.",
+    imageUrl: "/catalog/crosses/kds-18.jpg",
+    imagePlaceholder: "КДС-18",
     clientPrice: 6000,
     costPrice: 3000,
     quantityDefault: 1,
+    isRecommended: true,
+    tags: ["крест", "сосна"],
+  },
+  {
+    id: "cross-kds-17",
+    name: "Крест деревянный КДС-17",
+    category: "Кресты / таблички",
+    description: "Крест на могилу, сосна, фигурный с орнаментом. Высота 220 см.",
+    imageUrl: "/catalog/crosses/kds-17.jpg",
+    imagePlaceholder: "КДС-17",
+    clientPrice: 0,
+    costPrice: 0,
+    quantityDefault: 1,
+    tags: ["крест", "сосна", "орнамент"],
+  },
+  {
+    id: "cross-kds-19",
+    name: "Крест деревянный КДС-19",
+    category: "Кресты / таблички",
+    description: "Крест на могилу, сосна, фигурный с крышкой. Высота 220 см.",
+    imageUrl: "/catalog/crosses/kds-19.jpg",
+    imagePlaceholder: "КДС-19",
+    clientPrice: 0,
+    costPrice: 0,
+    quantityDefault: 1,
+    tags: ["крест", "сосна", "крышка"],
   },
   {
     id: "nameplate",
@@ -1552,6 +1657,33 @@ export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
     isRecommended: true,
   },
 ];
+
+// ── Подборка из каталога (маркетплейс → шаг «Атрибутика») ────────────────────
+// Лёгкая корзина-черновик в localStorage: агент собирает позиции в каталоге,
+// затем одним нажатием переносит их в смету конкретной встречи.
+export type ShortlistEntry = { id: string; color?: string };
+export const CATALOG_SHORTLIST_KEY = "td:catalog:shortlist:v1";
+
+export function readShortlist(): ShortlistEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(CATALOG_SHORTLIST_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((e) => e && typeof e.id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function writeShortlist(list: ShortlistEntry[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CATALOG_SHORTLIST_KEY, JSON.stringify(list));
+    window.dispatchEvent(new Event("td-shortlist-change"));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 const toSafeNumber = (value: unknown) => {
   const number = Number(value ?? 0);

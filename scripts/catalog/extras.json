@@ -1,0 +1,11 @@
+[
+ {"out":"wreaths/wr-std-1.jpg","page":78,"box":[0.06,0.125,0.35,0.40],"canvas":[1100,1000]},
+ {"out":"wreaths/wr-std-2.jpg","page":78,"box":[0.65,0.125,0.95,0.40],"canvas":[1100,1000]},
+ {"out":"wreaths/wr-std-3.jpg","page":78,"box":[0.50,0.40,0.80,0.65],"canvas":[1100,1000]},
+ {"out":"wreaths/wr-std-4.jpg","page":78,"box":[0.06,0.65,0.35,0.94],"canvas":[1100,1000]},
+ {"out":"wreaths/wr-std-5.jpg","page":78,"box":[0.37,0.65,0.64,0.94],"canvas":[1100,1000]},
+ {"out":"wreaths/wr-std-6.jpg","page":78,"box":[0.65,0.65,0.95,0.94],"canvas":[1100,1000]},
+ {"out":"crosses/kds-17.jpg","page":73,"box":[0.05,0.105,0.345,0.45],"canvas":[760,1100]},
+ {"out":"crosses/kds-18.jpg","page":73,"box":[0.36,0.105,0.645,0.45],"canvas":[760,1100]},
+ {"out":"crosses/kds-19.jpg","page":73,"box":[0.05,0.50,0.40,0.82],"canvas":[760,1100]}
+]
