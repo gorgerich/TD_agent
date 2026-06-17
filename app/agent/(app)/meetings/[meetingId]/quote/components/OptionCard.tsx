@@ -20,7 +20,14 @@ export function OptionCard({
   return (
     <article className={`${s.optCard} ${selected ? s.optCardActive : ""}`}>
       <button type="button" className={s.optMain} onClick={onToggle} aria-pressed={selected}>
-        <span className={s.optMedia} aria-hidden="true">{item.imagePlaceholder}</span>
+        <span className={s.optMedia} aria-hidden="true">
+          {item.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.imageUrl} alt="" className={s.optMediaImg} />
+          ) : (
+            item.imagePlaceholder
+          )}
+        </span>
         <span className={s.optInfo}>
           <span className={s.optTop}>
             <span className={s.optName}>{item.name}</span>

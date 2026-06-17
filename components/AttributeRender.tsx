@@ -29,6 +29,9 @@ const CASKET_COLORS: Record<string, CasketPalette> = {
   "светлый орех": { base: "#9a6741", side: "#684125", top: "#b98255", highlight: "#e1b07d" },
   "вишня": { base: "#743024", side: "#431811", top: "#934334", highlight: "#c86d58" },
   "махагон": { base: "#4d1f18", side: "#2b0d09", top: "#6b2a20", highlight: "#b85c48" },
+  "груша": { base: "#a9713f", side: "#7c4e26", top: "#c28a55", highlight: "#e6b67e" },
+  "светлый": { base: "#9a6741", side: "#684125", top: "#b98255", highlight: "#e1b07d" },
+  "тёмный": { base: "#5a321f", side: "#321b10", top: "#744229", highlight: "#b47a4d" },
 };
 
 const FALLBACK_COLOR = "бордовый";
