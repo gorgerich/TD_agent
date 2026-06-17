@@ -144,8 +144,8 @@ export default function CatalogPage() {
         </div>
       </div>
 
-      {/* Категории */}
-      <div className="rise mb-2.5 flex flex-wrap gap-2">
+      {/* Категории — сегментированный фильтр (паттерн td-segmented, не border-чипы) */}
+      <nav className="rise td-segmented mb-2.5" aria-label="Категории каталога">
         {(["Все", ...present] as CatFilter[]).map((c) => {
           const count = c === "Все" ? AGENT_ATTRIBUTION_CATALOG.length : AGENT_ATTRIBUTION_CATALOG.filter((i) => i.category === c).length;
           const on = cat === c;
@@ -153,38 +153,36 @@ export default function CatalogPage() {
             <button
               key={c}
               type="button"
+              className="td-segment"
+              data-active={on ? "true" : undefined}
+              aria-current={on ? "true" : undefined}
               onClick={() => selectCat(c)}
-              className={[
-                "rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-colors",
-                on ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
-              ].join(" ")}
             >
-              {c} <span className={on ? "opacity-80" : "text-ink-3"}>{count}</span>
+              {c}
+              <span className={`tnum text-[11px] ${on ? "text-ink/55" : "text-ink-3"}`}>{count}</span>
             </button>
           );
         })}
-      </div>
+      </nav>
 
-      {/* Серии (для гробов) */}
+      {/* Серии (для гробов) — вторичный сегментированный фильтр */}
       {seriesOptions.length > 0 && (
-        <div className="rise mb-5 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-3">Серия:</span>
-          {(["Все", ...seriesOptions] as string[]).map((sName) => {
-            const on = series === sName;
-            return (
+        <div className="rise mb-5 flex min-w-0 flex-col gap-1.5">
+          <span className="td-eyebrow">Серия</span>
+          <nav className="td-segmented" aria-label="Серия гроба">
+            {(["Все", ...seriesOptions] as string[]).map((sName) => (
               <button
                 key={sName}
                 type="button"
+                className="td-segment"
+                data-active={series === sName ? "true" : undefined}
+                aria-current={series === sName ? "true" : undefined}
                 onClick={() => setSeries(sName)}
-                className={[
-                  "rounded-full border px-3 py-1 text-[12px] transition-colors",
-                  on ? "border-accent bg-accent-soft text-accent" : "border-line bg-surface text-ink-2 hover:border-line-strong",
-                ].join(" ")}
               >
                 {sName}
               </button>
-            );
-          })}
+            ))}
+          </nav>
         </div>
       )}
 
@@ -406,7 +404,7 @@ function ShortlistTray({
 }) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-4">
-      <div className="w-full max-w-[640px] overflow-hidden rounded-[18px] border border-line bg-surface shadow-[var(--shadow-lift)]">
+      <div className="w-full max-w-[640px] overflow-hidden rounded-[18px] bg-surface shadow-[var(--shadow-lift),var(--hl-top)]">
         {open && (
           <div className="max-h-[40vh] overflow-y-auto border-b border-line p-3">
             {items.map((i) => (

@@ -35,7 +35,7 @@
   /* Текст: INKBLACK, без чистого чёрного. */
   --color-ink: #001f27;
   --color-ink-2: #35535b;
-  --color-ink-3: #748d92;
+  --color-ink-3: #5a767c; /* было #748d92 (3.52:1); затемнён до 4.86:1 — WCAG AA для текста */
 
   /* Primary: EVERGREEN. Marine только для digital/help states. */
   --color-accent: #003a35;
@@ -44,7 +44,7 @@
   --color-on-accent: #f7fbf6;
 
   /* Дозированный тёплый акцент на ценности (деньги) — тёплый пятак на холодном */
-  --color-gold: #b4791f;
+  --color-gold: #936216; /* было #b4791f (3.69:1); затемнён до 5.25:1 — суммы/комиссии проходят WCAG AA */
   --color-gold-soft: #f7ecd6;
 
   /* Тёмная поверхность: INKBLACK + EVERGREEN. */
@@ -179,6 +179,14 @@ button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
 button, a, [role="button"] { touch-action: manipulation; }
 button, [role="button"] { min-height: 44px; }
 button { transition: transform 0.12s var(--ease-out), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
+
+/* Доступность: видимое фокус-кольцо для клавиатуры на ВСЕХ интерактивных
+   элементах (раньше только в <Button>). :where() = специфичность 0, поэтому
+   собственные фокус-стили компонентов (Button, .skip-link) остаются главнее. */
+:where(a, button, [role="button"], [role="tab"], [role="option"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
 button:not(:disabled):active { transform: scale(0.97); }
 
 /* Сдержанный hover-подъём (используется точечно) */

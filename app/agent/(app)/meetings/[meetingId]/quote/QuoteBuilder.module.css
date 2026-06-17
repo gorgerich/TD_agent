@@ -695,7 +695,7 @@
   color: var(--color-ink-2);
   font-size: 14px; font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s, opacity .15s;
 }
 .serviceBtn:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
 .serviceBtnActive {
@@ -760,7 +760,7 @@
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s, opacity .15s;
 }
 .pkgCard:hover { border-color: var(--color-line-strong); }
 .pkgCardActive {
@@ -798,7 +798,7 @@
   color: var(--color-ink-2);
   font-size: 12px; font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s, opacity .15s;
   font-variant-numeric: tabular-nums;
 }
 .pill:hover { border-color: var(--color-line-strong); color: var(--color-ink); }
@@ -879,7 +879,7 @@
   border: 1px solid var(--color-line);
   background: var(--color-surface);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s, opacity .15s;
 }
 .svcItem:hover { border-color: var(--color-line-strong); }
 .svcItemActive { border-color: var(--color-accent); background: var(--color-accent-soft); }
@@ -890,7 +890,7 @@
   display: grid; place-items: center;
   color: var(--color-on-accent);
   font-size: 12px; font-weight: 700;
-  transition: all 0.15s;
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, transform .15s, opacity .15s;
 }
 .svcCheckOn { background: var(--color-accent); border-color: var(--color-accent); }
 .svcName { flex: 1; font-size: 14px; color: var(--color-ink); min-width: 0; }
