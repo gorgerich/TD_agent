@@ -80,10 +80,11 @@ export default function CoView({ code }: { code: string }) {
 
         setStarted(true);
         if (data.updatedAt) setUpdatedAt(data.updatedAt);
+        // Агент (имя/телефон) показываем и в живой сессии - именованный человек = доверие.
+        setAgentName(data.agentName ?? null);
+        setAgentPhone(data.agentPhone ?? null);
         if (data.isSnapshot) {
           setIsSnapshot(true);
-          setAgentName(data.agentName ?? null);
-          setAgentPhone(data.agentPhone ?? null);
           // Stop polling - snapshot is static
           if (intervalId) { clearInterval(intervalId); intervalId = null; }
         }
@@ -198,6 +199,24 @@ export default function CoView({ code }: { code: string }) {
         </div>
       </div>
 
+      {/* Agent presence - именованный человек на связи (живая ссылка) */}
+      {!isSnapshot && agentName && (
+        <div className="mb-5 flex items-center gap-3 rounded-[var(--radius-card)] bg-surface px-4 py-3.5 shadow-soft">
+          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[14px] font-bold text-accent">
+            {agentName.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-3">С вами на связи</span>
+            <span className="block truncate text-[14px] font-semibold text-ink">{agentName}</span>
+          </span>
+          {agentPhone && (
+            <a href={`tel:${agentPhone}`} className="flex-shrink-0 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
+              Позвонить
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Attribution render (live cobrowse only) */}
       {!isSnapshot && (
         <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
@@ -218,12 +237,12 @@ export default function CoView({ code }: { code: string }) {
               <div key={i} className={i > 0 ? "border-t border-line" : ""}>
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
-                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(section.total)}</span>
+                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(section.total)}</span>
                 </div>
                 {section.items?.map((item, j) => (
                   <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{item.label}</span>
-                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">
+                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">
                       {item.included ? <span className="text-success text-[12px] font-semibold">включено</span> : item.price != null ? formatCurrency(item.price) : ""}
                     </span>
                   </div>
@@ -235,7 +254,7 @@ export default function CoView({ code }: { code: string }) {
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Услуги и атрибутика</span>
-                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(estimateTotal)}</span>
+                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(estimateTotal)}</span>
                 </div>
                 {estimateItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
@@ -244,7 +263,7 @@ export default function CoView({ code }: { code: string }) {
                       {item.selectedColor ? ` - ${item.selectedColor}` : ""}
                       {item.quantity > 1 ? ` ×${item.quantity}` : ""}
                     </span>
-                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">{formatCurrency(item.clientPrice * item.quantity)}</span>
+                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">{formatCurrency(item.clientPrice * item.quantity)}</span>
                   </div>
                 ))}
               </div>
@@ -254,12 +273,12 @@ export default function CoView({ code }: { code: string }) {
               <div className="border-t border-line">
                 <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
-                  <span className="font-mono text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(externalTotal)}</span>
+                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(externalTotal)}</span>
                 </div>
                 {externalExpenses.map((expense) => (
                   <div key={expense.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
                     <span className="text-[14px] text-ink-2">{expense.category}: {expense.name}</span>
-                    <span className="flex-shrink-0 font-mono text-[14px] text-ink tabular-nums">{formatCurrency(expense.clientPrice)}</span>
+                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">{formatCurrency(expense.clientPrice)}</span>
                   </div>
                 ))}
               </div>
@@ -296,6 +315,26 @@ export default function CoView({ code }: { code: string }) {
           )}
         </div>
       )}
+
+      {/* Что дальше - спокойное объяснение пути, снимает тревогу */}
+      <section className="mb-5 rounded-[var(--radius-card)] bg-surface px-5 py-4 shadow-soft">
+        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Как проходит дальше</h2>
+        <ol className="space-y-3">
+          {[
+            ["Смотрите спокойно", "Изучите смету в удобном темпе. Ничего не списывается и не фиксируется автоматически."],
+            ["Обсуждаете с агентом", "Любой пункт можно изменить или убрать. Агент ответит на вопросы и поможет выбрать."],
+            ["Подтверждаете - остальное на нас", "После вашего согласия цена фиксируется в договоре, организацией занимаемся мы."],
+          ].map(([t, d], i) => (
+            <li key={i} className="flex gap-3">
+              <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-bold text-accent">{i + 1}</span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-semibold text-ink">{t}</span>
+                <span className="mt-0.5 block text-[13px] leading-relaxed text-ink-2">{d}</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      </section>
 
       {/* Footer */}
       <p className="mt-6 text-center text-[12px] text-ink-3">
