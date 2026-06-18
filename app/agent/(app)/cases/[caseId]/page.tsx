@@ -120,14 +120,6 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     ceremonyPlace: lead.ceremonyPlace ?? "",
   };
 
-  // Derived checklist (read-only статусы - без отдельной таблицы)
-  const checklist: { label: string; done: boolean }[] = [
-    { label: "Клиент заведён", done: true },
-    { label: "Назначена встреча", done: meetings.length > 0 },
-    { label: "Собрана смета", done: versions.length > 0 },
-    { label: "Оформлен договор", done: orders.length > 0 },
-    { label: "Принята оплата", done: orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase())) },
-  ];
   const docs = rawDocs.map((d) => ({
     id: d.id,
     name: d.name,
@@ -181,47 +173,6 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     if (docs.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч - документов нет` });
   }
 
-  const latestVersion = versions.reduce<(typeof versions)[number] | null>((latest, version) => {
-    if (!latest) return version;
-    return version.createdAt.getTime() > latest.createdAt.getTime() ? version : latest;
-  }, null);
-  const openTasksCount = tasks.filter((task) => !task.completedAt).length;
-  const requiredDocCategories = ["Свидетельство о смерти", "Паспорт", "Договор"];
-  const missingRequiredDocs = requiredDocCategories.filter((category) => !docs.some((doc) => doc.category === category)).length;
-  const clientState = meetings.some((m) => m.coAgreedAt)
-    ? "согласовал"
-    : meetings.some((m) => m.coViewedAt)
-      ? "открыл смету"
-      : cobrowse
-        ? "ссылка готова"
-        : "не отправляли";
-  const outcomeRows: Array<{ label: string; value: string; tone: "neutral" | "success" | "warning" }> = [
-    {
-      label: "Смета",
-      value: latestVersion ? moneyFromKopecks(latestVersion.total) : "не собрана",
-      tone: latestVersion ? "success" : "warning",
-    },
-    {
-      label: "Клиент",
-      value: clientState,
-      tone: clientState === "согласовал" || clientState === "открыл смету" ? "success" : cobrowse ? "neutral" : "warning",
-    },
-    {
-      label: "Документы",
-      value: missingRequiredDocs === 0 ? "минимум собран" : `нужно ${missingRequiredDocs}`,
-      tone: missingRequiredDocs === 0 ? "success" : "warning",
-    },
-    {
-      label: "Задачи",
-      value: openTasksCount > 0 ? `${openTasksCount} открыто` : "нет открытых",
-      tone: openTasksCount > 0 ? "neutral" : "success",
-    },
-  ];
-  const meetingOutcomeAction = latestVersion
-    ? "Зафиксируйте документы, следующий контакт и оплату."
-    : firstMeeting
-      ? "Откройте встречу и соберите первую смету."
-      : "Назначьте встречу и заполните вводные по семье.";
   const routeMeta = [
     `${curIdx + 1}/${STAGE_ORDER.length} этап`,
     meetings.length > 0 ? ruCount(meetings.length, ["встреча", "встречи", "встреч"]) : "встреч нет",
@@ -286,27 +237,11 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </section>
       )}
 
-      <section className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-4 shadow-[var(--shadow-soft),var(--hl-top)]">
-        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <span className="td-eyebrow">Итог встречи</span>
-            <h2 className="mt-1 text-[16px] font-semibold text-ink">Что уже зафиксировано</h2>
-          </div>
-          <p className="max-w-[420px] text-[12px] leading-relaxed text-ink-2 sm:text-right">{meetingOutcomeAction}</p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-4">
-          {outcomeRows.map((item) => (
-            <OutcomeTile key={item.label} {...item} />
-          ))}
-        </div>
-      </section>
-
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         {/* CENTER - operational (tabbed to kill the card wall) */}
         <main className="rise rise-2 order-1 min-w-0">
           <CaseTabs
             caseId={id}
-            checklist={checklist}
             tasks={tasks}
             docs={docs}
             notes={notes}
@@ -321,20 +256,6 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <aside className="rise rise-2 order-2 min-w-0 space-y-4">
           <div className="td-shell space-y-2.5 p-4">
             <span className="td-eyebrow">Действия по кейсу</span>
-            {firstMeeting ? (
-              <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
-                Открыть смету
-              </Action>
-            ) : (
-              <Action href={`/agent/meetings/new?leadId=${id}`} icon={<CalendarDots size={16} />} primary>
-                Назначить встречу
-              </Action>
-            )}
-            {cobrowse && (
-              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external>
-                Показать клиенту
-              </Action>
-            )}
             <Action href={`/agent/meetings/new?leadId=${id}`} icon={<Plus size={16} />}>
               Новая встреча
             </Action>
@@ -466,20 +387,6 @@ function MetaPill({ icon, label, value, href }: { icon: ReactNode; label: string
   }
   return (
     <span className={cls}>{content}</span>
-  );
-}
-
-function OutcomeTile({ label, value, tone }: { label: string; value: string; tone: "neutral" | "success" | "warning" }) {
-  const dot = tone === "success" ? "bg-success" : tone === "warning" ? "bg-warning" : "bg-accent";
-  const bg = tone === "success" ? "bg-success-soft/50" : tone === "warning" ? "bg-warning-soft/55" : "bg-surface-2/55";
-  return (
-    <div className={`rounded-[12px] border border-line px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] ${bg}`}>
-      <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
-        <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-        {label}
-      </span>
-      <span className="tnum mt-1 block truncate text-[14px] font-semibold text-ink">{value}</span>
-    </div>
   );
 }
 
