@@ -35,5 +35,26 @@
 (в конструкторе — placeholder, в смете — SVG-предпросмотр).
 
 ## Венок (требование)
-Вертикальный овальный/каплевидный православный, ~110–140 см по масштабу,
+Вертикальный овальный/каплевидный православный, ~110-140 см по масштабу,
 на стойке, справа/справа-сзади. НЕ круглый западный, НЕ декоративный.
+
+## Что уже сгенерировано (из реальных фото каталога «Фаворит»)
+Слои собраны скриптом `scripts/catalog/scene_layers.py` из белых вырезов
+(`cutout.py`) — каждый товар поставлен в свой слот на общий кадр 4:3 + мягкая тень.
+- coffins: classic-black, classic-dark-oak, classic-mahogany, classic-walnut
+- crosses: orthodox-six-point, orthodox-eight-point
+- wreaths: orthodox-oval-red-white, orthodox-oval-white-green, orthodox-oval-burgundy-green
+- backgrounds: studio-neutral
+
+Пробелы (показывают SVG-фоллбэк, дозаполнить позже):
+- **classic-white** — белый гроб на белом фоне не отделяется порогом; нужен
+  прозрачный вырез через GrabCut (`cutout.py` alpha), не из белого JPG.
+- **upholstery/** — у нас закрытые гробы (крышка), интерьер не виден; слой не нужен.
+
+### Как добавить слой
+```bash
+cd scripts/catalog
+CUTOUT_DIR=/путь/к/cut SCENE_OUT=/путь/scene python3 scene_layers.py
+# затем скопировать scene/<категория>/<id>.webp в public/visualizer/<категория>/
+```
+Имя файла = id, который запрашивает `AttributeRender` (см. `previewIdsFromConfig`).
