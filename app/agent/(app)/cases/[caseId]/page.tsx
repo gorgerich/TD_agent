@@ -380,7 +380,7 @@ function RouteActionPanel({
               {Math.round(((current + 1) / STAGE_ORDER.length) * 100)}%
             </span>
           </div>
-          <ol className="grid gap-2 md:grid-cols-6">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             {STAGE_ORDER.map((s, i) => {
               const done = i < current;
               const active = i === current;
@@ -401,7 +401,7 @@ function RouteActionPanel({
                     }`}>
                       {done ? <Check size={12} weight="bold" /> : i + 1}
                     </span>
-                    <span className={`truncate text-[12px] ${active ? "font-semibold" : "font-medium"}`}>{s}</span>
+                    <span className={`text-[12px] leading-tight ${active ? "font-semibold" : "font-medium"}`}>{s}</span>
                   </span>
                 </li>
               );

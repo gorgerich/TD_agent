@@ -13,6 +13,7 @@ import {
   Package,
 } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/States";
 import {
   AGENT_ATTRIBUTION_CATALOG,
   CATALOG_CATEGORIES,
@@ -188,14 +189,12 @@ export default function CatalogPage() {
 
       {/* Сетка */}
       {items.length === 0 ? (
-        <div className="rise rise-1 td-shell px-6 py-14 text-center">
-          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-            <Package size={24} weight="duotone" />
-          </span>
-          <h2 className="td-display text-[22px] text-ink">Ничего не найдено</h2>
-          <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
-            Измените запрос или категорию.
-          </p>
+        <div className="rise rise-1">
+          <EmptyState
+            icon={<Package size={24} weight="duotone" />}
+            title="Ничего не найдено"
+            description="Измените запрос или категорию."
+          />
         </div>
       ) : (
         <div className="rise rise-1 grid grid-cols-2 gap-3 pb-24 sm:grid-cols-3 lg:grid-cols-4">
