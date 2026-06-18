@@ -49,7 +49,7 @@ import {
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
 import { hydratePackage, withoutPackageItems, PACKAGE_ITEM_SOURCE } from "@/lib/packagePresets";
 import { formatDelta } from "@/lib/calculationUtils";
-import RitualConfigurator from "@/components/configurator/RitualConfigurator";
+import AttributeRender from "@/components/AttributeRender";
 import { ToggleRow } from "./components/ToggleRow";
 import { MemorialBlock } from "./components/MemorialBlock";
 import { EstimateItemRow } from "./components/EstimateItemRow";
@@ -1040,9 +1040,15 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               </div>
             )}
 
-            {/* Большое превью комплекта + разворот на весь экран */}
+            {/* Живая визуализация комплекта - собирается из выбранных позиций сметы */}
             <div className={s.configuratorSlot}>
-              <RitualConfigurator mode="inline" />
+              <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-soft">
+                <div className="border-b border-line px-4 py-3">
+                  <p className="text-[13px] font-semibold text-ink">Визуализация комплекта</p>
+                  <p className="mt-0.5 text-[11px] text-ink-3">Сцена собирается из выбранного гроба, креста и венка - меняется при выборе</p>
+                </div>
+                <AttributeRender selection={attributes} selectedItems={estimateItems} className="block w-full" />
+              </div>
             </div>
 
             <div className={s.categoryRail} aria-label="Категории каталога">
