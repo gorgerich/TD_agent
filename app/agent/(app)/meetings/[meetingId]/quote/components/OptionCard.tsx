@@ -23,7 +23,7 @@ export function OptionCard({
         <span className={s.optMedia} aria-hidden="true">
           {item.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.imageUrl} alt="" className={s.optMediaImg} />
+            <img src={item.imageUrl} alt="" className={`${s.optMediaImg} td-img`} />
           ) : (
             item.imagePlaceholder
           )}

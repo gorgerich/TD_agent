@@ -11,3 +11,6 @@ taste-skill/
 .DS_Store
 .vercel
 .vercel
+
+# Installed agent skills (npx skills add) — not project code
+.agents/

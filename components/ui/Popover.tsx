@@ -51,7 +51,7 @@ export function Popover({
         aria-expanded={open}
         aria-label={label}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}
-        className="td-icon-button h-9 w-9"
+        className="td-icon-button h-10 w-10"
       >
         {trigger}
       </button>
