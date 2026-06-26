@@ -166,11 +166,14 @@ def process(page, box, out_path, canvas=(1200, 900), rect_inset=0.06, dpi=150,
     return out_path
 
 # Standard zones (fractions of page) for the regular 2-product coffin layout.
+# Coffins span almost the full page width; the old coffin_top (r=0.575) sliced
+# every top-row coffin in half at the foot. These capture the whole object with
+# margin; the product-name / spec text in the crop is dropped by largest-CC.
 ZONES = {
-    "coffin_top":    (0.04, 0.15, 0.575, 0.43),
-    "coffin_bottom": (0.03, 0.60, 0.97,  0.95),
+    "coffin_top":    (0.05, 0.145, 0.95, 0.45),
+    "coffin_bottom": (0.05, 0.55,  0.95, 0.87),
     "wreath":        None,   # set per-cell for 3x2 grids
-    "full":          (0.04, 0.10, 0.96,  0.95),
+    "full":          (0.04, 0.10,  0.96, 0.95),
 }
 # 6-up wreath/cross grid cells (3 cols x 2 rows), as page fractions.
 def grid_cell(col, row, cols=3, rows=2, top=0.085, bottom=0.95, left=0.02, right=0.98):

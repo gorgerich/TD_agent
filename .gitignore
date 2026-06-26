@@ -14,3 +14,10 @@ taste-skill/
 
 # Installed agent skills (npx skills add) — not project code
 .agents/
+
+# catalog AI-matte dev artifacts (do not commit)
+scripts/catalog/.cache/
+scripts/catalog/crops/
+scripts/catalog/_ai_contact.png
+scripts/catalog/_contact_sheet.png
+scripts/catalog/catalog-2020.pdf

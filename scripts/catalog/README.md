@@ -41,6 +41,34 @@ python3 cutout.py extras.json  ../../public/catalog        # out-пути с п�
 `coffin_bottom`, `full`. Для сеток венков/крестов задавайте `box` вручную
 (венки на стр. идут в шахматном порядке — тесните рамку под один предмет).
 
+## AI-вырезка (рекомендуется для бигтех-качества) — `ai_matte.py`
+
+`cutout.py` (GrabCut) оставляет фрагменты фона, «полугробы» и кривые края на
+сложных кадрах. `ai_matte.py` заменяет матирование на обучаемую модель (rembg:
+ISNet / BiRefNet) — чистый альфа-канал, тонкие листья венков и филигрань крестов
+сохраняются, фон не «протекает».
+
+Запускать **на Mac** (в песочнице агента не работает: лимит ~45с на команду,
+нет персистентности, заблокирована загрузка весов модели). Из корня репозитория:
+
+```bash
+brew install poppler
+python3 -m venv .venv && source .venv/bin/activate
+pip install "rembg[cpu]" onnxruntime pillow opencv-python-headless numpy
+export CATALOG_PDF="/полный/путь/Каталог 2020.pdf"
+export MATTE_MODEL=birefnet-general-lite     # лучшее качество/размер; или isnet-general-use
+python3 scripts/catalog/ai_matte.py          # все категории
+# python3 scripts/catalog/ai_matte.py coffins   # одна категория
+open scripts/catalog/_ai_contact.png         # QA-лист: оценить качество одним взглядом
+```
+
+Перезаписывает `public/catalog/<cat>/<sku>.jpg` (карточка на белом) и
+`public/visualizer/<cat>/<sku>.webp` (слой в зале). Идемпотентно. Источники:
+гробы/кресты — рендер+кроп из PDF (карты `coffins.json` / `extras.json`); венки —
+их готовые белые карточки. Модели качаются один раз в `~/.u2net/`:
+`isnet-general-use` ~170 МБ (надёжный дефолт), `birefnet-general-lite` ~220 МБ
+(рекомендация), `birefnet-general` ~900 МБ (максимум).
+
 ## Подсказки по качеству
 
 - Тёмные/тёплые гробы — берутся «из коробки».

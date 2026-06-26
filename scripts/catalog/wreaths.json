@@ -1,0 +1,9 @@
+[
+ {"out":"wreaths/standart-mix.jpg","page":77,"box":[0.34,0.14,0.66,0.41],"canvas":[1100,1000]},
+ {"out":"wreaths/standart-blue.jpg","page":77,"box":[0.62,0.13,0.98,0.41],"canvas":[1100,1000]},
+ {"out":"wreaths/standart-red.jpg","page":78,"box":[0.33,0.64,0.67,0.92],"canvas":[1100,1000]},
+ {"out":"wreaths/cvetopad.jpg","page":82,"box":[0.12,0.58,0.47,0.90],"canvas":[1100,1000]},
+ {"out":"wreaths/avtorskie.jpg","page":88,"box":[0.50,0.14,0.94,0.52],"canvas":[1100,1000]},
+ {"out":"wreaths/tricolor.jpg","page":97,"box":[0.08,0.14,0.44,0.38],"canvas":[1100,1000]},
+ {"out":"wreaths/krest.jpg","page":97,"box":[0.28,0.38,0.72,0.68],"canvas":[1100,1000]}
+]
