@@ -162,6 +162,50 @@ function SummaryRows({ summary }: { summary?: RitualSetSummary }) {
   );
 }
 
+// AI-сцена: фотореалистичный кадр зала с выбранным гробом (фон) + венок-накладка
+// на правом мольберте. Венок — тот же реальный вырез из каталога (консистентность).
+function SceneStage({
+  sceneSrc,
+  wreathSrc,
+  onSceneError,
+}: {
+  sceneSrc: string;
+  wreathSrc?: string;
+  onSceneError: () => void;
+}) {
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={sceneSrc}
+        alt="Сцена ритуального комплекта"
+        onError={onSceneError}
+        draggable={false}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
+      />
+      {wreathSrc && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={wreathSrc}
+          alt="Венок"
+          draggable={false}
+          style={{
+            position: "absolute",
+            right: "2.5%",
+            top: "19%",
+            height: "57%",
+            width: "auto",
+            objectFit: "contain",
+            zIndex: 1,
+            filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.30))",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 export default function RitualSetPreview({
   coffinId,
   upholsteryId,
@@ -190,6 +234,29 @@ export default function RitualSetPreview({
   }
   const showStage = Boolean(coffinSrc) && !coffinErr;
 
+  // AI-сцена приоритетнее слоёв: /visualizer/scenes/<coffinId>.jpg.
+  const sceneSrc = coffinId ? `/visualizer/scenes/${coffinId}.jpg` : undefined;
+  const wreathCutSrc = showWreath && wreathId ? `/visualizer/wreaths-cut/${wreathId}.webp` : undefined;
+  const [sceneErr, setSceneErr] = useState(false);
+  const [prevScene, setPrevScene] = useState(sceneSrc);
+  if (prevScene !== sceneSrc) {
+    setPrevScene(sceneSrc);
+    setSceneErr(false);
+  }
+  const useScene = Boolean(sceneSrc) && !sceneErr;
+  const hasStage = useScene || showStage;
+  const stageNode = useScene ? (
+    <SceneStage sceneSrc={sceneSrc as string} wreathSrc={wreathCutSrc} onSceneError={() => setSceneErr(true)} />
+  ) : showStage ? (
+    <LayerStack
+      coffinSrc={coffinSrc}
+      upholsterySrc={upholsterySrc}
+      wreathSrc={wreathSrc}
+      crossSrc={crossSrc}
+      onCoffinError={() => setCoffinErr(true)}
+    />
+  ) : null;
+
   const [zoom, setZoom] = useState(false);
   useEffect(() => {
     if (!zoom) return;
@@ -201,17 +268,7 @@ export default function RitualSetPreview({
   if (variant === "bare") {
     return (
       <div className={`absolute inset-0 ${className ?? ""}`}>
-        {showStage ? (
-          <LayerStack
-            coffinSrc={coffinSrc}
-            upholsterySrc={upholsterySrc}
-            wreathSrc={wreathSrc}
-            crossSrc={crossSrc}
-            onCoffinError={() => setCoffinErr(true)}
-          />
-        ) : (
-          <Placeholder node={fallback} onDark />
-        )}
+        {hasStage ? stageNode : <Placeholder node={fallback} onDark />}
       </div>
     );
   }
@@ -220,20 +277,10 @@ export default function RitualSetPreview({
     <div className={className}>
       <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
         <div className="relative aspect-[4/3] max-h-[58vh] w-full">
-          {showStage ? (
-            <LayerStack
-              coffinSrc={coffinSrc}
-              upholsterySrc={upholsterySrc}
-              wreathSrc={wreathSrc}
-              crossSrc={crossSrc}
-              onCoffinError={() => setCoffinErr(true)}
-            />
-          ) : (
-            <Placeholder node={fallback} />
-          )}
+          {hasStage ? stageNode : <Placeholder node={fallback} />}
         </div>
 
-        {enableZoom && showStage && (
+        {enableZoom && hasStage && (
           <button
             type="button"
             onClick={() => setZoom(true)}
@@ -270,13 +317,7 @@ export default function RitualSetPreview({
               <X size={18} />
             </button>
             <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-pop">
-              <LayerStack
-                coffinSrc={coffinSrc}
-                upholsterySrc={upholsterySrc}
-                wreathSrc={wreathSrc}
-                crossSrc={crossSrc}
-                onCoffinError={() => setCoffinErr(true)}
-              />
+              {stageNode}
             </div>
           </div>
         </div>

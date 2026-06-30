@@ -63,9 +63,13 @@ CROP = (0, 640, 1536, 1792)            # 4:3 stage crop of the hall backdrop
 CW, CH = CROP[2] - CROP[0], CROP[3] - CROP[1]   # 1536 x 1152
 DY = CROP[1]
 SLOTS = {
-    "coffins": dict(cx=650,  by=1268 - DY, w=600, soft=False, sh=True),
-    "wreaths": dict(cx=1265, by=1365 - DY, h=520, soft=True,  sh=False),
-    "crosses": dict(cx=210,  by=1300 - DY, h=600, soft=False, sh=False),
+    # coffin rests ON the catafalque top (front edge ~y648 in crop space), sized to the table
+    "coffins": dict(cx=720,  by=648, w=700, soft=False, sh=True),
+    # wreath stands on the gold easel at right
+    "wreaths": dict(cx=1300, by=720, h=470, soft=True,  sh=False),
+    # cross layer is still generated (catalog card); the hall backdrop already
+    # has its own cross, so the scene does not composite a product cross here.
+    "crosses": dict(cx=210,  by=660, h=600, soft=False, sh=False),
 }
 CARD = {"coffins": (1280, 960), "wreaths": (1100, 1000), "crosses": (760, 1100)}
 
