@@ -118,6 +118,9 @@ def main():
     done = []
     for f in files:
         sku = os.path.splitext(os.path.basename(f))[0]
+        if os.path.exists(os.path.join(OUT, sku + ".jpg")) and os.environ.get("SCENE_FORCE") != "1":
+            print("skip", sku, "(scene exists)")
+            continue
         try:
             img = generate(client, f)
             if img is None:
