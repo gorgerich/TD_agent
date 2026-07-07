@@ -53,6 +53,7 @@ async function getCases(agentId: number): Promise<CasesData> {
     const leads = await prisma.clientLead.findMany({
       where: { agentId },
       orderBy: { createdAt: "desc" },
+      take: 400, // защита от неограниченной выборки (20 агентов × сотни дел)
       include: {
         documents: { select: { category: true } },
         meetings: {

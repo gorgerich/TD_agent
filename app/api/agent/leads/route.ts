@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
     const leads = await prisma.clientLead.findMany({
       where: { agentId: session.agentId },
       orderBy: { createdAt: "desc" },
+      take: 300,
       include: { meetings: { select: { status: true } } },
     });
     return NextResponse.json(leads.map((l) => ({ ...l, context: decryptField(l.context) })));

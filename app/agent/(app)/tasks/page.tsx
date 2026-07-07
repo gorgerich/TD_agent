@@ -30,10 +30,10 @@ export default async function TasksPage() {
   const tasks = await getTasks(session?.agentId ?? 0);
 
   return (
-    <div className="td-page mx-auto w-full max-w-[1180px] overflow-x-hidden px-4 py-5 sm:px-7 sm:py-7">
+    <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-5">
         <span className="td-eyebrow">Работа по кейсам</span>
-        <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Задачи</h1>
+        <h1 className="td-display mt-1.5 text-[30px] text-ink sm:text-[38px]">Задачи</h1>
       </header>
 
       {tasks.length === 0 ? (

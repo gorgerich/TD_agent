@@ -125,10 +125,10 @@ export default async function DocumentsPage({
   const groups = [...byCase.entries()];
 
   return (
-    <div className="td-page mx-auto w-full max-w-[1180px] overflow-x-hidden px-4 py-5 sm:px-7 sm:py-7">
+    <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-5">
         <span className="td-eyebrow">Файлы кейсов</span>
-        <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[34px]">Документы</h1>
+        <h1 className="td-display mt-1.5 text-[30px] text-ink sm:text-[38px]">Документы</h1>
         <p className="mt-2 text-[13px] text-ink-2">
           <span className="font-semibold text-ink">{requiredCount}</span> требуется · <span className="font-semibold text-ink">{uploadedCount}</span> загружено
         </p>

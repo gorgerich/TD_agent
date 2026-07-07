@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAgent, assertMeetingOwned, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
+import { requireAgent, assertMeetingAccess, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,7 @@ export async function POST(
 
     // Владение: встреча должна принадлежать агенту сессии (закрывает IDOR).
     // agentId === 0 — только dev-заглушка без куки (в prod невозможна).
-    if (session.agentId) await assertMeetingOwned(meetingId, session.agentId);
+    await assertMeetingAccess(meetingId, session);
 
     // total из calculationUtils — рубли; схема хранит копейки.
     const totalKopecks = Math.round(parsed.data.total * 100);

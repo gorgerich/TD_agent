@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAgent, assertLeadOwned, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
+import { requireAgent, assertLeadAccess, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,7 @@ export async function POST(
     const { caseId: caseIdStr } = await params;
     const leadId = parseId(caseIdStr, "caseId");
 
-    if (session.agentId) await assertLeadOwned(leadId, session.agentId);
+    await assertLeadAccess(leadId, session);
 
     const parsed = CreateBody.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");

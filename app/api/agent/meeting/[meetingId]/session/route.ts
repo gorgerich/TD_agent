@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readCoState, writeCoState } from "@/lib/coSession";
-import { requireAgent, assertMeetingOwned, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
+import { requireAgent, assertMeetingAccess, parseId, jsonError, handleApiError } from "@/lib/apiAuth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
   try {
@@ -12,7 +12,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ meet
     if (!body || typeof body !== "object") return jsonError(400, "Invalid body");
 
     // Владение: co-state содержит ПДн клиента — писать может только агент встречи.
-    if (session.agentId) await assertMeetingOwned(id, session.agentId);
+    await assertMeetingAccess(id, session);
 
     const ok = await writeCoState(id, body);
     return NextResponse.json({ ok });
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ meet
     const { meetingId } = await params;
     const id = parseId(meetingId, "номер встречи");
 
-    if (session.agentId) await assertMeetingOwned(id, session.agentId);
+    await assertMeetingAccess(id, session);
 
     const entry = await readCoState(id);
     if (!entry) return NextResponse.json({ state: null });

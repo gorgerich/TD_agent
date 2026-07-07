@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { assertLeadOwned, handleApiError } from "@/lib/apiAuth";
+import { assertLeadAccess, handleApiError } from "@/lib/apiAuth";
 
 function generateCobrowseCode(): string {
   // 5 байт = 10 hex-символов (~1.1e12 вариантов). Код даёт доступ к co-state с
@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
     const meetings = await prisma.meeting.findMany({
       where: { agentId: session.agentId, ...(status ? { status: status as "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" } : {}) },
       orderBy: { scheduledAt: "desc" },
+      take: 300,
       include: { lead: { select: { name: true, phone: true } } },
     });
     return NextResponse.json(meetings);
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
   try {
     // Владение: лид должен принадлежать агенту (иначе IDOR — привязка к чужому клиенту).
     // agentId === 0 — только dev-заглушка без куки (в prod невозможна).
-    if (session.agentId) await assertLeadOwned(parsed.data.leadId, session.agentId);
+    await assertLeadAccess(parsed.data.leadId, session);
 
     const meeting = await prisma.meeting.create({
       data: {

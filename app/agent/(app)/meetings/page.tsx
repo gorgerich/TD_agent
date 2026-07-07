@@ -16,6 +16,7 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
     const meetings = await prisma.meeting.findMany({
       where: { agentId, scheduledAt: { not: null } },
       orderBy: { scheduledAt: "asc" },
+      take: 500,
       select: {
         id: true, status: true, scheduledAt: true,
         lead: {
@@ -64,6 +65,7 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
     // Церемонии — дедлайны кейсов в том же календаре (сегодня и дальше)
     const ceremonies = await prisma.clientLead.findMany({
       where: { agentId, ceremonyAt: { gte: todayStart } },
+      take: 200,
       select: { id: true, name: true, phone: true, ceremonyAt: true, ceremonyPlace: true },
     });
     for (const c of ceremonies) {
@@ -111,11 +113,11 @@ export default async function CalendarPage() {
   const activeCount = events.filter((event) => !event.past).length;
 
   return (
-    <div className="td-page mx-auto w-full max-w-[1040px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
+    <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Расписание</span>
-          <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[36px]">Календарь</h1>
+          <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]">Календарь</h1>
         </div>
         <Link href="/agent/meetings/new" data-tour="meetings-new" className={buttonClasses({ size: "sm", className: "self-start flex-shrink-0" })}>
           <Plus size={15} weight="bold" /> <span className="hidden sm:inline">Новое событие</span><span className="sm:hidden">Событие</span>

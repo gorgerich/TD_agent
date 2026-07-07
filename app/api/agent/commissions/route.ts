@@ -11,11 +11,13 @@ export async function GET(req: NextRequest) {
       prisma.commission.findMany({
         where: { agentId: session.agentId },
         orderBy: { id: "desc" },
+        take: 300,
         include: { order: { select: { id: true, createdAt: true } } },
       }),
       prisma.payout.findMany({
         where: { agentId: session.agentId },
         orderBy: { id: "desc" },
+        take: 200,
       }),
     ]);
 

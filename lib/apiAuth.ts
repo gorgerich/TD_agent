@@ -23,11 +23,34 @@ export function jsonError(status: number, message: string): NextResponse {
   return NextResponse.json({ error: message }, { status });
 }
 
-/** Достаёт сессию агента или бросает 401. */
+/** Достаёт сессию агента или бросает 401. Fail-closed: dev-заглушка
+ *  (agentId 0) допустима ТОЛЬКО в development; в проде такая сессия = 401. */
 export async function requireAgent(req: Request): Promise<AgentSession> {
   const session = await getSessionFromRequest(req);
   if (!session) throw new ApiError(401, "Unauthorized");
+  if (session.agentId <= 0 && process.env.NODE_ENV !== "development") {
+    throw new ApiError(401, "Unauthorized");
+  }
   return session;
+}
+
+/** True для dev-заглушки без агента (проверки владения пропускаются,
+ *  но только в development — requireAgent уже отсёк её в проде). */
+function isDevStub(session: AgentSession): boolean {
+  return session.agentId <= 0;
+}
+
+/** Безусловная проверка доступа к лиду. Вместо fail-open паттерна
+ *  `if (session.agentId) await assertLeadOwned(...)` на месте вызова. */
+export async function assertLeadAccess(leadId: number, session: AgentSession): Promise<void> {
+  if (isDevStub(session)) return; // только development
+  await assertLeadOwned(leadId, session.agentId);
+}
+
+/** Безусловная проверка доступа к встрече (см. assertLeadAccess). */
+export async function assertMeetingAccess(meetingId: number, session: AgentSession): Promise<void> {
+  if (isDevStub(session)) return; // только development
+  await assertMeetingOwned(meetingId, session.agentId);
 }
 
 /** Парсит positive-int id из строки роута или бросает 400. */

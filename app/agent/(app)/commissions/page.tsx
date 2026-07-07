@@ -14,9 +14,10 @@ async function getCommissions(agentId: number): Promise<{ commissions: Commissio
       prisma.commission.findMany({
         where: { agentId },
         orderBy: { id: "desc" },
+        take: 300,
         include: { order: { select: { id: true, createdAt: true } } },
       }),
-      prisma.payout.findMany({ where: { agentId }, orderBy: { id: "desc" } }),
+      prisma.payout.findMany({ where: { agentId }, orderBy: { id: "desc" }, take: 200 }),
     ]);
     const accrued = commissions.filter((c) => c.status === "ACCRUED").reduce((sum, c) => sum + c.amount, 0);
     const approved = commissions.filter((c) => c.status === "APPROVED").reduce((sum, c) => sum + c.amount, 0);
@@ -32,10 +33,10 @@ export default async function CommissionsPage() {
   const { commissions, payouts, accrued, approved, paid } = await getCommissions(session?.agentId ?? 0);
 
   return (
-    <div className="td-page mx-auto max-w-[1040px] px-4 py-7 sm:px-7 sm:py-10">
+    <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
       <header className="rise mb-8">
         <span className="td-eyebrow">Финансы</span>
-        <h1 className="td-display mt-4 text-[34px] text-ink sm:text-[42px]">Комиссии</h1>
+        <h1 className="td-display mt-2.5 text-[30px] text-ink sm:text-[38px]">Комиссии</h1>
       </header>
 
       {/* Summary */}

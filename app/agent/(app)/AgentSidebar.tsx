@@ -16,6 +16,7 @@ import {
   GraduationCap,
   MagnifyingGlass,
   Package,
+  CurrencyRub,
   type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
@@ -43,6 +44,7 @@ const NAV = [
   { href: "/agent/catalog", icon: Package, label: "Каталог" },
   { href: "/agent/documents", icon: Files, label: "Документы" },
   { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
+  { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
   { href: "/agent/settings", icon: GearSix, label: "Настройки" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
