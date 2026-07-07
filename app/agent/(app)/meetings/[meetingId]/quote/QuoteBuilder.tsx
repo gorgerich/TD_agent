@@ -82,10 +82,12 @@ const DEFAULT_FORM: FormData = {
   clientBudget: null,
 };
 
+// Порядок шага «Атрибутика»: гроб → венки → постель → кресты/таблички → урны.
+// «Урны» показываются только при кремации (см. visibleCategories ниже).
 const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
   "Гробы",
-  "Постель / комплект в гроб",
   "Венки",
+  "Постель / комплект в гроб",
   "Кресты / таблички",
   "Урны",
 ];
@@ -113,7 +115,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const toast = useToast();
-  const [catalogCategory, setCatalogCategory] = useState<CatalogCategory | "Все">("Все");
+  const [catalogCategory, setCatalogCategory] = useState<CatalogCategory>("Гробы");
   const [catalogColors, setCatalogColors] = useState<Record<string, string>>({});
   const [estimateItems, setEstimateItems] = useState<EstimateItem[]>([]);
   // Подборка из маркетплейса (localStorage) — для переноса в смету одним нажатием.
@@ -167,14 +169,20 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   );
   const calculatorLineCount = baseLineCount + estimateItems.length + externalExpenses.length;
   const calculatorVersionLabel = savedCount > 0 ? `v${savedCount}` : "черновик";
+  const isCremation = form.serviceType === "cremation";
+  // «Урны» — только при кремации.
+  const visibleCategories = useMemo(
+    () => ATTRIBUTION_CATEGORIES.filter((c) => c !== "Урны" || isCremation),
+    [isCremation],
+  );
+  // Если выбранная категория стала недоступна (напр. «Урны» при погребении) — откат на «Гробы».
+  const activeCategory: CatalogCategory = visibleCategories.includes(catalogCategory) ? catalogCategory : "Гробы";
   const filteredCatalogItems = useMemo(
-    () => {
-      const attributionItems = AGENT_ATTRIBUTION_CATALOG.filter((item) => ATTRIBUTION_CATEGORIES.includes(item.category));
-      return catalogCategory === "Все"
-        ? attributionItems
-        : attributionItems.filter((item) => item.category === catalogCategory);
-    },
-    [catalogCategory],
+    () =>
+      AGENT_ATTRIBUTION_CATALOG.filter(
+        (item) => ATTRIBUTION_CATEGORIES.includes(item.category) && item.category === activeCategory,
+      ),
+    [activeCategory],
   );
   const marginItems = useMemo<MarginItemInput[]>(() => {
     const sectionItems = result.sections.flatMap((section) => {
@@ -1052,11 +1060,11 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             </div>
 
             <div className={s.categoryRail} aria-label="Категории каталога">
-              {(["Все", ...ATTRIBUTION_CATEGORIES] as Array<CatalogCategory | "Все">).map((category) => (
+              {visibleCategories.map((category) => (
                 <button
                   key={category}
                   type="button"
-                  className={`${s.categoryChip} ${catalogCategory === category ? s.categoryChipActive : ""}`}
+                  className={`${s.categoryChip} ${activeCategory === category ? s.categoryChipActive : ""}`}
                   onClick={() => setCatalogCategory(category)}
                 >
                   {category}
@@ -1064,7 +1072,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               ))}
             </div>
 
-            {ATTRIBUTION_CATEGORIES.map((cat) => {
+            {visibleCategories.map((cat) => {
               const items = filteredCatalogItems.filter((i) => i.category === cat);
               if (!items.length) return null;
               return (
