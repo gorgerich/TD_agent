@@ -31,7 +31,7 @@ function CommandTrigger() {
     >
       <MagnifyingGlass size={16} className="flex-shrink-0" />
       <span className="flex-1 text-left">Поиск и действия</span>
-      <kbd className="tnum rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-3">⌘K</kbd>
+      <kbd className="tnum hidden rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-3 lg:inline-flex">⌘K</kbd>
     </button>
   );
 }
@@ -54,17 +54,27 @@ const ROLE_LABELS: Record<string, string> = {
   SUPPORT: "Поддержка",
 };
 
-function Brand() {
+function Brand({ compact = false }: { compact?: boolean }) {
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[9px] bg-accent text-on-accent">
+          <span className="block h-2 w-2 rounded-full bg-on-accent" />
+        </span>
+        <span className="text-[13px] font-semibold text-ink">
+          Тихий дом <span className="font-medium text-ink-3">· Кабинет агента</span>
+        </span>
+      </div>
+    );
+  }
   return (
-    <div className="flex items-center gap-3">
-      <span className="relative grid h-10 w-10 flex-shrink-0 place-items-center overflow-hidden rounded-[14px] border border-accent/20 bg-accent text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_7px_16px_-13px_rgba(0,58,53,0.42)]">
-        <span className="block h-2.5 w-2.5 rounded-full bg-on-accent shadow-[0_0_0_4px_rgba(247,251,246,0.14)]" />
+    <div className="flex items-center gap-2.5">
+      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[12px] bg-accent text-on-accent">
+        <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
       </span>
       <span className="leading-none">
-        <span className="block text-[16px] font-semibold tracking-[-0.01em] text-ink">Тихий дом</span>
-        <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3">
-          Кабинет агента
-        </span>
+        <span className="block text-[15px] font-semibold tracking-[-0.01em] text-ink">Тихий дом</span>
+        <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3">Кабинет агента</span>
       </span>
     </div>
   );
@@ -88,9 +98,7 @@ function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onN
               active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink",
             ].join(" ")}
           >
-            <span className="td-nav-orb" data-active={active ? "true" : undefined}>
-              <IconComponent size={26} weight="fill" />
-            </span>
+            <IconComponent size={18} weight={active ? "fill" : "regular"} className="flex-shrink-0" />
             {label}
             {badge > 0 && (
               <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white" aria-label={`${badge} просроченных`}>
@@ -197,8 +205,8 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
       </nav>
 
       {/* Mobile top bar */}
-      <header className="td-glass fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between px-4 lg:hidden">
-        <Brand />
+      <header className="td-glass fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between px-4 lg:hidden">
+        <Brand compact />
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -228,8 +236,8 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
             open ? "translate-x-0" : "-translate-x-full",
           ].join(" ")}
         >
-          <div className="flex items-center justify-between border-b border-line px-5 py-4">
-            <Brand />
+          <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+            <Brand compact />
             <button
               type="button"
               onClick={() => setOpen(false)}

@@ -213,17 +213,22 @@ export default async function CasesPage() {
       <header className="rise mb-5 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
-          <h1 className="td-display mt-2.5 text-[34px] text-ink sm:text-[42px]">Кейсы</h1>
+          <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[32px]">Кейсы</h1>
         </div>
         <NewCaseSheet />
       </header>
 
       {active.length > 0 && (
-        <div className="rise mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-          <Kpi label="В работе" value={active.length} />
-          <Kpi label="Требуют внимания" value={attentionCases} tone={attentionCases > 0 ? "danger" : "ok"} />
-          <Kpi label="Церемонии сегодня" value={ceremonyToday} tone={ceremonyToday > 0 ? "accent" : "ok"} />
-          <Kpi label="Ждут оплату" value={awaitingPayment} tone={awaitingPayment > 0 ? "warning" : "ok"} />
+        <div className="rise mb-5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[13px] text-ink-2">
+          <span><b className="tnum text-ink">{active.length}</b> в работе</span>
+          <span className="text-ink-3" aria-hidden="true">·</span>
+          <span className={attentionCases > 0 ? "font-medium text-danger" : ""}>
+            <b className={`tnum ${attentionCases > 0 ? "text-danger" : "text-ink"}`}>{attentionCases}</b> требуют внимания
+          </span>
+          <span className="text-ink-3" aria-hidden="true">·</span>
+          <span><b className="tnum text-ink">{ceremonyToday}</b> сегодня</span>
+          <span className="text-ink-3" aria-hidden="true">·</span>
+          <span><b className="tnum text-ink">{awaitingPayment}</b> ждут оплату</span>
         </div>
       )}
 
@@ -277,68 +282,61 @@ export default async function CasesPage() {
           )}
         </section>
 
-        <aside className="rise rise-2 order-1 min-w-0 space-y-5 lg:order-2">
-          <RailBlock icon={<CalendarDots size={15} weight="duotone" />} title="Сегодня">
-            {todayMeetings.length === 0 ? (
-              <RailEmpty>Встреч на сегодня нет</RailEmpty>
-            ) : (
-              todayMeetings.map((c) => (
-                <Link key={c.id} href={`/agent/cases/${c.id}`} className="td-mini-row group flex items-center justify-between gap-2 px-2 py-2 text-[13px] text-ink-2">
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-ink">{c.name}</span>
-                    <span className="block text-[11px] text-ink-3">{c.nextAction}</span>
-                  </span>
-                  <span className="tnum flex-shrink-0 text-ink-3">{c.nextMeetingTime}</span>
-                </Link>
-              ))
-            )}
-          </RailBlock>
+        <aside className="rise rise-2 order-1 min-w-0 space-y-4 lg:order-2">
+          {overdueTasks.length > 0 && (
+            <div className="td-shell p-3.5">
+              <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-danger">
+                <Warning size={14} weight="fill" /> Просрочено: {overdueTasks.length}
+              </p>
+              <div className="divide-y divide-line">
+                {overdueTasks.slice(0, 3).map((t, i) => (
+                  <Link key={`${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="td-mini-row block px-2 py-1.5">
+                    <span className="block truncate text-[13px] font-medium text-ink">{t.title}</span>
+                    <span className="block truncate text-[12px] text-ink-3">{t.leadName}</span>
+                  </Link>
+                ))}
+              </div>
+              {overdueTasks.length > 3 && (
+                <details className="mt-0.5">
+                  <summary className="cursor-pointer list-none px-2 py-1.5 text-[12px] font-medium text-ink-2 hover:text-ink">
+                    Показать ещё {overdueTasks.length - 3}
+                  </summary>
+                  <div className="divide-y divide-line">
+                    {overdueTasks.slice(3).map((t, i) => (
+                      <Link key={`more-${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="td-mini-row block px-2 py-1.5">
+                        <span className="block truncate text-[13px] font-medium text-ink">{t.title}</span>
+                        <span className="block truncate text-[12px] text-ink-3">{t.leadName}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
 
-          <RailBlock icon={<Warning size={15} weight="duotone" className="text-danger" />} title="Просроченные задачи">
-            {overdueTasks.length === 0 ? (
-              <RailEmpty>Просроченных задач нет</RailEmpty>
-            ) : (
-              overdueTasks.map((t, i) => (
-                <Link key={`${t.leadId}-${i}`} href={`/agent/cases/${t.leadId}`} className="td-mini-row group block px-2 py-2 text-[13px]">
-                  <span className="block truncate font-medium text-ink">{t.title}</span>
-                  <span className="block truncate text-[12px] text-ink-3">{t.leadName}</span>
-                </Link>
-              ))
-            )}
-          </RailBlock>
+          {todayMeetings.length > 0 ? (
+            <div className="td-shell p-3.5">
+              <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">
+                <CalendarDots size={14} weight="duotone" /> Сегодня
+              </p>
+              <div className="divide-y divide-line">
+                {todayMeetings.map((c) => (
+                  <Link key={c.id} href={`/agent/cases/${c.id}`} className="td-mini-row flex items-center justify-between gap-2 px-2 py-1.5 text-[13px] text-ink-2">
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-ink">{c.name}</span>
+                      <span className="block text-[11px] text-ink-3">{c.nextAction}</span>
+                    </span>
+                    <span className="tnum flex-shrink-0 text-ink-3">{c.nextMeetingTime}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="px-1 text-[13px] text-ink-3">Сегодня: встреч нет</p>
+          )}
         </aside>
       </div>
     </div>
   );
 }
 
-function Kpi({ label, value, tone = "ok" }: { label: string; value: number; tone?: "ok" | "accent" | "warning" | "danger" }) {
-  const valueColor =
-    value === 0 ? "text-ink-3"
-    : tone === "danger" ? "text-danger"
-    : tone === "warning" ? "text-warning"
-    : tone === "accent" ? "text-accent"
-    : "text-ink";
-  return (
-    <div className="td-metric">
-      <div className="truncate text-[11px] font-medium text-ink-3">{label}</div>
-      <div className={`tnum mt-1 text-[26px] font-semibold leading-none ${valueColor}`}>{value}</div>
-    </div>
-  );
-}
-
-function RailBlock({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
-  return (
-    <div className="td-shell p-4">
-      <div className="mb-2 flex items-center gap-2 text-ink-3">
-        {icon}
-        <span className="text-[11px] font-semibold uppercase tracking-[0.07em]">{title}</span>
-      </div>
-      <div className="divide-y divide-line">{children}</div>
-    </div>
-  );
-}
-
-function RailEmpty({ children }: { children: React.ReactNode }) {
-  return <p className="py-1.5 text-[13px] text-ink-3">{children}</p>;
-}

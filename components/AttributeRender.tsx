@@ -7,6 +7,7 @@
 
 import { type CSSProperties } from "react";
 import { getItem, type AttrSelection } from "@/lib/attributes";
+import { AGENT_ATTRIBUTION_CATALOG } from "@/lib/calculationUtils";
 import {
   type AttributePreviewConfig,
   type CasketType,
@@ -15,6 +16,15 @@ import {
   type WreathType,
 } from "./funeral3d/config";
 import RitualSetPreview from "./visualizer/RitualSetPreview";
+
+// Артикул каталога → имя файла-слоя в /visualizer/* (basename из imageUrl).
+// Так каждый выбранный SKU подставляет свой слой в зале (все варианты + реактивность).
+const SKU_LAYER: Record<string, string> = Object.fromEntries(
+  AGENT_ATTRIBUTION_CATALOG.filter((i) => i.imageUrl).map((i) => [
+    i.id,
+    i.imageUrl!.split("/").pop()!.replace(/\.[a-z]+$/i, ""),
+  ]),
+);
 
 // ── SVG-палитра (используется только в fallback-предпросмотре) ─────────────
 type CasketPalette = { base: string; side: string; top: string; highlight: string };
@@ -118,6 +128,9 @@ function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): Attrib
     hasCross: Boolean(cross),
     crossType: cross ? (crossText.includes("металл") ? "metal" : "wooden") : "none",
     crossStyle,
+    casketSku: casket?.catalogItemId ? SKU_LAYER[casket.catalogItemId] : undefined,
+    wreathSku: wreath?.catalogItemId ? SKU_LAYER[wreath.catalogItemId] : undefined,
+    crossSku: cross?.catalogItemId ? SKU_LAYER[cross.catalogItemId] : undefined,
     textileName: textile?.name,
     hasNamePlate: Boolean(plate),
     summary: {
@@ -374,42 +387,15 @@ function SvgPreview({
   );
 }
 
-// ── Маппинг доменного конфига → id слоёв 2.5D-визуализатора ─────────────────
-function lc(s?: string) {
-  return (s ?? "").toLowerCase();
-}
-
+// ── Маппинг доменного конфига → id слоёв (артикул-фото в зале) ──────────────
 function previewIdsFromConfig(c: AttributePreviewConfig) {
-  const col = lc(c.casketColor);
-  const wood = col.includes("бел")
-    ? "white"
-    : col.includes("чёрн") || col.includes("черн")
-      ? "black"
-      : col.includes("махагон") || col.includes("вишн")
-        ? "mahogany"
-        : col.includes("светл") || col.includes("сосн")
-          ? "walnut"
-          : "dark-oak";
-  const tx = lc(c.textileName);
-  const upholsteryId = tx.includes("бархат")
-    ? "burgundy-velvet"
-    : tx.includes("парча")
-      ? "white-gold-trim"
-      : tx.includes("крем")
-        ? "cream-satin"
-        : "white-satin";
-  const acc = lc(c.wreathAccent);
-  const wcol =
-    acc.includes("9e3b32") || acc.includes("красн") || acc.startsWith("#a")
-      ? "red-white"
-      : acc.includes("6e22") || acc.includes("бордов")
-        ? "burgundy-green"
-        : "white-green";
+  // Слой каждого товара = его артикул-фото в зале. Нет SKU (легаси-путь без
+  // фото) → пусто, RitualSetPreview покажет SVG-фоллбэк. Покрыты все варианты.
   return {
-    coffinId: `classic-${wood}`,
-    upholsteryId,
-    wreathId: `orthodox-oval-${wcol}`,
-    crossId: c.crossStyle === "carved" ? "orthodox-eight-point" : "orthodox-six-point",
+    coffinId: c.casketSku ?? "",
+    upholsteryId: "",
+    wreathId: c.wreathSku ?? "",
+    crossId: c.crossSku ?? "",
   };
 }
 
@@ -433,7 +419,7 @@ export default function AttributeRender({
   const wrapperStyle: CSSProperties = {
     position: "relative",
     width: "100%",
-    aspectRatio: compact ? "3 / 2" : "64 / 42",
+    aspectRatio: "4 / 3",
     overflow: "hidden",
     borderRadius: 12,
   };

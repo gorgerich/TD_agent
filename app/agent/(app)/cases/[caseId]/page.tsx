@@ -10,8 +10,6 @@ import {
   Plus,
   Warning,
   Phone,
-  User,
-  Hash,
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -190,11 +188,11 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <div className="min-w-0">
           <span className="td-eyebrow">Кейс #{id}</span>
           <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
-          <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
             <MetaPill icon={<Phone size={14} weight="duotone" />} label="Телефон" value={fmtPhone(lead.phone)} href={`tel:${lead.phone}`} />
-            <MetaPill icon={<Hash size={14} weight="duotone" />} label="Источник" value={SOURCE_LABELS[lead.source] ?? lead.source} />
-            <MetaPill icon={<User size={14} weight="duotone" />} label="Агент" value={session?.name ?? "-"} />
-            <MetaPill icon={<CalendarDots size={14} weight="duotone" />} label="Заведено" value={dateTime(lead.createdAt)} />
+            <span className="text-[12px] text-ink-3">
+              Источник: {SOURCE_LABELS[lead.source] ?? lead.source} · Агент: {session?.name ?? "-"} · {dateTime(lead.createdAt)}
+            </span>
           </div>
           {(intake.deceasedName || lead.ceremonyAt) && (
             <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-3 text-[13px] text-ink-2">
@@ -285,6 +283,7 @@ function RouteActionPanel({
   caseId: number;
   cobrowse: string | null;
 }) {
+  const isDone = current >= STAGE_ORDER.length - 1;
   return (
     <section className="rise rise-1 mb-5 overflow-hidden rounded-[var(--radius-card)] border border-accent/20 bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
       <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -297,10 +296,8 @@ function RouteActionPanel({
                 <span className="text-[13px] text-ink-2">{meta.join(" · ")}</span>
               </div>
             </div>
-            <span className="tnum w-fit rounded-full border border-line bg-surface-2 px-2.5 py-1 text-[12px] font-semibold text-ink-2">
-              {Math.round(((current + 1) / STAGE_ORDER.length) * 100)}%
-            </span>
           </div>
+          {!isDone && (
           <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
             {STAGE_ORDER.map((s, i) => {
               const done = i < current;
@@ -328,6 +325,7 @@ function RouteActionPanel({
               );
             })}
           </ol>
+          )}
         </div>
 
         <div className="td-accent-panel order-1 px-4 py-4 lg:order-2">

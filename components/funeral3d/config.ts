@@ -23,6 +23,11 @@ export type AttributePreviewConfig = {
   textileName?: string;
   wreathAccent?: string;
   crossStyle?: "wood" | "carved" | "metal" | "none";
+  // артикул-слой выбранного товара (имя файла фото в /visualizer/*),
+  // чтобы каждый SKU каталога показывал свой слой в зале (полное покрытие).
+  casketSku?: string;
+  wreathSku?: string;
+  crossSku?: string;
   summary: {
     casket?: string;
     color?: string;
