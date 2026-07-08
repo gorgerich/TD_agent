@@ -67,7 +67,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           <h1 className="td-display text-[26px] text-ink sm:text-[30px]">{meeting.lead.name}</h1>
           <p className="tnum mt-1 text-[13px] text-ink-2">{formatDate(meeting.scheduledAt)}</p>
         </div>
-        <div className="flex-shrink-0 rounded-[var(--radius-card)] border border-accent/20 bg-accent-soft px-5 py-4 sm:min-w-[170px] sm:text-right">
+        <div className="td-shell-elevated flex-shrink-0 bg-accent-soft px-5 py-4 sm:min-w-[170px] sm:text-right">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent/80">Код co-browse</p>
           <p className="tnum font-mono text-[24px] font-semibold tracking-[0.16em] text-accent">{cobrowseCode}</p>
           <p className="mt-1.5 text-[10px] text-ink-3">/co/{cobrowseCode}</p>
@@ -84,7 +84,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       />
 
       {/* Info grid */}
-      <div className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-soft sm:p-6">
+      <div className="rise rise-1 td-shell mb-5 p-5 sm:p-6">
         <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
           <InfoField label="Клиент">
             <Link href={`/agent/cases/${meeting.lead.id}`} className="text-[14px] font-medium text-accent transition-colors hover:text-accent-hover">
@@ -150,7 +150,7 @@ function DealFunnel({
   const currentIndex = cancelled ? -1 : stages.findIndex((s) => !s.done);
 
   return (
-    <nav aria-label="Этапы сделки" className="rise rise-1 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-3 py-4 shadow-soft sm:px-5">
+    <nav aria-label="Этапы сделки" className="rise rise-1 td-shell mb-5 px-3 py-4 sm:px-5">
       <ol className="flex items-center gap-1 overflow-x-auto">
         {stages.map((stage, i) => {
           const active = i === currentIndex;

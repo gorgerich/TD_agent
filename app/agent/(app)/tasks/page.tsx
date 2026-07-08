@@ -1,6 +1,7 @@
 import { CheckSquare } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { TasksClientList, type TaskListRow } from "./TasksClientList";
 
 async function getTasks(agentId: number): Promise<TaskListRow[]> {
@@ -37,15 +38,13 @@ export default async function TasksPage() {
       </header>
 
       {tasks.length === 0 ? (
-        <div className="rise rise-1 td-shell px-6 py-12 text-center">
-          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-            <CheckSquare size={24} weight="duotone" />
-          </span>
-          <h2 className="text-[18px] font-semibold text-ink">Задач пока нет</h2>
-          <p className="mx-auto mt-1.5 max-w-[390px] text-[13px] leading-relaxed text-ink-2">
-            Задачи создаются внутри кейса. Когда появятся сроки, они автоматически соберутся здесь по группам: сегодня, просрочены, позже и выполненные.
-          </p>
-        </div>
+        <EmptyState
+          icon={<CheckSquare size={28} weight="fill" />}
+          eyebrow="Задачи"
+          title="Активных задач пока нет"
+          description="Задачи создаются внутри кейса и автоматически собираются здесь по группам: сегодня, просрочены, позже и выполненные."
+          primaryAction={{ label: "Открыть кейсы", href: "/agent/cases" }}
+        />
       ) : (
         <TasksClientList initialTasks={tasks} />
       )}

@@ -4,6 +4,7 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, moneyFromKopecks } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 
 type EstimateFilter = "all" | "drafts" | "sent" | "agreed";
@@ -109,11 +110,24 @@ export default async function EstimatesPage({
       />
 
       {estimates.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          className="mt-4"
+          icon={<FileText size={28} weight="fill" />}
+          eyebrow="Сметы"
+          title="Смет пока нет"
+          description="Смета собирается внутри кейса: откройте клиента, добавьте услуги и сохраните версию. После этого смета появится здесь."
+          primaryAction={{ label: "Выбрать кейс", href: "/agent/cases" }}
+        />
       ) : (
         <div className="rise rise-1 td-entity-list mt-4">
           {visible.length === 0 ? (
-            <div className="px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре смет нет</div>
+            <EmptyState
+              className="m-3 py-10 sm:py-12"
+              icon={<FileText size={26} weight="fill" />}
+              title="В этом фильтре смет нет"
+              description="Смените статус или вернитесь ко всем сметам."
+              secondaryAction={{ label: "Показать все", href: "/agent/estimates" }}
+            />
           ) : (
             <ul className="min-w-0">
               {visible.map((estimate) => {
@@ -165,21 +179,4 @@ function StatusBadge({ status }: { status: EstimateRow["status"] }) {
       ? "border-accent/20 bg-accent-soft text-accent"
       : "border-line bg-surface text-ink-2";
   return <span className={`w-fit rounded-full border px-2.5 py-1 text-[12px] font-medium ${cls}`}>{status}</span>;
-}
-
-function EmptyState() {
-  return (
-    <div className="rise rise-1 td-shell mt-4 px-6 py-14 text-center">
-      <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-        <FileText size={24} weight="duotone" />
-      </span>
-      <h2 className="td-display text-[24px] text-ink">Смет пока нет</h2>
-      <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
-        Смета собирается внутри кейса: откройте дело, добавьте услуги и сохраните версию - она появится здесь и у клиента.
-      </p>
-      <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
-        <Briefcase size={16} weight="bold" /> Выбрать кейс
-      </Link>
-    </div>
-  );
 }

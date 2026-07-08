@@ -3,6 +3,7 @@ import { CalendarDots, Plus } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { deriveStage, NEXT_ACTION } from "@/lib/case";
 import { EventRow, type CalEvent } from "./EventRow";
 
@@ -133,18 +134,14 @@ export default async function CalendarPage() {
       )}
 
       {days.length === 0 ? (
-        <div className="rise rise-1 td-shell px-6 py-16 text-center">
-          <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-            <CalendarDots size={26} weight="duotone" />
-          </span>
-          <h2 className="text-[20px] font-semibold text-ink">Событий пока нет</h2>
-          <p className="mx-auto mt-1.5 max-w-[320px] text-[13px] leading-relaxed text-ink-2">
-            Запланируйте встречу или звонок - увидите их здесь по дням.
-          </p>
-          <Link href="/agent/meetings/new" className={buttonClasses({ className: "mt-5" })}>
-            <Plus size={15} weight="bold" /> Новое событие
-          </Link>
-        </div>
+        <EmptyState
+          icon={<CalendarDots size={28} weight="fill" />}
+          eyebrow="Календарь"
+          title="Событий пока нет"
+          description="Запланируйте встречу, звонок или церемонию. После этого календарь покажет день, время, клиента и следующий шаг."
+          primaryAction={{ label: "Новое событие", href: "/agent/meetings/new" }}
+          secondaryAction={{ label: "Открыть кейсы", href: "/agent/cases" }}
+        />
       ) : (
         <div className="rise rise-1 min-w-0 space-y-5">
           {days.map((day) => (

@@ -13,7 +13,7 @@ import {
   Package,
 } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/States";
+import { EmptyState } from "@/components/ui/EmptyState";
 import {
   AGENT_ATTRIBUTION_CATALOG,
   CATALOG_CATEGORIES,
@@ -35,11 +35,12 @@ export default function CatalogPage() {
   const [cat, setCat] = useState<CatFilter>("Все");
   const [series, setSeries] = useState<string>("Все");
   const [active, setActive] = useState<CatalogItem | null>(null);
-  const [shortlist, setShortlist] = useState<ShortlistEntry[]>([]);
+  const [shortlist, setShortlist] = useState<ShortlistEntry[]>(() => (
+    typeof window === "undefined" ? [] : readShortlist()
+  ));
   const [trayOpen, setTrayOpen] = useState(false);
 
   useEffect(() => {
-    setShortlist(readShortlist());
     const sync = () => setShortlist(readShortlist());
     window.addEventListener("td-shortlist-change", sync);
     window.addEventListener("storage", sync);
@@ -117,9 +118,14 @@ export default function CatalogPage() {
             реальный каталог ПО «Фаворит» · добавляются в смету на шаге «Атрибутика»
           </p>
         </div>
-        <Link href="/agent/cases" className={buttonClasses({ size: "sm", className: "self-start flex-shrink-0" })}>
-          <Briefcase size={14} weight="bold" /> Собрать смету по кейсу
-        </Link>
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2 self-start">
+          <Link href="/agent/catalog/my" className={buttonClasses({ size: "sm", variant: "secondary" })}>
+            <Plus size={14} weight="bold" /> Мой каталог
+          </Link>
+          <Link href="/agent/cases" className={buttonClasses({ size: "sm" })}>
+            <Briefcase size={14} weight="bold" /> Собрать смету по кейсу
+          </Link>
+        </div>
       </header>
 
       {/* Поиск */}
@@ -191,9 +197,11 @@ export default function CatalogPage() {
       {items.length === 0 ? (
         <div className="rise rise-1">
           <EmptyState
-            icon={<Package size={24} weight="duotone" />}
+            icon={<Package size={28} weight="fill" />}
+            eyebrow="Каталог"
             title="Ничего не найдено"
-            description="Измените запрос или категорию."
+            description="Измените запрос, категорию или серию товара. Каталог останется привязанным к смете через выбранный кейс."
+            secondaryAction={{ label: "Сбросить поиск", href: "/agent/catalog" }}
           />
         </div>
       ) : (

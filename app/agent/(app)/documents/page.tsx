@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, ArrowSquareOut, Briefcase, CheckCircle, Files, FilePdf, FileImage, WarningCircle } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ArrowSquareOut, CheckCircle, Files, FilePdf, FileImage, WarningCircle } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
 
 type Category = "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее";
@@ -157,9 +158,22 @@ export default async function DocumentsPage({
       )}
 
       {docs.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          className="mt-4"
+          icon={<Files size={28} weight="fill" />}
+          eyebrow="Документы"
+          title="Файлов по кейсам пока нет"
+          description="Свидетельства, паспорта и договоры загружаются внутри карточки кейса. После загрузки они появятся здесь по клиентам и статусам."
+          primaryAction={{ label: "Открыть кейсы", href: "/agent/cases" }}
+        />
       ) : visible.length === 0 ? (
-        <div className="rise rise-1 td-shell mt-4 px-4 py-10 text-center text-[13px] text-ink-3">В этом фильтре документов нет</div>
+        <EmptyState
+          className="mt-4 py-10 sm:py-12"
+          icon={<Files size={26} weight="fill" />}
+          title="В этом фильтре документов нет"
+          description="Смените статус или вернитесь ко всем документам."
+          secondaryAction={{ label: "Показать все", href: "/agent/documents" }}
+        />
       ) : (
         <div className="rise rise-1 mt-4 space-y-4">
           {groups.map(([caseId, g]) => {
@@ -260,22 +274,5 @@ function StatusBadge({ status }: { status: DocRow["status"] }) {
       <Icon size={11} weight={status === "Загружен" ? "fill" : "duotone"} />
       {status}
     </span>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rise rise-1 td-shell mt-4 px-6 py-14 text-center">
-      <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-        <Files size={24} weight="duotone" />
-      </span>
-      <h2 className="td-display text-[24px] text-ink">Документов пока нет</h2>
-      <p className="mx-auto mt-2 max-w-[400px] text-[14px] leading-relaxed text-ink-2">
-        Загружайте свидетельства, паспорта и договоры внутри карточки кейса - все файлы соберутся здесь.
-      </p>
-      <Link href="/agent/cases" className={buttonClasses({ className: "mt-6" })}>
-        <Briefcase size={16} weight="bold" /> Открыть кейсы
-      </Link>
-    </div>
   );
 }

@@ -1,10 +1,10 @@
 import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
 import { CasesList, type Bucket } from "./CasesList";
-import { Plus, CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
+import { CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { buttonClasses } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { type Stage, relTime } from "@/lib/case";
 import { deriveCaseStatus, statusStage, type StatusTone, type WaitingOn } from "@/lib/caseStatus";
 
@@ -236,31 +236,14 @@ export default async function CasesPage() {
       <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_310px]">
         <section className="rise rise-1 order-2 min-w-0 lg:order-1">
           {active.length === 0 ? (
-            <div className="td-shell px-6 py-12 text-center">
-              <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full icon-3d text-accent">
-                <Briefcase size={26} weight="duotone" />
-              </span>
-              <h2 className="td-display text-[24px] text-ink">Здесь будут ваши кейсы</h2>
-              <p className="mx-auto mt-2 max-w-[380px] text-[14px] leading-relaxed text-ink-2">
-                Каждый кейс ведёт клиента от первого контакта до оплаты - встречи, смета, документы и сроки в одном месте.
-              </p>
-              <div className="mx-auto mt-7 grid max-w-[560px] gap-2.5 text-left sm:grid-cols-3">
-                {[
-                  ["1", "Заведите клиента", "Имя, телефон и вводные по семье."],
-                  ["2", "Встреча и смета", "Соберите смету и покажите клиенту."],
-                  ["3", "Документы и оплата", "Загрузите файлы, ведите задачи и сроки."],
-                ].map(([n, title, sub]) => (
-                  <div key={n} className="rounded-[12px] border border-line bg-surface-2/45 p-3.5">
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-[12px] font-bold text-on-accent">{n}</span>
-                    <p className="mt-2 text-[13px] font-semibold text-ink">{title}</p>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-ink-3">{sub}</p>
-                  </div>
-                ))}
-              </div>
-              <Link href="/agent/leads/new" className={buttonClasses({ size: "lg", className: "mt-7" })}>
-                <Plus size={16} weight="bold" /> Создать первый кейс
-              </Link>
-            </div>
+            <EmptyState
+              icon={<Briefcase size={28} weight="fill" />}
+              eyebrow="Рабочий центр"
+              title="Кейсов пока нет"
+              description="Создайте первый кейс, чтобы вести клиента от первого контакта до встречи, сметы, документов и оплаты в одном маршруте."
+              primaryAction={{ label: "Создать кейс", href: "/agent/leads/new" }}
+              secondaryAction={{ label: "Открыть календарь", href: "/agent/meetings" }}
+            />
           ) : (
             <CasesList
               rows={active.map((c) => ({
@@ -340,4 +323,3 @@ export default async function CasesPage() {
     </div>
   );
 }
-

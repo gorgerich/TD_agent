@@ -14,7 +14,7 @@ import {
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
-import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
+import { phone as fmtPhone, dateTime } from "@/lib/format";
 import { STAGE_ORDER } from "@/lib/case";
 import { deriveCaseStatus, type StatusTone } from "@/lib/caseStatus";
 import { CaseTabs } from "./CaseTabs";
@@ -184,7 +184,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <ArrowLeft size={15} /> К кейсам
       </Link>
 
-      <header className="rise rise-1 mt-4 mb-5 rounded-[var(--radius-card)] border border-line bg-surface px-5 py-5 shadow-[var(--shadow-soft),var(--hl-top)]">
+      <header className="rise rise-1 td-shell mt-4 mb-5 px-5 py-5">
         <div className="min-w-0">
           <span className="td-eyebrow">Кейс #{id}</span>
           <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
@@ -222,7 +222,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       />
 
       {risks.length > 0 && (
-        <section className="rise rise-1 mb-5 flex flex-wrap items-center gap-2 rounded-[var(--radius-card)] border border-line bg-surface px-4 py-3">
+        <section className="rise rise-1 td-shell mb-5 flex flex-wrap items-center gap-2 px-4 py-3">
           <span className="td-eyebrow mr-1 text-danger">Риски</span>
           {risks.map((r) => (
             <span
@@ -285,7 +285,7 @@ function RouteActionPanel({
 }) {
   const isDone = current >= STAGE_ORDER.length - 1;
   return (
-    <section className="rise rise-1 mb-5 overflow-hidden rounded-[var(--radius-card)] border border-accent/20 bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+    <section className="rise rise-1 td-shell-elevated mb-5 overflow-hidden">
       <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:order-1 lg:border-r lg:border-t-0">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

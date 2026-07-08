@@ -31,13 +31,13 @@ export function EmptyState({
     <section
       aria-label={title}
       className={[
-        "rise rounded-[var(--radius-card)] border border-line bg-surface px-6 py-14 text-center sm:px-10 sm:py-16",
+        "rise td-shell px-6 py-14 text-center sm:px-10 sm:py-16",
         className,
       ].filter(Boolean).join(" ")}
     >
       <div className="mx-auto flex max-w-[560px] flex-col items-center">
         {icon && (
-          <div className="mb-7 grid h-14 w-14 place-items-center rounded-[18px] border border-line bg-surface-2 text-accent shadow-[var(--hl-top)]">
+          <div className="mb-7 grid h-14 w-14 place-items-center rounded-[18px] bg-accent-soft text-accent shadow-[var(--shadow-xs),var(--hl-top)]">
             <span className="grid h-7 w-7 place-items-center [&>svg]:h-7 [&>svg]:w-7">
               {icon}
             </span>
@@ -61,7 +61,7 @@ export function EmptyState({
             {primaryAction && (
               <Link
                 href={primaryAction.href}
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                className="td-press inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-[13px] font-semibold text-on-accent shadow-[var(--shadow-accent)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               >
                 {primaryAction.label}
               </Link>
@@ -70,7 +70,7 @@ export function EmptyState({
             {secondaryAction && (
               <Link
                 href={secondaryAction.href}
-                className="inline-flex min-h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                className="td-press inline-flex min-h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-ink-2 transition-[background-color,color,transform] duration-150 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
               >
                 {secondaryAction.label}
               </Link>

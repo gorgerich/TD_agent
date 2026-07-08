@@ -33,7 +33,7 @@ export default async function SettingsPage() {
             <p className="text-[13px] text-ink-3">{session?.role ?? "AGENT"} · ID {session?.agentId ?? "-"}</p>
           </div>
         </div>
-        <div className="divide-y divide-line rounded-[12px] border border-line bg-surface">
+        <div className="td-entity-list">
           <Row label="Имя" value={session?.name ?? "-"} />
           <Row label="Роль" value={session?.role ?? "-"} last />
         </div>

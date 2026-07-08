@@ -3,6 +3,7 @@ import { CurrencyRub } from "@phosphor-icons/react/dist/ssr/CurrencyRub";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { moneyFromKopecks, dateLong } from "@/lib/format";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { CommissionsTable } from "./CommissionsTable";
 
 type CommissionRow = { id: number; orderId: number; status: string; amount: number; order?: { id: number; createdAt: Date } | null };
@@ -50,15 +51,13 @@ export default async function CommissionsPage() {
       <section className="rise rise-2 mb-7">
         <p className="mb-3 td-eyebrow">История начислений</p>
         {commissions.length === 0 ? (
-          <div className="td-shell px-6 py-16 text-center">
-            <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full icon-3d text-accent">
-              <CurrencyRub size={28} weight="duotone" />
-            </span>
-            <h2 className="td-display text-[20px] text-ink">Начислений пока нет</h2>
-            <p className="mx-auto mt-1.5 max-w-[340px] text-[13px] leading-relaxed text-ink-2">
-              Комиссия появится здесь автоматически после закрытия сделки по смете клиента.
-            </p>
-          </div>
+          <EmptyState
+            icon={<CurrencyRub size={28} weight="fill" />}
+            eyebrow="Финансы"
+            title="Начислений пока нет"
+            description="Комиссия появится здесь автоматически после закрытия сделки по смете клиента."
+            secondaryAction={{ label: "Открыть сметы", href: "/agent/estimates" }}
+          />
         ) : (
           <CommissionsTable
             rows={commissions.map((c) => ({

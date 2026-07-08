@@ -89,7 +89,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
         <SummaryCell label="Выполнено" value={String(groups.done.length)} tone="success" />
       </div>
 
-      {GROUPS.map((group) => {
+      {GROUPS.filter((group) => groups[group.id].length > 0).map((group) => {
         const items = groups[group.id];
         return (
           <section key={group.id} className="td-entity-list">
@@ -103,21 +103,17 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
               </div>
               <span className="td-pill tnum text-[11px]">{items.length}</span>
             </header>
-            {items.length === 0 ? (
-              <div className="px-4 py-4 text-[13px] text-ink-3">Нет задач в группе</div>
-            ) : (
-              <ul className="divide-y divide-line">
-                {items.map((task) => (
-                  <SwipeableTaskRow
-                    key={task.id}
-                    task={task}
-                    group={group.id}
-                    pending={pendingId === task.id}
-                    onComplete={() => markDone(task)}
-                  />
-                ))}
-              </ul>
-            )}
+            <ul className="divide-y divide-line">
+              {items.map((task) => (
+                <SwipeableTaskRow
+                  key={task.id}
+                  task={task}
+                  group={group.id}
+                  pending={pendingId === task.id}
+                  onComplete={() => markDone(task)}
+                />
+              ))}
+            </ul>
           </section>
         );
       })}

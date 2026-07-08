@@ -50,8 +50,8 @@ export function CasesList({ rows }: { rows: CaseRowView[] }) {
 
   return (
     <div>
-      {/* Листающийся ряд пилюль-фильтров — тап вместо скролла */}
-      <div className="hide-scrollbar -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+      {/* Единый segmented-фильтр: меньше визуального шума, тот же паттерн что в сметах/документах. */}
+      <div className="td-segmented mb-4">
         {chips.map((chip) => {
           const on = activeFilter === chip.id;
           return (
@@ -60,14 +60,11 @@ export function CasesList({ rows }: { rows: CaseRowView[] }) {
               type="button"
               onClick={() => setFilter(chip.id)}
               aria-pressed={on}
-              className={`td-press flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                on
-                  ? "border-accent bg-accent text-on-accent shadow-[var(--shadow-accent)]"
-                  : "border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink"
-              }`}
+              data-active={on ? "true" : undefined}
+              className="td-segment"
             >
               {chip.label}
-              <span className={`tnum text-[11px] ${on ? "text-on-accent/70" : "text-ink-3"}`}>{chip.count}</span>
+              <span className={`tnum text-[11px] ${on ? "text-ink/55" : "text-ink-3"}`}>{chip.count}</span>
             </button>
           );
         })}
