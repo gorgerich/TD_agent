@@ -191,9 +191,9 @@ function SceneStage({
           draggable={false}
           style={{
             position: "absolute",
-            right: "6%",
-            top: "30%",
-            height: "44%",
+            right: "7%",
+            top: "28%",
+            height: "45%",
             width: "auto",
             objectFit: "contain",
             zIndex: 1,
