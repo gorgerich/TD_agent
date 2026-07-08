@@ -7,6 +7,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ImageSquare, ArrowsOut, X } from "@phosphor-icons/react";
 import { assetPath, shadowPath, visualizerAssets } from "./visualizerAssets";
+import {
+  SCENE_EASEL_ANCHORS,
+  DEFAULT_EASEL_ANCHORS,
+  WREATH_CENTER_Y,
+  WREATH_HEIGHT,
+} from "./sceneAnchors";
 
 export type RitualSetSummary = {
   coffin?: string;
@@ -20,6 +26,7 @@ export type RitualSetPreviewProps = {
   woodColorId?: string; // зарезервировано (часть coffinId), для будущего раздельного слоя
   upholsteryId: string;
   wreathId?: string;
+  wreathIds?: string[]; // до двух венков: [0] — левый мольберт, [1] — правый
   crossId?: string;
   showWreath: boolean;
   showCross: boolean;
@@ -162,17 +169,27 @@ function SummaryRows({ summary }: { summary?: RitualSetSummary }) {
   );
 }
 
-// AI-сцена: фотореалистичный кадр зала с выбранным гробом (фон) + венок-накладка
-// на правом мольберте. Венок — тот же реальный вырез из каталога (консистентность).
+// AI-сцена: фотореалистичный кадр зала с выбранным гробом (фон) + до двух венков,
+// наложенных по центру мольбертов (левый/правый) по карте якорей сцены. Венок —
+// чистый вырез из каталога; садится в держатель мольберта, с контактной тенью.
 function SceneStage({
   sceneSrc,
-  wreathSrc,
+  sku,
+  wreathSrcs,
   onSceneError,
 }: {
   sceneSrc: string;
-  wreathSrc?: string;
+  sku: string;
+  wreathSrcs: string[];
   onSceneError: () => void;
 }) {
+  const anchors = SCENE_EASEL_ANCHORS[sku] ?? DEFAULT_EASEL_ANCHORS;
+  // [0] → левый мольберт, [1] → правый мольберт.
+  const slots = [
+    { src: wreathSrcs[0], cx: anchors.left },
+    { src: wreathSrcs[1], cx: anchors.right },
+  ];
+  const topPct = (WREATH_CENTER_Y - WREATH_HEIGHT / 2) * 100;
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -183,24 +200,28 @@ function SceneStage({
         draggable={false}
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
       />
-      {wreathSrc && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={wreathSrc}
-          alt="Венок"
-          draggable={false}
-          style={{
-            position: "absolute",
-            right: "7%",
-            top: "28%",
-            height: "45%",
-            width: "auto",
-            objectFit: "contain",
-            zIndex: 1,
-            filter: "drop-shadow(0 10px 16px rgba(0,0,0,0.30))",
-            pointerEvents: "none",
-          }}
-        />
+      {slots.map((slot, i) =>
+        slot.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={i}
+            src={slot.src}
+            alt="Венок"
+            draggable={false}
+            style={{
+              position: "absolute",
+              left: `${slot.cx * 100}%`,
+              top: `${topPct}%`,
+              height: `${WREATH_HEIGHT * 100}%`,
+              width: "auto",
+              transform: "translateX(-50%)",
+              objectFit: "contain",
+              zIndex: 1,
+              filter: "drop-shadow(0 14px 12px rgba(0,0,0,0.34))",
+              pointerEvents: "none",
+            }}
+          />
+        ) : null,
       )}
     </>
   );
@@ -210,6 +231,7 @@ export default function RitualSetPreview({
   coffinId,
   upholsteryId,
   wreathId,
+  wreathIds,
   crossId,
   showWreath,
   showCross,
@@ -236,7 +258,9 @@ export default function RitualSetPreview({
 
   // AI-сцена приоритетнее слоёв: /visualizer/scenes/<coffinId>.jpg.
   const sceneSrc = coffinId ? `/visualizer/scenes/${coffinId}.jpg` : undefined;
-  const wreathCutSrc = showWreath && wreathId ? `/visualizer/wreaths-cut/${wreathId}.webp` : undefined;
+  // До двух венков: приоритет wreathIds, иначе одиночный wreathId. [0]→левый, [1]→правый.
+  const wreathIdList = (wreathIds && wreathIds.length ? wreathIds : wreathId ? [wreathId] : []).filter(Boolean).slice(0, 2);
+  const wreathCutSrcs = showWreath ? wreathIdList.map((id) => `/visualizer/wreaths-cut/${id}.webp`) : [];
   const [sceneErr, setSceneErr] = useState(false);
   const [prevScene, setPrevScene] = useState(sceneSrc);
   if (prevScene !== sceneSrc) {
@@ -246,7 +270,7 @@ export default function RitualSetPreview({
   const useScene = Boolean(sceneSrc) && !sceneErr;
   const hasStage = useScene || showStage;
   const stageNode = useScene ? (
-    <SceneStage sceneSrc={sceneSrc as string} wreathSrc={wreathCutSrc} onSceneError={() => setSceneErr(true)} />
+    <SceneStage sceneSrc={sceneSrc as string} sku={coffinId} wreathSrcs={wreathCutSrcs} onSceneError={() => setSceneErr(true)} />
   ) : showStage ? (
     <LayerStack
       coffinSrc={coffinSrc}

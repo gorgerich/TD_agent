@@ -17,6 +17,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@imgly/background-removal": "^1.5.8",
     "@phosphor-icons/react": "^2.1.10",
     "@prisma/client": "^5.20.0",
     "@tailwindcss/postcss": "^4.3.0",

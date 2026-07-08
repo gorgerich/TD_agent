@@ -27,6 +27,7 @@ export type AttributePreviewConfig = {
   // чтобы каждый SKU каталога показывал свой слой в зале (полное покрытие).
   casketSku?: string;
   wreathSku?: string;
+  wreathSkus?: string[]; // до двух венков (артикулы) — на левый и правый мольберт
   crossSku?: string;
   summary: {
     casket?: string;

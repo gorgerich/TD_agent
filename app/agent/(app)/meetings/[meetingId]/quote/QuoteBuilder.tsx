@@ -177,12 +177,41 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   );
   // Если выбранная категория стала недоступна (напр. «Урны» при погребении) — откат на «Гробы».
   const activeCategory: CatalogCategory = visibleCategories.includes(catalogCategory) ? catalogCategory : "Гробы";
+  // Собственные товары агента (свой каталог, авто-вырез фона) — как CatalogItem.
+  const [customCatalog, setCustomCatalog] = useState<CatalogItem[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/agent/catalog")
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d) => {
+        if (!active) return;
+        const mapped: CatalogItem[] = (d.items ?? []).map(
+          (it: { id: string; name: string; category: string; description?: string; imageData: string; clientPrice: number; costPrice: number }) => ({
+            id: `custom-${it.id}`,
+            name: it.name,
+            category: it.category as CatalogCategory,
+            description: it.description ?? "",
+            imageUrl: it.imageData,
+            imagePlaceholder: "🕊️",
+            clientPrice: it.clientPrice,
+            costPrice: it.costPrice ?? 0,
+            quantityDefault: 1,
+            tags: ["Мой товар"],
+          }),
+        );
+        setCustomCatalog(mapped);
+      })
+      .catch(() => setCustomCatalog([]));
+    return () => {
+      active = false;
+    };
+  }, []);
   const filteredCatalogItems = useMemo(
     () =>
-      AGENT_ATTRIBUTION_CATALOG.filter(
+      [...AGENT_ATTRIBUTION_CATALOG, ...customCatalog].filter(
         (item) => ATTRIBUTION_CATEGORIES.includes(item.category) && item.category === activeCategory,
       ),
-    [activeCategory],
+    [activeCategory, customCatalog],
   );
   const marginItems = useMemo<MarginItemInput[]>(() => {
     const sectionItems = result.sections.flatMap((section) => {
@@ -377,7 +406,15 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
       const replaced = SINGLE_CATEGORIES.has(item.category)
         ? current.find((e) => e.category === item.category)
         : undefined;
-      const base = SINGLE_CATEGORIES.has(item.category) ? current.filter((e) => e.category !== item.category) : current;
+      let base = SINGLE_CATEGORIES.has(item.category) ? current.filter((e) => e.category !== item.category) : current;
+      // Венки: максимум два (левый и правый мольберт). Третий вытесняет самый ранний.
+      if (item.category === "Венки") {
+        const wreaths = base.filter((e) => e.category === "Венки");
+        if (wreaths.length >= 2) {
+          const oldestId = wreaths[0].id;
+          base = base.filter((e) => e.id !== oldestId);
+        }
+      }
       const next = addCatalogItemToEstimate(base, item, getSelectedCatalogColor(item));
       if (replaced?.source !== PACKAGE_ITEM_SOURCE) return next;
       return next.map((e) => (e.catalogItemId === item.id ? { ...e, source: PACKAGE_ITEM_SOURCE } : e));

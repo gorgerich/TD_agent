@@ -143,10 +143,28 @@ model Agent {
   notes        CaseNote[]   // NEW (P5)
   documents    Document[]   // NEW (P0): реальные файлы кейса
   casePayments CasePayment[] // NEW (P0): оплаты по кейсам
+  catalogItems AgentCatalogItem[] // NEW: собственные товары агента (свой каталог)
 
   createdAt    DateTime     @default(now())
 
   @@index([userId])
+}
+
+// Собственный каталог агента: агент загружает фото товара, платформа вырезает фон
+// (клиентский matte), агент задаёт название/категорию/цену и использует в смете.
+model AgentCatalogItem {
+  id          String   @id @default(cuid())
+  agentId     Int
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name        String
+  category    String   // одна из CatalogCategory (строкой, чтобы не тянуть enum в БД)
+  clientPrice Int      // цена для клиента, ₽
+  costPrice   Int      @default(0) // закупочная, ₽ (для маржи)
+  description String   @default("")
+  imageData   String   @db.Text // data URL вырезанного товара на белом фоне (webp/png base64)
+  createdAt   DateTime @default(now())
+
+  @@index([agentId])
 }
 
 model AgentTier {

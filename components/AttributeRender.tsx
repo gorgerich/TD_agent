@@ -67,10 +67,15 @@ function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): Attrib
     const text = itemText(item);
     return text.includes("гроб") || text.includes("coffin");
   });
-  const wreath = reversed.find((item) => {
-    const text = itemText(item);
-    return text.includes("венок") || text.includes("корзина цветов") || text.includes("wreath") || text.includes("flower");
-  });
+  // До двух венков: показываем на двух мольбертах. Порядок — от последнего
+  // добавленного (index 0 → левый мольберт, index 1 → правый).
+  const wreathItems = reversed
+    .filter((item) => {
+      const text = itemText(item);
+      return text.includes("венок") || text.includes("корзина цветов") || text.includes("wreath") || text.includes("flower");
+    })
+    .slice(0, 2);
+  const wreath = wreathItems[0];
   const cross = reversed.find((item) => {
     const text = itemText(item);
     return text.includes("крест") || text.includes("cross");
@@ -130,6 +135,9 @@ function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): Attrib
     crossStyle,
     casketSku: casket?.catalogItemId ? SKU_LAYER[casket.catalogItemId] : undefined,
     wreathSku: wreath?.catalogItemId ? SKU_LAYER[wreath.catalogItemId] : undefined,
+    wreathSkus: wreathItems
+      .map((w) => (w.catalogItemId ? SKU_LAYER[w.catalogItemId] : undefined))
+      .filter((s): s is string => Boolean(s)),
     crossSku: cross?.catalogItemId ? SKU_LAYER[cross.catalogItemId] : undefined,
     textileName: textile?.name,
     hasNamePlate: Boolean(plate),
@@ -395,6 +403,7 @@ function previewIdsFromConfig(c: AttributePreviewConfig) {
     coffinId: c.casketSku ?? "",
     upholsteryId: "",
     wreathId: c.wreathSku ?? "",
+    wreathIds: c.wreathSkus && c.wreathSkus.length ? c.wreathSkus : c.wreathSku ? [c.wreathSku] : [],
     crossId: c.crossSku ?? "",
   };
 }
@@ -447,6 +456,7 @@ export default function AttributeRender({
           coffinId={ids.coffinId}
           upholsteryId={ids.upholsteryId}
           wreathId={ids.wreathId}
+          wreathIds={ids.wreathIds}
           crossId={ids.crossId}
           showWreath={Boolean(config.hasWreath)}
           showCross={Boolean(config.hasCross)}
