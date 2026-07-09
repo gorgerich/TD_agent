@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Compass, House } from "@phosphor-icons/react/dist/ssr";
+import { buttonClasses } from "@/components/ui/Button";
 
 export default function AgentNotFound() {
   return (
@@ -16,7 +17,7 @@ export default function AgentNotFound() {
       </p>
       <Link
         href="/agent/cases"
-        className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_6px_14px_-12px_rgba(0,58,53,0.42)] transition-colors duration-150 hover:bg-accent-hover"
+        className={buttonClasses({ size: "lg", className: "mt-6" })}
       >
         <House size={16} weight="bold" /> На главную
       </Link>

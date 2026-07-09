@@ -12,11 +12,11 @@ const BASE =
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent shadow-[var(--shadow-accent)] hover:bg-accent-hover hover:shadow-[0_2px_4px_rgba(0,31,39,0.2),0_14px_30px_-12px_rgba(0,58,53,0.55)]",
+    "bg-accent text-on-accent shadow-[var(--shadow-accent)] hover:bg-accent-hover hover:shadow-[var(--shadow-lift)]",
   secondary:
     "bg-surface text-ink shadow-[var(--shadow-soft),var(--hl-top)] hover:bg-surface-2 hover:shadow-[var(--shadow-lift)]",
   ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
-  danger: "bg-danger text-white shadow-[0_1px_2px_rgba(220,43,63,0.25),0_10px_22px_-12px_rgba(220,43,63,0.5)] hover:brightness-95",
+  danger: "bg-danger text-white shadow-[var(--shadow-soft)] hover:brightness-95 hover:shadow-[var(--shadow-lift)]",
 };
 
 const SIZES: Record<Size, string> = {

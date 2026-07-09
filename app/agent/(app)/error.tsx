@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { WarningCircle, ArrowClockwise, House } from "@phosphor-icons/react";
+import { buttonClasses } from "@/components/ui/Button";
 
 export default function AgentError({
   error,
@@ -36,13 +37,13 @@ export default function AgentError({
         <button
           type="button"
           onClick={reset}
-          className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-5 py-2.5 text-[14px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_6px_14px_-12px_rgba(0,58,53,0.42)] transition-colors duration-150 hover:bg-accent-hover"
+          className={buttonClasses({ size: "lg" })}
         >
           <ArrowClockwise size={16} weight="bold" /> Попробовать снова
         </button>
         <Link
           href="/agent/cases"
-          className="inline-flex min-h-12 items-center gap-2 rounded-full border border-line bg-surface px-5 py-2.5 text-[14px] font-semibold text-ink shadow-[var(--hl-top)] transition-colors duration-150 hover:border-line-strong hover:bg-surface-2"
+          className={buttonClasses({ variant: "secondary", size: "lg" })}
         >
           <House size={16} /> На главную
         </Link>

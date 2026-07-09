@@ -594,11 +594,11 @@ button:not(:disabled):active { transform: scale(0.96); }
      создаёт containing block для position:fixed → ломает модалки/sheet внутри */
   to { opacity: 1; transform: none; }
 }
-.rise { animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.rise-1 { animation-delay: 0.05s; }
-.rise-2 { animation-delay: 0.11s; }
-.rise-3 { animation-delay: 0.17s; }
-.rise-4 { animation-delay: 0.23s; }
+.rise { animation: rise 0.28s var(--ease-out) both; }
+.rise-1 { animation-delay: 0.03s; }
+.rise-2 { animation-delay: 0.06s; }
+.rise-3 { animation-delay: 0.09s; }
+.rise-4 { animation-delay: 0.12s; }
 
 /* ── Skeleton shimmer (loading states) ─────────────────────── */
 .sk {
@@ -646,20 +646,25 @@ button:not(:disabled):active { transform: scale(0.96); }
   to { opacity: 1; transform: none; }
 }
 .td-toast-in { animation: tdToastIn 0.24s var(--ease-out) both; }
-.td-popover-in { animation: tdPopoverIn 0.22s var(--ease-out) both; }
+.td-popover-in { animation: tdPopoverIn 0.18s var(--ease-out) both; }
+.td-tooltip-in { animation: tdTooltipIn 0.12s var(--ease-out) both; }
+@keyframes tdTooltipIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 /* Spring-поп — упругое появление активных маркеров (Apple-bounce, дозированно). */
 @keyframes tdSpringPop {
-  0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
-  62% { transform: translateX(-50%) scale(1.35); opacity: 1; }
+  0% { transform: translateX(-50%) scale(0.96); opacity: 0; }
+  62% { transform: translateX(-50%) scale(1.04); opacity: 1; }
   100% { transform: translateX(-50%) scale(1); opacity: 1; }
 }
 @keyframes tdSegPop {
   0% { transform: scale(0.96); }
-  60% { transform: scale(1.03); }
+  60% { transform: scale(1.015); }
   100% { transform: scale(1); }
 }
-.td-segment[data-active="true"] { animation: tdSegPop 0.26s var(--ease-out); }
+.td-segment[data-active="true"] { animation: tdSegPop 0.18s var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   .td-segment[data-active="true"] { animation: none; }
 }

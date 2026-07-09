@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "@phosphor-icons/react";
+import { buttonClasses } from "@/components/ui/Button";
 
 export default function CopyCodeButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -15,8 +16,9 @@ export default function CopyCodeButton({ code }: { code: string }) {
 
   return (
     <button
+      type="button"
       onClick={copy}
-      className="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+      className={buttonClasses({ variant: "secondary" })}
     >
       {copied ? <Check size={16} className="text-success" /> : <Copy size={16} />}
       {copied ? "Скопировано" : "Копировать ссылку"}

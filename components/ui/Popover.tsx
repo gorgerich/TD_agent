@@ -59,6 +59,7 @@ export function Popover({
         <div
           role="menu"
           className={`td-popover td-popover-in absolute z-50 mt-1 min-w-[200px] overflow-hidden p-1 ${align === "end" ? "right-0" : "left-0"}`}
+          style={{ transformOrigin: align === "end" ? "top right" : "top left" }}
         >
           {items.map((item, i) => {
             const cls = `flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium transition-colors ${
