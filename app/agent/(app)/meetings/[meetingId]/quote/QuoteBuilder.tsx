@@ -301,9 +301,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         : "План по позициям";
   const planSubtitle = planMode === "custom"
     ? baseline
-      ? "Тариф разложен на позиции. Меняйте гроб, зал, транспорт - итог пересчитается, дельта от тарифа видна рядом."
-      : "Базовый план можно расширить атрибутикой, транспортом, поминками и внешними расходами."
-    : "Готовый набор услуг. «Изменить детали» раскладывает тариф на позиции - всё можно заменить.";
+      ? "Тариф разложен на позиции. Меняйте состав, итог и дельта обновятся сразу."
+      : "Соберите состав, проверьте бюджет, сохраните версию."
+    : "Выберите тариф или разложите его на позиции.";
 
   const visibleCemeteries =
     form.serviceType === "cremation"
@@ -651,7 +651,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         </div>
         <div className={s.headerRight}>
           {cobrowseCode && (
-            <button onClick={copyCode} className={s.headerCode} aria-label="Скопировать код клиента">
+            <button type="button" onClick={copyCode} className={s.headerCode} aria-label="Скопировать код клиента">
               <span className={s.headerCodeLabel}>Код</span>
               <span className={s.headerCodeValue}>
                 {cobrowseCode}
@@ -722,7 +722,32 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           >
             Собрать свой план
           </button>
-          <p>{planMode === "custom" ? "Агент собирает смету по позициям. Клиент видит понятный состав и итог." : "Можно начать с тарифа, затем изменить детали под клиента."}</p>
+          <p>{planMode === "custom" ? "Позиции, бюджет, итог." : "Тариф как быстрый старт."}</p>
+        </div>
+
+        <div className={s.dealBar} aria-label="Сводка сметы">
+          <div className={s.dealMetric}>
+            <span>Итого</span>
+            <strong>{formatCurrency(grandTotal)}</strong>
+          </div>
+          <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
+            <span>Бюджет</span>
+            <strong>
+              {budgetStatus.status === "not_set"
+                ? "не указан"
+                : budgetStatus.status === "exceeded"
+                  ? `+${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
+                  : `ост. ${formatCurrency(budgetStatus.budgetRemaining)}`}
+            </strong>
+          </div>
+          <div className={s.dealMetric}>
+            <span>Состав</span>
+            <strong>{calculatorLineCount} поз.</strong>
+          </div>
+          <div className={s.dealMetric}>
+            <span>Версия</span>
+            <strong>{calculatorVersionLabel}</strong>
+          </div>
         </div>
 
         {planMode === "package" ? (
@@ -761,7 +786,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               <button type="button" className={s.planSecondary} onClick={editPackageDetails}>
                 Изменить детали
               </button>
-              <p>«Изменить детали» раскладывает тариф на позиции: гроб, зал, транспорт. Любую можно заменить - итог пересчитается, дельта от тарифа останется на виду.</p>
+              <p>Тариф раскладывается на позиции. Любую можно заменить, итог пересчитается.</p>
             </div>
           </>
         ) : (
@@ -1073,7 +1098,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[12px] border border-accent/45 bg-accent-soft px-3.5 py-2.5">
                 <span className="min-w-0 flex-1 text-[13px] leading-snug text-ink">
                   В подборке из каталога <b>{shortlistPending.length}</b>{" "}
-                  {shortlistPending.length === 1 ? "новая позиция" : "новых позиций"} — добавить в эту смету?
+                  {shortlistPending.length === 1 ? "новая позиция" : "новых позиций"}. Добавить в эту смету?
                 </span>
                 <button
                   type="button"
@@ -1090,7 +1115,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-soft">
                 <div className="border-b border-line px-4 py-3">
                   <p className="text-[13px] font-semibold text-ink">Визуализация комплекта</p>
-                  <p className="mt-0.5 text-[11px] text-ink-3">Сцена собирается из выбранного гроба, креста и венка - меняется при выборе</p>
+                  <p className="mt-0.5 text-[11px] text-ink-3">Обновляется при выборе атрибутики.</p>
                 </div>
                 <AttributeRender selection={attributes} selectedItems={estimateItems} className="block w-full" />
               </div>
@@ -1195,6 +1220,26 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             )}
           </div>
 
+        </div>
+
+        <div className={s.mobileBar} data-tour="quote-summary">
+          <button
+            type="button"
+            className={s.mobileBarSum}
+            onClick={() => setCalculatorOpen(true)}
+            aria-label="Открыть детали сметы"
+          >
+            <span className={s.mobileBarLabel}>Предварительно</span>
+            <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
+            <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
+            <span className={`${s.mobileBarStatus} ${s[`mobileBarStatus_${calculatorStatus.tone}`]}`}>
+              {calculatorStatus.text}
+            </span>
+            <span className={s.mobileBarMore}>Подробнее</span>
+          </button>
+          <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>
+            {saving ? "Сохраняю..." : "Сохранить"}
+          </button>
         </div>
 
         {calculatorOpen && (

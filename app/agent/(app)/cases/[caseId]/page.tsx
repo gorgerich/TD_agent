@@ -14,7 +14,7 @@ import {
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
-import { phone as fmtPhone, dateTime } from "@/lib/format";
+import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER } from "@/lib/case";
 import { deriveCaseStatus, type StatusTone } from "@/lib/caseStatus";
 import { CaseTabs } from "./CaseTabs";
@@ -177,6 +177,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     versions.length > 0 ? ruCount(versions.length, ["смета", "сметы", "смет"]) : "смет нет",
     orders.length > 0 ? ruCount(orders.length, ["заказ", "заказа", "заказов"]) : "заказов нет",
   ];
+  const openTasksCount = tasks.filter((task) => !task.completedAt).length;
+  const paymentTotal = payments.reduce((sum, payment) => sum + payment.amountKopecks, 0);
+  const lastActivityText = activity[0]?.label ?? "Активности нет";
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -253,10 +256,31 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         {/* RIGHT - info + quick actions */}
         <aside className="rise rise-2 order-2 min-w-0 space-y-4">
           <div className="td-shell space-y-2.5 p-4">
-            <span className="td-eyebrow">Действия по кейсу</span>
+            <span className="td-eyebrow">Быстрые действия</span>
             <Action href={`/agent/meetings/new?leadId=${id}`} icon={<Plus size={16} />}>
               Новая встреча
             </Action>
+            {firstMeeting && (
+              <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
+                Открыть смету
+              </Action>
+            )}
+            {cobrowse && (
+              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external>
+                Клиентский вид
+              </Action>
+            )}
+          </div>
+
+          <div className="td-shell p-4">
+            <span className="td-eyebrow">Контроль</span>
+            <div className="mt-3 divide-y divide-line">
+              <ControlRow label="Открытые задачи" value={String(openTasksCount)} tone={openTasksCount > 0 ? "warning" : "neutral"} />
+              <ControlRow label="Документы" value={String(docs.length)} tone={docs.length === 0 ? "warning" : "neutral"} />
+              <ControlRow label="Сметы" value={String(versions.length)} tone={versions.length === 0 ? "warning" : "neutral"} />
+              <ControlRow label="Оплаты" value={moneyFromKopecks(paymentTotal)} tone={paymentTotal > 0 ? "success" : "neutral"} />
+            </div>
+            <p className="mt-3 truncate text-[12px] text-ink-3">Последнее: {lastActivityText}</p>
           </div>
         </aside>
       </div>
@@ -286,13 +310,39 @@ function RouteActionPanel({
   const isDone = current >= STAGE_ORDER.length - 1;
   return (
     <section className="rise rise-1 td-shell-elevated mb-5 overflow-hidden">
-      <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:order-1 lg:border-r lg:border-t-0">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="td-accent-panel order-1 px-4 py-4 sm:px-5 sm:py-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="td-eyebrow text-accent">Следующее действие</span>
+            <StatusChip label={statusLabel} tone={statusTone} />
+          </div>
+          <strong className="mt-2 block max-w-[760px] text-[20px] leading-snug text-ink sm:text-[23px]">{nextAction}</strong>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
+            После контакта обновите задачи, документы или оплату.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {firstMeetingId ? (
+              <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
+                Открыть смету
+              </Action>
+            ) : (
+              <Action href={`/agent/meetings/new?leadId=${caseId}`} icon={<CalendarDots size={16} />} primary compact>
+                Назначить встречу
+              </Action>
+            )}
+            {cobrowse && (
+              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
+                Клиентский вид
+              </Action>
+            )}
+          </div>
+        </div>
+
+        <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:border-l lg:border-t-0">
+          <div className="mb-4 flex flex-col gap-2">
             <div>
-              <span className="td-eyebrow">Статус кейса</span>
+              <span className="td-eyebrow">Маршрут кейса</span>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <StatusChip label={statusLabel} tone={statusTone} />
                 <span className="text-[13px] text-ink-2">{meta.join(" · ")}</span>
               </div>
             </div>
@@ -328,29 +378,6 @@ function RouteActionPanel({
           )}
         </div>
 
-        <div className="td-accent-panel order-1 px-4 py-4 lg:order-2">
-          <span className="td-eyebrow text-accent">Следующее действие</span>
-          <strong className="mt-2 block text-[18px] leading-snug text-ink">{nextAction}</strong>
-          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-            Закройте этот шаг, затем обновите задачи и документы по итогам разговора.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {firstMeetingId ? (
-              <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
-                Открыть смету
-              </Action>
-            ) : (
-              <Action href={`/agent/meetings/new?leadId=${caseId}`} icon={<CalendarDots size={16} />} primary compact>
-                Назначить встречу
-              </Action>
-            )}
-            {cobrowse && (
-              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
-                Клиентский вид
-              </Action>
-            )}
-          </div>
-        </div>
       </div>
     </section>
   );
@@ -417,5 +444,15 @@ function Action({ href, icon, children, primary, external, compact }: { href: st
       <span className="flex-shrink-0">{icon}</span>
       {children}
     </Link>
+  );
+}
+
+function ControlRow({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "warning" | "success" }) {
+  const toneClass = tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-ink";
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+      <span className="text-[13px] text-ink-2">{label}</span>
+      <span className={`tnum max-w-[120px] truncate text-right text-[13px] font-semibold ${toneClass}`}>{value}</span>
+    </div>
   );
 }

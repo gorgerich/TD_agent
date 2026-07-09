@@ -4,10 +4,10 @@
 .root {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 12px 16px 96px;
+  padding: 12px 16px 156px;
 }
 @media (min-width: 640px) {
-  .root { padding: 18px 28px 108px; }
+  .root { padding: 18px 28px 168px; }
 }
 @media (min-width: 980px) {
   .root { max-width: 1040px; padding: 18px 28px 128px; }
@@ -89,8 +89,7 @@
   margin: 0 0 14px;
   border: 1px solid var(--color-line);
   border-radius: 28px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 96%, #fff), var(--color-surface));
+  background: var(--color-surface);
   box-shadow: var(--shadow-soft), var(--hl-top);
   padding: 18px;
 }
@@ -119,10 +118,10 @@
 }
 .planSubtitle {
   max-width: 720px;
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: var(--color-ink-2);
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 .planTotal {
   min-width: 0;
@@ -161,9 +160,9 @@
 }
 .planModeSwitch p {
   grid-column: 1 / -1;
-  margin: 4px 8px 7px;
-  color: var(--color-ink-2);
-  font-size: 13px;
+  margin: 3px 8px 6px;
+  color: var(--color-ink-3);
+  font-size: 12px;
   line-height: 1.45;
 }
 .planModeBtn {
@@ -181,7 +180,7 @@
 .planModeBtnActive {
   background: var(--color-surface);
   color: var(--color-ink);
-  box-shadow: 0 1px 2px rgba(0, 31, 39, 0.08), var(--hl-top);
+  box-shadow: var(--shadow-soft), var(--hl-top);
 }
 .planRows {
   display: grid;
@@ -293,7 +292,6 @@
 .b2cStageChip:hover {
   border-color: var(--color-line-strong);
   color: var(--color-ink);
-  transform: translateY(-1px);
 }
 .b2cStageChip span {
   display: inline-grid;
@@ -579,7 +577,7 @@
   border: 1px solid var(--color-accent);
   background: var(--color-accent);
   color: var(--color-on-accent);
-  box-shadow: 0 8px 20px -12px color-mix(in srgb, var(--color-accent) 70%, transparent);
+  box-shadow: var(--shadow-accent);
 }
 .stepForward:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
 .stepForward:disabled { opacity: 0.55; cursor: default; }
@@ -1277,14 +1275,14 @@
   inset: 0;
   z-index: 58;
   border: 0;
-  background: rgba(24, 23, 20, 0.28);
+  background: rgba(0, 31, 39, 0.24);
   cursor: default;
 }
 .panel {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(56px + env(safe-area-inset-bottom));
+  bottom: calc(96px + env(safe-area-inset-bottom));
   z-index: 60;
   display: none;
   min-width: 0;
@@ -1294,22 +1292,22 @@
 .panelCard {
   display: flex;
   flex-direction: column;
-  max-height: min(88dvh, 760px);
+  max-height: min(calc(100dvh - 120px), 760px);
   overflow-y: hidden;
   overflow-x: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: 16px 16px 0 0;
-  box-shadow: 0 -24px 70px -38px rgba(22, 22, 22, 0.38);
+  box-shadow: var(--shadow-pop);
   overscroll-behavior: contain;
 }
 @media (max-width: 979px) {
   .panelCard {
-    height: min(86dvh, 740px);
+    height: min(calc(100dvh - 120px), 740px);
   }
 }
 @media (min-width: 980px) {
-  .sheetBackdrop { background: rgba(24, 23, 20, 0.18); }
+  .sheetBackdrop { background: rgba(0, 31, 39, 0.16); }
   .panel {
     left: 50%;
     right: auto;
@@ -1321,7 +1319,7 @@
   .panelCard {
     max-height: min(82dvh, 720px);
     border-radius: 16px;
-    box-shadow: 0 30px 90px -45px rgba(22, 22, 22, 0.42);
+    box-shadow: var(--shadow-pop);
   }
 }
 .panelChrome {
@@ -2032,7 +2030,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   background: color-mix(in srgb, var(--color-surface) 95%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 18px 60px -36px rgba(22, 22, 22, 0.45), 0 4px 18px -14px rgba(22, 22, 22, 0.22);
+  box-shadow: var(--shadow-pop), var(--hl-top);
 }
 @media (min-width: 980px) {
   .mobileBar {
@@ -2127,6 +2125,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow-accent);
 }
 .mobileBarBtn:disabled {
   opacity: 0.55;
