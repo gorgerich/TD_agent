@@ -4,7 +4,7 @@
 // Слои-картинки накладываются в premium-карточке. Нет ассета - graceful
 // placeholder, без сломанных img.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { ImageSquare, ArrowsOut, X } from "@phosphor-icons/react";
 import { assetPath, shadowPath, visualizerAssets } from "./visualizerAssets";
 import {
@@ -12,6 +12,10 @@ import {
   DEFAULT_EASEL_ANCHORS,
   WREATH_CENTER_Y,
   WREATH_HEIGHT,
+  WREATH_TILT_X,
+  WREATH_TILT_Y,
+  WREATH_PERSPECTIVE,
+  WREATH_GRADE_FILTER,
 } from "./sceneAnchors";
 
 export type RitualSetSummary = {
@@ -169,9 +173,163 @@ function SummaryRows({ summary }: { summary?: RitualSetSummary }) {
   );
 }
 
+// ── Фон сцены: двойной буфер + кроссфейд ────────────────────────────────────
+// При смене гроба старый кадр остаётся на месте, новый проявляется поверх после
+// загрузки — без «моргания» пустым фоном. До первого кадра — тёмный шиммер.
+function SceneBackdrop({ src, onError }: { src: string; onError: () => void }) {
+  // shown — последний полностью показанный кадр (подложка).
+  const [shown, setShown] = useState<string | null>(null);
+  const [incomingOk, setIncomingOk] = useState(false);
+  // Сброс готовности нового кадра при смене src — корректировка во время рендера.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
+    setIncomingOk(false);
+  }
+  const incoming = shown === src ? null : src;
+
+  const imgStyle: CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    pointerEvents: "none",
+  };
+  return (
+    <>
+      {!shown && (
+        <>
+          <style>{`@keyframes tdSceneShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+          <div
+            aria-hidden
+            style={{
+              ...imgStyle,
+              zIndex: 0,
+              background:
+                "linear-gradient(115deg, rgba(255,255,255,0.04) 30%, rgba(255,255,255,0.11) 50%, rgba(255,255,255,0.04) 70%)",
+              backgroundSize: "200% 100%",
+              animation: "tdSceneShimmer 1.4s ease infinite",
+            }}
+          />
+        </>
+      )}
+      {shown && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={shown} alt="" aria-hidden draggable={false} style={{ ...imgStyle, zIndex: 0 }} />
+      )}
+      {incoming && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={incoming}
+          alt="Сцена ритуального комплекта"
+          draggable={false}
+          onLoad={() => setIncomingOk(true)}
+          onError={onError}
+          onTransitionEnd={() => setShown(incoming)}
+          style={{
+            ...imgStyle,
+            zIndex: 1,
+            opacity: incomingOk ? 1 : 0,
+            transition: "opacity 0.45s ease",
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Венок на мольберте ──────────────────────────────────────────────────────
+// Вариант C против «наклейки»: лёгкая CSS-перспектива по плоскости мольберта,
+// контактная тень на подставке, цветокоррекция под свет зала и мягкая окклюзия
+// нижней части венка держателем.
+function WreathOnEasel({ src, cx, side }: { src: string; cx: number; side: "left" | "right" }) {
+  const [state, setState] = useState<"load" | "ok" | "err">("load");
+  // Сброс состояния при смене венка — корректировка во время рендера.
+  const [prevSrc, setPrevSrc] = useState(src);
+  if (prevSrc !== src) {
+    setPrevSrc(src);
+    setState("load");
+  }
+  if (state === "err") return null;
+
+  const ok = state === "ok";
+  const topPct = (WREATH_CENTER_Y - WREATH_HEIGHT / 2) * 100;
+  const bottomPct = (WREATH_CENTER_Y + WREATH_HEIGHT / 2) * 100;
+  // Мольберты развёрнуты внутрь к камере: у левого ближе правый край, у правого — левый.
+  const rotY = side === "left" ? -WREATH_TILT_Y : WREATH_TILT_Y;
+
+  return (
+    <>
+      {/* Контактная тень на подставке мольберта */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: `${cx * 100}%`,
+          top: `${bottomPct - 1.6}%`,
+          width: "15%",
+          height: "3.2%",
+          transform: "translateX(-50%)",
+          background: "radial-gradient(closest-side, rgba(24,16,10,0.4), rgba(24,16,10,0) 72%)",
+          filter: "blur(3px)",
+          opacity: ok ? 1 : 0,
+          transition: "opacity 0.4s ease",
+          zIndex: 2,
+          pointerEvents: "none",
+        }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt="Венок"
+        draggable={false}
+        onLoad={() => setState("ok")}
+        onError={() => setState("err")}
+        style={{
+          position: "absolute",
+          left: `${cx * 100}%`,
+          top: `${topPct}%`,
+          height: `${WREATH_HEIGHT * 100}%`,
+          width: "auto",
+          transform:
+            `translateX(-50%) perspective(${WREATH_PERSPECTIVE}px) ` +
+            `rotateX(${WREATH_TILT_X}deg) rotateY(${rotY}deg) scale(${ok ? 1 : 1.03})`,
+          transformOrigin: "50% 88%",
+          objectFit: "contain",
+          zIndex: 3,
+          filter: WREATH_GRADE_FILTER,
+          opacity: ok ? 1 : 0,
+          transition: "opacity 0.35s ease, transform 0.35s ease",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Окклюзия: держатель мольберта затеняет низ венка */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: `${cx * 100}%`,
+          top: `${bottomPct - 5.5}%`,
+          width: "9%",
+          height: "5.5%",
+          transform: "translateX(-50%)",
+          background: "linear-gradient(to top, rgba(20,13,8,0.34), rgba(20,13,8,0))",
+          filter: "blur(2.5px)",
+          opacity: ok ? 0.75 : 0,
+          transition: "opacity 0.4s ease",
+          zIndex: 4,
+          pointerEvents: "none",
+        }}
+      />
+    </>
+  );
+}
+
 // AI-сцена: фотореалистичный кадр зала с выбранным гробом (фон) + до двух венков,
 // наложенных по центру мольбертов (левый/правый) по карте якорей сцены. Венок —
-// чистый вырез из каталога; садится в держатель мольберта, с контактной тенью.
+// чистый вырез из каталога; садится в держатель мольберта с перспективой, тенью
+// и цветокоррекцией под свет зала.
 function SceneStage({
   sceneSrc,
   sku,
@@ -184,45 +342,12 @@ function SceneStage({
   onSceneError: () => void;
 }) {
   const anchors = SCENE_EASEL_ANCHORS[sku] ?? DEFAULT_EASEL_ANCHORS;
-  // [0] → левый мольберт, [1] → правый мольберт.
-  const slots = [
-    { src: wreathSrcs[0], cx: anchors.left },
-    { src: wreathSrcs[1], cx: anchors.right },
-  ];
-  const topPct = (WREATH_CENTER_Y - WREATH_HEIGHT / 2) * 100;
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={sceneSrc}
-        alt="Сцена ритуального комплекта"
-        onError={onSceneError}
-        draggable={false}
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", zIndex: 0, pointerEvents: "none" }}
-      />
-      {slots.map((slot, i) =>
-        slot.src ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            key={i}
-            src={slot.src}
-            alt="Венок"
-            draggable={false}
-            style={{
-              position: "absolute",
-              left: `${slot.cx * 100}%`,
-              top: `${topPct}%`,
-              height: `${WREATH_HEIGHT * 100}%`,
-              width: "auto",
-              transform: "translateX(-50%)",
-              objectFit: "contain",
-              zIndex: 1,
-              filter: "drop-shadow(0 14px 12px rgba(0,0,0,0.34))",
-              pointerEvents: "none",
-            }}
-          />
-        ) : null,
-      )}
+      <SceneBackdrop src={sceneSrc} onError={onSceneError} />
+      {/* [0] → левый мольберт, [1] → правый мольберт */}
+      {wreathSrcs[0] && <WreathOnEasel src={wreathSrcs[0]} cx={anchors.left} side="left" />}
+      {wreathSrcs[1] && <WreathOnEasel src={wreathSrcs[1]} cx={anchors.right} side="right" />}
     </>
   );
 }
@@ -289,10 +414,45 @@ export default function RitualSetPreview({
     return () => window.removeEventListener("keydown", onKey);
   }, [zoom]);
 
+  // Лайтбокс общий для обоих вариантов (card и bare).
+  const lightboxNode = zoom ? (
+    <div
+      className="fixed inset-0 z-[1000] grid place-items-center bg-ink/70 p-4 backdrop-blur-sm"
+      onClick={() => setZoom(false)}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Крупный предпросмотр комплекта"
+    >
+      <div className="relative w-full max-w-[860px]" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => setZoom(false)}
+          aria-label="Закрыть"
+          className="absolute -top-11 right-0 grid h-9 w-9 place-items-center rounded-full bg-surface/90 text-ink-2 transition-colors hover:text-ink"
+        >
+          <X size={18} />
+        </button>
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-pop">
+          {stageNode}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (variant === "bare") {
     return (
       <div className={`absolute inset-0 ${className ?? ""}`}>
         {hasStage ? stageNode : <Placeholder node={fallback} onDark />}
+        {enableZoom && hasStage && (
+          <button
+            type="button"
+            onClick={() => setZoom(true)}
+            className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[12px] font-medium text-white/85 backdrop-blur transition-colors hover:bg-black/60 hover:text-white"
+          >
+            <ArrowsOut size={14} /> Крупнее
+          </button>
+        )}
+        {lightboxNode}
       </div>
     );
   }
@@ -323,29 +483,7 @@ export default function RitualSetPreview({
       )}
 
       {/* Lightbox */}
-      {zoom && (
-        <div
-          className="fixed inset-0 z-[1000] grid place-items-center bg-ink/70 p-4 backdrop-blur-sm"
-          onClick={() => setZoom(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Крупный предпросмотр комплекта"
-        >
-          <div className="relative w-full max-w-[860px]" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setZoom(false)}
-              aria-label="Закрыть"
-              className="absolute -top-11 right-0 grid h-9 w-9 place-items-center rounded-full bg-surface/90 text-ink-2 transition-colors hover:text-ink"
-            >
-              <X size={18} />
-            </button>
-            <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-pop">
-              {stageNode}
-            </div>
-          </div>
-        </div>
-      )}
+      {lightboxNode}
     </div>
   );
 }

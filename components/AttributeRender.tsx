@@ -60,34 +60,54 @@ function itemText(item: PreviewItem) {
   return `${item.catalogItemId ?? ""} ${item.name} ${item.category}`.toLowerCase();
 }
 
+// ── Классификация позиции сметы ─────────────────────────────────────────────
+// Первичный сигнал — явная категория каталога: кастомные товары агента могут
+// называться как угодно («Композиция №5» — это венок, если категория «Венки»).
+// Текстовая эвристика — фоллбэк для легаси-позиций без каталожной категории.
+// Важно: itemText включает категорию, поэтому нужны исключения — «Постель /
+// комплект в гроб» содержит «гроб», «Кресты / таблички» содержит «крест».
+function isCasketItem(item: PreviewItem) {
+  if (item.category === "Гробы") return true;
+  if (item.category === "Постель / комплект в гроб" || item.category === "Урны") return false;
+  const text = itemText(item);
+  return text.includes("гроб") || text.includes("coffin");
+}
+
+function isWreathItem(item: PreviewItem) {
+  if (item.category === "Венки") return true;
+  const text = itemText(item);
+  return text.includes("венок") || text.includes("корзина цветов") || text.includes("wreath") || text.includes("flower");
+}
+
+function isPlateItem(item: PreviewItem) {
+  const text = itemText(item);
+  return text.includes("таблич") || text.includes("plate");
+}
+
+function isCrossItem(item: PreviewItem) {
+  if (isPlateItem(item)) return false;
+  if (item.category === "Кресты / таблички") return true;
+  const text = itemText(item);
+  return text.includes("крест") || text.includes("cross");
+}
+
+function isTextileItem(item: PreviewItem) {
+  if (item.category === "Постель / комплект в гроб") return true;
+  const text = itemText(item);
+  return text.includes("покрывал") || text.includes("атлас") || text.includes("бархат") || text.includes("парча");
+}
+
 // ── Деривация доменного конфига из позиций сметы ───────────────────────────
 function derivePreviewConfigFromEstimateItems(items: PreviewItem[] = []): AttributePreviewConfig {
   const reversed = [...items].reverse();
-  const casket = reversed.find((item) => {
-    const text = itemText(item);
-    return text.includes("гроб") || text.includes("coffin");
-  });
+  const casket = reversed.find(isCasketItem);
   // До двух венков: показываем на двух мольбертах. Порядок — от последнего
   // добавленного (index 0 → левый мольберт, index 1 → правый).
-  const wreathItems = reversed
-    .filter((item) => {
-      const text = itemText(item);
-      return text.includes("венок") || text.includes("корзина цветов") || text.includes("wreath") || text.includes("flower");
-    })
-    .slice(0, 2);
+  const wreathItems = reversed.filter(isWreathItem).slice(0, 2);
   const wreath = wreathItems[0];
-  const cross = reversed.find((item) => {
-    const text = itemText(item);
-    return text.includes("крест") || text.includes("cross");
-  });
-  const textile = reversed.find((item) => {
-    const text = itemText(item);
-    return text.includes("покрывал") || text.includes("атлас") || text.includes("бархат") || text.includes("парча");
-  });
-  const plate = reversed.find((item) => {
-    const text = itemText(item);
-    return text.includes("таблич") || text.includes("plate");
-  });
+  const cross = reversed.find(isCrossItem);
+  const textile = reversed.find(isTextileItem);
+  const plate = reversed.find(isPlateItem);
 
   let casketType: CasketType | undefined;
   if (casket) {
