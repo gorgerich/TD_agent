@@ -928,7 +928,8 @@ export interface FormData {
   selectedAdditionalServices: string[];
   cemetery: string;
   clientBudget?: number | null;
-  [key: string]: any;
+  // Расширяемые поля (coffinConfig и др.) — читаются через явный as-каст.
+  [key: string]: unknown;
 }
 
 export type MarginItemInput = {
@@ -1478,9 +1479,9 @@ export const AGENT_ATTRIBUTION_CATALOG: CatalogItem[] = [
   },
   {
     id: "wreath-krest",
-    name: "Венок «Крест»",
+    name: "Венок «Звезда» с гербом",
     category: "Венки",
-    description: "Композиция в форме креста.",
+    description: "Памятная композиция в форме звезды с гербом, серия «Триколор».",
     imageUrl: "/catalog/wreaths/krest.jpg",
     imagePlaceholder: "ВК",
     clientPrice: 0,
@@ -2332,9 +2333,9 @@ export function calculateBreakdown(
 }
 
 type TrackerWindow = Window & {
-  dataLayer?: Array<Record<string, any>>;
-  gtag?: (...args: any[]) => void;
-  ym?: (...args: any[]) => void;
+  dataLayer?: Array<Record<string, unknown>>;
+  gtag?: (...args: unknown[]) => void;
+  ym?: (...args: unknown[]) => void;
   __tdTracked?: Set<string>;
   __tdSessionId?: string;
 };
@@ -2386,7 +2387,7 @@ export function buildGoalName(flow: YmFlow, goalBase: string) {
 
 export function reachMetrikaGoal(
   name: string,
-  params: Record<string, any> = {},
+  params: Record<string, unknown> = {},
 ) {
   if (!YM_ALLOWED_GOALS.has(name)) return;
   if (typeof window === "undefined") return;
@@ -2400,12 +2401,12 @@ export function reachMetrikaGoal(
     if (process.env.NEXT_PUBLIC_YM_DEBUG === "true") {
       console.debug("[ym]", name, params);
     }
-  } catch (_) {
+  } catch {
     // best-effort analytics: ignore failures
   }
 }
 
-export function setMetrikaVisitParams(params: Record<string, any> = {}) {
+export function setMetrikaVisitParams(params: Record<string, unknown> = {}) {
   if (typeof window === "undefined") return;
   const w = window as TrackerWindow;
   const ymIdRaw = process.env.NEXT_PUBLIC_YM_ID;
@@ -2417,14 +2418,14 @@ export function setMetrikaVisitParams(params: Record<string, any> = {}) {
     if (process.env.NEXT_PUBLIC_YM_DEBUG === "true") {
       console.debug("[ym:params]", params);
     }
-  } catch (_) {
+  } catch {
     // best-effort analytics: ignore failures
   }
 }
 
 export function trackEvent(
   name: string,
-  params: Record<string, any> = {},
+  params: Record<string, unknown> = {},
   dedupeKey?: string,
 ) {
   if (typeof window === "undefined") return;
@@ -2441,14 +2442,14 @@ export function trackEvent(
   try {
     w.dataLayer = Array.isArray(w.dataLayer) ? w.dataLayer : [];
     w.dataLayer.push({ event: name, ...params });
-  } catch (_) {
+  } catch {
     // best-effort analytics: ignore failures
   }
 
   if (typeof w.gtag === "function") {
     try {
       w.gtag("event", name, params);
-    } catch (_) {
+    } catch {
       // best-effort analytics: ignore failures
     }
   }

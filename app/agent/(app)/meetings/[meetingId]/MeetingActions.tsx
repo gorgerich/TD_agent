@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 
-const TRANSITIONS: Record<string, { label: string; next: string; cls: string }[]> = {
+const TRANSITIONS: Record<string, { label: string; next: string; variant: "primary" | "secondary"; className?: string }[]> = {
   SCHEDULED: [
-    { label: "Начать встречу", next: "IN_PROGRESS", cls: "bg-accent text-on-accent hover:bg-accent-hover border-transparent" },
-    { label: "Отменить", next: "CANCELLED", cls: "bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger border-line" },
+    { label: "Начать встречу", next: "IN_PROGRESS", variant: "primary" },
+    { label: "Отменить", next: "CANCELLED", variant: "secondary", className: "hover:bg-danger-soft hover:text-danger" },
   ],
   IN_PROGRESS: [
-    { label: "Завершить встречу", next: "COMPLETED", cls: "bg-success text-on-accent hover:opacity-90 border-transparent" },
-    { label: "Отменить", next: "CANCELLED", cls: "bg-surface text-ink-2 hover:bg-danger-soft hover:text-danger border-line" },
+    { label: "Завершить встречу", next: "COMPLETED", variant: "primary" },
+    { label: "Отменить", next: "CANCELLED", variant: "secondary", className: "hover:bg-danger-soft hover:text-danger" },
   ],
   COMPLETED: [],
   CANCELLED: [],
@@ -39,17 +40,21 @@ export default function MeetingActions({ meetingId, currentStatus }: { meetingId
 
   return (
     <div className="rise rise-3 border-t border-line pt-5">
-      <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">Изменить статус</p>
+      <p className="mb-1 text-[13px] font-semibold text-ink">Статус встречи</p>
+      <p className="mb-3 text-[12px] text-ink-3">Зафиксируйте этап, когда разговор действительно начался или завершился.</p>
       <div className="flex flex-wrap gap-2.5">
         {transitions.map((t) => (
-          <button
+          <Button
             key={t.next}
+            type="button"
             onClick={() => changeStatus(t.next)}
             disabled={loading}
-            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[13px] font-semibold transition-colors disabled:opacity-50 ${t.cls}`}
+            variant={t.variant}
+            size="sm"
+            className={t.className}
           >
-            {t.label}
-          </button>
+            {loading ? "Сохраняю..." : t.label}
+          </Button>
         ))}
       </div>
     </div>

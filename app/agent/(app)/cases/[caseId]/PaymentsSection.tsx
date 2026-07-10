@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trash, Warning } from "@phosphor-icons/react";
+import { CurrencyRub, Plus, Trash, Warning } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
+import { dateTime, moneyFromKopecks } from "@/lib/format";
 
 export type PaymentItem = {
   id: number;
@@ -15,16 +17,6 @@ export type PaymentItem = {
 const KINDS = ["аванс", "остаток", "полная"] as const;
 const METHODS = ["наличные", "карта", "счёт"] as const;
 
-const inputCls =
-  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent";
-
-function fmtRub(kopecks: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(kopecks / 100);
-}
-function fmtDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-}
-
 export function PaymentsSection({ caseId, initial }: { caseId: number; initial: PaymentItem[] }) {
   const [items, setItems] = useState<PaymentItem[]>(initial);
   const [amount, setAmount] = useState("");
@@ -34,7 +26,7 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
   const [err, setErr] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  const total = items.reduce((s, p) => s + p.amountKopecks, 0);
+  const total = items.reduce((sum, item) => sum + item.amountKopecks, 0);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -64,65 +56,107 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
 
   function remove(id: number) {
     startTransition(async () => {
-      const res = await fetch(`/api/agent/cases/${caseId}/payments?id=${id}`, { method: "DELETE" });
-      if (res.ok) setItems((prev) => prev.filter((p) => p.id !== id));
+      try {
+        const res = await fetch(`/api/agent/cases/${caseId}/payments?id=${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          setErr("Не удалось удалить оплату. Попробуйте снова.");
+          return;
+        }
+        setItems((prev) => prev.filter((item) => item.id !== id));
+      } catch {
+        setErr("Нет связи. Оплата не удалена.");
+      }
     });
   }
 
   return (
-    <div>
-      {items.length > 0 && (
-        <p className="mb-3 text-[13px] text-ink-2">
-          Получено: <span className="tnum font-semibold text-ink">{fmtRub(total)}</span>
-        </p>
-      )}
+    <div className="space-y-5">
+      <div className="td-money-summary">
+        <span>
+          <span className="td-money-summary-label">Получено по кейсу</span>
+          <span className="mt-1 block text-[12px] text-ink-3">{items.length > 0 ? `${items.length} ${items.length === 1 ? "запись" : "записи"}` : "Платежей пока нет"}</span>
+        </span>
+        <span className="td-money-summary-value tnum">{moneyFromKopecks(total)}</span>
+      </div>
 
-      {items.length === 0 ? (
-        <p className="mb-3 text-[13px] text-ink-3">Оплат пока нет. Зафиксируйте аванс после договорённости с семьёй.</p>
-      ) : (
-        <ul className="mb-3 space-y-2">
-          {items.map((p) => (
-            <li key={p.id} className="group flex items-center gap-3 rounded-[12px] border border-line bg-surface-2 px-3 py-2.5">
-              <span className="min-w-0 flex-1">
-                <span className="tnum block text-[13px] font-semibold text-ink">{fmtRub(p.amountKopecks)}</span>
-                <span className="block text-[11px] text-ink-3">{p.kind} · {p.method} · {fmtDate(p.paidAt)}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => remove(p.id)}
-                className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-[10px] text-ink-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                aria-label="Удалить оплату"
-              >
-                <Trash size={15} />
-              </button>
+      {items.length > 0 && (
+        <ul className="td-work-list" aria-label="История оплат">
+          {items.map((payment) => (
+            <li key={payment.id} className="td-work-row">
+              <div className="flex min-w-0 items-center gap-3 px-1 py-2.5 sm:px-2">
+                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-gold-soft text-gold shadow-[var(--shadow-xs)]">
+                  <CurrencyRub size={19} weight="bold" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="tnum block text-[14px] font-semibold text-ink">{moneyFromKopecks(payment.amountKopecks)}</span>
+                  <span className="mt-1 block text-[12px] text-ink-3">{payment.kind} - {payment.method} - {dateTime(payment.paidAt)}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => remove(payment.id)}
+                  className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger"
+                  aria-label={`Удалить оплату ${moneyFromKopecks(payment.amountKopecks)}`}
+                >
+                  <Trash size={16} weight="bold" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={add} className="flex flex-wrap items-center gap-2">
-        <input
-          className={`${inputCls} w-[130px] flex-none`}
-          placeholder="Сумма, ₽"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <select value={kind} onChange={(e) => setKind(e.target.value)} className={`${inputCls} w-auto flex-none`}>
-          {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-        </select>
-        <select value={method} onChange={(e) => setMethod(e.target.value)} className={`${inputCls} w-auto flex-none`}>
-          {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <button
-          type="submit"
-          disabled={busy || !amount}
-          className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover disabled:opacity-55"
-        >
-          {busy ? "Сохраняю…" : "Записать"}
-        </button>
+      {items.length === 0 && (
+        <p className="text-[12px] leading-relaxed text-ink-3">Зафиксируйте аванс сразу после договорённости с семьёй. Это не заменяет платёжный документ.</p>
+      )}
+
+      <form onSubmit={add} className="td-form-surface grid gap-4" aria-label="Записать оплату">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-[13px] bg-surface text-accent shadow-[var(--shadow-xs)]">
+            <Plus size={18} weight="bold" />
+          </span>
+          <span>
+            <span className="block text-[13px] font-semibold text-ink">Новая оплата</span>
+            <span className="mt-0.5 block text-[12px] text-ink-3">Запись остаётся в истории кейса.</span>
+          </span>
+        </div>
+        <label className="block">
+          <span className="td-field-label">Сумма</span>
+          <input
+            aria-label="Сумма оплаты"
+            className="td-field tnum text-[16px] font-semibold"
+            placeholder="0 ₽"
+            inputMode="numeric"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </label>
+        <div className="grid gap-3">
+          <div>
+            <span className="td-field-label">Тип оплаты</span>
+            <div className="td-segmented">
+              {KINDS.map((item) => (
+                <button key={item} type="button" className="td-segment min-h-10 flex-1 capitalize" data-active={kind === item ? "true" : undefined} onClick={() => setKind(item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className="td-field-label">Способ</span>
+            <div className="td-segmented">
+              {METHODS.map((item) => (
+                <button key={item} type="button" className="td-segment min-h-10 flex-1 capitalize" data-active={method === item ? "true" : undefined} onClick={() => setMethod(item)}>
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button type="submit" size="sm" loading={busy} disabled={!amount}>Записать оплату</Button>
+          {err && <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {err}</span>}
+        </div>
       </form>
-      {err && <p role="alert" className="mt-2 flex items-center gap-1 text-[12px] text-danger"><Warning size={14} /> {err}</p>}
     </div>
   );
 }

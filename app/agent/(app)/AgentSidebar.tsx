@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -16,7 +17,6 @@ import {
   GraduationCap,
   MagnifyingGlass,
   Package,
-  CurrencyRub,
   type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
@@ -28,23 +28,27 @@ function CommandTrigger() {
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event(COMMAND_OPEN_EVENT))}
-      className="td-press flex w-full items-center gap-2.5 rounded-[12px] border border-line bg-surface px-3 py-2.5 text-[13px] text-ink-3 shadow-[var(--hl-top)] hover:border-line-strong hover:bg-surface-2 hover:text-ink-2"
+      className="td-rail-command td-press flex w-full items-center gap-2.5 rounded-[14px] bg-surface-2 px-3 py-2.5 text-[13px] text-ink-3 shadow-[var(--shadow-xs),var(--hl-top)] hover:bg-surface hover:text-ink-2"
     >
-      <MagnifyingGlass size={16} className="flex-shrink-0" />
+      <span className="grid h-7 w-7 place-items-center rounded-[10px] bg-surface text-ink-2 shadow-[var(--shadow-xs)]">
+        <MagnifyingGlass size={16} weight="bold" />
+      </span>
       <span className="flex-1 text-left">Поиск и действия</span>
-      <kbd className="tnum hidden rounded-md border border-line bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-3 lg:inline-flex">⌘K</kbd>
+      <kbd className="tnum hidden rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-3 shadow-[var(--shadow-xs)] lg:inline-flex">⌘K</kbd>
     </button>
   );
 }
 
-const NAV = [
+const PRIMARY_NAV = [
   { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/estimates", icon: FileText, label: "Сметы" },
-  { href: "/agent/catalog", icon: Package, label: "Каталог" },
   { href: "/agent/documents", icon: Files, label: "Документы" },
   { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
-  { href: "/agent/commissions", icon: CurrencyRub, label: "Комиссии" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
+const TOOL_NAV = [
+  { href: "/agent/catalog", icon: Package, label: "Каталог" },
   { href: "/agent/settings", icon: GearSix, label: "Настройки" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
@@ -59,10 +63,8 @@ const ROLE_LABELS: Record<string, string> = {
 function Brand({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-[9px] bg-accent text-on-accent">
-          <span className="block h-2 w-2 rounded-full bg-on-accent" />
-        </span>
+      <div className="td-brand flex items-center gap-2">
+        <Image src="/brand/tihiy-dom-mark.png" alt="" width={28} height={28} className="h-7 w-7 flex-shrink-0 rounded-[7px]" />
         <span className="text-[13px] font-semibold text-ink">
           Тихий дом <span className="font-medium text-ink-3">· Кабинет агента</span>
         </span>
@@ -70,10 +72,8 @@ function Brand({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[12px] bg-accent text-on-accent">
-        <span className="block h-2.5 w-2.5 rounded-full bg-on-accent" />
-      </span>
+    <div className="td-brand flex items-center gap-2.5">
+      <Image src="/brand/tihiy-dom-mark.png" alt="" width={36} height={36} className="h-9 w-9 flex-shrink-0 rounded-[9px]" />
       <span className="leading-none">
         <span className="block text-[15px] font-semibold tracking-[-0.01em] text-ink">Тихий дом</span>
         <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3">Кабинет агента</span>
@@ -84,32 +84,58 @@ function Brand({ compact = false }: { compact?: boolean }) {
 
 function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onNavigate?: () => void; overdue?: number }) {
   return (
-    <div className="space-y-0.5">
-      {NAV.map(({ href, icon: IconComponent, label }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-        const badge = href === "/agent/tasks" && overdue > 0 ? overdue : 0;
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            data-active={active ? "true" : undefined}
-            className={[
-              "td-side-nav-item td-press group flex items-center gap-3 px-3 py-2 text-[13px]",
-              active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink",
-            ].join(" ")}
-          >
-            <IconComponent size={18} weight={active ? "fill" : "regular"} className="flex-shrink-0" />
-            {label}
-            {badge > 0 && (
-              <span className="tnum ml-auto inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white" aria-label={`${badge} просроченных`}>
-                {badge}
+    <div className="space-y-6">
+      <NavGroup label="Работа" items={PRIMARY_NAV} pathname={pathname} overdue={overdue} onNavigate={onNavigate} />
+      <NavGroup label="Инструменты" items={TOOL_NAV} pathname={pathname} overdue={overdue} onNavigate={onNavigate} />
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  items,
+  pathname,
+  overdue,
+  onNavigate,
+}: {
+  label: string;
+  items: Array<{ href: string; icon: Icon; label: string }>;
+  pathname: string;
+  overdue: number;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div>
+      <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">{label}</p>
+      <div className="space-y-1">
+        {items.map(({ href, icon: IconComponent, label: itemLabel }) => {
+          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const badge = href === "/agent/tasks" && overdue > 0 ? overdue : 0;
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              data-active={active ? "true" : undefined}
+              className={[
+                "td-side-nav-item td-press group flex items-center gap-3 px-2 py-2 text-[13px]",
+                active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink",
+              ].join(" ")}
+            >
+              <span className="td-side-nav-icon" data-active={active ? "true" : undefined}>
+                <IconComponent weight="fill" />
               </span>
-            )}
-          </Link>
-        );
-      })}
+              <span className="min-w-0 flex-1 truncate">{itemLabel}</span>
+              {badge > 0 && (
+                <span className="tnum inline-flex min-w-[20px] items-center justify-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white" aria-label={`${badge} просроченных`}>
+                  {badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -144,7 +170,7 @@ function UserBlock({
         onClick={onStartTour}
         className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-2"
       >
-        <GraduationCap size={16} className="text-ink-3" />
+        <GraduationCap size={16} weight="fill" className="text-ink-3" />
         Обучение
       </button>
       <button
@@ -152,7 +178,7 @@ function UserBlock({
         onClick={onLogout}
         className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-3 hover:bg-danger-soft hover:text-danger"
       >
-        <SignOut size={16} />
+        <SignOut size={16} weight="bold" />
         Выйти
       </button>
     </div>
@@ -198,7 +224,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
         <div className="mx-4 mb-5">
           <CommandTrigger />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-1">
+        <div className="flex-1 overflow-y-auto px-4 py-3">
           <NavLinks pathname={pathname} overdue={overdue} />
         </div>
         <div className="border-t border-line px-4 py-4">
@@ -252,7 +278,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           <div className="mx-4 mt-4">
             <CommandTrigger />
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4">
+          <div className="flex-1 overflow-y-auto px-4 py-5">
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} overdue={overdue} />
           </div>
           <div className="border-t border-line px-4 py-4">

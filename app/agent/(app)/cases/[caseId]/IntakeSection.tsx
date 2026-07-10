@@ -2,32 +2,30 @@
 
 import { useState } from "react";
 import { Check, Warning } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
 
 export type Intake = {
   ceremonyType: string;
   budget: string;
   religion: string;
   needs: string;
-  // P0-домен: усопший и церемония
   deceasedName: string;
-  deceasedDate: string;   // yyyy-mm-dd
+  deceasedDate: string;
   morgue: string;
-  ceremonyAt: string;     // yyyy-mm-ddThh:mm
+  ceremonyAt: string;
   ceremonyPlace: string;
 };
 
 const CEREMONY = ["кремация", "погребение"] as const;
-const inputCls =
-  "min-h-11 w-full rounded-[10px] border border-line bg-surface px-3 text-[13px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 focus:border-accent focus:shadow-[0_0_0_3px_rgba(0,58,53,0.12)]";
 
 export function IntakeSection({ caseId, initial }: { caseId: number; initial: Intake }) {
-  const [v, setV] = useState<Intake>(initial);
+  const [value, setValue] = useState<Intake>(initial);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  function set<K extends keyof Intake>(k: K, val: Intake[K]) {
-    setV((prev) => ({ ...prev, [k]: val }));
+  function set<K extends keyof Intake>(key: K, next: Intake[K]) {
+    setValue((current) => ({ ...current, [key]: next }));
     setOk(false);
   }
 
@@ -39,11 +37,11 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
       const res = await fetch(`/api/agent/cases/${caseId}/intake`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(v),
+        body: JSON.stringify(value),
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setErr(d.error ?? "Не удалось сохранить. Попробуйте снова.");
+        const data = await res.json().catch(() => ({}));
+        setErr(data.error ?? "Не удалось сохранить. Попробуйте снова.");
         return;
       }
       setOk(true);
@@ -55,85 +53,95 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
   }
 
   return (
-    <div className="space-y-3">
-      {/* Усопший и церемония — главный дедлайн кейса */}
-      <div className="rounded-[12px] border border-line bg-surface-2/45 p-3">
-        <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Усопший и церемония</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">ФИО усопшего</label>
-            <input className={inputCls} placeholder="Иванов Иван Иванович" value={v.deceasedName} onChange={(e) => set("deceasedName", e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Дата смерти</label>
-            <input type="date" className={inputCls} value={v.deceasedDate} onChange={(e) => set("deceasedDate", e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Морг / где находится</label>
-            <input className={inputCls} placeholder="например, морг ГКБ №1" value={v.morgue} onChange={(e) => set("morgue", e.target.value)} />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Дата и время церемонии</label>
-            <input type="datetime-local" className={inputCls} value={v.ceremonyAt} onChange={(e) => set("ceremonyAt", e.target.value)} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Кладбище / крематорий</label>
-            <input className={inputCls} placeholder="например, Хованское кладбище" value={v.ceremonyPlace} onChange={(e) => set("ceremonyPlace", e.target.value)} />
-          </div>
-        </div>
+    <div className="space-y-6">
+      <div className="td-work-kicker">
+        <span>Краткая карточка семьи и церемонии</span>
+        <span className="text-ink-3">Видно только агенту</span>
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Тип церемонии</label>
-        <div className="td-segmented rounded-[12px]">
-          {CEREMONY.map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => set("ceremonyType", v.ceremonyType === c ? "" : c)}
-              data-active={v.ceremonyType === c ? "true" : undefined}
-              className="td-segment min-h-10 flex-1 capitalize"
-            >
-              {c}
-            </button>
-          ))}
+      <fieldset className="border-b border-line pb-6">
+        <legend className="mb-4 text-[13px] font-semibold text-ink">Усопший и церемония</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="ФИО усопшего">
+            <input aria-label="ФИО усопшего" className="td-field" placeholder="Иванов Иван Иванович" value={value.deceasedName} onChange={(e) => set("deceasedName", e.target.value)} />
+          </Field>
+          <Field label="Дата смерти">
+            <input aria-label="Дата смерти" type="date" className="td-field" value={value.deceasedDate} onChange={(e) => set("deceasedDate", e.target.value)} />
+          </Field>
+          <Field label="Морг / где находится">
+            <input aria-label="Морг или место нахождения" className="td-field" placeholder="Например, морг ГКБ №1" value={value.morgue} onChange={(e) => set("morgue", e.target.value)} />
+          </Field>
+          <Field label="Дата и время церемонии">
+            <input aria-label="Дата и время церемонии" type="datetime-local" className="td-field" value={value.ceremonyAt} onChange={(e) => set("ceremonyAt", e.target.value)} />
+          </Field>
+          <Field label="Кладбище / крематорий" className="sm:col-span-2">
+            <input aria-label="Кладбище или крематорий" className="td-field" placeholder="Например, Хованское кладбище" value={value.ceremonyPlace} onChange={(e) => set("ceremonyPlace", e.target.value)} />
+          </Field>
         </div>
-      </div>
+      </fieldset>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Бюджет</label>
-          <input className={inputCls} placeholder="например, 80-120 тыс ₽" value={v.budget} onChange={(e) => set("budget", e.target.value)} />
+      <fieldset className="border-b border-line pb-6">
+        <legend className="mb-4 text-[13px] font-semibold text-ink">Пожелания семьи</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Тип церемонии" className="sm:col-span-2">
+            <div className="td-segmented">
+              {CEREMONY.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => set("ceremonyType", value.ceremonyType === item ? "" : item)}
+                  data-active={value.ceremonyType === item ? "true" : undefined}
+                  className="td-segment min-h-10 flex-1 capitalize"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Ориентир по бюджету">
+            <input aria-label="Ориентир по бюджету" className="td-field" placeholder="Например, 80-120 тыс. ₽" value={value.budget} onChange={(e) => set("budget", e.target.value)} />
+          </Field>
+          <Field label="Традиция / конфессия">
+            <input aria-label="Традиция или конфессия" className="td-field" placeholder="Например, православная" value={value.religion} onChange={(e) => set("religion", e.target.value)} />
+          </Field>
+          <Field label="Особые пожелания" className="sm:col-span-2" help="Ограничения, важные детали и всё, что должно сохраниться для команды.">
+            <textarea
+              aria-label="Особые пожелания"
+              className="td-field resize-y"
+              placeholder="Пожелания семьи, ограничения, важные детали"
+              value={value.needs}
+              onChange={(e) => set("needs", e.target.value)}
+              maxLength={2000}
+            />
+          </Field>
         </div>
-        <div>
-          <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Традиция / конфессия</label>
-          <input className={inputCls} placeholder="например, православная" value={v.religion} onChange={(e) => set("religion", e.target.value)} />
-        </div>
-      </div>
+      </fieldset>
 
-      <div>
-        <label className="mb-1.5 block text-[12px] font-medium text-ink-2">Особые пожелания</label>
-        <textarea
-          className={`${inputCls} min-h-[72px] resize-y py-2`}
-          placeholder="Пожелания семьи, ограничения, важные детали"
-          value={v.needs}
-          onChange={(e) => set("needs", e.target.value)}
-          maxLength={2000}
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" size="sm" loading={busy} onClick={save}>Сохранить изменения</Button>
+        {ok && <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success"><Check size={15} weight="bold" /> Сохранено</span>}
+        {err && <span role="alert" className="inline-flex max-w-full items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {err}</span>}
       </div>
+    </div>
+  );
+}
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={save}
-          disabled={busy}
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-accent px-4 text-[13px] font-semibold text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16)] transition-colors duration-150 hover:bg-accent-hover disabled:opacity-55"
-        >
-          {busy ? "Сохраняю…" : "Сохранить потребности"}
-        </button>
-        {ok && <span className="flex items-center gap-1 text-[12px] text-success"><Check size={14} weight="bold" /> Сохранено</span>}
-        {err && <span className="flex items-center gap-1 text-[12px] text-danger"><Warning size={14} /> {err}</span>}
-      </div>
+function Field({
+  label,
+  help,
+  className = "",
+  children,
+}: {
+  label: string;
+  help?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={`block min-w-0 ${className}`}>
+      <span className="td-field-label">{label}</span>
+      {children}
+      {help && <span className="td-field-help">{help}</span>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { X, CaretLeft, CaretRight, Check, GraduationCap } from "@phosphor-icons/react";
 import {
@@ -111,7 +111,9 @@ export default function OnboardingTour({ onboardingCompleted }: { onboardingComp
     setPhase("intro");
   }
 
-  const steps: TourStep[] = tour?.steps ?? [];
+  // useMemo — стабильная ссылка на массив, иначе зависимости goNext/goBack
+  // меняются на каждом рендере (react-hooks/exhaustive-deps).
+  const steps: TourStep[] = useMemo(() => tour?.steps ?? [], [tour]);
   const current = phase === "steps" ? steps[index] : null;
 
   const measure = useCallback(() => {

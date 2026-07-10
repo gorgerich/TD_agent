@@ -115,7 +115,7 @@ export default async function CalendarPage() {
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header className="rise td-page-header mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Расписание</span>
           <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]">Календарь</h1>

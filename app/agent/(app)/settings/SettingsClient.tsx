@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { Bell, Check, Key, SignOut, Warning } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { Bell, Key, SignOut, Check, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-
-const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(0,58,53,0.14)]";
 
 export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
   const router = useRouter();
-
-  // Уведомления
   const [notify, setNotify] = useState(notifyEnabled);
   const [notifyBusy, setNotifyBusy] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSaved, setPasswordSaved] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   async function toggleNotify() {
     const next = !notify;
@@ -25,7 +26,7 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: next }),
       });
-      if (!res.ok) setNotify(!next); // откат
+      if (!res.ok) setNotify(!next);
     } catch {
       setNotify(!next);
     } finally {
@@ -33,140 +34,120 @@ export function SettingsClient({ notifyEnabled }: { notifyEnabled: boolean }) {
     }
   }
 
-  // Смена пароля
-  const [cur, setCur] = useState("");
-  const [nxt, setNxt] = useState("");
-  const [pwBusy, setPwBusy] = useState(false);
-  const [pwErr, setPwErr] = useState<string | null>(null);
-  const [pwOk, setPwOk] = useState(false);
-
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    setPwErr(null);
-    setPwOk(false);
-    setPwBusy(true);
+    setPasswordError(null);
+    setPasswordSaved(false);
+    setPasswordBusy(true);
     try {
       const res = await fetch("/api/agent/settings/password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: cur, next: nxt }),
+        body: JSON.stringify({ current: currentPassword, next: nextPassword }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setPwErr(data.error ?? "Не удалось сменить пароль");
+        setPasswordError(data.error ?? "Не удалось сменить пароль");
         return;
       }
-      setPwOk(true);
-      setCur("");
-      setNxt("");
+      setPasswordSaved(true);
+      setCurrentPassword("");
+      setNextPassword("");
     } catch {
-      setPwErr("Нет связи. Проверьте интернет и попробуйте снова.");
+      setPasswordError("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
-      setPwBusy(false);
+      setPasswordBusy(false);
     }
   }
 
-  // Выход
-  const [outBusy, setOutBusy] = useState(false);
   async function logout() {
-    setOutBusy(true);
+    setLogoutBusy(true);
     try {
       await fetch("/api/agent/auth/logout", { method: "POST" });
       router.push("/agent/login");
       router.refresh();
     } finally {
-      setOutBusy(false);
+      setLogoutBusy(false);
     }
   }
 
   return (
-    <div className="rise rise-2 space-y-4">
-      {/* Уведомления */}
-      <section className="td-shell p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] icon-3d text-accent">
-              <Bell size={19} weight="duotone" />
-            </span>
-            <div>
-              <h2 className="text-[14px] font-semibold text-ink">Уведомления</h2>
-              <p className="text-[13px] text-ink-3">Подсказки о просроченных задачах и встречах внутри кабинета.</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={notify}
-            aria-label="Уведомления"
-            disabled={notifyBusy}
-            onClick={toggleNotify}
-            className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors ${notify ? "bg-accent" : "bg-surface-3"} disabled:opacity-60`}
-          >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform ${notify ? "translate-x-[22px]" : "translate-x-0.5"}`} />
-          </button>
-        </div>
-      </section>
-
-      {/* Смена пароля */}
-      <section className="td-shell p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[12px] icon-3d text-accent">
-            <Key size={19} weight="duotone" />
+    <section className="rise rise-2 td-shell overflow-hidden" aria-label="Настройки кабинета">
+      <div className="flex items-center justify-between gap-4 px-5 py-5 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent shadow-[var(--shadow-xs)]">
+            <Bell size={19} weight="fill" />
           </span>
-          <div>
-            <h2 className="text-[14px] font-semibold text-ink">Смена пароля</h2>
-            <p className="text-[13px] text-ink-3">Минимум 8 символов.</p>
-          </div>
+          <span className="min-w-0">
+            <span className="block text-[14px] font-semibold text-ink">Уведомления</span>
+            <span className="mt-0.5 block max-w-[54ch] text-[12px] leading-relaxed text-ink-3">Напоминания о просроченных задачах и встречах внутри кабинета.</span>
+          </span>
         </div>
-        <form onSubmit={changePassword} className="grid gap-3 sm:max-w-[420px]">
-          <input
-            type="password"
-            className={inputCls}
-            placeholder="Текущий пароль"
-            value={cur}
-            onChange={(e) => setCur(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-          <input
-            type="password"
-            className={inputCls}
-            placeholder="Новый пароль"
-            value={nxt}
-            onChange={(e) => setNxt(e.target.value)}
-            autoComplete="new-password"
-            minLength={8}
-            required
-          />
-          {pwErr && (
-            <p role="alert" className="flex items-center gap-1.5 text-[13px] text-danger">
-              <Warning size={14} /> {pwErr}
-            </p>
-          )}
-          {pwOk && (
-            <p className="flex items-center gap-1.5 text-[13px] text-success">
-              <Check size={14} weight="bold" /> Пароль обновлён
-            </p>
-          )}
-          <Button type="submit" variant="secondary" loading={pwBusy} disabled={!cur || nxt.length < 8} className="w-fit">
-            Обновить пароль
-          </Button>
-        </form>
-      </section>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={notify}
+          aria-label="Включить уведомления"
+          disabled={notifyBusy}
+          onClick={toggleNotify}
+          className={`relative h-11 w-[54px] flex-shrink-0 rounded-full p-1 transition-[background-color,transform] duration-150 ${notify ? "bg-accent shadow-[var(--shadow-accent)]" : "bg-surface-3 shadow-[var(--shadow-xs)]"} disabled:opacity-60`}
+        >
+          <span className={`block h-9 w-9 rounded-full bg-surface shadow-[var(--shadow-xs)] transition-transform duration-150 ${notify ? "translate-x-[12px]" : "translate-x-0"}`} />
+        </button>
+      </div>
 
-      {/* Выход */}
-      <section className="td-shell p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-[14px] font-semibold text-ink">Выход из аккаунта</h2>
-            <p className="text-[13px] text-ink-3">Завершить сессию на этом устройстве.</p>
-          </div>
-          <Button type="button" variant="danger" loading={outBusy} onClick={logout} leftIcon={<SignOut size={16} weight="bold" />}>
-            Выйти
-          </Button>
+      <div className="border-t border-line px-5 py-5 sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent shadow-[var(--shadow-xs)]">
+            <Key size={19} weight="fill" />
+          </span>
+          <span>
+            <span className="block text-[14px] font-semibold text-ink">Смена пароля</span>
+            <span className="mt-0.5 block text-[12px] text-ink-3">Минимум 8 символов.</span>
+          </span>
         </div>
-      </section>
-    </div>
+        <form onSubmit={changePassword} className="mt-5 grid max-w-[500px] gap-4">
+          <label>
+            <span className="td-field-label">Текущий пароль</span>
+            <input
+              aria-label="Текущий пароль"
+              type="password"
+              className="td-field"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <label>
+            <span className="td-field-label">Новый пароль</span>
+            <input
+              aria-label="Новый пароль"
+              type="password"
+              className="td-field"
+              value={nextPassword}
+              onChange={(e) => setNextPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={8}
+              required
+            />
+          </label>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <Button type="submit" variant="secondary" size="sm" loading={passwordBusy} disabled={!currentPassword || nextPassword.length < 8}>Обновить пароль</Button>
+            {passwordError && <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {passwordError}</span>}
+            {passwordSaved && <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success"><Check size={15} weight="bold" /> Пароль обновлён</span>}
+          </div>
+        </form>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-5 py-5 sm:px-6">
+        <span>
+          <span className="block text-[14px] font-semibold text-ink">Выход из аккаунта</span>
+          <span className="mt-0.5 block text-[12px] text-ink-3">Завершить сессию на этом устройстве.</span>
+        </span>
+        <Button type="button" variant="danger" size="sm" loading={logoutBusy} onClick={logout} leftIcon={<SignOut size={16} weight="bold" />}>Выйти</Button>
+      </div>
+    </section>
   );
 }
 

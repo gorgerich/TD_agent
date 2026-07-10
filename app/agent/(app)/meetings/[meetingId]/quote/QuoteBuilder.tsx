@@ -722,32 +722,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           >
             Собрать свой план
           </button>
-          <p>{planMode === "custom" ? "Позиции, бюджет, итог." : "Тариф как быстрый старт."}</p>
-        </div>
-
-        <div className={s.dealBar} aria-label="Сводка сметы">
-          <div className={s.dealMetric}>
-            <span>Итого</span>
-            <strong>{formatCurrency(grandTotal)}</strong>
-          </div>
-          <div className={`${s.dealMetric} ${budgetStatus.status === "exceeded" ? s.dealMetricDanger : ""}`}>
-            <span>Бюджет</span>
-            <strong>
-              {budgetStatus.status === "not_set"
-                ? "не указан"
-                : budgetStatus.status === "exceeded"
-                  ? `+${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
-                  : `ост. ${formatCurrency(budgetStatus.budgetRemaining)}`}
-            </strong>
-          </div>
-          <div className={s.dealMetric}>
-            <span>Состав</span>
-            <strong>{calculatorLineCount} поз.</strong>
-          </div>
-          <div className={s.dealMetric}>
-            <span>Версия</span>
-            <strong>{calculatorVersionLabel}</strong>
-          </div>
         </div>
 
         {planMode === "package" ? (
@@ -1112,8 +1086,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
             {/* Живая визуализация комплекта - собирается из выбранных позиций сметы */}
             <div className={s.configuratorSlot}>
-              <div className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-soft">
-                <div className="border-b border-line px-4 py-3">
+              <div className={s.previewShell}>
+                <div className={s.previewHead}>
                   <p className="text-[13px] font-semibold text-ink">Визуализация комплекта</p>
                   <p className="mt-0.5 text-[11px] text-ink-3">Обновляется при выборе атрибутики.</p>
                 </div>

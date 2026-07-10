@@ -118,13 +118,12 @@ export default function NewCaseSheet() {
   );
 }
 
-const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(0,58,53,0.14)]";
+const inputCls = "td-field";
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="mb-4 block">
-      <span className="mb-1.5 block text-[12px] font-medium text-ink-2">
+      <span className="td-field-label">
         {label}{required && <span className="text-danger"> *</span>}
       </span>
       {children}

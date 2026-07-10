@@ -211,7 +211,7 @@ export default async function CasesPage() {
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-5 flex items-end justify-between gap-4">
+      <header className="rise td-page-header mb-5 flex items-end justify-between gap-4">
         <div>
           <span className="td-eyebrow">Рабочий центр</span>
           <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[32px]">Кейсы</h1>

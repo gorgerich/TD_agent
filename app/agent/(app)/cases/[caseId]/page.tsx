@@ -7,7 +7,6 @@ import {
   CalendarDots,
   FileText,
   ShareNetwork,
-  Plus,
   Warning,
   Phone,
 } from "@phosphor-icons/react/dist/ssr";
@@ -187,18 +186,26 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         <ArrowLeft size={15} /> К кейсам
       </Link>
 
-      <header className="rise rise-1 td-shell mt-4 mb-5 px-5 py-5">
+      <header className="rise rise-1 td-shell-elevated mt-4 mb-5 overflow-hidden">
         <div className="min-w-0">
-          <span className="td-eyebrow">Кейс #{id}</span>
-          <h1 className="td-display mt-2 text-[28px] text-ink sm:text-[34px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
-          <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-            <MetaPill icon={<Phone size={14} weight="duotone" />} label="Телефон" value={fmtPhone(lead.phone)} href={`tel:${lead.phone}`} />
-            <span className="text-[12px] text-ink-3">
-              Источник: {SOURCE_LABELS[lead.source] ?? lead.source} · Агент: {session?.name ?? "-"} · {dateTime(lead.createdAt)}
-            </span>
+          <div className="px-5 py-5 sm:px-6 sm:py-6">
+            <span className="td-eyebrow">Кейс · #{id}</span>
+            <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13px] text-ink-2">
+              <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1.5 font-semibold text-ink transition-colors hover:text-accent">
+                <Phone size={15} weight="fill" />
+                <span className="tnum">{fmtPhone(lead.phone)}</span>
+              </a>
+              <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+              <span>Источник: {SOURCE_LABELS[lead.source] ?? lead.source}</span>
+              <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+              <span>Ведёт: {session?.name ?? "-"}</span>
+              <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
+              <span>Открыт: {dateTime(lead.createdAt)}</span>
+            </div>
           </div>
           {(intake.deceasedName || lead.ceremonyAt) && (
-            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line pt-3 text-[13px] text-ink-2">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line bg-surface-2/60 px-5 py-3.5 text-[13px] text-ink-2 sm:px-6">
               {intake.deceasedName && <span className="font-medium text-ink">{intake.deceasedName}</span>}
               {intake.morgue && <span className="text-ink-3">· {intake.morgue}</span>}
               {lead.ceremonyAt && (
@@ -222,6 +229,13 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
         cobrowse={cobrowse}
+        controls={[
+          { label: "Открытые задачи", value: String(openTasksCount), tone: openTasksCount > 0 ? "warning" : "neutral" },
+          { label: "Документы", value: String(docs.length), tone: docs.length === 0 ? "warning" : "neutral" },
+          { label: "Сметы", value: String(versions.length), tone: versions.length === 0 ? "warning" : "neutral" },
+          { label: "Оплаты", value: moneyFromKopecks(paymentTotal), tone: paymentTotal > 0 ? "success" : "neutral" },
+        ]}
+        lastActivity={lastActivityText}
       />
 
       {risks.length > 0 && (
@@ -238,52 +252,18 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
         </section>
       )}
 
-      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        {/* CENTER - operational (tabbed to kill the card wall) */}
-        <main className="rise rise-2 order-1 min-w-0">
-          <CaseTabs
-            caseId={id}
-            tasks={tasks}
-            docs={docs}
-            notes={notes}
-            intake={intake}
-            context={context}
-            payments={payments}
-            activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
-          />
-        </main>
-
-        {/* RIGHT - info + quick actions */}
-        <aside className="rise rise-2 order-2 min-w-0 space-y-4">
-          <div className="td-shell space-y-2.5 p-4">
-            <span className="td-eyebrow">Быстрые действия</span>
-            <Action href={`/agent/meetings/new?leadId=${id}`} icon={<Plus size={16} />}>
-              Новая встреча
-            </Action>
-            {firstMeeting && (
-              <Action href={`/agent/meetings/${firstMeeting.id}/quote`} icon={<FileText size={16} />} primary>
-                Открыть смету
-              </Action>
-            )}
-            {cobrowse && (
-              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external>
-                Клиентский вид
-              </Action>
-            )}
-          </div>
-
-          <div className="td-shell p-4">
-            <span className="td-eyebrow">Контроль</span>
-            <div className="mt-3 divide-y divide-line">
-              <ControlRow label="Открытые задачи" value={String(openTasksCount)} tone={openTasksCount > 0 ? "warning" : "neutral"} />
-              <ControlRow label="Документы" value={String(docs.length)} tone={docs.length === 0 ? "warning" : "neutral"} />
-              <ControlRow label="Сметы" value={String(versions.length)} tone={versions.length === 0 ? "warning" : "neutral"} />
-              <ControlRow label="Оплаты" value={moneyFromKopecks(paymentTotal)} tone={paymentTotal > 0 ? "success" : "neutral"} />
-            </div>
-            <p className="mt-3 truncate text-[12px] text-ink-3">Последнее: {lastActivityText}</p>
-          </div>
-        </aside>
-      </div>
+      <main className="rise rise-2 min-w-0">
+        <CaseTabs
+          caseId={id}
+          tasks={tasks}
+          docs={docs}
+          notes={notes}
+          intake={intake}
+          context={context}
+          payments={payments}
+          activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
+        />
+      </main>
     </div>
   );
 }
@@ -297,6 +277,8 @@ function RouteActionPanel({
   firstMeetingId,
   caseId,
   cobrowse,
+  controls,
+  lastActivity,
 }: {
   current: number;
   statusLabel: string;
@@ -306,20 +288,19 @@ function RouteActionPanel({
   firstMeetingId: number | null;
   caseId: number;
   cobrowse: string | null;
+  controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
+  lastActivity: string;
 }) {
   const isDone = current >= STAGE_ORDER.length - 1;
   return (
     <section className="rise rise-1 td-shell-elevated mb-5 overflow-hidden">
-      <div className="grid min-w-0 gap-0 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid min-w-0 gap-0 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="td-accent-panel order-1 px-4 py-4 sm:px-5 sm:py-5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="td-eyebrow text-accent">Следующее действие</span>
             <StatusChip label={statusLabel} tone={statusTone} />
           </div>
           <strong className="mt-2 block max-w-[760px] text-[20px] leading-snug text-ink sm:text-[23px]">{nextAction}</strong>
-          <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
-            После контакта обновите задачи, документы или оплату.
-          </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {firstMeetingId ? (
               <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
@@ -338,7 +319,7 @@ function RouteActionPanel({
           </div>
         </div>
 
-        <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 lg:border-l lg:border-t-0">
+        <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 xl:border-l xl:border-t-0">
           <div className="mb-4 flex flex-col gap-2">
             <div>
               <span className="td-eyebrow">Маршрут кейса</span>
@@ -348,7 +329,7 @@ function RouteActionPanel({
             </div>
           </div>
           {!isDone && (
-          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {STAGE_ORDER.map((s, i) => {
               const done = i < current;
               const active = i === current;
@@ -377,7 +358,17 @@ function RouteActionPanel({
           </ol>
           )}
         </div>
-
+      </div>
+      <div className="border-t border-line bg-surface-2/45 px-4 py-3.5 sm:px-5">
+        <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+          <span className="td-eyebrow">Контроль кейса</span>
+          <span className="truncate text-[12px] text-ink-3">Последнее: {lastActivity}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] bg-line sm:grid-cols-4">
+          {controls.map((control) => (
+            <CaseMetric key={control.label} {...control} />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -392,27 +383,6 @@ function ruCount(count: number, forms: [string, string, string]) {
       ? forms[1]
       : forms[2];
   return `${count} ${form}`;
-}
-
-function MetaPill({ icon, label, value, href }: { icon: ReactNode; label: string; value: string; href?: string }) {
-  const content = (
-    <>
-      <span className="text-accent">{icon}</span>
-      <span className="text-ink-3">{label}</span>
-      <span className="tnum font-semibold text-ink">{value}</span>
-    </>
-  );
-  const cls = "inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-full border border-line bg-surface-2/55 px-3 text-[12px] shadow-[var(--hl-top)]";
-  if (href) {
-    return (
-      <a href={href} className={`${cls} transition-colors hover:border-line-strong hover:bg-surface-2`}>
-        {content}
-      </a>
-    );
-  }
-  return (
-    <span className={cls}>{content}</span>
-  );
 }
 
 const STATUS_CHIP: Record<StatusTone, { wrap: string; dot: string }> = {
@@ -447,12 +417,12 @@ function Action({ href, icon, children, primary, external, compact }: { href: st
   );
 }
 
-function ControlRow({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "warning" | "success" }) {
+function CaseMetric({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "warning" | "success" }) {
   const toneClass = tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-ink";
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-      <span className="text-[13px] text-ink-2">{label}</span>
-      <span className={`tnum max-w-[120px] truncate text-right text-[13px] font-semibold ${toneClass}`}>{value}</span>
+    <div className="min-w-0 bg-surface px-3 py-3 sm:px-4">
+      <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
+      <span className={`tnum mt-1 block truncate text-[15px] font-bold tracking-[-0.015em] ${toneClass}`}>{value}</span>
     </div>
   );
 }

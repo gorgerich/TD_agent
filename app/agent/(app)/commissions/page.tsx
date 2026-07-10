@@ -35,7 +35,7 @@ export default async function CommissionsPage() {
 
   return (
     <div className="td-page mx-auto max-w-[1280px] px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-8">
+      <header className="rise td-page-header mb-8">
         <span className="td-eyebrow">Финансы</span>
         <h1 className="td-display mt-2.5 text-[30px] text-ink sm:text-[38px]">Комиссии</h1>
       </header>

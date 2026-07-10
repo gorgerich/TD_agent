@@ -65,9 +65,27 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
     }
   }, [onChange]);
 
+  // Первичная загрузка. setState — только в колбэках промиса (реакция на
+  // внешнюю систему), не синхронно в теле эффекта (react-hooks/set-state-in-effect).
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let active = true;
+    fetch("/api/agent/catalog")
+      .then((r) => r.json())
+      .then((d: { items?: AgentCatalogItemDTO[] }) => {
+        if (!active) return;
+        setItems(d.items ?? []);
+        onChange?.(d.items ?? []);
+      })
+      .catch(() => {
+        if (active) setItems([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [onChange]);
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);

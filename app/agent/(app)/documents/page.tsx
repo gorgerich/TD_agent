@@ -127,7 +127,7 @@ export default async function DocumentsPage({
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-5">
+      <header className="rise td-page-header mb-5">
         <span className="td-eyebrow">Файлы кейсов</span>
         <h1 className="td-display mt-1.5 text-[30px] text-ink sm:text-[38px]">Документы</h1>
         <p className="mt-2 text-[13px] text-ink-2">

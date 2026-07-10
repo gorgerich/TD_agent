@@ -9,9 +9,8 @@ import { ImageSquare, ArrowsOut, X } from "@phosphor-icons/react";
 import { assetPath, shadowPath, visualizerAssets } from "./visualizerAssets";
 import {
   SCENE_EASEL_ANCHORS,
-  DEFAULT_EASEL_ANCHORS,
-  WREATH_CENTER_Y,
-  WREATH_HEIGHT,
+  DEFAULT_SCENE_ANCHORS,
+  type EaselAnchor,
   WREATH_TILT_X,
   WREATH_TILT_Y,
   WREATH_PERSPECTIVE,
@@ -240,38 +239,53 @@ function SceneBackdrop({ src, onError }: { src: string; onError: () => void }) {
 }
 
 // ── Венок на мольберте ──────────────────────────────────────────────────────
-// Вариант C против «наклейки»: лёгкая CSS-перспектива по плоскости мольберта,
-// контактная тень на подставке, цветокоррекция под свет зала и мягкая окклюзия
-// нижней части венка держателем.
-function WreathOnEasel({ src, cx, side }: { src: string; cx: number; side: "left" | "right" }) {
+// Основной режим: направленный AI-вырез (<id>-left/<id>-right) — венок,
+// сгенерированный прямо на мольберте этого зала: перспектива, свет и контакт
+// с треногой уже «запечены», CSS-трансформации не нужны. Фоллбэк — плоский
+// каталожный вырез (<id>.webp) с CSS-перспективой и цветокоррекцией.
+function WreathOnEasel({ src, flatSrc, anchor, side }: { src: string; flatSrc: string; anchor: EaselAnchor; side: "left" | "right" }) {
   const [state, setState] = useState<"load" | "ok" | "err">("load");
+  // flat=true, когда направленного выреза нет и работаем с плоским фоллбэком.
+  const [flat, setFlat] = useState(false);
   // Сброс состояния при смене венка — корректировка во время рендера.
   const [prevSrc, setPrevSrc] = useState(src);
   if (prevSrc !== src) {
     setPrevSrc(src);
     setState("load");
+    setFlat(false);
   }
   if (state === "err") return null;
 
   const ok = state === "ok";
-  const topPct = (WREATH_CENTER_Y - WREATH_HEIGHT / 2) * 100;
-  const bottomPct = (WREATH_CENTER_Y + WREATH_HEIGHT / 2) * 100;
+  const cx = anchor.x;
+  const topPct = (anchor.cy - anchor.h / 2) * 100;
+  const bottomPct = (anchor.cy + anchor.h / 2) * 100;
   // Мольберты развёрнуты внутрь к камере: у левого ближе правый край, у правого — левый.
   const rotY = side === "left" ? -WREATH_TILT_Y : WREATH_TILT_Y;
+  const flatTransform =
+    `translateX(-50%) perspective(${WREATH_PERSPECTIVE}px) ` +
+    `rotateX(${WREATH_TILT_X}deg) rotateY(${rotY}deg) scale(${ok ? 1 : 1.03})`;
+  const bakedTransform = `translateX(-50%) scale(${ok ? 1 : 1.03})`;
+  // Ноги треноги: венок стоит на перекладине (низ = 0.80 высоты мольберта),
+  // пол — ещё на 0.25 высоты венка ниже. Тени лежат там, а не под венком.
+  const feetPct = bottomPct + anchor.h * 25;
+  // Тень падает от окон (слева) к центру зала: у левого венка — вправо,
+  // у правого — тоже вправо, но короче (свет частично фронтальный).
+  const shadowSkew = side === "left" ? -24 : -14;
 
   return (
     <>
-      {/* Контактная тень на подставке мольберта */}
+      {/* Пятно контакта у ног треноги */}
       <div
         aria-hidden
         style={{
           position: "absolute",
           left: `${cx * 100}%`,
-          top: `${bottomPct - 1.6}%`,
-          width: "15%",
-          height: "3.2%",
+          top: `${feetPct - 2.2}%`,
+          width: `${anchor.h * 36}%`,
+          height: "3.6%",
           transform: "translateX(-50%)",
-          background: "radial-gradient(closest-side, rgba(24,16,10,0.4), rgba(24,16,10,0) 72%)",
+          background: "radial-gradient(closest-side, rgba(24,16,10,0.32), rgba(24,16,10,0) 74%)",
           filter: "blur(3px)",
           opacity: ok ? 1 : 0,
           transition: "opacity 0.4s ease",
@@ -279,49 +293,84 @@ function WreathOnEasel({ src, cx, side }: { src: string; cx: number; side: "left
           pointerEvents: "none",
         }}
       />
+      {/* Тень венка на полу: сплющенный размытый силуэт самого венка.
+          Главный признак «предмет был в кадре», а не наклеен. */}
+      {!flat && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            position: "absolute",
+            left: `${cx * 100}%`,
+            top: `${feetPct - anchor.h * 100}%`,
+            height: `${anchor.h * 100}%`,
+            width: "auto",
+            transform: `translateX(-46%) skewX(${shadowSkew}deg) scaleY(0.2)`,
+            transformOrigin: "50% 100%",
+            objectFit: "contain",
+            zIndex: 2,
+            filter: "brightness(0) blur(7px)",
+            opacity: ok ? 0.16 : 0,
+            transition: "opacity 0.4s ease",
+            pointerEvents: "none",
+          }}
+        />
+      )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={src}
+        src={flat ? flatSrc : src}
         alt="Венок"
         draggable={false}
         onLoad={() => setState("ok")}
-        onError={() => setState("err")}
+        onError={() => {
+          // Нет направленного выреза — переключаемся на плоский каталожный.
+          if (!flat) {
+            setFlat(true);
+            setState("load");
+          } else {
+            setState("err");
+          }
+        }}
         style={{
           position: "absolute",
           left: `${cx * 100}%`,
           top: `${topPct}%`,
-          height: `${WREATH_HEIGHT * 100}%`,
+          height: `${anchor.h * 100}%`,
           width: "auto",
-          transform:
-            `translateX(-50%) perspective(${WREATH_PERSPECTIVE}px) ` +
-            `rotateX(${WREATH_TILT_X}deg) rotateY(${rotY}deg) scale(${ok ? 1 : 1.03})`,
+          transform: flat ? flatTransform : bakedTransform,
           transformOrigin: "50% 88%",
           objectFit: "contain",
           zIndex: 3,
-          filter: WREATH_GRADE_FILTER,
+          filter: flat ? WREATH_GRADE_FILTER : "drop-shadow(0 10px 10px rgba(24,16,10,0.25))",
           opacity: ok ? 1 : 0,
           transition: "opacity 0.35s ease, transform 0.35s ease",
           pointerEvents: "none",
         }}
       />
-      {/* Окклюзия: держатель мольберта затеняет низ венка */}
-      <div
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: `${cx * 100}%`,
-          top: `${bottomPct - 5.5}%`,
-          width: "9%",
-          height: "5.5%",
-          transform: "translateX(-50%)",
-          background: "linear-gradient(to top, rgba(20,13,8,0.34), rgba(20,13,8,0))",
-          filter: "blur(2.5px)",
-          opacity: ok ? 0.75 : 0,
-          transition: "opacity 0.4s ease",
-          zIndex: 4,
-          pointerEvents: "none",
-        }}
-      />
+      {/* Окклюзия держателем — только для плоского фоллбэка: у направленных
+          вырезов контакт с треногой уже в самой картинке. */}
+      {flat && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: `${cx * 100}%`,
+            top: `${bottomPct - 5.5}%`,
+            width: `${anchor.h * 20}%`,
+            height: "5.5%",
+            transform: "translateX(-50%)",
+            background: "linear-gradient(to top, rgba(20,13,8,0.34), rgba(20,13,8,0))",
+            filter: "blur(2.5px)",
+            opacity: ok ? 0.75 : 0,
+            transition: "opacity 0.4s ease",
+            zIndex: 4,
+            pointerEvents: "none",
+          }}
+        />
+      )}
     </>
   );
 }
@@ -333,21 +382,25 @@ function WreathOnEasel({ src, cx, side }: { src: string; cx: number; side: "left
 function SceneStage({
   sceneSrc,
   sku,
-  wreathSrcs,
+  wreathIds,
   onSceneError,
 }: {
   sceneSrc: string;
   sku: string;
-  wreathSrcs: string[];
+  wreathIds: string[];
   onSceneError: () => void;
 }) {
-  const anchors = SCENE_EASEL_ANCHORS[sku] ?? DEFAULT_EASEL_ANCHORS;
+  const anchors = SCENE_EASEL_ANCHORS[sku] ?? DEFAULT_SCENE_ANCHORS;
+  const srcFor = (id: string, side: "left" | "right") => ({
+    src: `/visualizer/wreaths-cut/${id}-${side}.webp`,
+    flatSrc: `/visualizer/wreaths-cut/${id}.webp`,
+  });
   return (
     <>
       <SceneBackdrop src={sceneSrc} onError={onSceneError} />
       {/* [0] → левый мольберт, [1] → правый мольберт */}
-      {wreathSrcs[0] && <WreathOnEasel src={wreathSrcs[0]} cx={anchors.left} side="left" />}
-      {wreathSrcs[1] && <WreathOnEasel src={wreathSrcs[1]} cx={anchors.right} side="right" />}
+      {wreathIds[0] && <WreathOnEasel {...srcFor(wreathIds[0], "left")} anchor={anchors.left} side="left" />}
+      {wreathIds[1] && <WreathOnEasel {...srcFor(wreathIds[1], "right")} anchor={anchors.right} side="right" />}
     </>
   );
 }
@@ -385,7 +438,7 @@ export default function RitualSetPreview({
   const sceneSrc = coffinId ? `/visualizer/scenes/${coffinId}.jpg` : undefined;
   // До двух венков: приоритет wreathIds, иначе одиночный wreathId. [0]→левый, [1]→правый.
   const wreathIdList = (wreathIds && wreathIds.length ? wreathIds : wreathId ? [wreathId] : []).filter(Boolean).slice(0, 2);
-  const wreathCutSrcs = showWreath ? wreathIdList.map((id) => `/visualizer/wreaths-cut/${id}.webp`) : [];
+  const sceneWreathIds = showWreath ? wreathIdList : [];
   const [sceneErr, setSceneErr] = useState(false);
   const [prevScene, setPrevScene] = useState(sceneSrc);
   if (prevScene !== sceneSrc) {
@@ -395,7 +448,7 @@ export default function RitualSetPreview({
   const useScene = Boolean(sceneSrc) && !sceneErr;
   const hasStage = useScene || showStage;
   const stageNode = useScene ? (
-    <SceneStage sceneSrc={sceneSrc as string} sku={coffinId} wreathSrcs={wreathCutSrcs} onSceneError={() => setSceneErr(true)} />
+    <SceneStage sceneSrc={sceneSrc as string} sku={coffinId} wreathIds={sceneWreathIds} onSceneError={() => setSceneErr(true)} />
   ) : showStage ? (
     <LayerStack
       coffinSrc={coffinSrc}

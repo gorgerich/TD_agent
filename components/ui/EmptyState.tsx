@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { buttonClasses } from "./Button";
 
 export type EmptyStateAction = {
   label: string;
@@ -61,7 +62,7 @@ export function EmptyState({
             {primaryAction && (
               <Link
                 href={primaryAction.href}
-                className="td-press inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-[13px] font-semibold text-on-accent shadow-[var(--shadow-accent)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                className={buttonClasses({ size: "md" })}
               >
                 {primaryAction.label}
               </Link>
@@ -70,7 +71,7 @@ export function EmptyState({
             {secondaryAction && (
               <Link
                 href={secondaryAction.href}
-                className="td-press inline-flex min-h-10 items-center justify-center rounded-full px-4 text-[13px] font-semibold text-ink-2 transition-[background-color,color,transform] duration-150 hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                className={buttonClasses({ variant: "ghost", size: "md" })}
               >
                 {secondaryAction.label}
               </Link>

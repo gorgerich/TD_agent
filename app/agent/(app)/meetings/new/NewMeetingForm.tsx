@@ -12,15 +12,12 @@ type ClientOption = {
   phone: string;
 };
 
-const inputCls =
-  "min-h-12 w-full rounded-[12px] border border-line bg-surface px-3.5 py-2.5 text-[14px] text-ink outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-ink-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] focus:border-accent focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_0_3px_rgba(0,58,53,0.14)]";
-
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</label>
+      <label htmlFor={id} className="td-field-label">{label}</label>
       {children}
-      {hint && <p className="mt-1.5 text-[11px] text-ink-3">{hint}</p>}
+      {hint && <p className="td-field-help">{hint}</p>}
     </div>
   );
 }
@@ -55,13 +52,20 @@ function FormInner({ clients }: { clients: ClientOption[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[620px] td-shell" aria-busy={loading}>
-      <div className="td-core space-y-5 p-5 sm:p-7">
+    <form onSubmit={handleSubmit} className="max-w-[620px] td-shell-elevated p-5 sm:p-7" aria-busy={loading}>
+      <div className="mb-6 flex items-start gap-3 border-b border-line pb-5">
+        <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-[13px] font-bold text-accent shadow-[var(--shadow-xs)]">1</span>
+        <span>
+          <span className="block text-[15px] font-semibold text-ink">Детали встречи</span>
+          <span className="mt-1 block text-[13px] leading-relaxed text-ink-3">Достаточно клиента и времени. Остальные детали заполняются уже в кейсе.</span>
+        </span>
+      </div>
+      <div className="space-y-5">
         {clients.length > 0 ? (
           <Field id="meeting-lead-id" label="Клиент" hint="Выберите клиента из текущих дел агента">
             <select
               id="meeting-lead-id"
-              className={inputCls}
+              className="td-field"
               value={leadId}
               onChange={(e) => setLeadId(e.target.value)}
               required
@@ -76,12 +80,12 @@ function FormInner({ clients }: { clients: ClientOption[] }) {
           </Field>
         ) : (
           <Field id="meeting-lead-id" label="Клиент" hint="Клиенты не загрузились. Можно временно указать номер дела вручную">
-            <input id="meeting-lead-id" type="number" className={inputCls} placeholder="Номер дела, например 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
+            <input id="meeting-lead-id" type="number" className="td-field" placeholder="Номер дела, например 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
           </Field>
         )}
 
         <Field id="meeting-scheduled-at" label="Дата и время встречи">
-          <input id="meeting-scheduled-at" type="datetime-local" className={inputCls} value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+          <input id="meeting-scheduled-at" type="datetime-local" className="td-field" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
         </Field>
 
         {error && (
@@ -90,9 +94,10 @@ function FormInner({ clients }: { clients: ClientOption[] }) {
           </p>
         )}
 
-        <Button type="submit" size="lg" loading={loading} disabled={!leadId} className="w-full">
-          Создать встречу
-        </Button>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Button type="submit" size="lg" loading={loading} disabled={!leadId}>Создать встречу</Button>
+          <span className="text-[12px] text-ink-3">Время можно уточнить позже.</span>
+        </div>
       </div>
     </form>
   );

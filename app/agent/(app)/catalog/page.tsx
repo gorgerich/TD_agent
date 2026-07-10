@@ -109,7 +109,7 @@ export default function CatalogPage() {
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
-      <header className="rise mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <header className="rise td-page-header mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="td-eyebrow">Товары и атрибутика</span>
           <h1 className="td-display mt-2.5 text-[30px] text-ink sm:text-[38px]">Маркетплейс</h1>
@@ -130,22 +130,24 @@ export default function CatalogPage() {
 
       {/* Поиск */}
       <div className="rise mb-3">
-        <div className="relative">
-          <MagnifyingGlass size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-3" />
+        <div className="relative max-w-[680px]">
+          <span className="pointer-events-none absolute left-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-[10px] bg-surface-2 text-ink-3">
+            <MagnifyingGlass size={16} weight="bold" />
+          </span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Поиск: гроб, венок, серия, артикул…"
-            className="h-11 w-full rounded-full border border-line bg-surface pl-10 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent"
+            className="td-field h-12 pl-12 pr-12 text-[14px]"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink"
+              className="td-icon-button absolute right-1.5 top-1/2 h-10 w-10 -translate-y-1/2 text-ink-3 hover:bg-surface-2 hover:text-ink"
               aria-label="Очистить поиск"
             >
-              <X size={16} />
+              <X size={16} weight="bold" />
             </button>
           )}
         </div>
@@ -259,7 +261,7 @@ function CatalogCard({
   onPick: () => void;
 }) {
   return (
-    <article className="td-shell group flex min-w-0 flex-col overflow-hidden">
+    <article className="td-shell group flex min-w-0 flex-col overflow-hidden transition-[box-shadow,transform] duration-180 hover:shadow-[var(--shadow-lift)]">
       <button type="button" onClick={onOpen} className="relative block aspect-[4/3] w-full bg-white" aria-label={`Открыть ${item.name}`}>
         {item.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -290,7 +292,7 @@ function CatalogCard({
             onClick={onPick}
             aria-pressed={picked}
             className={[
-              "inline-flex h-8 items-center gap-1 rounded-full border px-2.5 text-[11px] font-semibold transition-colors",
+              "inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 text-[11px] font-semibold transition-[background-color,color,box-shadow,transform] duration-150",
               picked ? "border-accent bg-accent text-on-accent" : "border-line bg-surface text-ink-2 hover:border-accent hover:text-accent",
             ].join(" ")}
           >
@@ -410,7 +412,7 @@ function ShortlistTray({
   onClear: () => void;
 }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-4">
+    <div className="fixed inset-x-0 bottom-[calc(82px+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-2 lg:bottom-4 lg:pb-0">
       <div className="w-full max-w-[640px] overflow-hidden rounded-[18px] bg-surface shadow-[var(--shadow-lift),var(--hl-top)]">
         {open && (
           <div className="max-h-[40vh] overflow-y-auto border-b border-line p-3">

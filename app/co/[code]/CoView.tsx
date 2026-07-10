@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { QuietShader, type QuietShaderHandle } from "@/components/QuietShader";
+import { useEffect, useState } from "react";
+import { CheckCircle, Phone } from "@phosphor-icons/react";
 import { useCountUp } from "@/lib/useCountUp";
 import {
   calculateOrder,
@@ -15,13 +15,14 @@ import {
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, normalizeSelection, type AttrSelection } from "@/lib/attributes";
 import AttributeRender from "@/components/AttributeRender";
+import s from "./CoView.module.css";
 
-function formatTime(ts: number) {
-  return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
+function formatTime(timestamp: number) {
+  return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
 }
 
-function formatDate(ts: number) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(ts));
+function formatDate(timestamp: number) {
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
 }
 
 type ApiResponse = {
@@ -47,6 +48,7 @@ export default function CoView({ code }: { code: string }) {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
   const [checkedOnce, setCheckedOnce] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const [isSnapshot, setIsSnapshot] = useState(false);
   const [agentName, setAgentName] = useState<string | null>(null);
   const [agentPhone, setAgentPhone] = useState<string | null>(null);
@@ -56,9 +58,11 @@ export default function CoView({ code }: { code: string }) {
   async function agree() {
     setAgreeBusy(true);
     try {
-      const res = await fetch(`/api/co/${code}/agree`, { method: "POST" });
-      if (res.ok) setAgreed(true);
-    } catch { /* ignore */ } finally {
+      const response = await fetch(`/api/co/${code}/agree`, { method: "POST" });
+      if (response.ok) setAgreed(true);
+    } catch {
+      // Client can retry without losing context.
+    } finally {
       setAgreeBusy(false);
     }
   }
@@ -68,217 +72,194 @@ export default function CoView({ code }: { code: string }) {
   useEffect(() => {
     let alive = true;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let inFlight = false;
 
     async function poll() {
+      if (inFlight) return;
+      inFlight = true;
       try {
-        const res = await fetch(`/api/co/${code}`, { cache: "no-store" });
-        if (!res.ok || !alive) return;
-        const data: ApiResponse = await res.json();
+        const response = await fetch(`/api/co/${code}`, { cache: "no-store" });
+        if (!alive) return;
         setCheckedOnce(true);
-        const state = data?.state;
+        if (!response.ok) {
+          if (response.status === 404) {
+            setUnavailable(true);
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
+          }
+          return;
+        }
+        const data: ApiResponse = await response.json();
+        const state = data.state;
         if (!state) return;
 
         setStarted(true);
         if (data.updatedAt) setUpdatedAt(data.updatedAt);
-        // Агент (имя/телефон) показываем и в живой сессии - именованный человек = доверие.
         setAgentName(data.agentName ?? null);
         setAgentPhone(data.agentPhone ?? null);
         if (data.isSnapshot) {
           setIsSnapshot(true);
-          // Stop polling - snapshot is static
-          if (intervalId) { clearInterval(intervalId); intervalId = null; }
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
         }
 
         if (state.form) {
           setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
         }
-        if (Array.isArray(state.estimateItems)) {
-          setEstimateItems(state.estimateItems);
-        }
-        if (Array.isArray(state.externalExpenses)) {
-          setExternalExpenses(state.externalExpenses);
-        }
+        if (Array.isArray(state.estimateItems)) setEstimateItems(state.estimateItems);
+        if (Array.isArray(state.externalExpenses)) setExternalExpenses(state.externalExpenses);
         if (state.attributes) {
-          const norm = normalizeSelection(state.attributes);
-          setAttributes((cur) => (JSON.stringify(cur) === JSON.stringify(norm) ? cur : norm));
+          const normalized = normalizeSelection(state.attributes);
+          setAttributes((current) => (JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized));
         }
-      } catch { /* ignore */ }
+      } catch {
+        // Polling resumes on next interval.
+      } finally {
+        inFlight = false;
+      }
     }
 
     poll();
     intervalId = setInterval(poll, 700);
-    return () => { alive = false; if (intervalId) clearInterval(intervalId); };
+    return () => {
+      alive = false;
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [code, attrJson]);
 
   const estimateTotal = calculateEstimateItemsTotal(estimateItems);
-  const externalTotal = externalExpenses.reduce((sum, e) => sum + e.clientPrice, 0);
+  const externalTotal = externalExpenses.reduce((sum, expense) => sum + expense.clientPrice, 0);
   const grandTotal = (result?.total ?? 0) + estimateTotal + externalTotal;
-
-  // Сумма «доезжает» плавно, а шейдер под ней отвечает мягким всплеском -
-  // клиент видит, что смета живая (DELIGHT: shader на hero-сумме).
   const animatedTotal = useCountUp(grandTotal);
-  const shaderRef = useRef<QuietShaderHandle>(null);
-  const prevTotal = useRef(grandTotal);
-  useEffect(() => {
-    if (grandTotal !== prevTotal.current) {
-      prevTotal.current = grandTotal;
-      shaderRef.current?.pulse(0.22, 0.55, 0.9);
-    }
-  }, [grandTotal]);
-  const sections = result?.sections.filter((s) => s.total > 0) ?? [];
+  const sections = result?.sections.filter((section) => section.total > 0) ?? [];
   const hasItems = sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0;
 
-  // ── Loading state ──────────────────────────────────────────────────────────
   if (!started) {
     return (
-      <div className="mx-auto flex min-h-[50vh] max-w-[420px] flex-col items-center justify-center px-4 text-center">
-        <div className="mb-5 grid h-16 w-16 place-items-center rounded-[14px] bg-accent-soft">
-          <span className="block h-4 w-4 rounded-full bg-accent" />
-        </div>
-        <h2 className="td-display text-[22px] text-ink">
-          {checkedOnce ? "Смета ещё не отправлена" : "Проверяем смету"}
-        </h2>
-        <p className="mt-3 text-[14px] leading-relaxed text-ink-2">
-          {checkedOnce
+      <div className={s.loading} aria-live="polite">
+        <span className={s.loadingMark} aria-hidden="true"><span /></span>
+        <h2>{unavailable ? "Ссылка недоступна" : checkedOnce ? "Смета ещё не отправлена" : "Готовим смету"}</h2>
+        <p>
+          {unavailable
+            ? "Попросите агента прислать актуальную ссылку на смету."
+            : checkedOnce
             ? "Агент откроет или сохранит смету, и она появится здесь автоматически."
-            : "Страница обновится сама, как только агент начнёт. Ничего нажимать не нужно."}
+            : "Страница обновится сама, когда агент начнёт собирать вариант."}
         </p>
-        <div className="mt-7 flex gap-1.5">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="h-2 w-2 rounded-full bg-accent" style={{ animation: `codot 1.4s ${i * 0.2}s ease-in-out infinite` }} />
-          ))}
-        </div>
-        <style>{`@keyframes codot { 0%,100% { opacity:0.25 } 50% { opacity:1 } }`}</style>
       </div>
     );
   }
 
-  // ── Status badge ───────────────────────────────────────────────────────────
-  const statusBadge = isSnapshot ? (
-    <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent-soft px-3 py-1.5">
-      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-      <span className="text-[11px] font-semibold text-accent">Смета сформирована</span>
-    </div>
-  ) : (
-    <div className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success-soft px-3 py-1.5">
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-      <span className="text-[11px] font-semibold text-success">Обновляется</span>
-    </div>
-  );
-
-  // ── Main view ──────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-[680px]">
-      {/* Status row */}
-      <div className="mb-5 flex items-center justify-between gap-3 flex-wrap">
-        {statusBadge}
+    <div className={s.view}>
+      <div className={s.statusRow}>
+        <span className={`${s.statusBadge} ${isSnapshot ? s.statusSnapshot : s.statusLive}`}>
+          <span aria-hidden="true" />
+          {isSnapshot ? "Смета сформирована" : "Обновляется"}
+        </span>
         {updatedAt && (
-          <span className="text-[12px] text-ink-3">
+          <span className={s.updatedAt}>
             {isSnapshot ? `Сохранена ${formatDate(updatedAt)}` : `обновлено в ${formatTime(updatedAt)}`}
           </span>
         )}
       </div>
 
-      {/* Grand total hero */}
-      <div className="relative mb-5 overflow-hidden rounded-[var(--radius-card)] bg-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_10px_24px_-18px_rgba(0,58,53,0.36)]">
-        <QuietShader ref={shaderRef} palette="accent" className="absolute inset-0 h-full w-full" />
-        <div className="relative px-6 py-5 sm:px-8 sm:py-6">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-accent/60">
-            {isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}
-          </p>
-          <p className="tnum mt-1 text-[38px] font-semibold tracking-tight text-on-accent sm:text-[44px]">
-            {formatCurrency(Math.round(animatedTotal))}
-          </p>
-          {/* Trust-строка tihiydom.com - один язык обещаний на обеих платформах */}
-          <p className="mt-2 text-[12px] leading-5 text-on-accent/64">
-            Без скрытых платежей и доплат.{" "}
-            {isSnapshot
-              ? "Итоговая цена фиксируется в договоре."
-              : "Ничего не фиксируется без вашего подтверждения."}
-          </p>
-        </div>
-      </div>
+      <section className={s.totalCard} aria-label="Итог по смете">
+        <span className="td-eyebrow">{isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}</span>
+        <p className={`${s.totalValue} tnum`}>{formatCurrency(Math.round(animatedTotal))}</p>
+        <p className={s.totalTrust}>
+          {isSnapshot
+            ? "Цена зафиксирована в этой версии сметы."
+            : "Состав и сумма меняются только после обсуждения с вами."}
+        </p>
+      </section>
 
-      {/* Agent presence - именованный человек на связи (живая ссылка) */}
       {!isSnapshot && agentName && (
-        <div className="mb-5 flex items-center gap-3 rounded-[var(--radius-card)] bg-surface px-4 py-3.5 shadow-soft">
-          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[14px] font-bold text-accent">
-            {agentName.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+        <aside className={s.agentCard}>
+          <span className={s.agentInitials} aria-hidden="true">
+            {agentName.split(" ").map((part) => part[0]).slice(0, 2).join("")}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-3">С вами на связи</span>
-            <span className="block truncate text-[14px] font-semibold text-ink">{agentName}</span>
+          <span className={s.agentMeta}>
+            <small>Ваш агент</small>
+            <strong>{agentName}</strong>
           </span>
           {agentPhone && (
-            <a href={`tel:${agentPhone}`} className="flex-shrink-0 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-on-accent transition-colors hover:bg-accent-hover">
-              Позвонить
+            <a href={`tel:${agentPhone}`} className={s.agentCall}>
+              <Phone size={16} weight="fill" /> Позвонить
             </a>
           )}
-        </div>
+        </aside>
       )}
 
-      {/* Attribution render (live cobrowse only) */}
       {!isSnapshot && (
-        <div className="mb-5 overflow-hidden rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-surface-2 to-surface shadow-soft">
-          <div className="px-4 pt-4">
-            <p className="text-[13px] font-semibold text-ink">Предпросмотр комплекта</p>
-            <p className="mt-1 text-[12px] leading-snug text-ink-3">Визуализация обновляется при выборе атрибутики.</p>
-          </div>
+        <section className={s.preview}>
+          <header className={s.previewHead}>
+            <span>
+              <h2>Предпросмотр комплекта</h2>
+              <p>Меняется при выборе атрибутики.</p>
+            </span>
+          </header>
           <AttributeRender selection={attributes} selectedItems={estimateItems} className="block h-auto w-full" />
-        </div>
+        </section>
       )}
 
-      {/* Composition */}
       {hasItems && (
-        <section className="mb-5">
-          <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Что входит</h2>
-          <div className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-soft">
-            {sections.map((section, i) => (
-              <div key={i} className={i > 0 ? "border-t border-line" : ""}>
-                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">{section.title}</span>
-                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(section.total)}</span>
+        <section className={s.composition}>
+          <header className={s.compositionHead}>
+            <h2>Состав сметы</h2>
+            <span className="tnum">{formatCurrency(grandTotal)}</span>
+          </header>
+          <div className={s.compositionCard}>
+            {sections.map((section, sectionIndex) => (
+              <div key={`${section.title}-${sectionIndex}`} className={s.compositionSection}>
+                <div className={s.compositionGroupHead}>
+                  <span>{section.title}</span>
+                  <strong className="tnum">{formatCurrency(section.total)}</strong>
                 </div>
-                {section.items?.map((item, j) => (
-                  <div key={j} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
-                    <span className="text-[14px] text-ink-2">{item.label}</span>
-                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">
-                      {item.included ? <span className="text-success text-[12px] font-semibold">включено</span> : item.price != null ? formatCurrency(item.price) : ""}
-                    </span>
+                {section.items?.map((item, itemIndex) => (
+                  <div key={`${item.label}-${itemIndex}`} className={s.compositionRow}>
+                    <span>{item.label}</span>
+                    <strong className="tnum">
+                      {item.included ? <em>включено</em> : item.price != null ? formatCurrency(item.price) : ""}
+                    </strong>
                   </div>
                 ))}
               </div>
             ))}
 
             {estimateItems.length > 0 && (
-              <div className="border-t border-line">
-                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Услуги и атрибутика</span>
-                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(estimateTotal)}</span>
+              <div className={s.compositionSection}>
+                <div className={s.compositionGroupHead}>
+                  <span>Услуги и атрибутика</span>
+                  <strong className="tnum">{formatCurrency(estimateTotal)}</strong>
                 </div>
                 {estimateItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
-                    <span className="text-[14px] text-ink-2">
+                  <div key={item.id} className={s.compositionRow}>
+                    <span>
                       {item.name}
-                      {item.selectedColor ? ` - ${item.selectedColor}` : ""}
+                      {item.selectedColor ? `, ${item.selectedColor}` : ""}
                       {item.quantity > 1 ? ` ×${item.quantity}` : ""}
                     </span>
-                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">{formatCurrency(item.clientPrice * item.quantity)}</span>
+                    <strong className="tnum">{formatCurrency(item.clientPrice * item.quantity)}</strong>
                   </div>
                 ))}
               </div>
             )}
 
             {externalExpenses.length > 0 && (
-              <div className="border-t border-line">
-                <div className="flex items-center justify-between bg-surface-2 px-5 py-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-2">Внешние расходы</span>
-                  <span className="text-[13px] font-semibold text-ink tabular-nums">{formatCurrency(externalTotal)}</span>
+              <div className={s.compositionSection}>
+                <div className={s.compositionGroupHead}>
+                  <span>Внешние расходы</span>
+                  <strong className="tnum">{formatCurrency(externalTotal)}</strong>
                 </div>
                 {externalExpenses.map((expense) => (
-                  <div key={expense.id} className="flex items-center justify-between gap-4 border-t border-line px-5 py-3">
-                    <span className="text-[14px] text-ink-2">{expense.category}: {expense.name}</span>
-                    <span className="flex-shrink-0 text-[14px] text-ink tabular-nums">{formatCurrency(expense.clientPrice)}</span>
+                  <div key={expense.id} className={s.compositionRow}>
+                    <span>{expense.category}: {expense.name}</span>
+                    <strong className="tnum">{formatCurrency(expense.clientPrice)}</strong>
                   </div>
                 ))}
               </div>
@@ -287,57 +268,46 @@ export default function CoView({ code }: { code: string }) {
         </section>
       )}
 
-      {/* Client actions (snapshot only - live cobrowse has no final agree yet) */}
       {isSnapshot && (
-        <div className="mb-5 space-y-3">
+        <div className={s.actionDock}>
           {agreed ? (
-            <div className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-success/25 bg-success-soft px-6 text-[14px] font-semibold text-success">
-              ✓ Смета согласована
+            <div className={s.agreed}>
+              <CheckCircle size={18} weight="fill" /> Смета согласована
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={agree}
-              disabled={agreeBusy}
-              className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-accent px-6 font-semibold text-[14px] text-on-accent shadow-[0_1px_2px_rgba(0,31,39,0.16),0_6px_14px_-12px_rgba(0,58,53,0.42)] transition-colors duration-150 hover:bg-accent-hover disabled:opacity-60"
-            >
-              {agreeBusy ? "Сохраняю…" : "Согласовать смету"}
+            <button type="button" onClick={agree} disabled={agreeBusy} className={s.agreeButton}>
+              {agreeBusy ? "Сохраняем…" : "Согласовать смету"}
             </button>
           )}
           {agentPhone && (
-            <a
-              href={`tel:${agentPhone}`}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 font-semibold text-[14px] text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
-            >
-              Связаться с агентом
-              {agentName ? ` - ${agentName.split(" ")[0]}` : ""}
+            <a href={`tel:${agentPhone}`} className={s.contactButton}>
+              <Phone size={16} weight="fill" />
+              Связаться{agentName ? ` с ${agentName.split(" ")[0]}` : " с агентом"}
             </a>
           )}
         </div>
       )}
 
-      {/* Что дальше - спокойное объяснение пути, снимает тревогу */}
-      <section className="mb-5 rounded-[var(--radius-card)] bg-surface px-5 py-4 shadow-soft">
-        <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.1em] text-ink-3">Как проходит дальше</h2>
-        <ol className="space-y-3">
+      <section className={s.nextSteps}>
+        <h2>Что дальше</h2>
+        <ol>
           {[
-            ["Смотрите спокойно", "Изучите смету в удобном темпе. Ничего не списывается и не фиксируется автоматически."],
-            ["Обсуждаете с агентом", "Любой пункт можно изменить или убрать. Агент ответит на вопросы и поможет выбрать."],
-            ["Подтверждаете - остальное на нас", "После вашего согласия цена фиксируется в договоре, организацией занимаемся мы."],
-          ].map(([t, d], i) => (
-            <li key={i} className="flex gap-3">
-              <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-full bg-accent-soft text-[12px] font-bold text-accent">{i + 1}</span>
-              <span className="min-w-0">
-                <span className="block text-[14px] font-semibold text-ink">{t}</span>
-                <span className="mt-0.5 block text-[13px] leading-relaxed text-ink-2">{d}</span>
+            ["Посмотрите состав", "Изучите смету в удобном темпе. Ничего не списывается автоматически."],
+            ["Обсудите детали", "Любой пункт можно изменить или убрать. Агент поможет с выбором."],
+            ["Подтвердите решение", "После согласования цена фиксируется в договоре, организацией занимается команда."],
+          ].map(([title, description], index) => (
+            <li key={title}>
+              <span className={s.stepNumber}>{index + 1}</span>
+              <span>
+                <strong>{title}</strong>
+                <small>{description}</small>
               </span>
             </li>
           ))}
         </ol>
       </section>
 
-      {/* Footer */}
-      <p className="mt-6 text-center text-[12px] text-ink-3">
+      <p className={s.footer}>
         {isSnapshot ? "Тихий дом · ритуальные услуги" : `Обновляется автоматически · код ${code}`}
       </p>
     </div>

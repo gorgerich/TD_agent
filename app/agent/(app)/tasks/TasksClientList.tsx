@@ -82,18 +82,18 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
 
   return (
     <div className="rise rise-1 space-y-4">
-      <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryCell label="Открыто" value={String(openCount)} />
-        <SummaryCell label="Просрочено" value={String(groups.overdue.length)} tone="danger" />
-        <SummaryCell label="Сегодня" value={String(groups.today.length)} tone="warning" />
-        <SummaryCell label="Выполнено" value={String(groups.done.length)} tone="success" />
+      <div className="td-form-surface flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 text-[13px] text-ink-2">
+        <span><strong className="tnum text-ink">{openCount}</strong> в работе</span>
+        {groups.overdue.length > 0 && <span className="inline-flex items-center gap-1.5 font-semibold text-danger"><Warning size={14} weight="fill" /> {groups.overdue.length} просрочено</span>}
+        {groups.today.length > 0 && <span><strong className="tnum text-warning">{groups.today.length}</strong> на сегодня</span>}
+        {groups.done.length > 0 && <span><strong className="tnum text-success">{groups.done.length}</strong> выполнено</span>}
       </div>
 
       {GROUPS.filter((group) => groups[group.id].length > 0).map((group) => {
         const items = groups[group.id];
         return (
           <section key={group.id} className="td-entity-list">
-            <header className="flex items-center justify-between gap-3 border-b border-line bg-surface-2/55 px-4 py-2.5">
+            <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div className="flex items-center gap-2">
                 <GroupIcon group={group.id} />
                 <div>
@@ -101,7 +101,7 @@ export function TasksClientList({ initialTasks }: { initialTasks: TaskListRow[] 
                   <p className="text-[11px] text-ink-3">{group.hint}</p>
                 </div>
               </div>
-              <span className="td-pill tnum text-[11px]">{items.length}</span>
+              <span className="tnum text-[12px] font-semibold text-ink-3">{items.length}</span>
             </header>
             <ul className="divide-y divide-line">
               {items.map((task) => (
@@ -201,22 +201,6 @@ function SwipeableTaskRow({ task, group, pending, onComplete }: {
         )}
       </div>
     </li>
-  );
-}
-
-function SummaryCell({ label, value, tone }: { label: string; value: string; tone?: "danger" | "warning" | "success" }) {
-  const cls = tone === "danger"
-    ? "td-metric-danger"
-    : tone === "warning"
-      ? "td-metric-warning"
-      : tone === "success"
-        ? "td-metric-success"
-        : "text-ink";
-  return (
-    <div className={`td-metric ${cls}`}>
-      <div className="truncate text-[11px] font-medium opacity-75">{label}</div>
-      <div className="tnum mt-0.5 truncate text-[15px] font-semibold">{value}</div>
-    </div>
   );
 }
 

@@ -4,9 +4,7 @@ import { Golos_Text, JetBrains_Mono } from "next/font/google";
 import { ViewTransitions } from "next-view-transitions";
 import "./globals.css";
 
-// v2 «Quiet Operations»: один гротеск на всё (заголовки = вес/трекинг,
-// не смена гарнитуры). Серифы убраны как декор.
-// Golos Text - гарнитура B2C tihiydom.com: общий шрифт связывает платформы.
+// Golos Text — общая B2C/B2B гарнитура «Тихого дома».
 const sans = Golos_Text({
   subsets: ["latin", "cyrillic"],
   variable: "--font-sans",
@@ -22,7 +20,7 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Тихий дом - кабинет агента",
-  description: "Кабинет агента Тихого дома: лиды, встречи, сметы и комиссии.",
+  description: "Кабинет агента «Тихого дома»: кейсы, встречи, сметы, документы и задачи.",
   robots: { index: false, follow: false },
 };
 

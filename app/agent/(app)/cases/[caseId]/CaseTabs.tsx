@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ClipboardText, ClockCounterClockwise, Files, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
+import s from "./CaseTabs.module.css";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
 import { DocumentsSection } from "./DocumentsSection";
@@ -35,115 +36,148 @@ export function CaseTabs({
   activity: ActivityItem[];
 }) {
   const [tab, setTab] = useState<TabId>("work");
-
-  const openTasks = tasks.filter((t) => !t.completedAt).length;
+  const openTasks = tasks.filter((task) => !task.completedAt).length;
   const missingDocs = docs.length === 0;
 
-  const TABS: { id: TabId; label: string; icon: Icon; badge?: string }[] = [
-    { id: "work", label: "Работа", icon: ClipboardText, badge: openTasks > 0 ? String(openTasks) : undefined },
-    { id: "docs", label: "Документы", icon: Files, badge: docs.length ? String(docs.length) : undefined },
-    { id: "family", label: "Семья", icon: UsersThree },
-    { id: "history", label: "История", icon: ClockCounterClockwise },
+  const tabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
+    {
+      id: "work",
+      label: "Работа",
+      subtitle: openTasks > 0 ? `${openTasks} задач в работе` : "Задачи и оплаты",
+      icon: ClipboardText,
+      badge: openTasks > 0 ? String(openTasks) : undefined,
+    },
+    {
+      id: "docs",
+      label: "Документы",
+      subtitle: missingDocs ? "Нужно собрать" : `${docs.length} в кейсе`,
+      icon: Files,
+    },
+    { id: "family", label: "Семья", subtitle: "Потребности и контекст", icon: UsersThree },
+    { id: "history", label: "История", subtitle: "Заметки и события", icon: ClockCounterClockwise },
   ];
-
   return (
-    <div className="td-shell min-w-0 overflow-hidden sm:grid sm:grid-cols-[190px_minmax(0,1fr)]">
-      {/* Tab bar */}
-      <div className="border-b border-line bg-surface-2/45 px-2 py-2 sm:border-b-0 sm:border-r sm:bg-surface/70 sm:p-3">
-        <div className="flex min-w-0 gap-1 overflow-x-auto sm:flex-col sm:overflow-visible">
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          const IconComponent = t.icon;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              aria-current={active ? "true" : undefined}
-              data-active={active ? "true" : undefined}
-              className={`td-side-nav-item td-press group flex min-h-[60px] flex-shrink-0 items-center gap-2.5 px-2.5 text-left text-[13px] ${
-                active ? "font-semibold text-ink" : "font-medium text-ink-2 hover:text-ink"
-              }`}
-            >
-              <span className="td-nav-orb" data-active={active ? "true" : undefined}>
-                <IconComponent size={26} weight="fill" />
-              </span>
-              <span>{t.label}</span>
-              {t.badge && (
-                <span className={`tnum ml-auto rounded-full px-1.5 text-[11px] ${active ? "bg-accent text-on-accent" : "bg-surface-2 text-ink-3"}`}>{t.badge}</span>
+    <section className={`td-shell ${s.workspace}`} aria-label="Рабочая зона кейса">
+      <nav className={s.nav} aria-label="Разделы кейса">
+        <div className={s.navIntro}>
+          <span className="td-eyebrow">Кейс</span>
+          <span className={s.navSummary}>
+            {openTasks > 0 ? `${openTasks} требуют внимания` : "Кейс под контролем"}
+          </span>
+        </div>
+        <div className={s.navItems} role="tablist" aria-label="Разделы рабочей зоны">
+          {tabs.map((item) => {
+            const active = tab === item.id;
+            const ItemIcon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-controls={`case-panel-${item.id}`}
+                data-active={active ? "true" : undefined}
+                className={`${s.navItem} td-press`}
+                onClick={() => setTab(item.id)}
+              >
+                <span className={s.navIcon} data-active={active ? "true" : undefined}>
+                  <ItemIcon size={22} weight="fill" />
+                </span>
+                <span className={s.navText}>
+                  <strong>{item.label}</strong>
+                </span>
+                {item.badge && (
+                  <span className={`${s.navBadge} tnum`} data-active={active ? "true" : undefined}>{item.badge}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      <div className={s.canvas}>
+        <div key={tab} id={`case-panel-${tab}`} role="tabpanel" className={`tab-panel ${s.panel}`}>
+          {tab === "work" && (
+            <div className={s.workGrid}>
+              <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
+                <TasksSection caseId={caseId} initial={tasks} />
+              </Section>
+              <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
+                <PaymentsSection caseId={caseId} initial={payments} />
+              </Section>
+            </div>
+          )}
+
+          {tab === "docs" && (
+            <Section title="Документы" meta={missingDocs ? "нужно собрать" : `${docs.length} в кейсе`}>
+              <DocumentsSection caseId={caseId} initial={docs} />
+            </Section>
+          )}
+
+          {tab === "family" && (
+            <div className={s.stack}>
+              <Section title="Потребности семьи">
+                <IntakeSection caseId={caseId} initial={intake} />
+              </Section>
+              {context && (
+                <Section title="Контекст" icon={<FileText size={16} weight="fill" />}>
+                  <p className={s.context}>{context}</p>
+                </Section>
               )}
-            </button>
-          );
-        })}
+            </div>
+          )}
+
+          {tab === "history" && (
+            <div className={s.stack}>
+              <Section title="Заметки" meta={notes.length ? String(notes.length) : "пусто"}>
+                <NotesSection caseId={caseId} initial={notes} />
+              </Section>
+              <Section title="Активность">
+                <ol className={s.activityList}>
+                  {activity.map((entry, index) => (
+                    <li key={index}>
+                      <span className={s.activityIcon}>
+                        <ClockCounterClockwise size={15} weight="fill" />
+                      </span>
+                      <span className={s.activityText}>
+                        <strong>{entry.label}</strong>
+                        {entry.sub && <small>{entry.sub}</small>}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </Section>
+            </div>
+          )}
         </div>
       </div>
-
-      <div key={tab} className="tab-panel p-4 sm:p-5">
-        {tab === "work" && (
-          <div className="space-y-5">
-            <Section title={`Задачи · ${openTasks} открыто`}>
-              <TasksSection caseId={caseId} initial={tasks} />
-            </Section>
-            <Section title="Оплата" hint="Фиксация аванса и остатка по договорённости с семьёй.">
-              <PaymentsSection caseId={caseId} initial={payments} />
-            </Section>
-          </div>
-        )}
-
-        {tab === "docs" && (
-          <Section title={`Документы${missingDocs ? "" : ` · ${docs.length}`}`}>
-            <DocumentsSection caseId={caseId} initial={docs} />
-          </Section>
-        )}
-
-        {tab === "family" && (
-          <div className="space-y-5">
-            <Section title="Потребности семьи">
-              <IntakeSection caseId={caseId} initial={intake} />
-            </Section>
-            {context && (
-              <Section title="Контекст" icon={<FileText size={16} weight="fill" />}>
-                <p className="whitespace-pre-line text-[14px] leading-relaxed text-ink-2">{context}</p>
-              </Section>
-            )}
-          </div>
-        )}
-
-        {tab === "history" && (
-          <div className="space-y-5">
-            <Section title={`Заметки · ${notes.length}`}>
-              <NotesSection caseId={caseId} initial={notes} />
-            </Section>
-            <Section title="Активность">
-              <ol className="divide-y divide-line">
-                {activity.map((a, i) => (
-                  <li key={i} className="flex gap-3 py-2.5 first:pt-0 last:pb-0">
-                    <span className="td-nav-orb td-nav-orb-sm mt-0.5 flex-shrink-0">
-                      <ClockCounterClockwise size={18} weight="fill" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-[13px] text-ink">{a.label}</span>
-                      {a.sub && <span className="block text-[12px] text-ink-3">{a.sub}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </Section>
-          </div>
-        )}
-      </div>
-    </div>
+    </section>
   );
 }
 
-function Section({ title, hint, icon, children }: { title: string; hint?: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  meta,
+  hint,
+  icon,
+  children,
+}: {
+  title: string;
+  meta?: string;
+  hint?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <section>
-      <div className="mb-3 flex items-center gap-2">
-        {icon && <span className="text-accent">{icon}</span>}
-        <h2 className="text-[14px] font-semibold text-ink">{title}</h2>
+    <section className={s.section}>
+      <div className={s.sectionHead}>
+        <span className={s.sectionTitle}>
+          {icon && <span className={s.sectionIcon}>{icon}</span>}
+          <h3>{title}</h3>
+        </span>
+        {meta && <span className={s.sectionMeta}>{meta}</span>}
       </div>
-      {hint && <p className="-mt-2 mb-3 text-[12px] text-ink-3">{hint}</p>}
+      {hint && <p className={s.sectionHint}>{hint}</p>}
       {children}
     </section>
   );

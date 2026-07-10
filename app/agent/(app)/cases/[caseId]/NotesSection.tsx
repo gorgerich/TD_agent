@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Trash, Plus } from "@phosphor-icons/react";
+import { NotePencil, Plus, Trash } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
+import { dateTime } from "@/lib/format";
 import { useToast } from "@/components/Toast";
 
 type Note = {
@@ -9,10 +11,6 @@ type Note = {
   body: string;
   createdAt: string;
 };
-
-function fmtDate(iso: string) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
-}
 
 export function NotesSection({ caseId, initial }: { caseId: number; initial: Note[] }) {
   const [notes, setNotes] = useState<Note[]>(initial);
@@ -32,7 +30,10 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: body.trim() }),
       });
-      if (!res.ok) { toast({ type: "error", message: "Не удалось сохранить заметку. Попробуйте снова." }); return; }
+      if (!res.ok) {
+        toast({ type: "error", message: "Не удалось сохранить заметку. Попробуйте снова." });
+        return;
+      }
       const { note } = await res.json();
       setNotes((prev) => [{ ...note, createdAt: new Date(note.createdAt).toISOString() }, ...prev]);
       setBody("");
@@ -48,7 +49,10 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
     startTransition(async () => {
       try {
         const res = await fetch(`/api/agent/cases/${caseId}/notes/${id}`, { method: "DELETE" });
-        if (!res.ok) { toast({ type: "error", message: "Не удалось удалить заметку. Попробуйте снова." }); return; }
+        if (!res.ok) {
+          toast({ type: "error", message: "Не удалось удалить заметку. Попробуйте снова." });
+          return;
+        }
         setNotes((prev) => prev.filter((n) => n.id !== id));
       } catch {
         toast({ type: "error", message: "Нет связи. Заметка не удалена." });
@@ -57,24 +61,38 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
   }
 
   return (
-    <div>
+    <div className="space-y-4">
+      <div className="td-work-kicker">
+        <span>{notes.length > 0 ? <><strong>{notes.length}</strong> записей по кейсу</> : "Фиксируйте договорённости после каждого контакта"}</span>
+      </div>
+
       {notes.length === 0 && !showForm && (
-        <p className="text-[13px] text-ink-3">Нет заметок</p>
+        <div className="td-form-surface py-5 text-center">
+          <NotePencil size={22} weight="fill" className="mx-auto text-accent" />
+          <p className="mt-2 text-[13px] font-medium text-ink">Заметок пока нет</p>
+          <p className="mx-auto mt-1 max-w-[44ch] text-[12px] leading-relaxed text-ink-3">Запишите важную договорённость, чтобы она не осталась в памяти после встречи.</p>
+        </div>
       )}
+
       {notes.length > 0 && (
-        <ul className="mb-3 space-y-3">
+        <ul className="td-work-list" aria-label="Заметки по кейсу">
           {notes.map((note) => (
-            <li key={note.id} className="group relative rounded-[12px] border border-line bg-surface-2 px-4 py-3">
-              <p className="whitespace-pre-line text-[13px] leading-relaxed text-ink">{note.body}</p>
-              <div className="mt-1.5 flex items-center justify-between gap-2">
-                <span className="text-[11px] text-ink-3">{fmtDate(note.createdAt)}</span>
+            <li key={note.id} className="td-work-row">
+              <div className="flex min-w-0 items-start gap-3 px-1 py-3 sm:px-2">
+                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent shadow-[var(--shadow-xs)]">
+                  <NotePencil size={18} weight="fill" />
+                </span>
+                <span className="min-w-0 flex-1 pt-0.5">
+                  <span className="block whitespace-pre-line text-[13px] leading-relaxed text-ink">{note.body}</span>
+                  <span className="mt-2 block text-[12px] text-ink-3">{dateTime(note.createdAt)}</span>
+                </span>
                 <button
                   type="button"
                   onClick={() => deleteNote(note.id)}
-                  className="p-1 text-ink-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                  className="td-icon-button h-10 w-10 flex-shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger"
                   aria-label="Удалить заметку"
                 >
-                  <Trash size={13} />
+                  <Trash size={16} weight="bold" />
                 </button>
               </div>
             </li>
@@ -83,42 +101,32 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
       )}
 
       {showForm ? (
-        <form onSubmit={addNote} className="mt-3 space-y-2.5 rounded-[14px] border border-line bg-surface-2 p-3.5">
+        <form onSubmit={addNote} className="td-form-surface grid gap-3" aria-label="Новая заметка">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13px] font-semibold text-ink">Новая запись</span>
+            <span className="text-[12px] text-ink-3">Только для агента</span>
+          </div>
           <textarea
             autoFocus
-            className="min-h-[80px] w-full resize-y rounded-[10px] border border-line bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-accent"
-            placeholder="Заметка по делу (только для агента)"
+            className="td-field resize-y"
+            placeholder="Что согласовали, что обещали сделать, что важно не потерять"
             value={body}
             onChange={(e) => setBody(e.target.value)}
             maxLength={4000}
             required
           />
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={saving || !body.trim()}
-              className="min-h-9 flex-1 rounded-[10px] bg-accent px-4 text-[13px] font-semibold text-on-accent disabled:opacity-50"
-            >
-              {saving ? "Сохраняю…" : "Сохранить"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="min-h-9 rounded-[10px] border border-line bg-surface px-4 text-[13px] font-medium text-ink-2"
-            >
-              Отмена
-            </button>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button type="submit" size="sm" loading={saving} disabled={!body.trim()}>Сохранить заметку</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setShowForm(false)}>Отмена</Button>
           </div>
         </form>
       ) : (
-        <button
-          type="button"
-          onClick={() => setShowForm(true)}
-          className="mt-3 flex items-center gap-1.5 text-[13px] font-medium text-accent transition-colors hover:text-accent-hover"
-        >
-          <Plus size={14} weight="bold" /> Добавить заметку
-        </button>
+        <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={15} weight="bold" />} onClick={() => setShowForm(true)}>
+          Добавить заметку
+        </Button>
       )}
     </div>
   );
 }
+
+export default NotesSection;

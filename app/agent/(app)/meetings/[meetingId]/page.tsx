@@ -55,13 +55,13 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
   const completed = meeting.status === "COMPLETED";
 
   return (
-    <div className="mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
+    <div className="td-page mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
       <Link href="/agent/meetings" className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-ink-2 transition-colors hover:text-ink">
         <ArrowLeft size={14} /> Все встречи
       </Link>
 
       {/* Top strip */}
-      <div className="rise mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <header className="rise td-page-header mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="td-eyebrow mb-1.5">Встреча №{meeting.id}</p>
           <h1 className="td-display text-[26px] text-ink sm:text-[30px]">{meeting.lead.name}</h1>
@@ -72,7 +72,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           <p className="tnum font-mono text-[24px] font-semibold tracking-[0.16em] text-accent">{cobrowseCode}</p>
           <p className="mt-1.5 text-[10px] text-ink-3">/co/{cobrowseCode}</p>
         </div>
-      </div>
+      </header>
 
       {/* Воронка действий по сделке */}
       <DealFunnel
@@ -111,7 +111,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
       </div>
 
       {/* Actions row */}
-      <div className="rise rise-2 mb-5 flex flex-wrap gap-2.5">
+      <div className="rise rise-2 td-form-surface mb-5 flex flex-wrap gap-2.5">
         <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses()}>
           <FileText size={16} /> Конструктор сметы
         </Link>
