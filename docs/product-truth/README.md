@@ -1,7 +1,9 @@
 # Product truth: Week 1
 
-Gate status: `BLOCKED` pending three human sign-offs on commit
-`95d6dbd91cecdefeedc722ad27dcebb94ba15e27`.
+- `GOVERNANCE_MODE: SOLO_FOUNDER_AI_ASSISTED`
+- `WEEK_STATUS: PASS`
+- Verified implementation commit: `95d6dbd91cecdefeedc722ad27dcebb94ba15e27`
+- Accepted gate baseline: `1fcdd9beea0f95fcec6c08ea40cf2ad8be9b0a5f`
 
 This directory is the Week 1 contract for the TD Agent pilot. It converts the
 CPO audit dated 2026-07-13 and the 12-week delivery gates into reviewable,
@@ -10,13 +12,13 @@ implements those rules.
 
 ## Pilot decision
 
-Exactly two scenarios are proposed:
+The Founder / Product Owner accepted exactly two scenarios:
 
 1. Cremation.
 2. Burial in an existing family/related plot.
 
-They remain proposed until Product Owner and ritual-operations SME sign-off.
-No third scenario may enter the pilot without reopening the Week 1 gate.
+No third scenario may enter the pilot without reopening product scope and its
+operational validation.
 
 ## Documents
 
@@ -28,15 +30,22 @@ No third scenario may enter the pilot without reopening the Week 1 gate.
 - [Domain event catalog](./event-catalog.md)
 - [Impossible-state matrix](./impossible-states.md)
 - [Canonical mutation ADR](../adr/0001-canonical-domain-mutations.md)
+- [Week 1 evidence](../evidence/week-1.md)
+- [Week 1 governance decision](../evidence/week-1-signoff.md)
+- [Risk register](../evidence/risk-register.md)
 
-## Gate
+## Gate decision
 
-Week 1 cannot pass until all of the following exist as written evidence:
+Week 1 is `PASS` under `SOLO_FOUNDER_AI_ASSISTED` governance because the
+technical implementation and CI passed, the Product Owner accepted the two
+pilot scenarios and governance risk, and the deferred human reviews are
+recorded as explicit blocking milestones.
 
-- Product Owner sign-off.
-- Tech Lead sign-off.
-- Ritual-operations SME sign-off.
-- Independent reviewer verdict.
-- Green CI on a clean checkout.
+The PASS does not waive these controls:
 
-Until then, the correct gate status is `IN_PROGRESS`, not `PASS`.
+- human technical review before the Week 10 Gate and before a production
+  real-data or payment pilot;
+- ritual-operations SME validation before the Week 2 Gate can close.
+
+Week 2 may start after Week 1 closure, but it cannot pass without the recorded
+SME validation. No Week 2 implementation is part of this closure.
