@@ -32,6 +32,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Pack tracked source for private audit
+        run: git archive --format=tar.gz --output=/tmp/td-agent-source.tar.gz HEAD
+      - name: Export tracked source
+        uses: actions/upload-artifact@v4
+        with:
+          name: td-agent-audit-source
+          path: /tmp/td-agent-source.tar.gz
+          retention-days: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 24
