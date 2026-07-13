@@ -1,0 +1,11 @@
+export function isIsolatedTestDatabase(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    const database = url.pathname.slice(1).toLowerCase();
+    const localHost = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    return localHost && database === "td_agent_test";
+  } catch {
+    return false;
+  }
+}

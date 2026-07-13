@@ -18,10 +18,10 @@ test("crypto: legacy plaintext passes through", () => {
   assert.equal(decryptString('{"plain":true}'), '{"plain":true}');
 });
 
-test("crypto: tampered ciphertext throws (GCM auth)", () => {
+test("crypto: tampered ciphertext is never exposed and does not crash a read", () => {
   const enc = encryptString("secret");
   const tampered = enc.slice(0, -4) + (enc.endsWith("AAAA") ? "BBBB" : "AAAA");
-  assert.throws(() => decryptString(tampered));
+  assert.equal(decryptString(tampered), "");
 });
 
 test("crypto: field helpers pass null/empty through, roundtrip non-empty", () => {

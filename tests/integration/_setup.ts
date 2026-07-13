@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "../../lib/prisma";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
+import { isIsolatedTestDatabase } from "./testDatabaseSafety";
 
 /**
  * Integration-test harness. Runs against a DEDICATED test/branch DB — NEVER prod.
@@ -10,7 +11,7 @@ import { signSession, SESSION_COOKIE } from "../../lib/session";
  * maps TEST_DATABASE_URL → DATABASE_URL/UNPOOLED and sets ALLOW_DB_TESTS=1.
  *
  * Enable explicitly:
- *   TEST_DATABASE_URL=postgres://...neon-branch  npm run test:integration
+ *   TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/td_agent_test npm run test:integration
  *
  * Guards (any false → suite skipped, never touches a DB):
  *   - ALLOW_DB_TESTS must equal "1"
@@ -20,8 +21,18 @@ import { signSession, SESSION_COOKIE } from "../../lib/session";
  * NOT at the shared production DB.
  */
 
+if (
+  process.env.ALLOW_DB_TESTS === "1" &&
+  process.env.TEST_DATABASE_URL &&
+  !isIsolatedTestDatabase(process.env.TEST_DATABASE_URL)
+) {
+  throw new Error(
+    "Integration tests only run against the local throwaway database named td_agent_test.",
+  );
+}
+
 export const dbTestsEnabled =
-  process.env.ALLOW_DB_TESTS === "1" && Boolean(process.env.TEST_DATABASE_URL);
+  process.env.ALLOW_DB_TESTS === "1" && isIsolatedTestDatabase(process.env.TEST_DATABASE_URL);
 
 export const skip = !dbTestsEnabled;
 export const db = prisma;
@@ -47,6 +58,7 @@ export function makeRequest(
 }
 
 let tierId: number | null = null;
+let agentSequence = 0;
 async function ensureTier(): Promise<number> {
   if (tierId) return tierId;
   const tier = await db.agentTier.upsert({
@@ -60,7 +72,8 @@ async function ensureTier(): Promise<number> {
 
 /** Create a throwaway agent (+user). Cleanup keyed by email prefix it-…@test.local. */
 export async function makeAgent(tag: string): Promise<{ userId: number; agentId: number }> {
-  const email = `it-${tag}-${Date.now()}-${Math.random().toString(36).slice(2)}@test.local`;
+  agentSequence += 1;
+  const email = `it-${tag}-${String(agentSequence).padStart(3, "0")}@test.local`;
   const agent = await db.agent.create({
     data: {
       status: "ACTIVE",

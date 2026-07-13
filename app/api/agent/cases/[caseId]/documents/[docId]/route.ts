@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { del } from "@vercel/blob";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
+import { getDocumentStorage } from "@/lib/documentStorage";
 
 export const runtime = "nodejs";
 
@@ -25,9 +25,10 @@ export async function DELETE(
     });
     if (!doc) return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
 
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const storage = getDocumentStorage();
+    if (storage.isConfigured()) {
       try {
-        await del(doc.pathname);
+        await storage.delete(doc.pathname);
       } catch {
         // файл мог быть уже удалён — продолжаем чистить запись
       }
