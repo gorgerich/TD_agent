@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
+import { getDocumentStorage } from "@/lib/documentStorage";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
     const leadId = parseId((await params).caseId, "caseId");
     await assertLeadOwned(leadId, session.agentId);
 
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    const storage = getDocumentStorage();
+    if (!storage.isConfigured()) {
       return NextResponse.json({ error: "Хранилище файлов не настроено (BLOB_READ_WRITE_TOKEN)" }, { status: 503 });
     }
 
@@ -45,10 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
     if (!ALLOWED.has(file.type)) return NextResponse.json({ error: "Допустимы PDF, JPG, PNG" }, { status: 400 });
 
     const safeName = file.name.replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(0, 120) || "file";
-    const blob = await put(`cases/${leadId}/${Date.now()}-${safeName}`, file, {
-      access: "public",
-      addRandomSuffix: true,
-    });
+    const blob = await storage.put(`cases/${leadId}/${Date.now()}-${safeName}`, file);
 
     const doc = await prisma.document.create({
       data: {

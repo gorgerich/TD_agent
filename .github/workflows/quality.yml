@@ -1,0 +1,58 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: td_agent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d td_agent_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/td_agent_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/td_agent_test
+      DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@127.0.0.1:5432/td_agent_test
+      APP_ENCRYPTION_KEY: ci-only-test-key-not-valid-for-production
+      DEMO_MODE: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Prepare isolated test database
+        run: npx prisma db push --skip-generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm run test:integration
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start production server
+        run: npm run start > /tmp/td-agent-next.log 2>&1 &
+      - name: Wait for server
+        run: |
+          for attempt in {1..30}; do
+            curl --fail --silent http://127.0.0.1:3001/agent/login >/dev/null && exit 0
+            sleep 2
+          done
+          cat /tmp/td-agent-next.log
+          exit 1
+      - run: npm run test:e2e
