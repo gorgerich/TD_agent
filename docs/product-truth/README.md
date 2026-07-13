@@ -1,6 +1,7 @@
 # Product truth: Week 1
 
-Status: `IN_PROGRESS`
+Gate status: `BLOCKED` pending three human sign-offs on commit
+`95d6dbd91cecdefeedc722ad27dcebb94ba15e27`.
 
 This directory is the Week 1 contract for the TD Agent pilot. It converts the
 CPO audit dated 2026-07-13 and the 12-week delivery gates into reviewable,
