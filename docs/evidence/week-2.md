@@ -11,6 +11,7 @@
 - `WEEK_STATUS: TECHNICALLY_VERIFIED_GATE_BLOCKED`
 - Source: `TD_AGENT_12_WEEK_DELIVERY_GATES.md`, Week 2
 - Gate blocker: `RISK-W1-RITUAL-SME` remains `OPEN`
+- Ritual SME record: `docs/evidence/week-2-signoff.md` (`INCOMPLETE`)
 
 ## Candidate scope
 
@@ -102,5 +103,12 @@ job in 2m18s:
 Week 2 is technically verified but not closed. The gate remains blocked until at
 least one active ritual agent or ritual-operations manager validates both pilot
 scenarios and the evidence is recorded against the candidate commit.
+
+The Founder submitted expert metadata for `SME-01` on 2026-07-14, tied to
+implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7`. The record
+is incomplete: environment URL is missing; cremation and family-plot verdicts,
+P0/P1 status and final real-practice conclusion remain unresolved alternatives;
+P2 comments are blank. No AI decision was substituted for those human fields.
+See `docs/evidence/week-2-signoff.md`.
 
 Week 2 gate: `BLOCKED` by `RISK-W1-RITUAL-SME`.
