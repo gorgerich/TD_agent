@@ -5,6 +5,7 @@
 - Implementation commit reviewed: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
 - Pull request: https://github.com/gorgerich/TD_agent/pull/19
 - Human review date: 2026-07-14
+- `SME_IMPLEMENTATION_VALIDATION: PASS`
 
 ## Human reviewer
 
@@ -13,11 +14,23 @@
 - Practical experience: 10 years
 - Reviewed environment: burial and cremation estimate configurator
 
-Vercel recorded a successful deployment for the exact implementation commit at
-https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2.
-The SME statement identifies the reviewed product surface, but does not identify
-a URL. The Vercel link is therefore commit deployment evidence only; this record
-does not claim that the SME used that URL.
+## Reviewed environment confirmation
+
+- Reviewed environment URL: https://td-agent-6no67xlba-rics-projects-9baa2793.vercel.app
+- Environment type: Vercel `Preview`, PR #19
+- GitHub deployment ID: `5442025143`
+- Deployment SHA: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
+- Implementation SHA: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
+- Vercel deployment status: `SUCCESS`
+- Vercel deployment evidence: https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2
+- Environment confirmation date: 2026-07-14
+- Environment confirmation source: Product Owner attestation
+
+GitHub deployment evidence binds deployment `5442025143` to the exact commit
+SHA above and records the public Preview URL. Product Owner separately attests
+that `SME-01` used this PR #19 Preview for both reviewed scenarios. This
+environment attestation supplements, and does not replace or reinterpret, the
+human SME verdict below.
 
 ## Verbatim human decision
 
@@ -60,6 +73,7 @@ This is human evidence, not an AI review. No field was added or resolved by AI.
 ## Gate decision
 
 - `SME_GATE: PASS`
+- `SME_IMPLEMENTATION_VALIDATION: PASS`
 - `WEEK_2_GATE: PASS`
 - `RISK-W1-RITUAL-SME: CLOSED`
 - `MERGE_STATUS: NOT_PERFORMED`

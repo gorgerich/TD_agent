@@ -8,7 +8,12 @@
 - CI run: https://github.com/gorgerich/TD_agent/actions/runs/29339480074
 - CI job: https://github.com/gorgerich/TD_agent/actions/runs/29339480074/job/87107145749
 - Vercel preview check: https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2
+- Reviewed Preview URL: https://td-agent-6no67xlba-rics-projects-9baa2793.vercel.app
+- Vercel Preview deployment ID: `5442025143`
+- Deployment SHA: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
+- Environment confirmation: Product Owner attestation, 2026-07-14
 - `WEEK_STATUS: PASS`
+- `SME_IMPLEMENTATION_VALIDATION: PASS`
 - Source: `TD_AGENT_12_WEEK_DELIVERY_GATES.md`, Week 2
 - Ritual SME record: `docs/evidence/week-2-signoff.md` (`PASS`)
 - Release status: merge, production migration, deployment and production smoke
@@ -107,6 +112,12 @@ against implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7` on
 2026-07-14. Both scenarios passed, no P0/P1 or P2 findings were reported, and
 the workflow and terminology were confirmed as conforming to real practice.
 See `docs/evidence/week-2-signoff.md`.
+
+Product Owner confirmed on 2026-07-14 that the SME ran both scenarios on PR #19
+Vercel Preview `https://td-agent-6no67xlba-rics-projects-9baa2793.vercel.app`.
+GitHub deployment `5442025143` independently binds that Preview deployment to
+the exact implementation SHA. This environment evidence supplements the existing
+human SME verdict; it does not substitute for it.
 
 Week 2 gate: `PASS`. Merge, production migration, deployment and production
 smoke remain separate, unperformed release actions.
