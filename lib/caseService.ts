@@ -135,10 +135,7 @@ export async function transitionCase(input: {
   const payload = input.payload ?? {};
 
   try {
-    return await prisma.$transaction(
-      (tx) => transitionCaseInTransaction(tx, { ...input, payload }),
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-    );
+    return await runSerializableTransaction((tx) => transitionCaseInTransaction(tx, { ...input, payload }));
   } catch (error) {
     if (isUniqueConstraint(error)) {
       return replayAfterUniqueRace({
@@ -163,7 +160,7 @@ export async function saveCaseIntake(input: {
   const eventType = "case.intake_saved.v1";
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await runSerializableTransaction(async (tx) => {
       let aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
       if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
 
@@ -216,7 +213,7 @@ export async function saveCaseIntake(input: {
         },
       });
       return result;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   } catch (error) {
     if (isUniqueConstraint(error)) {
       return replayAfterUniqueRace({
@@ -339,6 +336,20 @@ function derivedContext(context: CaseCommandContext, suffix: string): CaseComman
   return { ...context, idempotencyKey: `${context.idempotencyKey}:${suffix}`, causationId: context.idempotencyKey };
 }
 
+async function runSerializableTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error) {
+      if (!isTransactionConflict(error) || attempt === maxAttempts) throw error;
+    }
+  }
+  throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Не удалось сериализовать команду кейса");
+}
+
 async function loadAggregate(tx: Prisma.TransactionClient, leadId: number, tenantId: string, ownerId: number) {
   return tx.case.findFirst({
     where: { leadId, tenantId, ownerId },
@@ -452,4 +463,8 @@ function jsonValue(value: unknown): Prisma.InputJsonValue {
 
 function isUniqueConstraint(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+function isTransactionConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 }
