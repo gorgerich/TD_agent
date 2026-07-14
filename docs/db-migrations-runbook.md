@@ -126,6 +126,51 @@ npx prisma migrate dev --name <short_name>
 # 4. commit migration → merge → build runs migrate deploy
 ```
 
+## Week 2 canonical Case migration
+
+Files:
+
+- `20260713000000_baseline`: generated from verified Week 1 schema; metadata
+  adoption is required for an existing database.
+- `20260714090000_week2_canonical_case`: additive `Case`, `CaseEvent`, enums,
+  indexes, foreign keys and deterministic backfill.
+
+CI applies both migrations to a new PostgreSQL `td_agent_test`, then verifies
+zero drift against `schema.prisma`. This proves a clean install only. It does not
+authorize production deployment.
+
+Existing staging/production database procedure:
+
+```bash
+# 1. Verified backup and isolated staging clone are mandatory.
+export DATABASE_URL=<staging-pooled>
+export DATABASE_URL_UNPOOLED=<staging-direct>
+
+# 2. Confirm existing tables match baseline before metadata adoption.
+npx prisma migrate diff \
+  --from-url "$DATABASE_URL_UNPOOLED" \
+  --to-schema-datamodel /path/to/week-1-schema.prisma \
+  --exit-code
+
+# 3. Mark only baseline as already applied; this executes no DDL.
+npx prisma migrate resolve --applied 20260713000000_baseline
+
+# 4. Apply Week 2 additive migration on staging.
+npx prisma migrate deploy
+npx prisma migrate status
+```
+
+Forward-fix policy:
+
+- do not delete `Case`/`CaseEvent` after application traffic starts;
+- on backfill discrepancy, stop rollout and append a corrective migration;
+- never edit an applied migration;
+- production execution requires SME gate, backup proof, staging dry-run and
+  separate Founder approval.
+
+Rollback before application traffic: restore verified database backup. After
+traffic starts: forward-fix only, because `CaseEvent` is append-only audit data.
+
 ## Forbidden (always)
 - `prisma db push` against prod.
 - `prisma migrate dev` / `reset` against prod (recreates DB — data loss).

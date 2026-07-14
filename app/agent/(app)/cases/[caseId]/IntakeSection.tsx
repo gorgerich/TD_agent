@@ -34,9 +34,14 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
     setErr(null);
     setOk(false);
     try {
+      const commandId = crypto.randomUUID();
       const res = await fetch(`/api/agent/cases/${caseId}/intake`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `intake-save:${caseId}:${commandId}`,
+          "X-Correlation-Id": `case:${caseId}:${commandId}`,
+        },
         body: JSON.stringify(value),
       });
       if (!res.ok) {

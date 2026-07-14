@@ -37,8 +37,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Prepare isolated test database
-        run: npx prisma db push --skip-generate
+      - name: Apply migrations to isolated test database
+        run: npx prisma migrate deploy
+      - name: Verify migration/schema parity
+        run: npx prisma migrate diff --from-url "$DATABASE_URL_UNPOOLED" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit

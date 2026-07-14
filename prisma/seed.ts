@@ -7,6 +7,8 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { encryptField } from "../lib/crypto";
+import { SCENARIO_CLOSURE_GUARDS, isSupportedScenario } from "../lib/caseDomain";
+import { ensureCanonicalCaseForLead, scenarioFromCeremonyType, transitionCase } from "../lib/caseService";
 
 const prisma = new PrismaClient();
 const DEMO_EMAIL = "demo@tihiydom.local";
@@ -95,7 +97,7 @@ async function main() {
     // progress — в работе, документы
     { name: "Елена Зайцева", phone: "+79276665544", ctx: "Свекровь. Уточняют документы.", stage: "docs", deceased: "Зайцева Лидия Сергеевна", ceremonyType: "погребение" },
     // done — в архиве (не показывается в активных)
-    { name: "Татьяна Лебедева", phone: "+79219998877", ctx: "Бабушка. Полное сопровождение.", stage: "done", total: 254000 },
+    { name: "Татьяна Лебедева", phone: "+79219998877", ctx: "Бабушка. Полное сопровождение.", stage: "done", total: 254000, deceased: "Лебедева Мария Павловна", ceremonyType: "погребение", ceremonyPlace: "Семейное захоронение" },
   ];
 
   for (const s of specs) {
@@ -129,11 +131,13 @@ async function main() {
     }
 
     const hasQuote = ["estimate", "contract", "paid", "done"].includes(s.stage);
+    let quoteVersionId: number | null = null;
     if (hasQuote && meetingId) {
       const quote = await prisma.quote.create({ data: { meetingId } });
-      await prisma.quoteVersion.create({
+      const version = await prisma.quoteVersion.create({
         data: { quoteId: quote.id, total: (s.total ?? 120000) * 100, payload: JSON.stringify({ demo: true }) },
       });
+      quoteVersionId = version.id;
     }
 
     const orderStage = { contract: "SIGNED", paid: "PAID", done: "COMPLETED" } as const;
@@ -173,6 +177,44 @@ async function main() {
       await prisma.caseNote.create({
         data: { leadId: created.id, agentId: agent.id, body: encryptField("Созвон: клиент уточняет состав.") ?? "" },
       });
+    }
+
+    const canonical = await ensureCanonicalCaseForLead({
+      leadId: created.id,
+      agentId: agent.id,
+      actorId: agent.id,
+      idempotencyKey: `seed:case-created:${created.id}`,
+      correlationId: `seed:${created.id}`,
+    }, prisma);
+    const command = async (suffix: string, eventType: Parameters<typeof transitionCase>[0]["eventType"], payload?: Record<string, unknown>) =>
+      transitionCase({
+        leadId: created.id,
+        eventType,
+        payload,
+        context: {
+          agentId: agent.id,
+          actorId: agent.id,
+          idempotencyKey: `seed:${created.id}:${suffix}`,
+          correlationId: `seed:${created.id}`,
+        },
+      });
+
+    if (s.deceased) await command("intake", "intake.completed.v1");
+    const scenarioId = scenarioFromCeremonyType(s.ceremonyType);
+    if (s.deceased && scenarioId !== "UNSELECTED") {
+      await command("scenario", "scenario.selected.v1", { scenarioId });
+    }
+    const shouldPublish = Boolean(quoteVersionId) && (Boolean(s.viewed) || Boolean(s.agreed) || ["contract", "paid", "done"].includes(s.stage));
+    if (shouldPublish && quoteVersionId) await command("publish", "quote.published.v1", { quoteVersionId });
+    if (shouldPublish && quoteVersionId && (Boolean(s.agreed) || ["contract", "paid", "done"].includes(s.stage))) {
+      await command("accept", "quote.accepted.v1", { quoteVersionId });
+    }
+    if (["contract", "paid", "done"].includes(s.stage)) await command("contract", "contract.signed.v1");
+    if (["paid", "done"].includes(s.stage)) await command("payment", "payment.requirement_satisfied.v1");
+    if (s.stage === "done" && isSupportedScenario(scenarioId)) {
+      const guardState = Object.fromEntries(SCENARIO_CLOSURE_GUARDS[scenarioId].map((guard) => [guard, true]));
+      await prisma.case.update({ where: { id: canonical.caseId }, data: { guardState } });
+      await command("close", "case.closure_requested.v1");
     }
   }
 

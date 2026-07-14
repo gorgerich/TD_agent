@@ -4,6 +4,8 @@ import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptField } from "@/lib/crypto";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
+import { ensureCanonicalCaseForLead, scenarioFromCeremonyType, transitionCase } from "@/lib/caseService";
+import { CaseDomainError } from "@/lib/caseDomain";
 
 export const runtime = "nodejs";
 
@@ -38,7 +40,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
 
     const { ceremonyType, budget, religion, needs, deceasedName, deceasedDate, morgue, ceremonyAt, ceremonyPlace } = parsed.data;
-    await prisma.clientLead.update({
+    const updatedLead = await prisma.clientLead.update({
       where: { id: leadId },
       data: {
         ceremonyType: ceremonyType ?? null,
@@ -52,8 +54,39 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
         ceremonyPlace: ceremonyPlace ?? null,
       },
     });
+    await ensureCanonicalCaseForLead({
+      leadId,
+      agentId: session.agentId,
+      actorId: session.agentId,
+      correlationId: req.headers.get("x-correlation-id")?.trim() || `intake:${leadId}`,
+    });
+
+    const baseKey = req.headers.get("idempotency-key")?.trim() || `intake:${leadId}:${Date.now()}`;
+    const correlationId = req.headers.get("x-correlation-id")?.trim() || `intake:${leadId}`;
+    let canonical = await prisma.case.findUnique({ where: { leadId } });
+    if (canonical?.stage === "INTAKE" && updatedLead.deceasedName) {
+      await transitionCase({
+        leadId,
+        eventType: "intake.completed.v1",
+        context: { agentId: session.agentId, actorId: session.agentId, idempotencyKey: `${baseKey}:intake`, correlationId },
+      });
+      canonical = await prisma.case.findUnique({ where: { leadId } });
+    }
+
+    const scenarioId = scenarioFromCeremonyType(updatedLead.ceremonyType);
+    if (canonical?.stage === "PLANNING" && scenarioId !== "UNSELECTED") {
+      await transitionCase({
+        leadId,
+        eventType: "scenario.selected.v1",
+        payload: { scenarioId },
+        context: { agentId: session.agentId, actorId: session.agentId, idempotencyKey: `${baseKey}:scenario`, correlationId },
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
+    if (err instanceof CaseDomainError) {
+      return NextResponse.json({ error: err.message, code: err.code, details: err.details }, { status: 422 });
+    }
     return handleApiError(err, "cases/intake");
   }
 }

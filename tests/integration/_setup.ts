@@ -46,9 +46,9 @@ export async function sessionCookieHeader(userId: number, agentId: number): Prom
 /** Build a Request with optional session cookie + JSON body (for route handlers). */
 export function makeRequest(
   url: string,
-  opts: { method?: string; cookie?: string; body?: unknown } = {},
+  opts: { method?: string; cookie?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): NextRequest {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = { "content-type": "application/json", ...opts.headers };
   if (opts.cookie) headers.cookie = opts.cookie;
   return new NextRequest(`http://localhost${url}`, {
     method: opts.method ?? "GET",
@@ -94,10 +94,15 @@ export async function cleanup(): Promise<void> {
   });
   const agentIds = users.map((u) => u.agent?.id).filter((x): x is number => !!x);
   if (agentIds.length) {
+    const meetings = await db.meeting.findMany({ where: { agentId: { in: agentIds } }, select: { id: true } });
+    const meetingIds = meetings.map((meeting) => meeting.id);
+    await db.commission.deleteMany({ where: { agentId: { in: agentIds } } });
+    await db.payment.deleteMany({ where: { OR: [{ order: { agentId: { in: agentIds } } }, { meetingId: { in: meetingIds } }] } });
+    await db.order.deleteMany({ where: { agentId: { in: agentIds } } });
     await db.quoteVersion.deleteMany({ where: { quote: { meeting: { agentId: { in: agentIds } } } } });
     await db.quote.deleteMany({ where: { meeting: { agentId: { in: agentIds } } } });
     await db.agentSession.deleteMany({ where: { meeting: { agentId: { in: agentIds } } } });
-    await db.meeting.deleteMany({ where: { agentId: { in: agentIds } } });
+    await db.meeting.deleteMany({ where: { id: { in: meetingIds } } });
     await db.clientLead.deleteMany({ where: { agentId: { in: agentIds } } });
     await db.agent.deleteMany({ where: { id: { in: agentIds } } });
   }

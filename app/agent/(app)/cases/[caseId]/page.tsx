@@ -15,7 +15,8 @@ import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER } from "@/lib/case";
-import { deriveCaseStatus, type StatusTone } from "@/lib/caseStatus";
+import { type StatusTone } from "@/lib/caseStatus";
+import { getCanonicalCase } from "@/lib/caseReadModel";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
 
@@ -56,15 +57,24 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   const session = await getAgentSession();
-  const lead = await getCase(id, session?.agentId ?? 0);
-  if (!lead) notFound();
+  const projectionNow = new Date();
+  const [lead, canonicalCase] = await Promise.all([
+    getCase(id, session?.agentId ?? 0),
+    getCanonicalCase(session?.agentId ?? 0, id, projectionNow),
+  ]);
+  if (!lead || !canonicalCase) notFound();
 
   // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
-  const [rawTasks, rawNotes, rawDocs, rawPayments] = await Promise.all([
+  const [rawTasks, rawNotes, rawDocs, rawPayments, rawEvents] = await Promise.all([
     prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
     prisma.casePayment.findMany({ where: { leadId: id }, orderBy: { paidAt: "desc" } }).catch(() => []),
+    prisma.caseEvent.findMany({
+      where: { case: { leadId: id, tenantId: canonicalCase.tenantId } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, eventType: true, createdAt: true, fromStage: true, toStage: true },
+    }).catch(() => []),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
@@ -82,25 +92,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const versions = meetings.flatMap((m) => m.quotes.flatMap((q) => q.versions));
   const orders = meetings.flatMap((m) => m.orders);
 
-  // Операционный статус кейса — единый движок (см. lib/caseStatus.ts).
-  // eslint-disable-next-line react-hooks/purity -- server freshness marker
-  const statusNow = Date.now();
-  const requiredDocCats = ["Свидетельство о смерти", "Паспорт", "Договор"];
-  const caseStatus = deriveCaseStatus({
-    meetingsLen: meetings.length,
-    hasUpcomingMeeting: meetings.some((m) => m.scheduledAt && m.scheduledAt.getTime() > statusNow),
-    quotesLen: versions.length,
-    orders,
-    hasCobrowse: meetings.some((m) => m.cobrowseCode),
-    clientViewed: meetings.some((m) => m.coViewedAt),
-    clientAgreed: meetings.some((m) => m.coAgreedAt),
-    docsComplete: requiredDocCats.every((c) => rawDocs.some((d) => d.category === c)),
-    intakeComplete: Boolean(decryptField(lead.deceasedName)) && Boolean(lead.ceremonyType),
-    ceremonyAt: lead.ceremonyAt?.getTime() ?? null,
-    nowMs: statusNow,
-  });
-  const curIdx = caseStatus.stageIdx;
-  const stage = STAGE_ORDER[curIdx] ?? STAGE_ORDER[0];
+  const curIdx = Math.max(0, STAGE_ORDER.indexOf(canonicalCase.legacyStage));
 
   const firstMeeting = meetings[0] ?? null;
   const cobrowse = meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null;
@@ -146,38 +138,29 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt) });
     if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt) });
   }
+  for (const event of rawEvents) {
+    activity.push({
+      at: event.createdAt.getTime(),
+      label: eventLabel(event.eventType),
+      sub: event.fromStage === event.toStage ? undefined : `${event.fromStage} → ${event.toStage}`,
+    });
+  }
   activity.sort((a, b) => b.at - a.at);
 
-  // Risk-flags - производные сигналы «что грозит сорвать кейс» (без отдельной таблицы)
-  // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker for case risk signals
-  const nowMs = Date.now();
-  const overdueCount = tasks.filter((t) => !t.completedAt && t.dueAt && new Date(t.dueAt).getTime() < nowMs).length;
-  const paid = orders.some((o) => ["PAID", "PARTIALLY_PAID", "COMPLETED"].includes(o.status.toUpperCase()));
-  const meetingSoon = meetings.some((m) => m.scheduledAt && m.scheduledAt.getTime() > nowMs && m.scheduledAt.getTime() - nowMs < 86_400_000);
-  const lastAt = activity[0]?.at ?? lead.createdAt.getTime();
-  const stale = stage !== "Завершено" && nowMs - lastAt > 7 * 86_400_000;
-  const risks: { tone: "danger" | "warning"; label: string }[] = [];
-  if (overdueCount > 0) risks.push({ tone: "danger", label: `Просрочено задач: ${overdueCount}` });
-  if (meetingSoon && versions.length === 0) risks.push({ tone: "warning", label: "Встреча скоро - сметы нет" });
-  if (orders.length > 0 && !paid) risks.push({ tone: "warning", label: "Оплата не завершена" });
-  if ((stage === "Договор" || stage === "Оплата") && docs.length === 0) risks.push({ tone: "warning", label: "Нет документов" });
-  if (stale) risks.push({ tone: "warning", label: "Без движения >7 дней" });
-  // Церемония — жёсткий дедлайн: близко и не готово = красный
+  const nowMs = projectionNow.getTime();
+  const risks = canonicalCase.risk.reasons.map((risk) => ({
+    tone: risk.level === "CRITICAL" ? "danger" as const : "warning" as const,
+    label: `${risk.label}${risk.deadline ? ` · до ${dateTime(risk.deadline)}` : ""}`,
+  }));
   const ceremonyMs = lead.ceremonyAt?.getTime() ?? null;
   const hoursToCeremony = ceremonyMs ? Math.round((ceremonyMs - nowMs) / 3_600_000) : null;
-  if (hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48) {
-    if (versions.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч - сметы нет` });
-    if (docs.length === 0) risks.push({ tone: "danger", label: `Церемония через ${hoursToCeremony} ч - документов нет` });
-  }
 
   const routeMeta = [
     `${curIdx + 1}/${STAGE_ORDER.length} этап`,
-    meetings.length > 0 ? ruCount(meetings.length, ["встреча", "встречи", "встреч"]) : "встреч нет",
-    versions.length > 0 ? ruCount(versions.length, ["смета", "сметы", "смет"]) : "смет нет",
-    orders.length > 0 ? ruCount(orders.length, ["заказ", "заказа", "заказов"]) : "заказов нет",
+    canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt)}` : "без срока",
+    `версия кейса ${canonicalCase.version}`,
   ];
   const openTasksCount = tasks.filter((task) => !task.completedAt).length;
-  const paymentTotal = payments.reduce((sum, payment) => sum + payment.amountKopecks, 0);
   const lastActivityText = activity[0]?.label ?? "Активности нет";
 
   return (
@@ -222,18 +205,18 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 
       <RouteActionPanel
         current={curIdx}
-        statusLabel={caseStatus.label}
-        statusTone={caseStatus.tone}
-        nextAction={caseStatus.next}
+        statusLabel={canonicalCase.statusLabel}
+        statusTone={canonicalCase.statusTone}
+        nextAction={canonicalCase.nextAction.label}
         meta={routeMeta}
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
         cobrowse={cobrowse}
         controls={[
           { label: "Открытые задачи", value: String(openTasksCount), tone: openTasksCount > 0 ? "warning" : "neutral" },
-          { label: "Документы", value: String(docs.length), tone: docs.length === 0 ? "warning" : "neutral" },
-          { label: "Сметы", value: String(versions.length), tone: versions.length === 0 ? "warning" : "neutral" },
-          { label: "Оплаты", value: moneyFromKopecks(paymentTotal), tone: paymentTotal > 0 ? "success" : "neutral" },
+          { label: "Документы", value: canonicalCase.documents.required ? `${canonicalCase.documents.verified}/${canonicalCase.documents.required}` : "—", tone: canonicalCase.documents.ready ? "success" : "warning" },
+          { label: "Опубликованная смета", value: canonicalCase.publishedQuote ? `v${canonicalCase.publishedQuote.versionId}` : "Нет", tone: canonicalCase.publishedQuote ? "success" : "warning" },
+          { label: "Остаток", value: canonicalCase.payment.balanceKopecks == null ? "Не рассчитан" : moneyFromKopecks(canonicalCase.payment.balanceKopecks), tone: canonicalCase.payment.balanceKopecks === 0 ? "success" : "neutral" },
         ]}
         lastActivity={lastActivityText}
       />
@@ -266,6 +249,20 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
       </main>
     </div>
   );
+}
+
+function eventLabel(eventType: string): string {
+  const labels: Record<string, string> = {
+    "case.created.v1": "Канонический кейс создан",
+    "intake.completed.v1": "Интейк завершён",
+    "scenario.selected.v1": "Сценарий выбран",
+    "quote.published.v1": "Смета опубликована",
+    "quote.accepted.v1": "Смета согласована",
+    "contract.signed.v1": "Договор подписан",
+    "payment.requirement_satisfied.v1": "Требование по оплате выполнено",
+    "case.closure_requested.v1": "Кейс закрыт",
+  };
+  return labels[eventType] ?? eventType;
 }
 
 function RouteActionPanel({
@@ -372,17 +369,6 @@ function RouteActionPanel({
       </div>
     </section>
   );
-}
-
-function ruCount(count: number, forms: [string, string, string]) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  const form = mod10 === 1 && mod100 !== 11
-    ? forms[0]
-    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-      ? forms[1]
-      : forms[2];
-  return `${count} ${form}`;
 }
 
 const STATUS_CHIP: Record<StatusTone, { wrap: string; dot: string }> = {
