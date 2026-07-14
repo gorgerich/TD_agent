@@ -3,11 +3,11 @@
 - Date started: 2026-07-14
 - Branch: `agent/week-2-canonical-case`
 - Governance mode: `SOLO_FOUNDER_AI_ASSISTED`
-- Verified implementation commit: `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0`
+- Verified implementation commit: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
 - Pull request: https://github.com/gorgerich/TD_agent/pull/19
-- CI run: https://github.com/gorgerich/TD_agent/actions/runs/29338839327
-- CI job: https://github.com/gorgerich/TD_agent/actions/runs/29338839327/job/87104948966
-- Vercel preview check: https://vercel.com/rics-projects-9baa2793/td-agent/3dMiVDyytXJfyAio7eptsvotBsuQ
+- CI run: https://github.com/gorgerich/TD_agent/actions/runs/29339480074
+- CI job: https://github.com/gorgerich/TD_agent/actions/runs/29339480074/job/87107145749
+- Vercel preview check: https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2
 - `WEEK_STATUS: TECHNICALLY_VERIFIED_GATE_BLOCKED`
 - Source: `TD_AGENT_12_WEEK_DELIVERY_GATES.md`, Week 2
 - Gate blocker: `RISK-W1-RITUAL-SME` remains `OPEN`
@@ -66,8 +66,8 @@ backfill already supplies an explicit value. Clean rerun `29336719451` passed.
 
 ## GitHub CI verification
 
-Candidate `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0` completed the `Quality / verify`
-job in 2m15s:
+Candidate `f49497511035b849e1a7b8fb7c86444741cdb2e7` completed the `Quality / verify`
+job in 2m18s:
 
 - legacy pending/signed/paid/completed/viewed backfill fixture dry-run: PASS;
 - baseline and Week 2 migrations applied to PostgreSQL `td_agent_test`: PASS;
@@ -91,6 +91,10 @@ job in 2m15s:
 - Correction: two same-tenant cases now issue the same transition key concurrently;
   CI proves one success, one 409, one event and no loser side effect.
 - Review 3 on `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0`: `PASS`, no P0/P1 findings.
+- Evidence rerun `29339212160` exposed a real PostgreSQL `P2034` serialization
+  conflict returning 500 under concurrent commands. The service now performs a
+  bounded three-attempt retry and re-evaluates idempotency after rollback.
+- Review 4 on `f49497511035b849e1a7b8fb7c86444741cdb2e7`: `PASS`, no P0/P1 findings.
 - Ritual SME validation was not assessed or simulated by the technical reviewer.
 
 ## Gate status
