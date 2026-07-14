@@ -73,10 +73,9 @@ type ReconciliationLead = {
 
 export function inferMinimumStage(lead: ReconciliationLead): CaseStage {
   const statuses = lead.meetings.flatMap((meeting) => meeting.orders.map((order) => order.status.toUpperCase()));
-  if (statuses.includes("COMPLETED")) return "CLOSED";
-  if (statuses.includes("PAID")) return "EXECUTION";
-  if (statuses.some((status) => ["SIGNED", "PARTIALLY_PAID"].includes(status))) return "PAYMENT";
-  if (statuses.length > 0) return "CONTRACTING";
+  if (statuses.some((status) => ["PAID", "COMPLETED"].includes(status)) && lead.case?.publishedQuoteVersionId) return "EXECUTION";
+  if (statuses.some((status) => ["SIGNED", "PARTIALLY_PAID"].includes(status)) && lead.case?.publishedQuoteVersionId) return "PAYMENT";
+  if (statuses.length > 0 && lead.case?.publishedQuoteVersionId) return "CONTRACTING";
   if (lead.case?.publishedQuoteVersionId) return "AGREEMENT";
   if (lead.meetings.some((meeting) => meeting.quotes.some((quote) => quote.versions.length > 0))) return "QUOTING";
   if (lead.meetings.length > 0) return "PLANNING";

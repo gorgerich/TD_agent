@@ -68,7 +68,8 @@ ALTER TABLE "CaseEvent" ADD CONSTRAINT "CaseEvent_caseId_fkey"
 
 -- Backfill existing leads without changing their contact/intake records.
 INSERT INTO "Case" (
-  "id", "publicRef", "leadId", "tenantId", "ownerId", "scenarioId", "stage", "version", "guardState", "createdAt", "updatedAt"
+  "id", "publicRef", "leadId", "tenantId", "ownerId", "scenarioId", "stage", "version", "guardState",
+  "publishedQuoteVersionId", "createdAt", "updatedAt"
 )
 SELECT
   'case_' || substr(md5('case:' || l."id"::text), 1, 24),
@@ -83,19 +84,36 @@ SELECT
   END,
   CASE
     WHEN EXISTS (
-      SELECT 1 FROM "Order" o JOIN "Meeting" m ON m."id" = o."meetingId"
-      WHERE m."leadId" = l."id" AND upper(o."status") = 'COMPLETED'
-    ) THEN 'CLOSED'::"CaseStage"
-    WHEN EXISTS (
-      SELECT 1 FROM "Order" o JOIN "Meeting" m ON m."id" = o."meetingId"
-      WHERE m."leadId" = l."id" AND upper(o."status") IN ('PAID', 'PARTIALLY_PAID')
+      SELECT 1 FROM "Order" o
+      JOIN "Meeting" m ON m."id" = o."meetingId"
+      JOIN "Quote" q ON q."meetingId" = m."id"
+      JOIN "QuoteVersion" qv ON qv."quoteId" = q."id"
+      WHERE m."leadId" = l."id" AND upper(o."status") IN ('PAID', 'COMPLETED')
     ) THEN 'EXECUTION'::"CaseStage"
     WHEN EXISTS (
-      SELECT 1 FROM "Order" o JOIN "Meeting" m ON m."id" = o."meetingId"
-      WHERE m."leadId" = l."id"
+      SELECT 1 FROM "Order" o
+      JOIN "Meeting" m ON m."id" = o."meetingId"
+      JOIN "Quote" q ON q."meetingId" = m."id"
+      JOIN "QuoteVersion" qv ON qv."quoteId" = q."id"
+      WHERE m."leadId" = l."id" AND upper(o."status") IN ('SIGNED', 'PARTIALLY_PAID')
     ) THEN 'PAYMENT'::"CaseStage"
     WHEN EXISTS (
-      SELECT 1 FROM "Quote" q JOIN "Meeting" m ON m."id" = q."meetingId"
+      SELECT 1 FROM "Order" o
+      JOIN "Meeting" m ON m."id" = o."meetingId"
+      JOIN "Quote" q ON q."meetingId" = m."id"
+      JOIN "QuoteVersion" qv ON qv."quoteId" = q."id"
+      WHERE m."leadId" = l."id"
+    ) THEN 'CONTRACTING'::"CaseStage"
+    WHEN EXISTS (
+      SELECT 1 FROM "Quote" q
+      JOIN "QuoteVersion" qv ON qv."quoteId" = q."id"
+      JOIN "Meeting" m ON m."id" = q."meetingId"
+      WHERE m."leadId" = l."id" AND (m."coViewedAt" IS NOT NULL OR m."coAgreedAt" IS NOT NULL)
+    ) THEN 'AGREEMENT'::"CaseStage"
+    WHEN EXISTS (
+      SELECT 1 FROM "Quote" q
+      JOIN "QuoteVersion" qv ON qv."quoteId" = q."id"
+      JOIN "Meeting" m ON m."id" = q."meetingId"
       WHERE m."leadId" = l."id"
     ) THEN 'QUOTING'::"CaseStage"
     WHEN EXISTS (SELECT 1 FROM "Meeting" m WHERE m."leadId" = l."id") THEN 'PLANNING'::"CaseStage"
@@ -103,6 +121,23 @@ SELECT
   END,
   1,
   '{}'::jsonb,
+  CASE
+    WHEN EXISTS (
+      SELECT 1 FROM "Meeting" m
+      WHERE m."leadId" = l."id"
+        AND (m."coViewedAt" IS NOT NULL OR m."coAgreedAt" IS NOT NULL OR EXISTS (
+          SELECT 1 FROM "Order" o WHERE o."meetingId" = m."id"
+        ))
+    ) THEN (
+      SELECT qv."id" FROM "QuoteVersion" qv
+      JOIN "Quote" q ON q."id" = qv."quoteId"
+      JOIN "Meeting" m ON m."id" = q."meetingId"
+      WHERE m."leadId" = l."id"
+      ORDER BY qv."createdAt" DESC, qv."id" DESC
+      LIMIT 1
+    )
+    ELSE NULL
+  END,
   l."createdAt",
   CURRENT_TIMESTAMP
 FROM "ClientLead" l
@@ -113,18 +148,18 @@ INSERT INTO "CaseEvent" (
   "fromStage", "toStage", "before", "after", "payload", "result", "createdAt"
 )
 SELECT
-  'evt_' || substr(md5('case-created:' || c."leadId"::text), 1, 24),
+  'evt_' || substr(md5('case-migrated:' || c."leadId"::text), 1, 24),
   c."id",
   c."tenantId",
   c."ownerId",
-  'case.created.v1',
-  'migration:case-created:' || c."leadId"::text,
+  'case.migrated.v1',
+  'migration:case-imported:' || c."leadId"::text,
   'migration:week-2',
+  'INTAKE'::"CaseStage",
   c."stage",
-  c."stage",
-  '{}'::jsonb,
+  jsonb_build_object('stage', 'INTAKE', 'source', 'legacy-import'),
   jsonb_build_object('stage', c."stage", 'scenarioId', c."scenarioId", 'version', c."version"),
-  jsonb_build_object('leadId', c."leadId", 'source', 'week-2-backfill'),
+  jsonb_build_object('leadId', c."leadId", 'source', 'week-2-backfill', 'inferredFromLegacyArtifacts', true),
   jsonb_build_object('caseId', c."id", 'leadId', c."leadId", 'stage', c."stage", 'replayed', false),
   c."createdAt"
 FROM "Case" c

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { skip, db, makeAgent, sessionCookieHeader, makeRequest, cleanup } from "./_setup";
 import { POST as leadsPost } from "../../app/api/agent/leads/route";
 import { POST as transitionPost } from "../../app/api/agent/cases/[caseId]/transition/route";
+import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/route";
 import { reconcileCaseState } from "../../lib/caseReconciliation";
 import { SCENARIO_CLOSURE_GUARDS } from "../../lib/caseDomain";
 import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
@@ -62,6 +63,59 @@ test("AC-W2-02: create and transition retries are idempotent", opts, async () =>
   assert.equal(replay.status, 200);
   assert.equal((await replay.json() as { replayed: boolean }).replayed, true);
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "intake.completed.v1" } }), 1);
+});
+
+test("W2-09: intake save and derived transitions replay atomically", opts, async () => {
+  const fixture = await createCase("intake-idem");
+  const key = "it:intake-idem:save";
+  const request = (deceasedName: string) => intakePatch(
+    makeRequest(`/api/agent/cases/${fixture.lead.id}/intake`, {
+      method: "PATCH",
+      cookie: fixture.cookie,
+      headers: { "idempotency-key": key, "x-correlation-id": "it:intake-idem" },
+      body: { deceasedName, ceremonyType: "кремация", budget: "до 130000" },
+    }),
+    { params: Promise.resolve({ caseId: String(fixture.lead.id) }) },
+  );
+
+  const first = await request("Первое значение");
+  assert.equal(first.status, 200);
+  const firstBody = await first.json() as { stage: string; replayed: boolean };
+  assert.equal(firstBody.stage, "QUOTING");
+  assert.equal(firstBody.replayed, false);
+  const beforeRetry = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id }, select: { deceasedName: true } });
+
+  const replay = await request("Повтор не должен перезаписать данные");
+  assert.equal(replay.status, 200);
+  assert.equal((await replay.json() as { replayed: boolean }).replayed, true);
+  const afterRetry = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id }, select: { deceasedName: true } });
+  assert.equal(afterRetry.deceasedName, beforeRetry.deceasedName);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "case.intake_saved.v1" } }), 1);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "intake.completed.v1" } }), 1);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "scenario.selected.v1" } }), 1);
+});
+
+test("W2-09: an idempotency key cannot replay another case in the same tenant", opts, async () => {
+  const first = await createCase("key-owner");
+  const secondResponse = await leadsPost(makeRequest("/api/agent/leads", {
+    method: "POST",
+    cookie: first.cookie,
+    headers: { "idempotency-key": "it:key-owner:create-second", "x-correlation-id": "it:key-owner" },
+    body: { name: "Второй клиент", phone: "+79160000002", source: "agent" },
+  }));
+  assert.equal(secondResponse.status, 201);
+  const second = await secondResponse.json() as { id: number; caseId: string };
+  await db.clientLead.updateMany({
+    where: { id: { in: [first.lead.id, second.id] } },
+    data: { deceasedName: "enc1:test" },
+  });
+
+  const sharedKey = "it:key-owner:shared-transition";
+  assert.equal((await command({ leadId: first.lead.id, cookie: first.cookie, eventType: "intake.completed.v1", key: sharedKey })).status, 200);
+  const conflict = await command({ leadId: second.id, cookie: first.cookie, eventType: "intake.completed.v1", key: sharedKey });
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: second.caseId } })).stage, "INTAKE");
 });
 
 test("AC-W2-01/W2-12: invalid transition is clear and has no side effects", opts, async () => {

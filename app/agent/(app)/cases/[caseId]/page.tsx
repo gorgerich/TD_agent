@@ -254,6 +254,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
 function eventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     "case.created.v1": "Канонический кейс создан",
+    "case.migrated.v1": "Кейс перенесён в каноническую модель",
+    "case.intake_saved.v1": "Данные интейка сохранены",
     "intake.completed.v1": "Интейк завершён",
     "scenario.selected.v1": "Сценарий выбран",
     "quote.published.v1": "Смета опубликована",

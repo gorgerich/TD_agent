@@ -31,6 +31,18 @@ export type CaseCommandResult = {
   replayed: boolean;
 };
 
+export type CaseIntakeUpdate = {
+  ceremonyType: string | null;
+  budget: string | null;
+  religion: string | null;
+  needs: string | null;
+  deceasedName: string | null;
+  deceasedDate: Date | null;
+  morgue: string | null;
+  ceremonyAt: Date | null;
+  ceremonyPlace: string | null;
+};
+
 export function tenantIdForAgent(agentId: number): string {
   return `agent:${agentId}`;
 }
@@ -123,72 +135,83 @@ export async function transitionCase(input: {
   const payload = input.payload ?? {};
 
   try {
+    return await prisma.$transaction(
+      (tx) => transitionCaseInTransaction(tx, { ...input, payload }),
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  } catch (error) {
+    if (isUniqueConstraint(error)) {
+      return replayAfterUniqueRace({
+        leadId: input.leadId,
+        agentId: input.context.agentId,
+        tenantId,
+        idempotencyKey: input.context.idempotencyKey,
+        eventType: input.eventType,
+      });
+    }
+    throw error;
+  }
+}
+
+export async function saveCaseIntake(input: {
+  leadId: number;
+  data: CaseIntakeUpdate;
+  context: CaseCommandContext;
+}): Promise<CaseCommandResult> {
+  validateCommandContext(input.context);
+  const tenantId = tenantIdForAgent(input.context.agentId);
+  const eventType = "case.intake_saved.v1";
+
+  try {
     return await prisma.$transaction(async (tx) => {
-      const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
+      let aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
       if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
 
-      const replay = await tx.caseEvent.findUnique({
-        where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: input.context.idempotencyKey } },
-      });
-      if (replay) {
-        if (replay.caseId !== aggregate.id || replay.eventType !== input.eventType) {
-          throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Idempotency key уже использован другой командой");
-        }
-        return replayResult(replay.result);
+      const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, eventType);
+      if (replay) return replayResult(replay.result);
+
+      const updatedLead = await tx.clientLead.update({ where: { id: input.leadId }, data: input.data });
+      if (aggregate.stage === CaseStage.INTAKE && updatedLead.deceasedName) {
+        await transitionCaseInTransaction(tx, {
+          leadId: input.leadId,
+          eventType: "intake.completed.v1",
+          payload: {},
+          context: derivedContext(input.context, "intake-completed"),
+        });
+        aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
+        if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден после интейка");
       }
 
-      const facts = transitionFacts(aggregate);
-      const evaluated = evaluateCaseTransition({
-        stage: aggregate.stage,
-        scenarioId: aggregate.scenarioId,
-        eventType: input.eventType,
-        payload,
-        facts,
-      });
+      const scenarioId = scenarioFromCeremonyType(updatedLead.ceremonyType);
+      if (aggregate.stage === CaseStage.PLANNING && scenarioId !== CaseScenario.UNSELECTED) {
+        await transitionCaseInTransaction(tx, {
+          leadId: input.leadId,
+          eventType: "scenario.selected.v1",
+          payload: { scenarioId },
+          context: derivedContext(input.context, "scenario-selected"),
+        });
+        aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
+        if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден после выбора сценария");
+      }
+
       const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
-      const nextScenario = evaluated.scenarioId ?? aggregate.scenarioId;
-      const nextPublishedQuoteVersionId = evaluated.publishedQuoteVersionId ?? aggregate.publishedQuoteVersionId;
-      const guardState = normalizedGuardState(aggregate.guardState);
-      if (input.eventType === "contract.signed.v1") guardState.contract_signed = true;
-      if (input.eventType === "payment.requirement_satisfied.v1") guardState.payment_satisfied = true;
-      const nextVersion = aggregate.version + 1;
-      const before = caseSnapshot(aggregate);
-      const after = {
-        stage: evaluated.toStage,
-        scenarioId: nextScenario,
-        version: nextVersion,
-        publishedQuoteVersionId: nextPublishedQuoteVersionId,
-        guardState,
-      };
-
-      const updated = await tx.case.update({
-        where: { id: aggregate.id },
-        data: {
-          stage: evaluated.toStage as CaseStage,
-          scenarioId: nextScenario as CaseScenario,
-          publishedQuoteVersionId: nextPublishedQuoteVersionId,
-          guardState,
-          version: { increment: 1 },
-          closedAt: evaluated.toStage === "CLOSED" ? new Date() : aggregate.closedAt,
-        },
-      });
-      const result = caseResult(updated, eventId, false);
-
+      const result = caseResult(aggregate, eventId, false);
+      const snapshot = caseSnapshot(aggregate);
       await tx.caseEvent.create({
         data: {
           id: eventId,
           caseId: aggregate.id,
           tenantId,
           actorId: input.context.actorId,
-          eventType: input.eventType,
+          eventType,
           idempotencyKey: input.context.idempotencyKey,
           correlationId: input.context.correlationId,
           causationId: input.context.causationId,
           fromStage: aggregate.stage,
-          toStage: evaluated.toStage as CaseStage,
-          before: jsonValue(before),
-          after: jsonValue(after),
-          payload: jsonValue(payload),
+          toStage: aggregate.stage,
+          before: jsonValue(snapshot),
+          after: jsonValue(snapshot),
+          payload: { changedFields: Object.keys(input.data) },
           result: jsonValue(result),
         },
       });
@@ -196,13 +219,124 @@ export async function transitionCase(input: {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     if (isUniqueConstraint(error)) {
-      const replay = await prisma.caseEvent.findUnique({
-        where: { tenantId_idempotencyKey: { tenantId, idempotencyKey: input.context.idempotencyKey } },
+      return replayAfterUniqueRace({
+        leadId: input.leadId,
+        agentId: input.context.agentId,
+        tenantId,
+        idempotencyKey: input.context.idempotencyKey,
+        eventType,
       });
-      if (replay && replay.eventType === input.eventType) return replayResult(replay.result);
     }
     throw error;
   }
+}
+
+async function transitionCaseInTransaction(
+  tx: Prisma.TransactionClient,
+  input: {
+    leadId: number;
+    eventType: CaseTransitionEvent;
+    payload: CaseTransitionPayload;
+    context: CaseCommandContext;
+  },
+): Promise<CaseCommandResult> {
+  const tenantId = tenantIdForAgent(input.context.agentId);
+  const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
+  if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+
+  const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, input.eventType);
+  if (replay) return replayResult(replay.result);
+
+  const evaluated = evaluateCaseTransition({
+    stage: aggregate.stage,
+    scenarioId: aggregate.scenarioId,
+    eventType: input.eventType,
+    payload: input.payload,
+    facts: transitionFacts(aggregate),
+  });
+  const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
+  const nextScenario = evaluated.scenarioId ?? aggregate.scenarioId;
+  const nextPublishedQuoteVersionId = evaluated.publishedQuoteVersionId ?? aggregate.publishedQuoteVersionId;
+  const guardState = normalizedGuardState(aggregate.guardState);
+  if (input.eventType === "contract.signed.v1") guardState.contract_signed = true;
+  if (input.eventType === "payment.requirement_satisfied.v1") guardState.payment_satisfied = true;
+  const before = caseSnapshot(aggregate);
+  const after = {
+    stage: evaluated.toStage,
+    scenarioId: nextScenario,
+    version: aggregate.version + 1,
+    publishedQuoteVersionId: nextPublishedQuoteVersionId,
+    guardState,
+  };
+
+  const updated = await tx.case.update({
+    where: { id: aggregate.id },
+    data: {
+      stage: evaluated.toStage as CaseStage,
+      scenarioId: nextScenario as CaseScenario,
+      publishedQuoteVersionId: nextPublishedQuoteVersionId,
+      guardState,
+      version: { increment: 1 },
+      closedAt: evaluated.toStage === "CLOSED" ? new Date() : aggregate.closedAt,
+    },
+  });
+  const result = caseResult(updated, eventId, false);
+  await tx.caseEvent.create({
+    data: {
+      id: eventId,
+      caseId: aggregate.id,
+      tenantId,
+      actorId: input.context.actorId,
+      eventType: input.eventType,
+      idempotencyKey: input.context.idempotencyKey,
+      correlationId: input.context.correlationId,
+      causationId: input.context.causationId,
+      fromStage: aggregate.stage,
+      toStage: evaluated.toStage as CaseStage,
+      before: jsonValue(before),
+      after: jsonValue(after),
+      payload: jsonValue(input.payload),
+      result: jsonValue(result),
+    },
+  });
+  return result;
+}
+
+async function findCommandReplay(
+  tx: Prisma.TransactionClient,
+  caseId: string,
+  tenantId: string,
+  idempotencyKey: string,
+  eventType: string,
+) {
+  const replay = await tx.caseEvent.findUnique({
+    where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
+  });
+  if (replay && (replay.caseId !== caseId || replay.eventType !== eventType)) {
+    throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Idempotency key уже использован другой командой");
+  }
+  return replay;
+}
+
+async function replayAfterUniqueRace(input: {
+  leadId: number;
+  agentId: number;
+  tenantId: string;
+  idempotencyKey: string;
+  eventType: string;
+}): Promise<CaseCommandResult> {
+  const [aggregate, replay] = await Promise.all([
+    prisma.case.findFirst({ where: { leadId: input.leadId, tenantId: input.tenantId, ownerId: input.agentId }, select: { id: true } }),
+    prisma.caseEvent.findUnique({ where: { tenantId_idempotencyKey: { tenantId: input.tenantId, idempotencyKey: input.idempotencyKey } } }),
+  ]);
+  if (aggregate && replay && replay.caseId === aggregate.id && replay.eventType === input.eventType) {
+    return replayResult(replay.result);
+  }
+  throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Idempotency key уже использован другой командой");
+}
+
+function derivedContext(context: CaseCommandContext, suffix: string): CaseCommandContext {
+  return { ...context, idempotencyKey: `${context.idempotencyKey}:${suffix}`, causationId: context.idempotencyKey };
 }
 
 async function loadAggregate(tx: Prisma.TransactionClient, leadId: number, tenantId: string, ownerId: number) {
