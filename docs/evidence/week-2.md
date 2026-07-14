@@ -43,6 +43,11 @@
 - `git diff --check`: PASS.
 - PostgreSQL migration/integration: pending GitHub CI against isolated `td_agent_test`.
 
+First CI dry-run (`29336583863`) correctly failed schema parity because the
+handwritten additive migration gave Prisma-managed `Case.updatedAt` a database
+default. The default was removed before any shared database deployment; the
+backfill already supplies an explicit value. A clean rerun is required.
+
 ## Gate status
 
 Week 2 is not closed. CI, migration dry-run evidence and independent review are
