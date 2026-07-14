@@ -8,10 +8,11 @@
 - CI run: https://github.com/gorgerich/TD_agent/actions/runs/29339480074
 - CI job: https://github.com/gorgerich/TD_agent/actions/runs/29339480074/job/87107145749
 - Vercel preview check: https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2
-- `WEEK_STATUS: TECHNICALLY_VERIFIED_GATE_BLOCKED`
+- `WEEK_STATUS: PASS`
 - Source: `TD_AGENT_12_WEEK_DELIVERY_GATES.md`, Week 2
-- Gate blocker: `RISK-W1-RITUAL-SME` remains `OPEN`
-- Ritual SME record: `docs/evidence/week-2-signoff.md` (`INCOMPLETE`)
+- Ritual SME record: `docs/evidence/week-2-signoff.md` (`PASS`)
+- Release status: merge, production migration, deployment and production smoke
+  are `NOT PERFORMED`
 
 ## Candidate scope
 
@@ -21,7 +22,7 @@
 | W2-02 | Technically verified | `CaseEvent` is append-only; aggregate state and event commit in one serializable transaction. |
 | W2-03 | Technically verified | `Case` requires tenant, owner, scenario and unique public-safe reference. |
 | W2-04 | Technically verified | Target stage is selected only by `CASE_TRANSITION_MATRIX`; transport accepts event, not stage. |
-| W2-05 | Implemented, SME blocked | Separate cremation and family-plot closure guards exist. Ritual correctness requires SME validation. |
+| W2-05 | PASS | Separate cremation and family-plot closure guards exist; `SME-01` validated both scenarios and terminology against the implementation commit. |
 | W2-06 | Technically verified | `projectNextAction` returns deterministic action, reason, deadline and owner. |
 | W2-07 | Technically verified | Risk projection covers overdue action, ceremony proximity, missing blocker and stale SLA. |
 | W2-08 | Technically verified | Case attention buckets consume exact risk reasons instead of one universal stale heuristic. |
@@ -100,15 +101,12 @@ job in 2m18s:
 
 ## Gate status
 
-Week 2 is technically verified but not closed. The gate remains blocked until at
-least one active ritual agent or ritual-operations manager validates both pilot
-scenarios and the evidence is recorded against the candidate commit.
-
-The Founder submitted expert metadata for `SME-01` on 2026-07-14, tied to
-implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7`. The record
-is incomplete: environment URL is missing; cremation and family-plot verdicts,
-P0/P1 status and final real-practice conclusion remain unresolved alternatives;
-P2 comments are blank. No AI decision was substituted for those human fields.
+Week 2 technical acceptance is verified. `SME-01`, an active ritual agent with
+10 years of experience, validated the cremation and family-plot burial scenarios
+against implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7` on
+2026-07-14. Both scenarios passed, no P0/P1 or P2 findings were reported, and
+the workflow and terminology were confirmed as conforming to real practice.
 See `docs/evidence/week-2-signoff.md`.
 
-Week 2 gate: `BLOCKED` by `RISK-W1-RITUAL-SME`.
+Week 2 gate: `PASS`. Merge, production migration, deployment and production
+smoke remain separate, unperformed release actions.

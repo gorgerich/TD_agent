@@ -14,15 +14,16 @@
 
 - Owner: Founder
 - Due: before the Week 2 Gate
-- Status: `OPEN`
-- Risk: ritual terminology, operational guards and both pilot paths have not
-  been validated by a practicing ritual-operations expert.
+- Status: `CLOSED` on 2026-07-14
+- Risk: ritual terminology, operational guards and both pilot paths required
+  validation by a practicing ritual-operations expert.
 - Minimum closure evidence: one active ritual agent or operations manager.
 - Target closure evidence: two independent experts.
 - Gate effect: Week 2 may start, but cannot close without SME validation.
-- Latest evidence audit: `docs/evidence/week-2-signoff.md` records `SME-01`,
-  role and 10 years of experience against implementation commit
-  `f49497511035b849e1a7b8fb7c86444741cdb2e7`, but remains incomplete.
-- Open evidence fields: review environment URL; explicit verdict for each pilot
-  scenario; explicit P0/P1 status; P2 list or explicit none; final conformity
-  conclusion.
+- Closure evidence: `docs/evidence/week-2-signoff.md` records the human verdict
+  of `SME-01`, an active ritual agent with 10 years of experience, against
+  implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7`.
+- Result: cremation `PASS`; family-plot burial `PASS`; P0/P1 `NONE`; P2 `NONE`;
+  conformity with real ritual practice `YES`; final verdict `PASS`.
+- Target note: a second independent expert remains desirable but is not the
+  minimum Week 2 gate requirement.

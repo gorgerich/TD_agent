@@ -1,48 +1,72 @@
 # Week 2 ritual SME sign-off
 
 - Governance mode: `SOLO_FOUNDER_AI_ASSISTED`
-- Evidence status: `INCOMPLETE`
+- Evidence status: `COMPLETE`
 - Implementation commit reviewed: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
-- Evidence commit at submission: `75879d9eaf8c35156837dcd2a308a0f5d53155ad`
 - Pull request: https://github.com/gorgerich/TD_agent/pull/19
-- Submission reviewed on: 2026-07-14
+- Human review date: 2026-07-14
 
-## Submitted expert metadata
+## Human reviewer
 
 - Expert identifier: `SME-01`
-- Role: ritual agent / operations manager
+- Role: active ritual agent
 - Practical experience: 10 years
-- Review date: 2026-07-14
-- Environment / preview URL: `NOT PROVIDED`
+- Reviewed environment: burial and cremation estimate configurator
 
-This record preserves only facts supplied by the Founder. It does not choose
-between unresolved alternatives and does not replace human ritual validation
-with an AI review.
+Vercel recorded a successful deployment for the exact implementation commit at
+https://vercel.com/rics-projects-9baa2793/td-agent/3GbXS8sb7JB8uMkHnFyRTTFphEJ2.
+The SME statement identifies the reviewed product surface, but does not identify
+a URL. The Vercel link is therefore commit deployment evidence only; this record
+does not claim that the SME used that URL.
+
+## Verbatim human decision
+
+The Founder supplied the following conclusion as the verbatim statement of the
+real ritual SME:
+
+> Я, SME-01, действующий ритуальный агент, опыт работы 10 лет.
+>
+> Дата проверки: 14.07.2026
+>
+> Проверенная среда: конфигуратор сметы захоронения и кремации
+>
+> Проверенная версия:
+> f49497511035b849e1a7b8fb7c86444741cdb2e7
+>
+> Результаты:
+>
+> 1. Сценарий «Кремация»: PASS
+> 2. Сценарий «Родственное захоронение»: PASS
+> 3. Критические и существенные замечания P0/P1: отсутствуют
+> 4. Некритические замечания P2: отсутствуют
+> 5. Порядок действий и используемые термины соответствуют реальной ритуальной практике: ДА
+>
+> Итоговый вердикт:
+> PASS
+
+This is human evidence, not an AI review. No field was added or resolved by AI.
 
 ## Scenario decisions
 
-| Required evidence | Recorded status | Blocker |
-| --- | --- | --- |
-| Cremation scenario | `NOT RECORDED` | Submission says `PASS / PASS WITH COMMENTS`; one decision was not selected. |
-| Family-plot burial scenario | `NOT RECORDED` | Submission says `PASS / PASS WITH COMMENTS`; one decision was not selected. |
-| P0/P1 findings | `NOT RECORDED` | Submission says `absent / list`; neither alternative was selected and no list was supplied. |
-| P2 comments | `NOT PROVIDED` | No comments or explicit `none` statement was supplied. |
-| Real-practice conclusion | `NOT RECORDED` | Submission says `processes conform / do not conform`; one decision was not selected. |
+| Required evidence | Human decision |
+| --- | --- |
+| Cremation scenario | `PASS` |
+| Family-plot burial scenario | `PASS` |
+| P0/P1 findings | `NONE` |
+| P2 comments | `NONE` |
+| Conformity with real ritual practice | `YES` |
+| Final verdict | `PASS` |
 
 ## Gate decision
 
-- `SME_GATE: BLOCKED`
-- `WEEK_2_GATE: BLOCKED`
-- `RISK-W1-RITUAL-SME: OPEN`
+- `SME_GATE: PASS`
+- `WEEK_2_GATE: PASS`
+- `RISK-W1-RITUAL-SME: CLOSED`
+- `MERGE_STATUS: NOT_PERFORMED`
+- `PRODUCTION_MIGRATION_STATUS: NOT_RUN`
+- `PRODUCTION_DEPLOYMENT_STATUS: NOT_RUN`
+- `PRODUCTION_SMOKE_STATUS: NOT_RUN`
 
-Required closure evidence:
-
-1. environment or preview URL used for the review;
-2. one explicit verdict for cremation;
-3. one explicit verdict for family-plot burial;
-4. explicit statement that P0/P1 are absent, or complete P0/P1 list;
-5. complete P2 list, or explicit statement that no P2 comments exist;
-6. one explicit conclusion on conformity with real ritual practice.
-
-No merge, deployment, production migration, production write, waiver, or human
-signature is authorized by this incomplete record.
+Week 2 technical acceptance and required minimum ritual SME validation are
+complete against the implementation commit. This sign-off does not authorize
+merge, production migration, deployment, production smoke or Week 3 work.
