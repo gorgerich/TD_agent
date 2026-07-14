@@ -111,11 +111,25 @@ test("W2-09: an idempotency key cannot replay another case in the same tenant", 
   });
 
   const sharedKey = "it:key-owner:shared-transition";
-  assert.equal((await command({ leadId: first.lead.id, cookie: first.cookie, eventType: "intake.completed.v1", key: sharedKey })).status, 200);
-  const conflict = await command({ leadId: second.id, cookie: first.cookie, eventType: "intake.completed.v1", key: sharedKey });
-  assert.equal(conflict.status, 409);
-  assert.equal((await conflict.json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
-  assert.equal((await db.case.findUniqueOrThrow({ where: { id: second.caseId } })).stage, "INTAKE");
+  const leadIds = [first.lead.id, second.id];
+  const responses = await Promise.all(leadIds.map((leadId) => command({
+    leadId,
+    cookie: first.cookie,
+    eventType: "intake.completed.v1",
+    key: sharedKey,
+  })));
+  assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409]);
+  const losingIndex = responses.findIndex((response) => response.status === 409);
+  assert.notEqual(losingIndex, -1);
+  assert.equal((await responses[losingIndex].json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
+
+  const aggregates = await db.case.findMany({
+    where: { leadId: { in: leadIds } },
+    select: { leadId: true, stage: true },
+  });
+  assert.equal(aggregates.find((item) => item.leadId === leadIds[losingIndex])?.stage, "INTAKE");
+  assert.equal(aggregates.find((item) => item.leadId !== leadIds[losingIndex])?.stage, "PLANNING");
+  assert.equal(await db.caseEvent.count({ where: { tenantId: `agent:${first.agentId}`, idempotencyKey: sharedKey } }), 1);
 });
 
 test("AC-W2-01/W2-12: invalid transition is clear and has no side effects", opts, async () => {
