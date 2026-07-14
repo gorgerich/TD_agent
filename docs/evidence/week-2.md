@@ -3,10 +3,11 @@
 - Date started: 2026-07-14
 - Branch: `agent/week-2-canonical-case`
 - Governance mode: `SOLO_FOUNDER_AI_ASSISTED`
-- Candidate commit: `6c0918de5357c999d5750c06d49651ee22a474d7`
+- Verified implementation commit: `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0`
 - Pull request: https://github.com/gorgerich/TD_agent/pull/19
-- CI run: https://github.com/gorgerich/TD_agent/actions/runs/29336719451
-- CI job: https://github.com/gorgerich/TD_agent/actions/runs/29336719451/job/87097693552
+- CI run: https://github.com/gorgerich/TD_agent/actions/runs/29338839327
+- CI job: https://github.com/gorgerich/TD_agent/actions/runs/29338839327/job/87104948966
+- Vercel preview check: https://vercel.com/rics-projects-9baa2793/td-agent/3dMiVDyytXJfyAio7eptsvotBsuQ
 - `WEEK_STATUS: TECHNICALLY_VERIFIED_GATE_BLOCKED`
 - Source: `TD_AGENT_12_WEEK_DELIVERY_GATES.md`, Week 2
 - Gate blocker: `RISK-W1-RITUAL-SME` remains `OPEN`
@@ -15,20 +16,31 @@
 
 | Task | Status | Evidence / blocker |
 | --- | --- | --- |
-| W2-01 | Implemented, verification pending | `lib/caseService.ts` is the server-side Case command boundary. |
-| W2-02 | Implemented, verification pending | `CaseEvent` is append-only; aggregate state and event commit in one serializable transaction. |
-| W2-03 | Implemented, verification pending | `Case` requires tenant, owner, scenario and unique public-safe reference. |
-| W2-04 | Implemented, verification pending | Target stage is selected only by `CASE_TRANSITION_MATRIX`; transport accepts event, not stage. |
+| W2-01 | Technically verified | `lib/caseService.ts` is the server-side Case command boundary. |
+| W2-02 | Technically verified | `CaseEvent` is append-only; aggregate state and event commit in one serializable transaction. |
+| W2-03 | Technically verified | `Case` requires tenant, owner, scenario and unique public-safe reference. |
+| W2-04 | Technically verified | Target stage is selected only by `CASE_TRANSITION_MATRIX`; transport accepts event, not stage. |
 | W2-05 | Implemented, SME blocked | Separate cremation and family-plot closure guards exist. Ritual correctness requires SME validation. |
-| W2-06 | Implemented, verification pending | `projectNextAction` returns deterministic action, reason, deadline and owner. |
-| W2-07 | Implemented, verification pending | Risk projection covers overdue action, ceremony proximity, missing blocker and stale SLA. |
-| W2-08 | Implemented, verification pending | Case attention buckets consume exact risk reasons instead of one universal stale heuristic. |
-| W2-09 | Implemented for Week 2 Case commands, verification pending | Create and transition commands require idempotency; retries replay the stored result. |
-| W2-10 | Implemented, verification pending | Read-only tenant reconciliation checks count, ownership and minimum stage. |
-| W2-11 | Implemented, verification pending | Demo/seed creates canonical cases and advances them through valid commands. |
-| W2-12 | Implemented, verification pending | Invalid transitions return a typed domain error before state/event writes. |
-| W2-13 | CI verified | Unit matrix coverage and 8 isolated PostgreSQL integration tests pass without skips. |
-| W2-14 | Implemented, verification pending | Case list/detail/meetings consume the canonical read model and expose required operational fields. |
+| W2-06 | Technically verified | `projectNextAction` returns deterministic action, reason, deadline and owner. |
+| W2-07 | Technically verified | Risk projection covers overdue action, ceremony proximity, missing blocker and stale SLA. |
+| W2-08 | Technically verified | Case attention buckets consume exact risk reasons instead of one universal stale heuristic. |
+| W2-09 | Technically verified | Create, transition and intake commands require idempotency; retries replay stored results. Concurrent cross-case key collision returns 409 without side effects. |
+| W2-10 | Technically verified | Read-only tenant reconciliation checks count, ownership and minimum stage. |
+| W2-11 | Technically verified | Demo/seed creates canonical cases and advances them through valid commands. Legacy backfill has six SQL fixtures. |
+| W2-12 | Technically verified | Invalid transitions return a typed domain error before state/event writes. |
+| W2-13 | CI verified | Unit matrix coverage and 10 isolated PostgreSQL integration tests pass without skips. |
+| W2-14 | Technically verified | Case list/detail/meetings consume the canonical read model and expose required operational fields. |
+
+## Acceptance evidence
+
+| Acceptance | Status | Evidence |
+| --- | --- | --- |
+| AC-W2-01 | PASS | Direct `INTAKE` to payment command returns `INVALID_TRANSITION`; state/event count unchanged. |
+| AC-W2-02 | PASS | Sequential replay creates one event; concurrent same-tenant cross-case collision creates one event and returns one 409. |
+| AC-W2-03 | PASS | Integration compares persisted, list and detail stage projections. |
+| AC-W2-04 | PASS | Reconciliation asserts tenant lead/case counts and document count. |
+| AC-W2-05 | PASS | Risk projection and UI expose exact reason and deadline. |
+| AC-W2-06 | PASS | Full-chain fixture returns zero reconciliation discrepancies. |
 
 ## Safety boundary
 
@@ -54,23 +66,36 @@ backfill already supplies an explicit value. Clean rerun `29336719451` passed.
 
 ## GitHub CI verification
 
-Candidate `6c0918de5357c999d5750c06d49651ee22a474d7` completed the `Quality / verify`
-job in 2m33s:
+Candidate `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0` completed the `Quality / verify`
+job in 2m15s:
 
+- legacy pending/signed/paid/completed/viewed backfill fixture dry-run: PASS;
 - baseline and Week 2 migrations applied to PostgreSQL `td_agent_test`: PASS;
 - migration/schema parity: PASS, `No difference detected`;
 - lint: PASS;
 - typecheck: PASS;
 - unit: 38 passed, 0 failed, 0 skipped;
-- integration: 8 passed, 0 failed, 0 skipped;
+- integration: 10 passed, 0 failed, 0 skipped;
 - production build: PASS;
 - e2e smoke: PASS;
 - Vercel preview check: PASS.
 
+## Independent review history
+
+- Review 1: `FAIL`. Found aggressive legacy stage import, missing case-ID check in
+  P2002 replay recovery and non-atomic intake mutation.
+- Corrections: conservative artifact-backed import with SQL fixtures; scoped race
+  replay; atomic/idempotent intake command plus integration coverage.
+- Review 2: `FAIL`. Production fixes accepted, but sequential collision test did
+  not execute the unique-race recovery path.
+- Correction: two same-tenant cases now issue the same transition key concurrently;
+  CI proves one success, one 409, one event and no loser side effect.
+- Review 3 on `02efd788d9e62c9268bb5fb8fe334c8e20e9bbf0`: `PASS`, no P0/P1 findings.
+- Ritual SME validation was not assessed or simulated by the technical reviewer.
+
 ## Gate status
 
-Week 2 is not closed. Independent review is pending. After technical verification,
-the gate remains blocked until at
+Week 2 is technically verified but not closed. The gate remains blocked until at
 least one active ritual agent or ritual-operations manager validates both pilot
 scenarios and the evidence is recorded against the candidate commit.
 
