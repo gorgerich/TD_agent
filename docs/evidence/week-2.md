@@ -18,6 +18,9 @@
 - Ritual SME record: `docs/evidence/week-2-signoff.md` (`PASS`)
 - Release status: merge, production migration, deployment and production smoke
   are `NOT PERFORMED`
+- Release Gate A: `BLOCKED`; migration rehearsal passed, but Week 1 authenticated
+  production smoke lacks existing password credentials. See
+  `docs/evidence/release-gate-a.md`.
 
 ## Candidate scope
 
