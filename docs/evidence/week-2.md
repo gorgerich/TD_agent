@@ -124,3 +124,24 @@ human SME verdict; it does not substitute for it.
 
 Week 2 gate: `PASS`. Merge, production migration, deployment and production
 smoke remain separate, unperformed release actions.
+
+## Release Phase 1 closure
+
+- Ops controls from `main` commit `c02511d463f8139146e4fc31b0be02050eb8354f`
+  were integrated by merge commit `67e94df7624122225a9d9a6fc28068bc3a6bd41e`.
+- Combined CI: https://github.com/gorgerich/TD_agent/actions/runs/29410280422
+  (`PASS`, no skipped steps).
+- Protected Preview: https://td-agent-69ayidr7z-rics-projects-9baa2793.vercel.app
+- Preview deployment and implementation SHA:
+  `67e94df7624122225a9d9a6fc28068bc3a6bd41e`.
+- Deployment Protection method: authenticated Vercel CLI `vercel curl` using a
+  temporary link to the verified existing `td-agent` project.
+- Read-only GET smoke: login `200`, root `307`, unauthenticated agent page `307`,
+  unauthenticated agent API `401`; no 5xx or release-freeze response observed.
+- The disposable link directory was removed after verification; no link was
+  created in the PR worktree.
+- `RELEASE_PHASE_1: PASS`.
+- `PRODUCTION_WRITES: NONE`.
+- `PRODUCTION_DB_CHANGES: NONE`.
+
+PR #19 production migration, merge and deployment remain `NOT RUN`.
