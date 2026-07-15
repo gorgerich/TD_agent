@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { encryptField } from "@/lib/crypto";
+import { assertReleaseWritesAllowed } from "@/lib/releaseWriteFreeze";
 
 export const DEMO_PHONE = "+79990000000";
 export const DEMO_CODE = "0000";
@@ -15,6 +16,7 @@ export function isDemoMode(): boolean {
  * Возвращает данные для подписи сессии.
  */
 export async function ensureDemoAgent(): Promise<{ userId: number; agentId: number; name: string }> {
+  assertReleaseWritesAllowed("demo seed");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Senior" },
     update: {},
