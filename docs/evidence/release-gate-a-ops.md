@@ -4,6 +4,9 @@
 - Operations branch base: `origin/main` at `14904b4aec7d679fa2fb3e3913a7344226c7fb7e`
 - Week 2 implementation under test: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
 - Existing Release Gate A evidence: `47a01cf68897e9beefa994d733fc602c9d882047`
+- Operations tooling commit: `3f91817d17f7d035a52bf05cdcee6a6477ca12e2`
+- Operations pull request: https://github.com/gorgerich/TD_agent/pull/20
+- Tooling CI: https://github.com/gorgerich/TD_agent/actions/runs/29405590324 (`PASS`)
 - Production database writes/migrations: `NOT PERFORMED`
 - PR #19 merge/deployment: `NOT PERFORMED`
 - Week 3: `NOT STARTED`
