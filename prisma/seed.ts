@@ -9,6 +9,7 @@ import { PrismaClient } from "@prisma/client";
 import { encryptField } from "../lib/crypto";
 import { SCENARIO_CLOSURE_GUARDS, isSupportedScenario } from "../lib/caseDomain";
 import { ensureCanonicalCaseForLead, scenarioFromCeremonyType, transitionCase } from "../lib/caseService";
+import { assertReleaseWritesAllowed } from "../lib/releaseWriteFreeze";
 
 const prisma = new PrismaClient();
 const DEMO_EMAIL = "demo@tihiydom.local";
@@ -39,6 +40,7 @@ async function resetAgentData(agentId: number) {
 }
 
 async function main() {
+  assertReleaseWritesAllowed("prisma seed");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Стандарт" },
     update: {},

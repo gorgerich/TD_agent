@@ -17,6 +17,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name b2b_platform_init",
     "prisma:deploy": "prisma migrate deploy",
+    "ops:smoke-account": "tsx scripts/ops/smoke-account.ts",
+    "ops:verify-migration-target": "tsx scripts/ops/verify-migration-target.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
