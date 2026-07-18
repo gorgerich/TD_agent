@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
 
   try {
     const leadId = parseId((await params).caseId, "caseId");
-    await assertLeadOwned(leadId, session.agentId);
+    await assertLeadOwned(leadId, session);
 
     const parsed = Schema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
@@ -58,7 +58,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
         ceremonyAt: parseDate(ceremonyAt),
         ceremonyPlace: ceremonyPlace ?? null,
       },
-      context: { agentId: session.agentId, actorId: session.agentId, idempotencyKey, correlationId },
+      context: {
+        organizationId: session.organizationId,
+        membershipId: session.membershipId,
+        agentId: session.agentId,
+        actorId: session.agentId,
+        idempotencyKey,
+        correlationId,
+      },
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {

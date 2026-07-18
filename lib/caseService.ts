@@ -9,10 +9,13 @@ import {
   type CaseTransitionFacts,
   type CaseTransitionPayload,
 } from "@/lib/caseDomain";
+import { projectCaseEventInTransaction } from "@/lib/operationsProjection";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export type CaseCommandContext = {
+  organizationId: string;
+  membershipId: string;
   agentId: number;
   actorId: number;
   idempotencyKey: string;
@@ -56,6 +59,7 @@ export function scenarioFromCeremonyType(value?: string | null): CaseScenario {
 
 export async function ensureCanonicalCaseForLead(input: {
   leadId: number;
+  organizationId: string;
   agentId: number;
   actorId: number;
   scenarioId?: CaseScenario;
@@ -66,7 +70,7 @@ export async function ensureCanonicalCaseForLead(input: {
   const existing = await db.case.findUnique({ where: { leadId: input.leadId } });
   if (existing) return caseResult(existing, `existing:${existing.id}`, true);
 
-  const tenantId = tenantIdForAgent(input.agentId);
+  const tenantId = input.organizationId;
   const caseId = `case_${randomUUID().replaceAll("-", "")}`;
   const publicRef = `TD-${randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase()}`;
   const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
@@ -131,7 +135,7 @@ export async function transitionCase(input: {
   context: CaseCommandContext;
 }): Promise<CaseCommandResult> {
   validateCommandContext(input.context);
-  const tenantId = tenantIdForAgent(input.context.agentId);
+  const tenantId = input.context.organizationId;
   const payload = input.payload ?? {};
 
   try {
@@ -156,7 +160,7 @@ export async function saveCaseIntake(input: {
   context: CaseCommandContext;
 }): Promise<CaseCommandResult> {
   validateCommandContext(input.context);
-  const tenantId = tenantIdForAgent(input.context.agentId);
+  const tenantId = input.context.organizationId;
   const eventType = "case.intake_saved.v1";
 
   try {
@@ -237,7 +241,7 @@ async function transitionCaseInTransaction(
     context: CaseCommandContext;
   },
 ): Promise<CaseCommandResult> {
-  const tenantId = tenantIdForAgent(input.context.agentId);
+  const tenantId = input.context.organizationId;
   const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
   if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
 
@@ -295,6 +299,12 @@ async function transitionCaseInTransaction(
       payload: jsonValue(input.payload),
       result: jsonValue(result),
     },
+  });
+  await projectCaseEventInTransaction(tx, input.context, {
+    eventId,
+    eventType: input.eventType,
+    caseId: aggregate.id,
+    leadId: input.leadId,
   });
   return result;
 }
@@ -394,7 +404,7 @@ function transitionFacts(aggregate: LoadedAggregate): CaseTransitionFacts {
 }
 
 function validateCommandContext(context: CaseCommandContext): void {
-  if (!context.agentId || !context.actorId || !context.idempotencyKey.trim() || !context.correlationId.trim()) {
+  if (!context.organizationId.trim() || !context.membershipId.trim() || !context.agentId || !context.actorId || !context.idempotencyKey.trim() || !context.correlationId.trim()) {
     throw new CaseDomainError("GUARD_FAILED", "Команда требует tenant, actor, idempotency key и correlation ID");
   }
 }

@@ -31,6 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
       eventType: parsed.data.eventType,
       payload: parsed.data.payload,
       context: {
+        organizationId: session.organizationId,
+        membershipId: session.membershipId,
         agentId: session.agentId,
         actorId: session.agentId,
         idempotencyKey,

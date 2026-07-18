@@ -4,7 +4,7 @@ import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptField, decryptField } from "@/lib/crypto";
 import { handleApiError } from "@/lib/apiAuth";
-import { ensureCanonicalCaseForLead, tenantIdForAgent } from "@/lib/caseService";
+import { ensureCanonicalCaseForLead } from "@/lib/caseService";
 
 export const runtime = "nodejs";
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     const requestedKey = req.headers.get("idempotency-key")?.trim();
     if (requestedKey) {
       const replay = await prisma.caseEvent.findUnique({
-        where: { tenantId_idempotencyKey: { tenantId: tenantIdForAgent(session.agentId), idempotencyKey: requestedKey } },
+        where: { tenantId_idempotencyKey: { tenantId: session.organizationId, idempotencyKey: requestedKey } },
         select: { eventType: true, case: { include: { lead: true } } },
       });
       if (replay) {
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       });
       const createdCase = await ensureCanonicalCaseForLead({
         leadId: createdLead.id,
+        organizationId: session.organizationId,
         agentId: session.agentId,
         actorId: session.agentId,
         idempotencyKey: requestedKey || `lead-create:${createdLead.id}`,

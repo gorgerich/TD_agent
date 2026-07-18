@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { getSessionFromRequest, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { OperationalAuthError } from "@/lib/operationalAuth";
+import { OperationalCommandError } from "@/lib/operationalTransaction";
 
 /**
  * Единые помощники для API-роутов агента: авторизация, проверка владения
@@ -44,13 +46,13 @@ function isDevStub(session: AgentSession): boolean {
  *  `if (session.agentId) await assertLeadOwned(...)` на месте вызова. */
 export async function assertLeadAccess(leadId: number, session: AgentSession): Promise<void> {
   if (isDevStub(session)) return; // только development
-  await assertLeadOwned(leadId, session.agentId);
+  await assertLeadOwned(leadId, session);
 }
 
 /** Безусловная проверка доступа к встрече (см. assertLeadAccess). */
 export async function assertMeetingAccess(meetingId: number, session: AgentSession): Promise<void> {
   if (isDevStub(session)) return; // только development
-  await assertMeetingOwned(meetingId, session.agentId);
+  await assertMeetingOwned(meetingId, session);
 }
 
 /** Парсит positive-int id из строки роута или бросает 400. */
@@ -61,18 +63,34 @@ export function parseId(raw: string, label = "id"): number {
 }
 
 /** Встреча должна принадлежать агенту — иначе 404 (не раскрываем существование). */
-export async function assertMeetingOwned(meetingId: number, agentId: number): Promise<void> {
+export async function assertMeetingOwned(meetingId: number, session: AgentSession | number): Promise<void> {
+  const legacyAgentId = typeof session === "number" ? session : session.agentId;
   const meeting = await prisma.meeting.findFirst({
-    where: { id: meetingId, agentId },
+    where: typeof session === "number"
+      ? { id: meetingId, agentId: legacyAgentId }
+      : {
+          id: meetingId,
+          organizationId: session.organizationId,
+          ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+        },
     select: { id: true },
   });
   if (!meeting) throw new ApiError(404, "Встреча не найдена");
 }
 
 /** Лид должен принадлежать агенту — иначе 404. */
-export async function assertLeadOwned(leadId: number, agentId: number): Promise<void> {
+export async function assertLeadOwned(leadId: number, session: AgentSession | number): Promise<void> {
+  const legacyAgentId = typeof session === "number" ? session : session.agentId;
   const lead = await prisma.clientLead.findFirst({
-    where: { id: leadId, agentId },
+    where: typeof session === "number"
+      ? { id: leadId, agentId: legacyAgentId }
+      : {
+          id: leadId,
+          case: {
+            tenantId: session.organizationId,
+            ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
+          },
+        },
     select: { id: true },
   });
   if (!lead) throw new ApiError(404, "Клиент не найден");
@@ -82,6 +100,14 @@ export async function assertLeadOwned(leadId: number, agentId: number): Promise<
 export function handleApiError(err: unknown, context?: string): NextResponse {
   if (err instanceof ApiError) {
     return jsonError(err.status, err.message);
+  }
+
+  if (err instanceof OperationalAuthError) {
+    return jsonError(err.status, err.message);
+  }
+
+  if (err instanceof OperationalCommandError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
   }
 
   if (

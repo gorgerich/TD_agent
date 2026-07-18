@@ -1,0 +1,368 @@
+import type { OperationalMeetingStatus, TaskPriority, TaskType } from "@prisma/client";
+import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
+import { prisma } from "@/lib/prisma";
+
+export type QueueGroup = "OVERDUE" | "TODAY" | "UPCOMING" | "WAITING";
+export type QueueItem = {
+  key: string;
+  kind: "TASK" | "MEETING";
+  id: number;
+  caseId: string;
+  leadId: number;
+  clientName: string;
+  title: string;
+  ownerName: string;
+  dueAt: string | null;
+  ceremonyAt: string | null;
+  group: QueueGroup;
+  priority: TaskPriority | "CRITICAL";
+  status: string;
+  source: string;
+  expectedOutcome: string;
+  reason: string | null;
+  actionLabel: string;
+  href: string;
+  riskScore: number;
+  version: number;
+};
+
+export type OperationsQueue = {
+  generatedAt: string;
+  timezone: string;
+  groups: Record<QueueGroup, QueueItem[]>;
+  counts: Record<QueueGroup, number>;
+};
+
+export type ControlTowerMember = {
+  membershipId: string;
+  name: string;
+  role: string;
+  open: number;
+  overdue: number;
+  today: number;
+  meetings: number;
+  capacity: "AVAILABLE" | "BALANCED" | "OVERLOADED";
+};
+
+export type ControlTowerCase = {
+  caseId: string;
+  leadId: number;
+  clientName: string;
+  ownerName: string;
+  stage: string;
+  ceremonyAt: string | null;
+  overdue: number;
+  open: number;
+  unassigned: number;
+  risk: "CRITICAL" | "ATTENTION" | "NORMAL";
+  href: string;
+};
+
+export type TeamControlTower = {
+  timezone: string;
+  members: ControlTowerMember[];
+  cases: ControlTowerCase[];
+  totals: { open: number; overdue: number; unassigned: number; ceremoniesSoon: number };
+};
+
+const PRIORITY_SCORE: Record<TaskPriority | "CRITICAL", number> = {
+  LOW: 10,
+  NORMAL: 20,
+  HIGH: 40,
+  CRITICAL: 70,
+};
+
+export async function getOperationsQueue(context: OperationalContext, now = new Date()): Promise<OperationsQueue> {
+  assertCapability(context, "work:read");
+  const ownerFilter = context.role === "AGENT" ? { assigneeMembershipId: context.membershipId } : {};
+  const meetingOwnerFilter = context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {};
+  const [tasks, meetings] = await Promise.all([
+    prisma.task.findMany({
+      where: {
+        organizationId: context.organizationId,
+        status: "OPEN",
+        ...ownerFilter,
+      },
+      include: {
+        lead: { select: { name: true, ceremonyAt: true } },
+        assignee: { select: { user: { select: { name: true } } } },
+      },
+      take: 500,
+    }),
+    prisma.meeting.findMany({
+      where: {
+        organizationId: context.organizationId,
+        operationalStatus: { in: ["TENTATIVE", "SCHEDULED", "CONFIRMED"] },
+        ...meetingOwnerFilter,
+      },
+      include: {
+        lead: { select: { name: true, ceremonyAt: true } },
+        ownerMembership: { select: { user: { select: { name: true } } } },
+      },
+      take: 500,
+    }),
+  ]);
+
+  const items: QueueItem[] = [
+    ...tasks.map((task) => taskQueueItem(task, context.timezone, now)),
+    ...meetings.map((meeting) => meetingQueueItem(meeting, context.timezone, now)),
+  ];
+  items.sort(compareQueueItems);
+
+  const groups: Record<QueueGroup, QueueItem[]> = { OVERDUE: [], TODAY: [], UPCOMING: [], WAITING: [] };
+  for (const item of items) groups[item.group].push(item);
+  return {
+    generatedAt: now.toISOString(),
+    timezone: context.timezone,
+    groups,
+    counts: {
+      OVERDUE: groups.OVERDUE.length,
+      TODAY: groups.TODAY.length,
+      UPCOMING: groups.UPCOMING.length,
+      WAITING: groups.WAITING.length,
+    },
+  };
+}
+
+export async function getTeamControlTower(context: OperationalContext, now = new Date()): Promise<TeamControlTower> {
+  assertCapability(context, "team:read");
+  const [memberships, tasks, meetings, cases] = await Promise.all([
+    prisma.membership.findMany({
+      where: { organizationId: context.organizationId, status: "ACTIVE", agentId: { not: null } },
+      select: { id: true, role: true, user: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.task.findMany({
+      where: { organizationId: context.organizationId, status: "OPEN" },
+      select: { id: true, caseId: true, assigneeMembershipId: true, dueAt: true, waitingReason: true },
+    }),
+    prisma.meeting.findMany({
+      where: {
+        organizationId: context.organizationId,
+        operationalStatus: { in: ["TENTATIVE", "SCHEDULED", "CONFIRMED"] },
+      },
+      select: { ownerMembershipId: true },
+    }),
+    prisma.case.findMany({
+      where: { tenantId: context.organizationId, closedAt: null },
+      select: {
+        id: true,
+        leadId: true,
+        stage: true,
+        lead: { select: { name: true, ceremonyAt: true } },
+        owner: { select: { user: { select: { name: true } } } },
+      },
+      take: 500,
+    }),
+  ]);
+
+  const today = zonedDateKey(now, context.timezone);
+  const members = memberships.map((membership) => {
+    const ownTasks = tasks.filter((task) => task.assigneeMembershipId === membership.id);
+    const overdue = ownTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length;
+    const todayCount = ownTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) === today).length;
+    const open = ownTasks.length;
+    return {
+      membershipId: membership.id,
+      name: membership.user.name ?? "Без имени",
+      role: membership.role,
+      open,
+      overdue,
+      today: todayCount,
+      meetings: meetings.filter((meeting) => meeting.ownerMembershipId === membership.id).length,
+      capacity: open >= 12 || overdue >= 4 ? "OVERLOADED" : open >= 6 ? "BALANCED" : "AVAILABLE",
+    } satisfies ControlTowerMember;
+  });
+
+  const caseRows = cases.map((item) => {
+    const caseTasks = tasks.filter((task) => task.caseId === item.id);
+    const overdue = caseTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length;
+    const unassigned = caseTasks.filter((task) => !task.assigneeMembershipId).length;
+    const ceremonyRisk = item.lead.ceremonyAt ? hoursUntil(item.lead.ceremonyAt, now) : null;
+    const risk = overdue > 0 || (ceremonyRisk !== null && ceremonyRisk <= 24)
+      ? "CRITICAL"
+      : unassigned > 0 || (ceremonyRisk !== null && ceremonyRisk <= 72)
+        ? "ATTENTION"
+        : "NORMAL";
+    return {
+      caseId: item.id,
+      leadId: item.leadId,
+      clientName: item.lead.name,
+      ownerName: item.owner.user.name ?? "Без владельца",
+      stage: item.stage,
+      ceremonyAt: item.lead.ceremonyAt?.toISOString() ?? null,
+      overdue,
+      open: caseTasks.length,
+      unassigned,
+      risk,
+      href: `/agent/cases/${item.leadId}?tab=work`,
+    } satisfies ControlTowerCase;
+  }).sort((a, b) => riskWeight(b.risk) - riskWeight(a.risk) || b.overdue - a.overdue || a.clientName.localeCompare(b.clientName, "ru"));
+
+  return {
+    timezone: context.timezone,
+    members,
+    cases: caseRows,
+    totals: {
+      open: tasks.length,
+      overdue: tasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length,
+      unassigned: tasks.filter((task) => !task.assigneeMembershipId).length,
+      ceremoniesSoon: cases.filter((item) => item.lead.ceremonyAt && hoursUntil(item.lead.ceremonyAt, now) <= 72).length,
+    },
+  };
+}
+
+type TaskRow = Awaited<ReturnType<typeof prisma.task.findMany<{
+  include: {
+    lead: { select: { name: true; ceremonyAt: true } };
+    assignee: { select: { user: { select: { name: true } } } };
+  };
+}>>>[number];
+
+type MeetingRow = Awaited<ReturnType<typeof prisma.meeting.findMany<{
+  include: {
+    lead: { select: { name: true; ceremonyAt: true } };
+    ownerMembership: { select: { user: { select: { name: true } } } };
+  };
+}>>>[number];
+
+function taskQueueItem(task: TaskRow, timezone: string, now: Date): QueueItem {
+  const group = task.waitingReason ? "WAITING" : queueGroup(task.dueAt, timezone, now);
+  const escalationMeetingId = task.type === "MEETING_ESCALATION" ? meetingIdFromSource(task.sourceEventId) : null;
+  return {
+    key: `task:${task.id}`,
+    kind: "TASK",
+    id: task.id,
+    caseId: task.caseId,
+    leadId: task.leadId,
+    clientName: task.lead.name,
+    title: task.title,
+    ownerName: task.assignee?.user.name ?? "Не назначено",
+    dueAt: task.dueAt?.toISOString() ?? null,
+    ceremonyAt: task.lead.ceremonyAt?.toISOString() ?? null,
+    group,
+    priority: task.priority,
+    status: task.status,
+    source: taskSourceLabel(task.type),
+    expectedOutcome: task.expectedOutcome ?? defaultTaskOutcome(task.type),
+    reason: task.waitingReason,
+    actionLabel: taskActionLabel(task.type),
+    href: escalationMeetingId
+      ? `/agent/meetings/${escalationMeetingId}?from=today`
+      : `/agent/cases/${task.leadId}?tab=work&task=${task.id}`,
+    riskScore: queueRiskScore(group, task.priority, task.dueAt, task.lead.ceremonyAt, now),
+    version: task.version,
+  };
+}
+
+function meetingQueueItem(meeting: MeetingRow, timezone: string, now: Date): QueueItem {
+  const past = Boolean(meeting.scheduledAt && meeting.scheduledAt < now);
+  const group: QueueGroup = meeting.operationalStatus === "TENTATIVE"
+    ? "WAITING"
+    : past
+      ? "OVERDUE"
+      : queueGroup(meeting.scheduledAt, timezone, now);
+  const title = meeting.operationalStatus === "TENTATIVE"
+    ? "Уточнить время встречи"
+    : past
+      ? "Зафиксировать итог прошедшей встречи"
+      : meetingTitle(meeting.operationalStatus);
+  return {
+    key: `meeting:${meeting.id}`,
+    kind: "MEETING",
+    id: meeting.id,
+    caseId: meeting.caseId,
+    leadId: meeting.leadId,
+    clientName: meeting.lead.name,
+    title,
+    ownerName: meeting.ownerMembership.user.name ?? "Без владельца",
+    dueAt: meeting.scheduledAt?.toISOString() ?? null,
+    ceremonyAt: meeting.lead.ceremonyAt?.toISOString() ?? null,
+    group,
+    priority: past ? "CRITICAL" : "HIGH",
+    status: meeting.operationalStatus,
+    source: "Встреча",
+    expectedOutcome: past ? "Результат: завершена, неявка или отмена" : "Встреча проведена и результат зафиксирован",
+    reason: meeting.operationalStatus === "TENTATIVE" ? "Время ещё не согласовано" : null,
+    actionLabel: past ? "Зафиксировать исход" : meeting.operationalStatus === "TENTATIVE" ? "Назначить время" : "Открыть встречу",
+    href: `/agent/meetings/${meeting.id}?from=today`,
+    riskScore: queueRiskScore(group, past ? "CRITICAL" : "HIGH", meeting.scheduledAt, meeting.lead.ceremonyAt, now),
+    version: meeting.version,
+  };
+}
+
+function queueGroup(value: Date | null, timezone: string, now: Date): QueueGroup {
+  if (!value) return "UPCOMING";
+  const key = zonedDateKey(value, timezone);
+  const today = zonedDateKey(now, timezone);
+  if (key < today) return "OVERDUE";
+  if (key === today) return "TODAY";
+  return "UPCOMING";
+}
+
+export function zonedDateKey(value: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+  const part = (type: "year" | "month" | "day") => parts.find((item) => item.type === type)?.value ?? "00";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function queueRiskScore(group: QueueGroup, priority: TaskPriority | "CRITICAL", dueAt: Date | null, ceremonyAt: Date | null, now: Date) {
+  const groupScore = group === "OVERDUE" ? 80 : group === "TODAY" ? 50 : group === "WAITING" ? 30 : 10;
+  const overdueHours = dueAt && dueAt < now ? Math.min(48, Math.floor((now.getTime() - dueAt.getTime()) / 3_600_000)) : 0;
+  const ceremonyScore = ceremonyAt && hoursUntil(ceremonyAt, now) <= 24 ? 50 : ceremonyAt && hoursUntil(ceremonyAt, now) <= 72 ? 25 : 0;
+  return groupScore + PRIORITY_SCORE[priority] + overdueHours + ceremonyScore;
+}
+
+function compareQueueItems(a: QueueItem, b: QueueItem) {
+  return b.riskScore - a.riskScore
+    || nullableTime(a.dueAt) - nullableTime(b.dueAt)
+    || a.clientName.localeCompare(b.clientName, "ru");
+}
+
+function nullableTime(value: string | null) {
+  return value ? new Date(value).getTime() : Number.MAX_SAFE_INTEGER;
+}
+
+function hoursUntil(value: Date, now: Date) {
+  return (value.getTime() - now.getTime()) / 3_600_000;
+}
+
+function riskWeight(value: ControlTowerCase["risk"]) {
+  return value === "CRITICAL" ? 3 : value === "ATTENTION" ? 2 : 1;
+}
+
+function taskSourceLabel(type: TaskType) {
+  if (type === "PREPARATION") return "Сценарий кейса";
+  if (type === "QUOTE_SEND") return "Смета";
+  if (type === "MEETING_ESCALATION") return "Просроченная встреча";
+  if (type === "FOLLOW_UP") return "Итог встречи";
+  return "Агент";
+}
+
+function defaultTaskOutcome(type: TaskType) {
+  if (type === "PREPARATION") return "Подготовка завершена";
+  if (type === "QUOTE_SEND") return "Смета отправлена клиенту";
+  if (type === "MEETING_ESCALATION") return "Исход встречи зафиксирован";
+  return "Результат действия зафиксирован";
+}
+
+function taskActionLabel(type: TaskType) {
+  if (type === "PREPARATION") return "Открыть подготовку";
+  if (type === "QUOTE_SEND") return "Открыть смету";
+  if (type === "MEETING_ESCALATION") return "Зафиксировать исход";
+  return "Зафиксировать результат";
+}
+
+function meetingTitle(status: OperationalMeetingStatus) {
+  return status === "CONFIRMED" ? "Провести подтверждённую встречу" : "Подготовиться к встрече";
+}
+
+function meetingIdFromSource(source: string | null) {
+  const match = source?.match(/^meeting:(\d+):past-due:v1$/);
+  return match ? Number(match[1]) : null;
+}

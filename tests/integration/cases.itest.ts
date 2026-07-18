@@ -158,7 +158,21 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "intake.completed.v1", key: "it:chain:intake" })).status, 200);
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "scenario.selected.v1", key: "it:chain:scenario", payload: { scenarioId: "CREMATION_V1" } })).status, 200);
 
-  const meeting = await db.meeting.create({ data: { leadId, agentId: fixture.agentId, status: "COMPLETED" } });
+  const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
+  const meeting = await db.meeting.create({
+    data: {
+      leadId,
+      agentId: fixture.agentId,
+      organizationId: membership.organizationId,
+      caseId: fixture.lead.caseId,
+      ownerMembershipId: membership.id,
+      idempotencyKey: `it:chain:meeting:${leadId}`,
+      status: "COMPLETED",
+      operationalStatus: "COMPLETED",
+      outcome: "Integration fixture",
+      outcomeRecordedAt: new Date(),
+    },
+  });
   const quote = await db.quote.create({ data: { meetingId: meeting.id } });
   const version = await db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000_00 } });
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.published.v1", key: "it:chain:publish", payload: { quoteVersionId: version.id } })).status, 200);

@@ -37,7 +37,8 @@ model User {
   passwordHash String? // NEW (B2B): хэш пароля агента для постоянного входа; nullable для B2C/demo пользователей
   orders       Order[]
 
-  agent Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+  agent       Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+  memberships Membership[]
 }
 
 model Order {
@@ -145,10 +146,73 @@ model Agent {
   casePayments CasePayment[] // NEW (P0): оплаты по кейсам
   catalogItems AgentCatalogItem[] // NEW: собственные товары агента (свой каталог)
   ownedCases   Case[]             @relation("CaseOwner")
+  membership   Membership?
 
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// Mission 1 tenant foundation. Legacy organizations intentionally retain the
+// existing Case tenant key (`agent:<id>`) so rollout cannot merge agent data.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  timezone  String   @default("Europe/Moscow")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships        Membership[]
+  invitations        OrganizationInvite[]
+  cases              Case[]
+  tasks              Task[]
+  meetings           Meeting[]
+  auditEvents        OperationalAuditEvent[]
+  savedViews         SavedOperationalView[]
+  projectionReceipts ProjectionReceipt[]
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  userId         Int
+  user           User             @relation(fields: [userId], references: [id])
+  agentId        Int?             @unique
+  agent          Agent?           @relation(fields: [agentId], references: [id])
+  role           MembershipRole   @default(AGENT)
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  assignedTasks      Task[]                  @relation("TaskAssignee")
+  createdTasks       Task[]                  @relation("TaskCreator")
+  ownedMeetings      Meeting[]               @relation("MeetingOwner")
+  auditEvents        OperationalAuditEvent[] @relation("AuditActor")
+  savedViews         SavedOperationalView[]  @relation("SavedViewOwner")
+  invitationsCreated OrganizationInvite[]    @relation("InvitationCreator")
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, role, status])
+}
+
+model OrganizationInvite {
+  id                    String         @id @default(cuid())
+  organizationId        String
+  organization          Organization   @relation(fields: [organizationId], references: [id])
+  emailNormalized       String
+  tokenHash             String         @unique
+  role                  MembershipRole @default(AGENT)
+  expiresAt             DateTime
+  acceptedAt            DateTime?
+  revokedAt             DateTime?
+  createdByMembershipId String
+  createdBy             Membership     @relation("InvitationCreator", fields: [createdByMembershipId], references: [id])
+  createdAt             DateTime       @default(now())
+
+  @@index([organizationId, emailNormalized])
+  @@index([expiresAt])
 }
 
 // Собственный каталог агента: агент загружает фото товара, платформа вырезает фон
@@ -206,15 +270,33 @@ model ClientLead {
 }
 
 model Meeting {
-  id           Int           @id @default(autoincrement())
-  leadId       Int
-  lead         ClientLead    @relation(fields: [leadId], references: [id])
-  agentId      Int
-  agent        Agent         @relation(fields: [agentId], references: [id])
-  status       MeetingStatus @default(SCHEDULED)
-  cobrowseCode String?       @unique // короткий код для «зеркала сметы» у клиента
-  coViewedAt   DateTime? // NEW (P2): когда клиент впервые открыл /co
-  coAgreedAt   DateTime? // NEW (P2): когда клиент нажал «Согласовать смету»
+  id                Int                      @id @default(autoincrement())
+  leadId            Int
+  lead              ClientLead               @relation(fields: [leadId], references: [id])
+  agentId           Int
+  agent             Agent                    @relation(fields: [agentId], references: [id])
+  status            MeetingStatus            @default(SCHEDULED)
+  organizationId    String
+  organization      Organization             @relation(fields: [organizationId], references: [id])
+  caseId            String
+  case              Case                     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  ownerMembershipId String
+  ownerMembership   Membership               @relation("MeetingOwner", fields: [ownerMembershipId], references: [id])
+  type              OperationalMeetingType   @default(CONSULTATION)
+  operationalStatus OperationalMeetingStatus @default(TENTATIVE)
+  attendees         Json                     @default("[]")
+  channel           MeetingChannel           @default(IN_PERSON)
+  location          String?
+  durationMinutes   Int?
+  timezone          String                   @default("Europe/Moscow")
+  reminderAt        DateTime?
+  outcome           String?
+  outcomeRecordedAt DateTime?
+  idempotencyKey    String
+  version           Int                      @default(1)
+  cobrowseCode      String?                  @unique // короткий код для «зеркала сметы» у клиента
+  coViewedAt        DateTime? // NEW (P2): когда клиент впервые открыл /co
+  coAgreedAt        DateTime? // NEW (P2): когда клиент нажал «Согласовать смету»
 
   orders   Order[]
   payments Payment[]
@@ -225,8 +307,12 @@ model Meeting {
   startedAt   DateTime?
   endedAt     DateTime?
 
+  @@unique([organizationId, idempotencyKey])
   @@index([agentId])
   @@index([leadId])
+  @@index([organizationId, ownerMembershipId, operationalStatus])
+  @@index([organizationId, scheduledAt])
+  @@index([caseId])
 }
 
 model Quote {
@@ -260,6 +346,7 @@ model Case {
   leadId                  Int           @unique
   lead                    ClientLead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
   tenantId                String
+  organization            Organization  @relation(fields: [tenantId], references: [id])
   ownerId                 Int
   owner                   Agent         @relation("CaseOwner", fields: [ownerId], references: [id])
   scenarioId              CaseScenario  @default(UNSELECTED)
@@ -270,6 +357,8 @@ model Case {
   publishedQuoteVersion   QuoteVersion? @relation(fields: [publishedQuoteVersionId], references: [id])
   closedAt                DateTime?
   events                  CaseEvent[]
+  tasks                   Task[]
+  meetings                Meeting[]
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
 
@@ -354,20 +443,100 @@ model AgentSession {
 // ============================================================
 
 model Task {
-  id          Int        @id @default(autoincrement())
-  leadId      Int
-  lead        ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  agentId     Int
-  agent       Agent      @relation(fields: [agentId], references: [id])
-  title       String
-  dueAt       DateTime? // null = без срока
-  completedAt DateTime? // null = открыта; DateTime = выполнена
-  createdAt   DateTime   @default(now())
+  id                    Int          @id @default(autoincrement())
+  leadId                Int
+  lead                  ClientLead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  agentId               Int
+  agent                 Agent        @relation(fields: [agentId], references: [id])
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id])
+  caseId                String
+  case                  Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assigneeMembershipId  String?
+  assignee              Membership?  @relation("TaskAssignee", fields: [assigneeMembershipId], references: [id])
+  createdByMembershipId String
+  createdBy             Membership   @relation("TaskCreator", fields: [createdByMembershipId], references: [id])
+  type                  TaskType     @default(MANUAL)
+  priority              TaskPriority @default(NORMAL)
+  status                TaskStatus   @default(OPEN)
+  sourceEventId         String?
+  expectedOutcome       String?
+  outcome               String?
+  waitingReason         String?
+  supersededById        Int?
+  supersededBy          Task?        @relation("TaskSupersession", fields: [supersededById], references: [id])
+  supersedes            Task[]       @relation("TaskSupersession")
+  idempotencyKey        String
+  version               Int          @default(1)
+  title                 String
+  dueAt                 DateTime? // null = без срока
+  completedAt           DateTime? // null = открыта; DateTime = выполнена
+  cancelledAt           DateTime?
+  createdAt             DateTime     @default(now())
 
+  @@unique([organizationId, idempotencyKey])
+  @@unique([organizationId, sourceEventId, type])
   @@index([leadId])
   @@index([agentId])
   @@index([agentId, completedAt])
   @@index([agentId, dueAt])
+  @@index([organizationId, assigneeMembershipId, status, dueAt])
+  @@index([organizationId, priority, dueAt])
+  @@index([caseId])
+}
+
+// Append-only operational audit. Application exposes create/read only.
+model OperationalAuditEvent {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  actorMembershipId String?
+  actor             Membership?  @relation("AuditActor", fields: [actorMembershipId], references: [id])
+  actorType         String       @default("member")
+  entityType        String
+  entityId          String
+  action            String
+  before            Json
+  after             Json
+  reason            String?
+  correlationId     String
+  causationId       String?
+  idempotencyKey    String
+  result            Json
+  createdAt         DateTime     @default(now())
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, entityType, entityId, createdAt])
+  @@index([organizationId, actorMembershipId, createdAt])
+}
+
+model SavedOperationalView {
+  id                String         @id @default(cuid())
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id])
+  ownerMembershipId String
+  owner             Membership     @relation("SavedViewOwner", fields: [ownerMembershipId], references: [id])
+  name              String
+  scope             SavedViewScope @default(MY)
+  query             Json
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@unique([ownerMembershipId, name])
+  @@index([organizationId, scope])
+}
+
+model ProjectionReceipt {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  projector      String
+  sourceEventId  String
+  result         Json
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, projector, sourceEventId])
+  @@index([organizationId, createdAt])
 }
 
 model CaseNote {
@@ -436,6 +605,69 @@ enum MeetingStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+}
+
+enum MembershipRole {
+  AGENT
+  MANAGER
+  ADMIN
+}
+
+enum MembershipStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum TaskStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+  SUPERSEDED
+}
+
+enum TaskType {
+  MANUAL
+  PREPARATION
+  FOLLOW_UP
+  MEETING_ESCALATION
+  QUOTE_SEND
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum OperationalMeetingStatus {
+  TENTATIVE
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+enum OperationalMeetingType {
+  CONSULTATION
+  FOLLOW_UP
+  DOCUMENT_REVIEW
+  CEREMONY_COORDINATION
+  OTHER
+}
+
+enum MeetingChannel {
+  IN_PERSON
+  PHONE
+  VIDEO
+  OTHER
+}
+
+enum SavedViewScope {
+  MY
+  TEAM
 }
 
 enum PaymentMethod {
