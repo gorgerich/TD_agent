@@ -1,0 +1,24 @@
+{
+  "mission": "M1",
+  "state": "CONTRACT_LOCKED",
+  "implementationSha": null,
+  "checks": {
+    "lint": "NOT_RUN",
+    "typecheck": "NOT_RUN",
+    "unit": "NOT_RUN",
+    "integration": "NOT_RUN",
+    "e2e": "NOT_RUN",
+    "build": "NOT_RUN",
+    "migrationRehearsal": "NOT_RUN",
+    "schemaParity": "NOT_RUN",
+    "permissions": "NOT_RUN",
+    "idempotency": "NOT_RUN",
+    "reconciliation": "NOT_RUN",
+    "accessibility": "NOT_RUN",
+    "previewUat": "NOT_RUN",
+    "independentReview": "NOT_RUN",
+    "skipped": null,
+    "notRun": 13
+  }
+}
+

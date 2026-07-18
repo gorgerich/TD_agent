@@ -1,0 +1,24 @@
+mission: M1
+name: Operations Control Plane
+state: CONTRACT_LOCKED
+base_sha: ea6af5f591f7462abb11847cdd51e8c88fdaf390
+implementation_sha: null
+review_sha: null
+preview_deployment_id: null
+production_deployment_id: null
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - permissions
+  - idempotency
+  - reconciliation
+  - accessibility
+  - preview_uat
+  - independent_review
+open_blockers: []
+owner_release_authorization: false
+

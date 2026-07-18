@@ -1,0 +1,22 @@
+{
+  "mission": "M1",
+  "state": "CONTRACT_LOCKED",
+  "acceptance": [
+    { "id": "M1-AC-01", "status": "NOT_RUN", "requirement": "Server-side cross-tenant read/write isolation for every M1 endpoint." },
+    { "id": "M1-AC-02", "status": "NOT_RUN", "requirement": "Agent, Manager and Admin permission matrix passes positive and negative tests." },
+    { "id": "M1-AC-03", "status": "NOT_RUN", "requirement": "Open production registration cannot create an active production agent or membership." },
+    { "id": "M1-AC-04", "status": "NOT_RUN", "requirement": "Task event projections are idempotent under retry and concurrency." },
+    { "id": "M1-AC-05", "status": "NOT_RUN", "requirement": "Past scheduled meeting has an outcome or exactly one visible escalation." },
+    { "id": "M1-AC-06", "status": "NOT_RUN", "requirement": "Assignment, status, outcome and reschedule audit completeness equals 100 percent." },
+    { "id": "M1-AC-07", "status": "NOT_RUN", "requirement": "Agent operational queue reports zero false overdue tasks after completed events." },
+    { "id": "M1-AC-08", "status": "NOT_RUN", "requirement": "Manager control tower supports capacity, assignment and reasoned reassignment." },
+    { "id": "M1-AC-09", "status": "NOT_RUN", "requirement": "Tenant-scoped operational search and saved views work without cross-tenant leakage." },
+    { "id": "M1-AC-10", "status": "NOT_RUN", "requirement": "Migration rehearsal, repeated deploy no-op, schema parity and legacy counts pass." },
+    { "id": "M1-AC-11", "status": "NOT_RUN", "requirement": "Case-Task-Meeting reconciliation reports zero discrepancies." },
+    { "id": "M1-AC-12", "status": "NOT_RUN", "requirement": "Touched flows expose loading, empty, error, retry, conflict, offline and permission states." },
+    { "id": "M1-AC-13", "status": "NOT_RUN", "requirement": "Keyboard, mobile and 200 percent zoom critical paths have zero critical or serious accessibility findings." },
+    { "id": "M1-AC-14", "status": "NOT_RUN", "requirement": "Synthetic cremation and relative-burial Agent and Manager Preview scenarios pass on exact SHA." },
+    { "id": "M1-AC-15", "status": "NOT_RUN", "requirement": "Independent adversarial review reports zero P0 and P1 findings." }
+  ]
+}
+
