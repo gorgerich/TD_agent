@@ -1,17 +1,17 @@
 {
   "mission": "M0",
-  "state": "REWORK_REQUIRED",
+  "state": "MISSION_RELEASE_READY",
   "baseSha": "d8c2f47611b6ebda939718a8ae81afc8f61c1452",
   "checks": {
     "productionMetadata": "PASS",
     "productionReadOnlyHttpSmoke": "PASS",
     "evidenceOnlyDiff": "PASS",
     "githubCi": "PASS",
-    "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/29649044969",
-    "githubCiHead": "cc6a3d4f5e360965dc5822327fd69d0a059ec751",
-    "independentReview": "BLOCKED",
+    "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/29649463771",
+    "githubCiHead": "4c3128c891b57c1a78bbe138b965f712c0b2f197",
+    "independentReview": "PASS",
     "reviewP0": 0,
-    "reviewP1": 3,
+    "reviewP1": 0,
     "skipped": 0,
     "notRun": 0
   }

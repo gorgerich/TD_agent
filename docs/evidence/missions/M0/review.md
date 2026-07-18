@@ -27,3 +27,26 @@ Verified by reviewer:
 
 Mission state moved to `REWORK_REQUIRED`. All three findings require correction
 and a fresh independent review before merge.
+
+## Re-review
+
+Status: `PASS`
+
+Reviewed SHA: `4c3128c891b57c1a78bbe138b965f712c0b2f197`
+
+Result: P0 = 0, P1 = 0.
+
+Reviewer confirmed:
+
+- all three prior findings are resolved;
+- the Founder-authorized synthetic-account closure basis is explicit and narrow;
+- machine evidence preserves the blocked first review and binds the passing
+  rework CI `29649463771`;
+- unsupported branch-protection language is absent;
+- all 14 changed files remain under `docs/evidence/**`;
+- source, schema, migrations, environment, workflows and tests are unchanged;
+- exact-head CI passed unit 47/47, integration 14/14 and skipped 0;
+- migration checksums, production HTTP smoke and secrets/PII scan passed;
+- `RISK-W1-TECH-HUMAN-REVIEW` remains `OPEN`.
+
+Gate: `M0 REVIEW PASS`.
