@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
 import { isIsolatedTestDatabase } from "./testDatabaseSafety";
@@ -57,54 +58,110 @@ export function makeRequest(
   });
 }
 
-let tierId: number | null = null;
-let agentSequence = 0;
+let tierPromise: Promise<number> | null = null;
 async function ensureTier(): Promise<number> {
-  if (tierId) return tierId;
-  const tier = await db.agentTier.upsert({
-    where: { name: "TestTier" },
-    update: {},
-    create: { name: "TestTier", commissionPct: "10.00" },
-  });
-  tierId = tier.id;
-  return tierId;
-}
-
-/** Create a throwaway agent (+user). Cleanup keyed by email prefix it-…@test.local. */
-export async function makeAgent(tag: string): Promise<{ userId: number; agentId: number }> {
-  agentSequence += 1;
-  const email = `it-${tag}-${String(agentSequence).padStart(3, "0")}@test.local`;
-  const agent = await db.agent.create({
-    data: {
-      status: "ACTIVE",
-      selfEmployed: true,
-      tier: { connect: { id: await ensureTier() } },
-      user: { create: { email, name: `IT ${tag}` } },
-    },
-  });
-  return { userId: agent.userId, agentId: agent.id };
-}
-
-/** Remove all rows created by integration agents. */
-export async function cleanup(): Promise<void> {
-  if (skip) return;
-  const users = await db.user.findMany({
-    where: { email: { startsWith: "it-" } },
-    select: { agent: { select: { id: true } } },
-  });
-  const agentIds = users.map((u) => u.agent?.id).filter((x): x is number => !!x);
-  if (agentIds.length) {
-    const meetings = await db.meeting.findMany({ where: { agentId: { in: agentIds } }, select: { id: true } });
-    const meetingIds = meetings.map((meeting) => meeting.id);
-    await db.commission.deleteMany({ where: { agentId: { in: agentIds } } });
-    await db.payment.deleteMany({ where: { OR: [{ order: { agentId: { in: agentIds } } }, { meetingId: { in: meetingIds } }] } });
-    await db.order.deleteMany({ where: { agentId: { in: agentIds } } });
-    await db.quoteVersion.deleteMany({ where: { quote: { meeting: { agentId: { in: agentIds } } } } });
-    await db.quote.deleteMany({ where: { meeting: { agentId: { in: agentIds } } } });
-    await db.agentSession.deleteMany({ where: { meeting: { agentId: { in: agentIds } } } });
-    await db.meeting.deleteMany({ where: { id: { in: meetingIds } } });
-    await db.clientLead.deleteMany({ where: { agentId: { in: agentIds } } });
-    await db.agent.deleteMany({ where: { id: { in: agentIds } } });
+  if (!tierPromise) {
+    tierPromise = db.agentTier.upsert({
+      where: { name: "TestTier" },
+      update: {},
+      create: { name: "TestTier", commissionPct: "10.00" },
+      select: { id: true },
+    }).then((tier) => tier.id).catch((error) => {
+      tierPromise = null;
+      throw error;
+    });
   }
-  await db.user.deleteMany({ where: { email: { startsWith: "it-" } } });
+  return tierPromise;
+}
+
+export type IntegrationFixtureContext = {
+  readonly runId: string;
+  makeAgent(tag: string): Promise<{ userId: number; agentId: number }>;
+  trackUser(userId: number): void;
+  cleanup(): Promise<void>;
+};
+
+/** Isolated root-fixture registry. No context can discover or delete another context's rows. */
+export function createFixtureContext(label: string): IntegrationFixtureContext {
+  const safeLabel = label.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 24);
+  const runId = `${safeLabel}-${process.pid}-${randomBytes(6).toString("hex")}`;
+  const userIds = new Set<number>();
+  const agentIds = new Set<number>();
+  let agentSequence = 0;
+
+  return {
+    runId,
+    async makeAgent(tag) {
+      agentSequence += 1;
+      const safeTag = tag.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 24);
+      const email = `it-${runId}-${safeTag}-${agentSequence}@test.local`;
+      const agent = await db.agent.create({
+        data: {
+          status: "ACTIVE",
+          selfEmployed: true,
+          tier: { connect: { id: await ensureTier() } },
+          user: { create: { email, name: `IT ${safeTag}` } },
+        },
+      });
+      userIds.add(agent.userId);
+      agentIds.add(agent.id);
+      return { userId: agent.userId, agentId: agent.id };
+    },
+    trackUser(userId) {
+      userIds.add(userId);
+    },
+    async cleanup() {
+      if (skip) return;
+      const ownAgentIds = [...agentIds];
+      const ownUserIds = [...userIds];
+
+      if (ownAgentIds.length) {
+        const meetings = await db.meeting.findMany({
+          where: { agentId: { in: ownAgentIds } },
+          select: { id: true },
+        });
+        const meetingIds = meetings.map((meeting) => meeting.id);
+        const quotes = meetingIds.length
+          ? await db.quote.findMany({ where: { meetingId: { in: meetingIds } }, select: { id: true } })
+          : [];
+        const quoteIds = quotes.map((quote) => quote.id);
+        const orders = await db.order.findMany({
+          where: {
+            OR: [
+              { agentId: { in: ownAgentIds } },
+              ...(meetingIds.length ? [{ meetingId: { in: meetingIds } }] : []),
+            ],
+          },
+          select: { id: true },
+        });
+        const orderIds = orders.map((order) => order.id);
+
+        await db.commission.deleteMany({
+          where: { OR: [{ agentId: { in: ownAgentIds } }, { orderId: { in: orderIds } }] },
+        });
+        await db.payout.deleteMany({ where: { agentId: { in: ownAgentIds } } });
+        if (orderIds.length) await db.signature.deleteMany({ where: { orderId: { in: orderIds } } });
+        await db.payment.deleteMany({
+          where: {
+            OR: [
+              ...(orderIds.length ? [{ orderId: { in: orderIds } }] : []),
+              ...(meetingIds.length ? [{ meetingId: { in: meetingIds } }] : []),
+            ],
+          },
+        });
+        if (quoteIds.length) await db.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+        if (quoteIds.length) await db.quote.deleteMany({ where: { id: { in: quoteIds } } });
+        if (orderIds.length) await db.order.deleteMany({ where: { id: { in: orderIds } } });
+        if (meetingIds.length) await db.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
+        if (meetingIds.length) await db.meeting.deleteMany({ where: { id: { in: meetingIds } } });
+        await db.clientLead.deleteMany({ where: { agentId: { in: ownAgentIds } } });
+        await db.agentCatalogItem.deleteMany({ where: { agentId: { in: ownAgentIds } } });
+        await db.agent.deleteMany({ where: { id: { in: ownAgentIds } } });
+      }
+      if (ownUserIds.length) await db.user.deleteMany({ where: { id: { in: ownUserIds } } });
+
+      agentIds.clear();
+      userIds.clear();
+    },
+  };
 }

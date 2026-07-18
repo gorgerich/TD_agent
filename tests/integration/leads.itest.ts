@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
-import { skip, db, makeAgent, sessionCookieHeader, makeRequest, cleanup } from "./_setup";
+import { skip, db, createFixtureContext, sessionCookieHeader, makeRequest } from "./_setup";
 import { POST as leadsPost, GET as leadsGet } from "../../app/api/agent/leads/route";
 import { POST as meetingsPost } from "../../app/api/agent/meetings/route";
 import { POST as quotePost } from "../../app/api/agent/meeting/[meetingId]/quote/route";
@@ -11,16 +11,17 @@ import { setDocumentStorageForTests } from "../../lib/documentStorage";
 import { InMemoryTestStorage } from "../fixtures/testStorage";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+const fixtures = createFixtureContext("leads");
 
 before(async () => {
-  if (!skip) await cleanup();
+  if (!skip) await fixtures.cleanup();
 });
 after(async () => {
-  if (!skip) await cleanup();
+  if (!skip) await fixtures.cleanup();
 });
 
 test("leads: context encrypted at rest, decrypted on read", opts, async () => {
-  const a = await makeAgent("enc");
+  const a = await fixtures.makeAgent("enc");
   const cookie = await sessionCookieHeader(a.userId, a.agentId);
 
   const res = await leadsPost(
@@ -43,8 +44,8 @@ test("leads: context encrypted at rest, decrypted on read", opts, async () => {
 });
 
 test("meetings: cannot attach meeting to another agent's lead (IDOR → 404)", opts, async () => {
-  const a = await makeAgent("owner");
-  const b = await makeAgent("attacker");
+  const a = await fixtures.makeAgent("owner");
+  const b = await fixtures.makeAgent("attacker");
 
   const leadRes = await leadsPost(
     makeRequest("/api/agent/leads", {
@@ -66,8 +67,8 @@ test("meetings: cannot attach meeting to another agent's lead (IDOR → 404)", o
 });
 
 test("quote: save requires auth (401) and ownership (404)", opts, async () => {
-  const a = await makeAgent("qowner");
-  const b = await makeAgent("qother");
+  const a = await fixtures.makeAgent("qowner");
+  const b = await fixtures.makeAgent("qother");
 
   // agent A: lead → meeting
   const leadRes = await leadsPost(
@@ -116,7 +117,7 @@ test("quote: save requires auth (401) and ownership (404)", opts, async () => {
 });
 
 test("documents: upload/delete use isolated test storage", opts, async () => {
-  const a = await makeAgent("docs");
+  const a = await fixtures.makeAgent("docs");
   const cookie = await sessionCookieHeader(a.userId, a.agentId);
   const leadRes = await leadsPost(
     makeRequest("/api/agent/leads", {

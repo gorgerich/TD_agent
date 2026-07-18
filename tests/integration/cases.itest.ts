@@ -1,6 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { skip, db, makeAgent, sessionCookieHeader, makeRequest, cleanup } from "./_setup";
+import { skip, db, createFixtureContext, sessionCookieHeader, makeRequest } from "./_setup";
 import { POST as leadsPost } from "../../app/api/agent/leads/route";
 import { POST as transitionPost } from "../../app/api/agent/cases/[caseId]/transition/route";
 import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/route";
@@ -9,12 +9,13 @@ import { SCENARIO_CLOSURE_GUARDS } from "../../lib/caseDomain";
 import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+const fixtures = createFixtureContext("cases");
 
-before(async () => { if (!skip) await cleanup(); });
-after(async () => { if (!skip) await cleanup(); });
+before(async () => { if (!skip) await fixtures.cleanup(); });
+after(async () => { if (!skip) await fixtures.cleanup(); });
 
 async function createCase(tag: string) {
-  const agent = await makeAgent(tag);
+  const agent = await fixtures.makeAgent(tag);
   const cookie = await sessionCookieHeader(agent.userId, agent.agentId);
   const key = `it:${tag}:create`;
   const request = () => leadsPost(makeRequest("/api/agent/leads", {
@@ -164,6 +165,7 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.accepted.v1", key: "it:chain:accept", payload: { quoteVersionId: version.id } })).status, 200);
 
   const customer = await db.user.create({ data: { email: `it-customer-${fixture.agentId}@test.local` } });
+  fixtures.trackUser(customer.id);
   const order = await db.order.create({
     data: {
       publicId: `IT-${fixture.agentId}`,
@@ -216,7 +218,7 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
 
 test("Week 2 tenant isolation: another agent cannot transition case", opts, async () => {
   const owner = await createCase("tenant-owner");
-  const attacker = await makeAgent("tenant-attacker");
+  const attacker = await fixtures.makeAgent("tenant-attacker");
   const response = await command({
     leadId: owner.lead.id,
     cookie: await sessionCookieHeader(attacker.userId, attacker.agentId),
