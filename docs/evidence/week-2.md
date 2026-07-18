@@ -4,6 +4,10 @@
 - Branch: `agent/week-2-canonical-case`
 - Governance mode: `SOLO_FOUNDER_AI_ASSISTED`
 - Verified implementation commit: `f49497511035b849e1a7b8fb7c86444741cdb2e7`
+- Integration isolation repair commit: `b95483b4f8a635fed036aa8a7f09ffc18a383905`
+- Repair CI run: https://github.com/gorgerich/TD_agent/actions/runs/29639492358
+- Repair Preview: https://td-agent-12p8yv8y0-rics-projects-9baa2793.vercel.app
+- Repair Preview deployment ID: `5500617386`
 - Pull request: https://github.com/gorgerich/TD_agent/pull/19
 - CI run: https://github.com/gorgerich/TD_agent/actions/runs/29339480074
 - CI job: https://github.com/gorgerich/TD_agent/actions/runs/29339480074/job/87107145749
@@ -38,7 +42,7 @@
 | W2-10 | Technically verified | Read-only tenant reconciliation checks count, ownership and minimum stage. |
 | W2-11 | Technically verified | Demo/seed creates canonical cases and advances them through valid commands. Legacy backfill has six SQL fixtures. |
 | W2-12 | Technically verified | Invalid transitions return a typed domain error before state/event writes. |
-| W2-13 | CI verified | Unit matrix coverage and 10 isolated PostgreSQL integration tests pass without skips. |
+| W2-13 | CI verified | Unit matrix coverage and 12 isolated PostgreSQL integration tests pass without skips, including concurrent fixture cleanup regression coverage. |
 | W2-14 | Technically verified | Case list/detail/meetings consume the canonical read model and expose required operational fields. |
 
 ## Acceptance evidence
@@ -145,3 +149,40 @@ smoke remain separate, unperformed release actions.
 - `PRODUCTION_DB_CHANGES: NONE`.
 
 PR #19 production migration, merge and deployment remain `NOT RUN`.
+
+## Integration isolation repair
+
+Release rehearsal on 2026-07-18 exposed cross-suite interference in the
+integration harness. The production implementation was not implicated:
+
+- the full Case transition chain passed 3/3 when run alone;
+- the unmodified full suite failed 3/3 under normal Node test-file concurrency;
+- `cleanup()` selected every integration user through the shared `it-` email
+  prefix, allowing one suite to delete another suite's Case before transition;
+- the same broad cleanup attempted to delete a User while a concurrently-created
+  Agent still referenced it, producing `Agent_userId_fkey` failures.
+
+Repair commit `b95483b4f8a635fed036aa8a7f09ffc18a383905` replaces prefix discovery
+with per-suite random run IDs, exact User/Agent root registries and reverse-FK
+scoped cleanup. It adds a parallel two-context regression test. No test was
+skipped, serialized, weakened or given a larger timeout. No production source,
+configuration, schema, migration or workflow file changed.
+
+Local repair gate:
+
+- targeted full transition chain: 5/5 PASS;
+- full integration suite: 5 consecutive runs, each 12/12 PASS, 0 skipped;
+- test-owned User/Agent/domain residue after every full run: 0;
+- parallel independent fixture contexts: PASS;
+- foreign-key cleanup errors and unexpected transition 404 responses: 0;
+- unit: 47/47 PASS, including PT-001 through PT-011;
+- migration fixture, migration/schema parity, lint, typecheck, build and e2e: PASS;
+- approved migration checksums unchanged.
+
+GitHub repair CI `29639492358` ran the same `tests/integration/*.itest.ts`
+command and discovered all four integration files and 12 tests. Result: 12
+passed, 0 failed, 0 skipped. Vercel Preview deployment `5500617386` completed
+for exact repair SHA `b95483b4f8a635fed036aa8a7f09ffc18a383905`.
+
+Release Phase 2 remained stopped during repair. `PRODUCTION_WRITES: NONE` and
+`PRODUCTION_DB_CHANGES: NONE` for the repair window.
