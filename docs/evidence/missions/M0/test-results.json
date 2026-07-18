@@ -1,12 +1,17 @@
 {
   "mission": "M0",
-  "state": "SELF_VERIFYING",
+  "state": "REWORK_REQUIRED",
   "baseSha": "d8c2f47611b6ebda939718a8ae81afc8f61c1452",
   "checks": {
     "productionMetadata": "PASS",
     "productionReadOnlyHttpSmoke": "PASS",
-    "evidenceOnlyDiff": "PENDING_COMMIT",
-    "githubCi": "PENDING_COMMIT",
+    "evidenceOnlyDiff": "PASS",
+    "githubCi": "PASS",
+    "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/29649044969",
+    "githubCiHead": "cc6a3d4f5e360965dc5822327fd69d0a059ec751",
+    "independentReview": "BLOCKED",
+    "reviewP0": 0,
+    "reviewP1": 3,
     "skipped": 0,
     "notRun": 0
   }

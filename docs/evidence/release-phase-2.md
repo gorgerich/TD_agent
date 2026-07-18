@@ -114,7 +114,10 @@ Post-migration invariants:
 
 ## Merge, deployment and post-release verification
 
-- PR #19 merged through the protected GitHub workflow.
+- PR #19 merged through the GitHub pull-request workflow. No direct push to
+  `main`, force push or history rewrite was used. Repository metadata available
+  during Mission 0 does not prove that branch-protection rules were configured,
+  so this evidence does not claim they were.
 - Merge SHA: `d8c2f47611b6ebda939718a8ae81afc8f61c1452`.
 - Main CI `29642864264`: PASS, skipped steps/tests 0.
 - Frozen Week 2 deployment: `dpl_CufuBXA1gZv8pg4hRcQs5UScve34`.

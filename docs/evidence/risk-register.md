@@ -40,11 +40,21 @@
   browser-console verification, with no production mutation.
 - Forbidden closure shortcuts: demo login, OTP, account creation, `/co/[code]`
   or documentary waiver.
+- Closure-basis update: the original requirement assumed a pre-existing
+  password account. Before Release Phase 2, the Founder explicitly authorized
+  one canonical synthetic production smoke account using the reviewed
+  idempotent provisioning path from PR #20. That authority replaced only the
+  pre-existing-account assumption; demo login, OTP, `/co/[code]`, documentary
+  waiver and uncontrolled account creation remained forbidden. Mission 0's
+  approved scope explicitly requires this risk to close from the completed
+  production smoke evidence.
 - Closure evidence: `docs/evidence/release-phase-2.md`. One canonical synthetic
   password-login account completed authenticated production smoke before
   migration, after deployment under freeze and after unfreeze. Tenant isolation
   passed, allowed read-only routes returned expected responses, and the account
   finished `SUSPENDED` with zero domain rows.
+- Owner-authorized release record:
+  https://github.com/gorgerich/TD_agent/pull/19#issuecomment-5011157918
 
 ## RISK-RELEASE-A-DELTA-WINDOW
 

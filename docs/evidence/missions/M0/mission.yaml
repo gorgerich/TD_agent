@@ -1,9 +1,9 @@
 mission: M0
 name: Truth Closure
-state: SELF_VERIFYING
+state: REWORK_REQUIRED
 base_sha: d8c2f47611b6ebda939718a8ae81afc8f61c1452
-implementation_sha: null
-review_sha: null
+implementation_sha: cc6a3d4f5e360965dc5822327fd69d0a059ec751
+review_sha: cc6a3d4f5e360965dc5822327fd69d0a059ec751
 preview_deployment_id: null
 production_deployment_id: dpl_CArd2FAHsfQjr6BPA3YKJVPjdQqY
 required_gates:
@@ -11,5 +11,8 @@ required_gates:
   - production_truth_match
   - code_quality
   - independent_review
-open_blockers: []
+open_blockers:
+  - M0-P1-01 authenticated-smoke risk closure basis must record Founder-authorized replacement
+  - M0-P1-02 machine-readable evidence must bind exact head and CI
+  - M0-P1-03 unsupported branch-protection claim must be removed
 owner_release_authorization: true
