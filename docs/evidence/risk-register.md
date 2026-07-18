@@ -32,7 +32,7 @@
 
 - Owner: Founder
 - Due: before production migration and PR #19 merge
-- Status: `OPEN`
+- Status: `CLOSED` on 2026-07-18
 - Risk: Week 1 authenticated production smoke has not run because no existing
   password-login credentials were available to the release operator.
 - Required closure evidence: password login with an existing account, direct
@@ -40,13 +40,32 @@
   browser-console verification, with no production mutation.
 - Forbidden closure shortcuts: demo login, OTP, account creation, `/co/[code]`
   or documentary waiver.
+- Closure-basis update: the original requirement assumed a pre-existing
+  password account. Before Release Phase 2, the Founder explicitly authorized
+  one canonical synthetic production smoke account using the reviewed
+  idempotent provisioning path from PR #20. That authority replaced only the
+  pre-existing-account assumption; demo login, OTP, `/co/[code]`, documentary
+  waiver and uncontrolled account creation remained forbidden. Mission 0's
+  approved scope explicitly requires this risk to close from the completed
+  production smoke evidence.
+- Closure evidence: `docs/evidence/release-phase-2.md`. One canonical synthetic
+  password-login account completed authenticated production smoke before
+  migration, after deployment under freeze and after unfreeze. Tenant isolation
+  passed, allowed read-only routes returned expected responses, and the account
+  finished `SUSPENDED` with zero domain rows.
+- Owner-authorized release record:
+  https://github.com/gorgerich/TD_agent/pull/19#issuecomment-5011157918
 
 ## RISK-RELEASE-A-DELTA-WINDOW
 
 - Owner: Founder
 - Due: before production migration
-- Status: `OPEN`
+- Status: `CLOSED` on 2026-07-18
 - Risk: old application writes between canonical backfill and new-code deployment
   can create leads or artifacts without matching canonical case/event state.
 - Required mitigation: enforced mutation/webhook freeze from before migration
   until new deployment and authenticated smoke are green.
+- Closure evidence: `docs/evidence/release-phase-2.md`. The reviewed freeze
+  blocked representative mutations, server actions, webhooks, demo/OTP and
+  `/co/*` throughout migration and deployment. Post-deploy reconciliation was
+  zero, and a tenant-local reversible mutation passed only after unfreeze.

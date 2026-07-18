@@ -186,3 +186,26 @@ for exact repair SHA `b95483b4f8a635fed036aa8a7f09ffc18a383905`.
 
 Release Phase 2 remained stopped during repair. `PRODUCTION_WRITES: NONE` and
 `PRODUCTION_DB_CHANGES: NONE` for the repair window.
+
+## Release Phase 2 closure addendum — 2026-07-18
+
+The statements above describing merge, migration, deployment and production
+smoke as `NOT RUN` preserve the status at those historical checkpoints. Release
+Phase 2 later completed under explicit Founder authorization.
+
+Authoritative closure evidence: `docs/evidence/release-phase-2.md`.
+
+- final repair head: `3bbfcb5c8129d893ba953d4adeb1081a7c342339`;
+- production merge SHA: `d8c2f47611b6ebda939718a8ae81afc8f61c1452`;
+- main CI: https://github.com/gorgerich/TD_agent/actions/runs/29642864264
+  (`PASS`, skipped 0);
+- production migration and schema parity: `PASS`;
+- backfill: 14 leads / 14 cases / 14 migration events;
+- authenticated smoke, tenant isolation and reversible mutation restore: `PASS`;
+- final production deployment: `dpl_CArd2FAHsfQjr6BPA3YKJVPjdQqY`, exact merge SHA;
+- synthetic smoke account: `SUSPENDED`, domain rows 0;
+- final write freeze state: `disabled`;
+- `RISK-RELEASE-A-AUTHENTICATED-SMOKE: CLOSED`;
+- `RISK-RELEASE-A-DELTA-WINDOW: CLOSED`;
+- `RISK-W1-TECH-HUMAN-REVIEW: OPEN`;
+- `RELEASE_PHASE_2: PASS`.

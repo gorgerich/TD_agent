@@ -218,3 +218,23 @@ Approved PR #19 migration checksums:
 7. merge/deploy PR #19;
 8. rotate smoke credential, disable freeze and redeploy;
 9. execute first post-freeze production mutation check.
+
+## Closure addendum — 2026-07-18
+
+All separately authorized release actions listed above were completed. The
+canonical smoke account was provisioned and later suspended, write freeze was
+proved before migration, production migration and deployment passed, the
+credential was rotated, and the reversible post-freeze mutation restored its
+original value.
+
+Current authoritative evidence: `docs/evidence/release-phase-2.md`.
+
+- `SMOKE_ACCOUNT_PRODUCTION_LIFECYCLE: PASS`
+- `WRITE_FREEZE_PRODUCTION_VERIFICATION: PASS`
+- `PRODUCTION_MIGRATION: PASS`
+- `AUTHENTICATED_PRODUCTION_SMOKE: PASS`
+- `DELTA_WINDOW_RISK: CLOSED`
+- `RELEASE_PHASE_2: PASS`
+
+This addendum does not alter the historical pre-authorization result recorded
+above.
