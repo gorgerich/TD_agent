@@ -28,8 +28,22 @@ type SmokeAccountInput = {
   now?: Date;
 };
 
-export async function manageSmokeAccount(db: PrismaClient, input: SmokeAccountInput): Promise<SmokeAccountAudit> {
+type SmokeAccountDependencies = {
+  hashPassword?: (password: string) => string | Promise<string>;
+};
+
+export async function manageSmokeAccount(
+  db: PrismaClient,
+  input: SmokeAccountInput,
+  dependencies: SmokeAccountDependencies = {},
+): Promise<SmokeAccountAudit> {
   validateInput(input);
+  const passwordHasher = dependencies.hashPassword ?? hashPassword;
+  const preparedPasswordHash = input.action === "provision"
+    ? await passwordHasher(input.password!)
+    : input.action === "rotate"
+      ? await passwordHasher(input.newPassword!)
+      : undefined;
 
   return db.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({
@@ -51,7 +65,7 @@ export async function manageSmokeAccount(db: PrismaClient, input: SmokeAccountIn
           email: SMOKE_ACCOUNT_EMAIL,
           name: SMOKE_ACCOUNT_NAME,
           phone: null,
-          passwordHash: hashPassword(input.password!),
+          passwordHash: preparedPasswordHash!,
           agent: {
             create: {
               status: "ACTIVE",
@@ -78,7 +92,7 @@ export async function manageSmokeAccount(db: PrismaClient, input: SmokeAccountIn
         assertCurrentPassword(input.password!, user.passwordHash);
         user = await tx.user.update({
           where: { id: user.id },
-          data: { passwordHash: hashPassword(input.newPassword!) },
+          data: { passwordHash: preparedPasswordHash! },
           include: { agent: true },
         });
       } else if (input.action === "disable") {
