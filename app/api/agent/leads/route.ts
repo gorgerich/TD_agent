@@ -4,6 +4,7 @@ import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { encryptField, decryptField } from "@/lib/crypto";
 import { handleApiError } from "@/lib/apiAuth";
+import { ensureCanonicalCaseForLead, tenantIdForAgent } from "@/lib/caseService";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,7 @@ const CreateLeadSchema = z.object({
   phone: z.string().min(7).max(30),
   source: z.string().min(1).max(50),
   context: z.string().max(2000).optional(),
+  ceremonyType: z.enum(["кремация", "погребение"]).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -50,16 +52,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const lead = await prisma.clientLead.create({
-      data: {
+    const requestedKey = req.headers.get("idempotency-key")?.trim();
+    if (requestedKey) {
+      const replay = await prisma.caseEvent.findUnique({
+        where: { tenantId_idempotencyKey: { tenantId: tenantIdForAgent(session.agentId), idempotencyKey: requestedKey } },
+        select: { eventType: true, case: { include: { lead: true } } },
+      });
+      if (replay) {
+        if (replay.eventType !== "case.created.v1") {
+          return NextResponse.json({ error: "Idempotency key уже использован другой командой" }, { status: 409 });
+        }
+        return NextResponse.json({
+          ...replay.case.lead,
+          context: decryptField(replay.case.lead.context),
+          caseId: replay.case.id,
+          caseRef: replay.case.publicRef,
+          replayed: true,
+        });
+      }
+    }
+
+    const { lead, canonicalCase } = await prisma.$transaction(async (tx) => {
+      const createdLead = await tx.clientLead.create({
+        data: {
+          agentId: session.agentId,
+          name: parsed.data.name,
+          phone: parsed.data.phone,
+          source: parsed.data.source,
+          context: encryptField(parsed.data.context),
+          ceremonyType: parsed.data.ceremonyType,
+        },
+      });
+      const createdCase = await ensureCanonicalCaseForLead({
+        leadId: createdLead.id,
         agentId: session.agentId,
-        name: parsed.data.name,
-        phone: parsed.data.phone,
-        source: parsed.data.source,
-        context: encryptField(parsed.data.context),
-      },
+        actorId: session.agentId,
+        idempotencyKey: requestedKey || `lead-create:${createdLead.id}`,
+        correlationId: req.headers.get("x-correlation-id")?.trim() || `lead:${createdLead.id}`,
+      }, tx);
+      return { lead: createdLead, canonicalCase: createdCase };
     });
-    return NextResponse.json({ ...lead, context: decryptField(lead.context) }, { status: 201 });
+    return NextResponse.json({
+      ...lead,
+      context: decryptField(lead.context),
+      caseId: canonicalCase.caseId,
+      caseRef: canonicalCase.publicRef,
+    }, { status: 201 });
   } catch (err) {
     return handleApiError(err, "leads/create");
   }

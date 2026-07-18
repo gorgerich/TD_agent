@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +25,7 @@ export default function NewCaseSheet() {
   const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const commandId = useRef<string | null>(null);
 
   const valid = name.trim().length >= 2 && phone.replace(/\D/g, "").length >= 10;
 
@@ -35,10 +36,15 @@ export default function NewCaseSheet() {
     setError(null);
     const context = [ceremony ? `Тип: ${ceremony}.` : "", comment.trim()].filter(Boolean).join(" ");
     try {
+      commandId.current ??= crypto.randomUUID();
       const res = await fetch("/api/agent/leads", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), source, context: context || undefined }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `case-create:${commandId.current}`,
+          "X-Correlation-Id": `case-create:${commandId.current}`,
+        },
+        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), source, ceremonyType: ceremony || undefined, context: context || undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

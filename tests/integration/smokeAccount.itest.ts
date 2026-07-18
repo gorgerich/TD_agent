@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { after, before, test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 import { NextRequest } from "next/server";
 import { POST as login } from "../../app/api/agent/auth/login/route";
+import { hashPassword } from "../../lib/password";
 import { GET as listLeads } from "../../app/api/agent/leads/route";
-import { manageSmokeAccount, SMOKE_ACCOUNT_EMAIL } from "../../lib/smokeAccount";
+import {
+  manageSmokeAccount,
+  SMOKE_ACCOUNT_EMAIL,
+  SMOKE_ACCOUNT_NAME,
+} from "../../lib/smokeAccount";
 import { db, skip } from "./_setup";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
@@ -35,11 +40,68 @@ function loginRequest(password: string) {
   }));
 }
 
-before(async () => {
+beforeEach(async () => {
   await removeSmokeAccount();
   await ensureTestTier();
 });
-after(removeSmokeAccount);
+afterEach(removeSmokeAccount);
+
+test("smoke provisioning hashes before opening its transaction", opts, async () => {
+  let hashFinishedAt = 0;
+  let transactionStartedAt = 0;
+  const observedDb = Object.create(db) as typeof db;
+  const runTransaction = db.$transaction.bind(db);
+  observedDb.$transaction = ((...args: unknown[]) => {
+    transactionStartedAt = performance.now();
+    return Reflect.apply(runTransaction, db, args);
+  }) as typeof db.$transaction;
+
+  const provisioned = await manageSmokeAccount(
+    observedDb,
+    { action: "provision", password: firstPassword },
+    {
+      hashPassword: async (password) => {
+        await new Promise((resolve) => setTimeout(resolve, 5_100));
+        const result = hashPassword(password);
+        hashFinishedAt = performance.now();
+        return result;
+      },
+    },
+  );
+
+  assert.equal(provisioned.created, true);
+  assert.ok(hashFinishedAt > 0);
+  assert.ok(transactionStartedAt >= hashFinishedAt);
+  assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
+  assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.clientLead.count({ where: { agentId: provisioned.agentId } }), 0);
+  assert.equal(await db.meeting.count({ where: { agentId: provisioned.agentId } }), 0);
+  assert.equal(await db.case.count({ where: { ownerId: provisioned.agentId } }), 0);
+  assert.equal(await db.caseEvent.count({ where: { actorId: provisioned.agentId } }), 0);
+});
+
+test("smoke provisioning rolls back User when nested Agent creation fails", opts, async () => {
+  await assert.rejects(
+    db.user.create({
+      data: {
+        email: SMOKE_ACCOUNT_EMAIL,
+        name: SMOKE_ACCOUNT_NAME,
+        passwordHash: hashPassword(firstPassword),
+        agent: {
+          create: {
+            status: "ACTIVE",
+            tierId: -1,
+            selfEmployed: false,
+            onboardingCompleted: true,
+            notifyEnabled: false,
+          },
+        },
+      },
+    }),
+  );
+  assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 0);
+  assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 0);
+});
 
 test("release smoke account lifecycle is atomic, idempotent, isolated and password-only", opts, async () => {
   const provisioned = await manageSmokeAccount(db, { action: "provision", password: firstPassword });

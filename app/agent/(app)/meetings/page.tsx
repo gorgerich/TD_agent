@@ -4,8 +4,8 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { deriveStage, NEXT_ACTION } from "@/lib/case";
 import { EventRow, type CalEvent } from "./EventRow";
+import { getCanonicalCases } from "@/lib/caseReadModel";
 
 type DayGroup = { key: string; label: string; events: CalEvent[] };
 
@@ -14,6 +14,9 @@ const fmtDay = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric
 
 async function getCalendar(agentId: number): Promise<DayGroup[]> {
   try {
+    const projectionNow = new Date();
+    const canonicalCases = await getCanonicalCases(agentId, projectionNow);
+    const canonicalByLead = new Map(canonicalCases.map((item) => [item.leadId, item]));
     const meetings = await prisma.meeting.findMany({
       where: { agentId, scheduledAt: { not: null } },
       orderBy: { scheduledAt: "asc" },
@@ -30,7 +33,7 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
       },
     });
 
-    const now = Date.now();
+    const now = projectionNow.getTime();
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const groups = new Map<string, DayGroup>();
 
@@ -43,9 +46,8 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
         groups.set(key, { key, label, events: [] });
       }
       const lead = m.lead;
-      const orders = lead.meetings.flatMap((mm) => mm.orders);
-      const versionsLen = lead.meetings.flatMap((mm) => mm.quotes.flatMap((q) => q.versions)).length;
-      const stage = deriveStage(orders, versionsLen, lead.meetings.length);
+      const canonical = canonicalByLead.get(lead.id);
+      if (!canonical) continue;
       groups.get(key)!.events.push({
         id: m.id,
         leadId: lead.id,
@@ -56,10 +58,10 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
         sortKey: d.getTime(),
         status: m.status,
         past: d.getTime() < now,
-        stage,
-        nextAction: NEXT_ACTION[stage],
-        hasQuote: versionsLen > 0,
-        docCount: lead._count.documents,
+        stage: canonical.legacyStage,
+        nextAction: canonical.nextAction.label,
+        hasQuote: canonical.quoteVersionCount > 0,
+        docCount: canonical.documents.uploaded,
       });
     }
 
@@ -70,6 +72,8 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
       select: { id: true, name: true, phone: true, ceremonyAt: true, ceremonyPlace: true },
     });
     for (const c of ceremonies) {
+      const canonical = canonicalByLead.get(c.id);
+      if (!canonical) continue;
       const d = c.ceremonyAt!;
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       if (!groups.has(key)) {
@@ -87,10 +91,10 @@ async function getCalendar(agentId: number): Promise<DayGroup[]> {
         sortKey: d.getTime(),
         status: "CEREMONY",
         past: d.getTime() < now,
-        stage: "Оплата",
-        nextAction: "",
-        hasQuote: false,
-        docCount: 0,
+        stage: canonical.legacyStage,
+        nextAction: canonical.nextAction.label,
+        hasQuote: canonical.quoteVersionCount > 0,
+        docCount: canonical.documents.uploaded,
         place: c.ceremonyPlace,
       });
     }

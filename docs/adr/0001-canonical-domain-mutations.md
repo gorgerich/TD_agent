@@ -1,7 +1,10 @@
 # ADR 0001: canonical domain mutations
 
-- Status: Proposed, awaiting Week 1 sign-off
+- Status: Accepted under `SOLO_FOUNDER_AI_ASSISTED` Week 1 governance
 - Date: 2026-07-13
+
+Human technical review remains deferred under `RISK-W1-TECH-HUMAN-REVIEW`.
+Ritual-operations validation remains mandatory before the Week 2 Gate closes.
 
 ## Context
 

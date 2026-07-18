@@ -22,6 +22,11 @@ export type CaseRowView = {
   soon: boolean;
   stale: boolean;
   ceremonySoon: boolean;
+  riskReason: string | null;
+  riskDeadline: string;
+  publishedQuote: boolean;
+  paymentBalanceLabel: string;
+  documentReadiness: string;
 };
 
 const BUCKETS: Array<{ id: Bucket; label: string; tone: string }> = [
@@ -106,15 +111,22 @@ function CaseRowItem({ c }: { c: CaseRowView }) {
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2.5">
               <span className="truncate text-[15px] font-semibold text-ink" style={{ viewTransitionName: `case-${c.id}` }}>{c.name}</span>
-              {c.ceremonySoon ? (
-                <span className="flex-shrink-0 text-[11px] font-bold text-danger">церемония через {c.hoursToCeremony} ч</span>
+              {c.riskReason ? (
+                <span className="min-w-0 truncate text-[11px] font-bold text-danger">
+                  {c.riskReason}{c.riskDeadline ? ` · до ${c.riskDeadline}` : ""}
+                </span>
               ) : c.soon ? (
                 <span className="flex-shrink-0 text-[11px] font-semibold text-accent">встреча скоро</span>
-              ) : c.stale ? (
-                <span className="flex-shrink-0 text-[11px] font-semibold text-warning">без движения</span>
               ) : null}
             </span>
             <span className="mt-1 block truncate text-[13px] text-ink-2">{c.nextAction}</span>
+            <span className="mt-1.5 hidden items-center gap-2 text-[11px] text-ink-3 md:flex">
+              <span>{c.publishedQuote ? "Смета опубликована" : "Нет опубликованной сметы"}</span>
+              <span aria-hidden="true">·</span>
+              <span>Остаток: {c.paymentBalanceLabel}</span>
+              <span aria-hidden="true">·</span>
+              <span>Документы: {c.documentReadiness}</span>
+            </span>
           </span>
           <span className="hidden flex-shrink-0 text-[12px] text-ink-3 sm:inline">
             {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}

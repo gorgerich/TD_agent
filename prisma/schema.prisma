@@ -30,88 +30,88 @@ datasource db {
 // ============================================================
 
 model User {
-  id     Int     @id @default(autoincrement())
-  email  String? @unique // B2C DB allows null emails; keep nullable so db push can apply B2B tables.
-  name   String?
-  phone  String? @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
+  id           Int     @id @default(autoincrement())
+  email        String? @unique // B2C DB allows null emails; keep nullable so db push can apply B2B tables.
+  name         String?
+  phone        String? @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
   passwordHash String? // NEW (B2B): хэш пароля агента для постоянного входа; nullable для B2C/demo пользователей
-  orders Order[]
+  orders       Order[]
 
-  agent  Agent?  // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+  agent Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
 }
 
 model Order {
-  id          Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
   // внешний id для фронта/платежки
-  publicId    String   @unique
+  publicId String @unique
 
-  userId      Int
-  user        User     @relation(fields: [userId], references: [id])
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
 
   // CHANGED: НЕ мигрируем на enum — B2C-код читает строку. Допустимые значения теперь:
   // PENDING | PAID | CANCELED | SIGNED | PARTIALLY_PAID | IN_PROCESS | COMPLETED
-  status      String   @default("PENDING")
-  serviceType String
-  totalAmount Int      // копейки
+  status        String  @default("PENDING")
+  serviceType   String
+  totalAmount   Int // копейки
   customerEmail String?
   paymentMethod String?
-  paymentLink  String?
-  meta        String
+  paymentLink   String?
+  meta          String
 
-  payments    Payment[]
+  payments Payment[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // CHANGED: поля B2B-сделки (все nullable — B2C-заказы их не заполняют)
-  agentId         Int?            // NEW
-  agent           Agent?          @relation(fields: [agentId], references: [id]) // NEW
-  meetingId       Int?            // NEW
-  meeting         Meeting?        @relation(fields: [meetingId], references: [id]) // NEW
-  signedAt        DateTime?       // NEW
+  agentId         Int? // NEW
+  agent           Agent?           @relation(fields: [agentId], references: [id]) // NEW
+  meetingId       Int? // NEW
+  meeting         Meeting?         @relation(fields: [meetingId], references: [id]) // NEW
+  signedAt        DateTime? // NEW
   signatureMethod SignatureMethod? // NEW
-  signature       Signature?      // NEW
-  commission      Commission?     // NEW
-  quote           Quote?          // NEW
-  depositPaid     Boolean  @default(false) // NEW
-  cancelledAt     DateTime?       // NEW
-  cancelReason    String?         // NEW
+  signature       Signature? // NEW
+  commission      Commission? // NEW
+  quote           Quote? // NEW
+  depositPaid     Boolean          @default(false) // NEW
+  cancelledAt     DateTime? // NEW
+  cancelReason    String? // NEW
 
   @@index([publicId])
-  @@index([agentId])    // NEW
-  @@index([meetingId])  // NEW
+  @@index([agentId]) // NEW
+  @@index([meetingId]) // NEW
 }
 
 model Payment {
-  id                String   @id @default(cuid())
+  id                String @id @default(cuid())
   // CHANGED: для наличных провайдера нет → допускаем "cash"/"sbp" как значение
   provider          String
-  providerPaymentId String   @unique
+  providerPaymentId String @unique
 
-  orderId           Int
-  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId Int
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  orderPublicId     String
+  orderPublicId String
 
-  amount            Int      // К ОПЛАТЕ СЕЙЧАС (full/deposit), копейки
-  currency          String   @default("RUB")
-  status            String   // pending|succeeded|canceled|failed
-  confirmationUrl   String?
-  createRaw         String?
-  webhookRaw        String?
+  amount          Int // К ОПЛАТЕ СЕЙЧАС (full/deposit), копейки
+  currency        String  @default("RUB")
+  status          String // pending|succeeded|canceled|failed
+  confirmationUrl String?
+  createRaw       String?
+  webhookRaw      String?
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // CHANGED: расширение под полевую оплату B2B
   method      PaymentMethod? // NEW: CASH | SBP_QR | CARD | BANK_TRANSFER
-  isDeposit   Boolean  @default(false) // NEW
-  fiscalUrl   String?  // NEW: ссылка на чек ОФД
-  fiscalSign  String?  // NEW: фискальный признак (54-ФЗ)
+  isDeposit   Boolean        @default(false) // NEW
+  fiscalUrl   String? // NEW: ссылка на чек ОФД
+  fiscalSign  String? // NEW: фискальный признак (54-ФЗ)
   confirmedAt DateTime? // NEW: момент подтверждения (вебхук СБП / факт чека)
-  meetingId   Int?     // NEW
-  meeting     Meeting? @relation(fields: [meetingId], references: [id]) // NEW
+  meetingId   Int? // NEW
+  meeting     Meeting?       @relation(fields: [meetingId], references: [id]) // NEW
 
   @@index([orderId])
   @@index([orderPublicId])
@@ -123,29 +123,30 @@ model Payment {
 // ============================================================
 
 model Agent {
-  id           Int          @id @default(autoincrement()) // NEW: Int — единообразно с User/Order
-  userId       Int          @unique
-  user         User         @relation(fields: [userId], references: [id])
-  status       AgentStatus  @default(PENDING)
-  tierId       Int
-  tier         AgentTier    @relation(fields: [tierId], references: [id])
-  inn          String?      // ИНН ИП/самозанятого
-  selfEmployed Boolean      @default(true)
-  onboardingCompleted Boolean @default(false) // прошёл ли агент интерактивный онбординг
-  notifyEnabled Boolean     @default(true) // NEW (P0): тумблер in-app уведомлений
+  id                  Int         @id @default(autoincrement()) // NEW: Int — единообразно с User/Order
+  userId              Int         @unique
+  user                User        @relation(fields: [userId], references: [id])
+  status              AgentStatus @default(PENDING)
+  tierId              Int
+  tier                AgentTier   @relation(fields: [tierId], references: [id])
+  inn                 String? // ИНН ИП/самозанятого
+  selfEmployed        Boolean     @default(true)
+  onboardingCompleted Boolean     @default(false) // прошёл ли агент интерактивный онбординг
+  notifyEnabled       Boolean     @default(true) // NEW (P0): тумблер in-app уведомлений
 
   leads        ClientLead[]
   meetings     Meeting[]
   orders       Order[]
   commissions  Commission[]
   payouts      Payout[]
-  tasks        Task[]       // NEW (P5)
-  notes        CaseNote[]   // NEW (P5)
-  documents    Document[]   // NEW (P0): реальные файлы кейса
+  tasks        Task[] // NEW (P5)
+  notes        CaseNote[] // NEW (P5)
+  documents    Document[] // NEW (P0): реальные файлы кейса
   casePayments CasePayment[] // NEW (P0): оплаты по кейсам
   catalogItems AgentCatalogItem[] // NEW: собственные товары агента (свой каталог)
+  ownedCases   Case[]             @relation("CaseOwner")
 
-  createdAt    DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }
@@ -157,8 +158,8 @@ model AgentCatalogItem {
   agentId     Int
   agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   name        String
-  category    String   // одна из CatalogCategory (строкой, чтобы не тянуть enum в БД)
-  clientPrice Int      // цена для клиента, ₽
+  category    String // одна из CatalogCategory (строкой, чтобы не тянуть enum в БД)
+  clientPrice Int // цена для клиента, ₽
   costPrice   Int      @default(0) // закупочная, ₽ (для маржи)
   description String   @default("")
   imageData   String   @db.Text // data URL вырезанного товара на белом фоне (webp/png base64)
@@ -175,30 +176,31 @@ model AgentTier {
 }
 
 model ClientLead {
-  id        Int       @id @default(autoincrement())
-  agentId   Int
-  agent     Agent     @relation(fields: [agentId], references: [id])
-  name      String
-  phone     String
-  context   String?   // сведения об усопшем, бюджетные ожидания (ПДн — шифровать на уровне приложения)
-  source    String    // telegram | form | agent
+  id            Int           @id @default(autoincrement())
+  agentId       Int
+  agent         Agent         @relation(fields: [agentId], references: [id])
+  name          String
+  phone         String
+  context       String? // сведения об усопшем, бюджетные ожидания (ПДн — шифровать на уровне приложения)
+  source        String // telegram | form | agent
   // NEW (P1): структурный интейк потребностей семьи (захват во время встречи)
-  ceremonyType String? // кремация | погребение | …
-  budget       String? // бюджетная вилка
-  religion     String? // конфессия/традиция
-  needs        String? // особые пожелания (ПДн — шифровать через encryptField)
+  ceremonyType  String? // кремация | погребение | …
+  budget        String? // бюджетная вилка
+  religion      String? // конфессия/традиция
+  needs         String? // особые пожелания (ПДн — шифровать через encryptField)
   // NEW (P0, MVP-домен): усопший и церемония — главный дедлайн кейса
-  deceasedName  String?   // ФИО усопшего (ПДн — encryptField)
+  deceasedName  String? // ФИО усопшего (ПДн — encryptField)
   deceasedDate  DateTime? // дата смерти
-  morgue        String?   // морг / где находится
+  morgue        String? // морг / где находится
   ceremonyAt    DateTime? // дата и время церемонии (жёсткий дедлайн кейса)
-  ceremonyPlace String?   // кладбище / крематорий
-  meetings  Meeting[]
-  tasks     Task[]    // NEW (P5)
-  notes     CaseNote[] // NEW (P5)
-  documents Document[] // NEW (P0): реальные файлы кейса
-  payments  CasePayment[] // NEW (P0): оплаты, фиксируемые агентом
-  createdAt DateTime  @default(now())
+  ceremonyPlace String? // кладбище / крематорий
+  meetings      Meeting[]
+  tasks         Task[] // NEW (P5)
+  notes         CaseNote[] // NEW (P5)
+  documents     Document[] // NEW (P0): реальные файлы кейса
+  payments      CasePayment[] // NEW (P0): оплаты, фиксируемые агентом
+  case          Case?
+  createdAt     DateTime      @default(now())
 
   @@index([agentId])
 }
@@ -211,17 +213,17 @@ model Meeting {
   agent        Agent         @relation(fields: [agentId], references: [id])
   status       MeetingStatus @default(SCHEDULED)
   cobrowseCode String?       @unique // короткий код для «зеркала сметы» у клиента
-  coViewedAt   DateTime?     // NEW (P2): когда клиент впервые открыл /co
-  coAgreedAt   DateTime?     // NEW (P2): когда клиент нажал «Согласовать смету»
+  coViewedAt   DateTime? // NEW (P2): когда клиент впервые открыл /co
+  coAgreedAt   DateTime? // NEW (P2): когда клиент нажал «Согласовать смету»
 
-  orders       Order[]
-  payments     Payment[]
-  quotes       Quote[]
-  session      AgentSession?
+  orders   Order[]
+  payments Payment[]
+  quotes   Quote[]
+  session  AgentSession?
 
-  scheduledAt  DateTime?
-  startedAt    DateTime?
-  endedAt      DateTime?
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
 
   @@index([agentId])
   @@index([leadId])
@@ -239,14 +241,67 @@ model Quote {
 }
 
 model QuoteVersion {
-  id        Int      @id @default(autoincrement())
-  quoteId   Int
-  quote     Quote    @relation(fields: [quoteId], references: [id])
-  payload   String   // снимок сметы (JSON-строкой — единообразно с Order.meta)
-  total     Int      // копейки
-  createdAt DateTime @default(now())
+  id                Int      @id @default(autoincrement())
+  quoteId           Int
+  quote             Quote    @relation(fields: [quoteId], references: [id])
+  payload           String // снимок сметы (JSON-строкой — единообразно с Order.meta)
+  total             Int // копейки
+  createdAt         DateTime @default(now())
+  publishedForCases Case[]
 
   @@index([quoteId])
+}
+
+// Canonical Week 2 aggregate. ClientLead remains contact/intake storage; Case owns
+// lifecycle, scenario, tenant identity and immutable transition history.
+model Case {
+  id                      String        @id @default(cuid())
+  publicRef               String        @unique @default(cuid())
+  leadId                  Int           @unique
+  lead                    ClientLead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tenantId                String
+  ownerId                 Int
+  owner                   Agent         @relation("CaseOwner", fields: [ownerId], references: [id])
+  scenarioId              CaseScenario  @default(UNSELECTED)
+  stage                   CaseStage     @default(INTAKE)
+  version                 Int           @default(1)
+  guardState              Json          @default("{}")
+  publishedQuoteVersionId Int?
+  publishedQuoteVersion   QuoteVersion? @relation(fields: [publishedQuoteVersionId], references: [id])
+  closedAt                DateTime?
+  events                  CaseEvent[]
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@index([tenantId, ownerId])
+  @@index([tenantId, stage])
+  @@index([publishedQuoteVersionId])
+}
+
+// Append-only audit/domain event. There are intentionally no update/delete routes.
+model CaseEvent {
+  id             String    @id @default(cuid())
+  caseId         String
+  case           Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tenantId       String
+  actorId        Int
+  actorType      String    @default("agent")
+  eventType      String
+  eventVersion   Int       @default(1)
+  idempotencyKey String
+  correlationId  String
+  causationId    String?
+  fromStage      CaseStage
+  toStage        CaseStage
+  before         Json
+  after          Json
+  payload        Json
+  result         Json
+  createdAt      DateTime  @default(now())
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([caseId, createdAt])
+  @@index([tenantId, eventType, createdAt])
 }
 
 model Signature {
@@ -254,8 +309,8 @@ model Signature {
   orderId  Int             @unique
   order    Order           @relation(fields: [orderId], references: [id])
   method   SignatureMethod
-  docHash  String          // sha256 подписанного PDF
-  smsHash  String?         // хэш SMS-кода (НЕ сам код)
+  docHash  String // sha256 подписанного PDF
+  smsHash  String? // хэш SMS-кода (НЕ сам код)
   signedAt DateTime        @default(now())
 }
 
@@ -265,7 +320,7 @@ model Commission {
   agent    Agent            @relation(fields: [agentId], references: [id])
   orderId  Int              @unique
   order    Order            @relation(fields: [orderId], references: [id])
-  amount   Int              // копейки
+  amount   Int // копейки
   status   CommissionStatus @default(ACCRUED)
   payoutId Int?
   payout   Payout?          @relation(fields: [payoutId], references: [id])
@@ -278,7 +333,7 @@ model Payout {
   agentId     Int
   agent       Agent        @relation(fields: [agentId], references: [id])
   status      PayoutStatus @default(PENDING)
-  amount      Int          // копейки
+  amount      Int // копейки
   commissions Commission[]
   paidAt      DateTime?
 
@@ -289,7 +344,7 @@ model AgentSession {
   id        Int      @id @default(autoincrement())
   meetingId Int      @unique
   meeting   Meeting  @relation(fields: [meetingId], references: [id])
-  state     String   // текущая смета co-browse (JSON-строкой; шифровать на уровне приложения, ФЗ-152)
+  state     String // текущая смета co-browse (JSON-строкой; шифровать на уровне приложения, ФЗ-152)
   expiresAt DateTime // авто-удаление после встречи (cron, см. Блок 2.7)
   createdAt DateTime @default(now())
 }
@@ -305,8 +360,8 @@ model Task {
   agentId     Int
   agent       Agent      @relation(fields: [agentId], references: [id])
   title       String
-  dueAt       DateTime?               // null = без срока
-  completedAt DateTime?               // null = открыта; DateTime = выполнена
+  dueAt       DateTime? // null = без срока
+  completedAt DateTime? // null = открыта; DateTime = выполнена
   createdAt   DateTime   @default(now())
 
   @@index([leadId])
@@ -321,7 +376,7 @@ model CaseNote {
   lead      ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   agentId   Int
   agent     Agent      @relation(fields: [agentId], references: [id])
-  body      String     // ПДн — шифровать на уровне app (encryptField), как ClientLead.context
+  body      String // ПДн — шифровать на уровне app (encryptField), как ClientLead.context
   createdAt DateTime   @default(now())
 
   @@index([leadId])
@@ -337,8 +392,8 @@ model CasePayment {
   agentId       Int
   agent         Agent      @relation(fields: [agentId], references: [id])
   amountKopecks Int
-  kind          String     // "аванс" | "остаток" | "полная"
-  method        String     // "наличные" | "карта" | "счёт"
+  kind          String // "аванс" | "остаток" | "полная"
+  method        String // "наличные" | "карта" | "счёт"
   note          String?
   paidAt        DateTime   @default(now())
 
@@ -353,12 +408,12 @@ model Document {
   lead      ClientLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
   agentId   Int
   agent     Agent      @relation(fields: [agentId], references: [id])
-  name      String     // имя файла как загрузил агент
-  category  String     // "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее"
-  url       String     // Vercel Blob URL
-  pathname  String     // ключ в Blob (для удаления)
+  name      String // имя файла как загрузил агент
+  category  String // "Свидетельство о смерти" | "Паспорт" | "Договор" | "Доверенность" | "Прочее"
+  url       String // Vercel Blob URL
+  pathname  String // ключ в Blob (для удаления)
   mimeType  String
-  size      Int        // байты
+  size      Int // байты
   createdAt DateTime   @default(now())
 
   @@index([leadId])
@@ -409,13 +464,30 @@ enum SignatureMethod {
   SIMPLE_ESIGN
 }
 
+enum CaseStage {
+  INTAKE
+  PLANNING
+  QUOTING
+  AGREEMENT
+  CONTRACTING
+  PAYMENT
+  EXECUTION
+  CLOSED
+}
+
+enum CaseScenario {
+  UNSELECTED
+  CREMATION_V1
+  FAMILY_PLOT_BURIAL_V1
+}
+
 // NEW (B2B): хранит хэш одноразового кода для SMS-аутентификации агента.
 // Мигрировать отдельно от основной схемы: npx prisma migrate dev --name add_otp_token
 // Не хранить сам код — только sha256(code + salt).
 model OtpToken {
   id        String   @id @default(cuid())
   phone     String
-  codeHash  String   // sha256(code + salt), NOT the raw code
+  codeHash  String // sha256(code + salt), NOT the raw code
   expiresAt DateTime
   createdAt DateTime @default(now())
 

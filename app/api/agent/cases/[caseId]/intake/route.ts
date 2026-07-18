@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionFromRequest } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { encryptField } from "@/lib/crypto";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
+import { saveCaseIntake } from "@/lib/caseService";
+import { CaseDomainError } from "@/lib/caseDomain";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
 
+  const idempotencyKey = req.headers.get("idempotency-key")?.trim();
+  const correlationId = req.headers.get("x-correlation-id")?.trim();
+  if (!idempotencyKey || !correlationId) {
+    return NextResponse.json({ error: "Нужны Idempotency-Key и X-Correlation-Id" }, { status: 400 });
+  }
+
   try {
     const leadId = parseId((await params).caseId, "caseId");
     await assertLeadOwned(leadId, session.agentId);
@@ -38,8 +45,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
 
     const { ceremonyType, budget, religion, needs, deceasedName, deceasedDate, morgue, ceremonyAt, ceremonyPlace } = parsed.data;
-    await prisma.clientLead.update({
-      where: { id: leadId },
+    const result = await saveCaseIntake({
+      leadId,
       data: {
         ceremonyType: ceremonyType ?? null,
         budget: budget ?? null,
@@ -51,9 +58,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
         ceremonyAt: parseDate(ceremonyAt),
         ceremonyPlace: ceremonyPlace ?? null,
       },
+      context: { agentId: session.agentId, actorId: session.agentId, idempotencyKey, correlationId },
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
+    if (err instanceof CaseDomainError) {
+      const status = err.code === "NOT_FOUND" ? 404 : err.code === "IDEMPOTENCY_CONFLICT" ? 409 : 422;
+      return NextResponse.json({ error: err.message, code: err.code, details: err.details }, { status });
+    }
     return handleApiError(err, "cases/intake");
   }
 }

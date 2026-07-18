@@ -6,7 +6,8 @@ import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { type Stage, relTime } from "@/lib/case";
-import { deriveCaseStatus, statusStage, type StatusTone, type WaitingOn } from "@/lib/caseStatus";
+import { type StatusTone, type WaitingOn } from "@/lib/caseStatus";
+import { getCanonicalCases } from "@/lib/caseReadModel";
 
 type CaseRow = {
   id: number;
@@ -33,6 +34,11 @@ type CaseRow = {
   nextMeetingAt: number | null;
   nextMeetingTime: string;
   nextMeetingDate: string;
+  riskReason: string | null;
+  riskDeadline: string;
+  publishedQuote: boolean;
+  paymentBalanceLabel: string;
+  documentReadiness: string;
 };
 
 type CasesData = {
@@ -46,102 +52,51 @@ const DAY = 86_400_000;
 
 const fmtTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
 const fmtDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
+const fmtMoney = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 });
 
 async function getCases(agentId: number): Promise<CasesData> {
   const empty: CasesData = { active: [], todayMeetings: [], upcoming: [], inactive: [] };
   try {
-    const leads = await prisma.clientLead.findMany({
-      where: { agentId },
-      orderBy: { createdAt: "desc" },
-      take: 400, // защита от неограниченной выборки (20 агентов × сотни дел)
-      include: {
-        documents: { select: { category: true } },
-        meetings: {
-          orderBy: { scheduledAt: "desc" },
-          select: {
-            id: true,
-            scheduledAt: true,
-            cobrowseCode: true,
-            coViewedAt: true,
-            coAgreedAt: true,
-            quotes: { select: { id: true } },
-            orders: { select: { status: true } },
-          },
-        },
-      },
-    });
-
-    const now = Date.now();
+    const nowDate = new Date();
+    const now = nowDate.getTime();
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
     const todayEndMs = todayEnd.getTime();
-
-    const REQUIRED_DOC_CATEGORIES = ["Свидетельство о смерти", "Паспорт", "Договор"];
-
-    const rows: CaseRow[] = leads.map((lead) => {
-      const quotesLen = lead.meetings.reduce((n, m) => n + m.quotes.length, 0);
-      const orders = lead.meetings.flatMap((m) => m.orders);
-
-      const future = lead.meetings
-        .map((m) => m.scheduledAt?.getTime())
-        .filter((t): t is number => !!t && t >= now)
-        .sort((a, b) => a - b);
-      const nextMeetingAt = future[0] ?? null;
-
-      const lastActivity = lead.meetings.reduce<number>(
-        (max, m) => (m.scheduledAt && m.scheduledAt.getTime() > max ? m.scheduledAt.getTime() : max),
-        lead.createdAt.getTime(),
-      );
-
-      // Операционный статус — что сейчас и что делать дальше (движок caseStatus).
-      const status = deriveCaseStatus({
-        meetingsLen: lead.meetings.length,
-        hasUpcomingMeeting: nextMeetingAt != null,
-        quotesLen,
-        orders,
-        hasCobrowse: lead.meetings.some((m) => m.cobrowseCode),
-        clientViewed: lead.meetings.some((m) => m.coViewedAt),
-        clientAgreed: lead.meetings.some((m) => m.coAgreedAt),
-        docsComplete: REQUIRED_DOC_CATEGORIES.every((c) => lead.documents.some((d) => d.category === c)),
-        intakeComplete: Boolean(lead.deceasedName) && Boolean(lead.ceremonyType),
-        ceremonyAt: lead.ceremonyAt?.getTime() ?? null,
-        nowMs: now,
-      });
-      const stage = statusStage(status);
-
+    const canonical = await getCanonicalCases(agentId, nowDate);
+    const rows: CaseRow[] = canonical.map((record) => {
+      const stage = record.legacyStage;
+      const nextMeetingAt = record.nextMeetingAt?.getTime() ?? null;
       const soon = nextMeetingAt ? nextMeetingAt - now < DAY : false;
-      const stale = status.key !== "done" && now - lastActivity > 7 * DAY;
-
-      // Церемония — настоящий дедлайн кейса (важнее встреч)
-      const ceremonyAt = lead.ceremonyAt && status.key !== "done" ? lead.ceremonyAt.getTime() : null;
+      const stale = record.risk.reasons.some((reason) => reason.code === "SLA_STALE");
+      const ceremonyAt = record.ceremonyAt && record.stage !== "CLOSED" ? record.ceremonyAt.getTime() : null;
       const hoursToCeremony = ceremonyAt && ceremonyAt > now ? Math.round((ceremonyAt - now) / 3_600_000) : null;
-      const ceremonySoon = hoursToCeremony !== null && hoursToCeremony <= 48;
-
-      // Бакет дашборда — приоритет по срочности (первое совпадение).
+      const ceremonySoon = record.risk.reasons.some((reason) => reason.code === "CEREMONY_PROXIMITY");
+      const urgent = record.risk.level === "HIGH" || record.risk.level === "CRITICAL";
       const todayMeeting = nextMeetingAt != null && nextMeetingAt <= todayEndMs;
       const bucket: Bucket =
-        ceremonySoon || stale ? "critical"
+        urgent ? "critical"
         : todayMeeting ? "today"
-        : status.waiting === "client" ? "awaitClient"
-        : status.waiting === "payment" ? "awaitPayment"
+        : record.waiting === "client" ? "awaitClient"
+        : record.waiting === "payment" ? "awaitPayment"
         : "progress";
+      const primaryRisk = record.risk.reasons[0] ?? null;
 
       return {
-        id: lead.id,
-        name: lead.name,
-        phone: lead.phone,
+        id: record.leadId,
+        name: record.name,
+        phone: record.phone,
         stage,
-        statusLabel: status.label,
-        statusTone: status.tone,
-        waiting: status.waiting,
+        statusLabel: record.statusLabel,
+        statusTone: record.statusTone,
+        waiting: record.waiting,
         bucket,
-        cobrowse: lead.meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null,
-        firstMeetingId: lead.meetings[lead.meetings.length - 1]?.id ?? null,
-        progress: status.stageIdx + 1,
-        nextAction: status.next,
-        lastActivityLabel: relTime(lastActivity, now),
-        priority: ceremonySoon || soon || stale ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
-        urgent: ceremonySoon || soon || stale,
+        cobrowse: record.cobrowseCode,
+        firstMeetingId: record.firstMeetingId,
+        progress: Math.min(6, Math.max(1, ["Лид", "Документы", "Смета", "Договор", "Оплата", "Завершено"].indexOf(stage) + 1)),
+        nextAction: record.nextAction.label,
+        lastActivityLabel: relTime(record.lastActivityAt.getTime(), now),
+        priority: urgent ? "Высокий" : stage === "Оплата" || stage === "Договор" ? "Средний" : "Низкий",
+        urgent,
         soon,
         stale,
         ceremonyAt,
@@ -151,6 +106,11 @@ async function getCases(agentId: number): Promise<CasesData> {
         nextMeetingAt,
         nextMeetingTime: nextMeetingAt ? fmtTime.format(nextMeetingAt) : "",
         nextMeetingDate: nextMeetingAt ? fmtDate.format(nextMeetingAt) : "",
+        riskReason: primaryRisk?.label ?? null,
+        riskDeadline: primaryRisk?.deadline ? `${fmtDate.format(primaryRisk.deadline)}, ${fmtTime.format(primaryRisk.deadline)}` : "",
+        publishedQuote: Boolean(record.publishedQuote),
+        paymentBalanceLabel: record.payment.balanceKopecks == null ? "сумма не опубликована" : fmtMoney.format(record.payment.balanceKopecks / 100),
+        documentReadiness: record.documents.required === 0 ? "сценарий не выбран" : `${record.documents.verified}/${record.documents.required} проверено`,
       };
     });
 
@@ -261,6 +221,11 @@ export default async function CasesPage() {
                 soon: c.soon,
                 stale: c.stale,
                 ceremonySoon: c.ceremonySoon,
+                riskReason: c.riskReason,
+                riskDeadline: c.riskDeadline,
+                publishedQuote: c.publishedQuote,
+                paymentBalanceLabel: c.paymentBalanceLabel,
+                documentReadiness: c.documentReadiness,
               }))}
             />
           )}

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { encryptField } from "@/lib/crypto";
+import { ensureCanonicalCaseForLead, scenarioFromCeremonyType } from "@/lib/caseService";
+import { CaseStage } from "@prisma/client";
 import { assertReleaseWritesAllowed } from "@/lib/releaseWriteFreeze";
 
 export const DEMO_PHONE = "+79990000000";
@@ -75,6 +77,28 @@ export async function ensureDemoAgent(): Promise<{ userId: number; agentId: numb
         },
       });
     }
+  }
+
+  // Keep demo compatible with the canonical Week 2 Case aggregate. This is a
+  // repair-only path for old demo databases; no lifecycle is inferred in UI.
+  const demoLeads = await prisma.clientLead.findMany({
+    where: { agentId: agent.id },
+    select: {
+      id: true,
+      ceremonyType: true,
+      meetings: { select: { id: true } },
+    },
+  });
+  for (const lead of demoLeads) {
+    await ensureCanonicalCaseForLead({
+      leadId: lead.id,
+      agentId: agent.id,
+      actorId: agent.id,
+      scenarioId: scenarioFromCeremonyType(lead.ceremonyType),
+      stage: lead.meetings.length > 0 ? CaseStage.PLANNING : CaseStage.INTAKE,
+      idempotencyKey: `demo:case-created:${lead.id}`,
+      correlationId: `demo:${lead.id}`,
+    });
   }
 
   return { userId: user.id, agentId: agent.id, name: "Демо Агент" };

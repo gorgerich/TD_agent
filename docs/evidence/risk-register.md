@@ -14,9 +14,39 @@
 
 - Owner: Founder
 - Due: before the Week 2 Gate
-- Status: `OPEN`
-- Risk: ritual terminology, operational guards and both pilot paths have not
-  been validated by a practicing ritual-operations expert.
+- Status: `CLOSED` on 2026-07-14
+- Risk: ritual terminology, operational guards and both pilot paths required
+  validation by a practicing ritual-operations expert.
 - Minimum closure evidence: one active ritual agent or operations manager.
 - Target closure evidence: two independent experts.
 - Gate effect: Week 2 may start, but cannot close without SME validation.
+- Closure evidence: `docs/evidence/week-2-signoff.md` records the human verdict
+  of `SME-01`, an active ritual agent with 10 years of experience, against
+  implementation commit `f49497511035b849e1a7b8fb7c86444741cdb2e7`.
+- Result: cremation `PASS`; family-plot burial `PASS`; P0/P1 `NONE`; P2 `NONE`;
+  conformity with real ritual practice `YES`; final verdict `PASS`.
+- Target note: a second independent expert remains desirable but is not the
+  minimum Week 2 gate requirement.
+
+## RISK-RELEASE-A-AUTHENTICATED-SMOKE
+
+- Owner: Founder
+- Due: before production migration and PR #19 merge
+- Status: `OPEN`
+- Risk: Week 1 authenticated production smoke has not run because no existing
+  password-login credentials were available to the release operator.
+- Required closure evidence: password login with an existing account, direct
+  navigation only through the audited read-only allowlist, tenant isolation and
+  browser-console verification, with no production mutation.
+- Forbidden closure shortcuts: demo login, OTP, account creation, `/co/[code]`
+  or documentary waiver.
+
+## RISK-RELEASE-A-DELTA-WINDOW
+
+- Owner: Founder
+- Due: before production migration
+- Status: `OPEN`
+- Risk: old application writes between canonical backfill and new-code deployment
+  can create leads or artifacts without matching canonical case/event state.
+- Required mitigation: enforced mutation/webhook freeze from before migration
+  until new deployment and authenticated smoke are green.

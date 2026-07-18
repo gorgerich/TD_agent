@@ -37,8 +37,23 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Prepare isolated test database
-        run: npx prisma db push --skip-generate
+      - name: Verify Week 2 legacy backfill fixtures
+        run: |
+          set -euo pipefail
+          MIGRATION_DB=td_agent_migration_test
+          ADMIN_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          MIGRATION_URL=postgresql://postgres:postgres@127.0.0.1:5432/$MIGRATION_DB
+          trap 'psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $MIGRATION_DB WITH (FORCE);"' EXIT
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $MIGRATION_DB WITH (FORCE);"
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE $MIGRATION_DB"
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260713000000_baseline/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/week2-backfill-fixtures.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260714090000_week2_canonical_case/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/week2-backfill-assertions.sql
+      - name: Apply migrations to isolated test database
+        run: npx prisma migrate deploy
+      - name: Verify migration/schema parity
+        run: npx prisma migrate diff --from-url "$DATABASE_URL_UNPOOLED" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
