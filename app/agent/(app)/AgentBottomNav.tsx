@@ -11,7 +11,7 @@ const TABS = [
   { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/estimates", icon: FileText, label: "Сметы" },
-  { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
+  { href: "/agent/tasks", icon: CheckSquare, label: "Сегодня" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
 export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
