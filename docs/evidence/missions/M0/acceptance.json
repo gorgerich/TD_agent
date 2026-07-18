@@ -1,0 +1,25 @@
+{
+  "mission": "M0",
+  "acceptance": [
+    {
+      "id": "M0-AC-01",
+      "status": "PASS",
+      "evidence": "Production main and deployment resolve to d8c2f47611b6ebda939718a8ae81afc8f61c1452."
+    },
+    {
+      "id": "M0-AC-02",
+      "status": "PASS",
+      "evidence": "Release Phase 2 migration, smoke, unfreeze and risk closure are recorded in release-phase-2.md."
+    },
+    {
+      "id": "M0-AC-03",
+      "status": "PASS",
+      "evidence": "Historical BLOCKED and NOT RUN records receive additive closure notes instead of rewritten history."
+    },
+    {
+      "id": "M0-AC-04",
+      "status": "PASS",
+      "evidence": "RISK-W1-TECH-HUMAN-REVIEW remains OPEN."
+    }
+  ]
+}

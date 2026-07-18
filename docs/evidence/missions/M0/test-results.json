@@ -1,0 +1,13 @@
+{
+  "mission": "M0",
+  "state": "SELF_VERIFYING",
+  "baseSha": "d8c2f47611b6ebda939718a8ae81afc8f61c1452",
+  "checks": {
+    "productionMetadata": "PASS",
+    "productionReadOnlyHttpSmoke": "PASS",
+    "evidenceOnlyDiff": "PENDING_COMMIT",
+    "githubCi": "PENDING_COMMIT",
+    "skipped": 0,
+    "notRun": 0
+  }
+}

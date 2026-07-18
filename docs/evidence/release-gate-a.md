@@ -244,3 +244,23 @@ Separate Founder authorization is required for:
 4. production baseline resolve and Week 2 migrate deploy;
 5. PR #19 merge and automatic Vercel production deployment;
 6. post-deployment authenticated smoke and release of the write freeze.
+
+## Closure addendum — 2026-07-18
+
+This document preserves the Release Gate A state as observed on 2026-07-14/15.
+The blockers and remaining authorizations above were subsequently resolved and
+executed under explicit Founder authorization in Release Phase 2.
+
+Current authoritative status is recorded in
+`docs/evidence/release-phase-2.md`:
+
+- authenticated production smoke: `PASS`;
+- fresh encrypted backup and isolated restore: `PASS`;
+- production baseline resolve and Week 2 migration: `PASS`;
+- PR #19 merge and exact-SHA deployment: `PASS`;
+- delta-window freeze and post-release reconciliation: `PASS`;
+- final freeze state: `disabled`;
+- `RELEASE_PHASE_2: PASS`.
+
+Historical fingerprints, counts and `BLOCKED` labels earlier in this file are
+not the current production status and were not rewritten.
