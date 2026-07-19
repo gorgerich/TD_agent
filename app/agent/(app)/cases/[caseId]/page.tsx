@@ -10,7 +10,7 @@ import {
   Warning,
   Phone,
 } from "@phosphor-icons/react/dist/ssr";
-import { getAgentSession } from "@/lib/auth";
+import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
@@ -26,59 +26,77 @@ const SOURCE_LABELS: Record<string, string> = {
 
 type Activity = { at: number; label: string; sub?: string };
 
-async function getCase(caseId: number, agentId: number) {
-  try {
-    return await prisma.clientLead.findFirst({
-      where: {
-        id: caseId,
-        ...(agentId
-          ? { OR: [{ agentId }, { meetings: { some: { agentId } } }] }
-          : {}),
+async function getCase(caseId: number, session: AgentSession) {
+  return prisma.clientLead.findFirst({
+    where: {
+      id: caseId,
+      case: {
+        tenantId: session.organizationId,
+        ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
       },
-      include: {
-        meetings: {
-          orderBy: { id: "asc" },
-          select: {
-            id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
-            quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
-            orders: { select: { status: true, createdAt: true } },
-          },
+    },
+    include: {
+      meetings: {
+        orderBy: { id: "asc" },
+        select: {
+          id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
+          quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
+          orders: { select: { status: true, createdAt: true } },
         },
       },
-    });
-  } catch {
-    return null;
-  }
+    },
+  });
 }
 
-export default async function CasePage({ params }: { params: Promise<{ caseId: string }> }) {
+export default async function CasePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ caseId: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { caseId } = await params;
+  const requestedTab = (await searchParams).tab;
+  const initialTab = requestedTab === "docs" || requestedTab === "family" || requestedTab === "history" ? requestedTab : "work";
   const id = Number(caseId);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   const session = await getAgentSession();
+  if (!session) notFound();
   const projectionNow = new Date();
   const [lead, canonicalCase] = await Promise.all([
-    getCase(id, session?.agentId ?? 0),
-    getCanonicalCase(session?.agentId ?? 0, id, projectionNow),
+    getCase(id, session),
+    getCanonicalCase(session, id, projectionNow),
   ]);
   if (!lead || !canonicalCase) notFound();
 
   // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
   const [rawTasks, rawNotes, rawDocs, rawPayments, rawEvents] = await Promise.all([
-    prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.casePayment.findMany({ where: { leadId: id }, orderBy: { paidAt: "desc" } }).catch(() => []),
+    prisma.task.findMany({
+      where: { leadId: id, organizationId: session.organizationId },
+      orderBy: { createdAt: "desc" },
+      include: { assignee: { select: { user: { select: { name: true } } } } },
+    }),
+    prisma.caseNote.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
+    prisma.document.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
+    prisma.casePayment.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { paidAt: "desc" } }),
     prisma.caseEvent.findMany({
       where: { case: { leadId: id, tenantId: canonicalCase.tenantId } },
       orderBy: { createdAt: "desc" },
       select: { id: true, eventType: true, createdAt: true, fromStage: true, toStage: true },
-    }).catch(() => []),
+    }),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
     title: t.title,
+    type: t.type,
+    priority: t.priority,
+    status: t.status,
+    source: t.sourceEventId ? "Событие кейса" : "Агент",
+    expectedOutcome: t.expectedOutcome,
+    waitingReason: t.waitingReason,
+    ownerName: t.assignee?.user.name ?? "Не назначено",
+    version: t.version,
     dueAt: t.dueAt?.toISOString() ?? null,
     completedAt: t.completedAt?.toISOString() ?? null,
   }));
@@ -160,7 +178,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt)}` : "без срока",
     `версия кейса ${canonicalCase.version}`,
   ];
-  const openTasksCount = tasks.filter((task) => !task.completedAt).length;
+  const openTasksCount = tasks.filter((task) => task.status === "OPEN").length;
   const lastActivityText = activity[0]?.label ?? "Активности нет";
 
   return (
@@ -245,6 +263,8 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           context={context}
           payments={payments}
           activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
+          initialTab={initialTab}
+          canMutate={session.role !== "ADMIN"}
         />
       </main>
     </div>

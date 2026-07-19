@@ -9,8 +9,8 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAgent(req);
-    assertCapability(session, "work:read");
-    const projection = await ensurePastMeetingEscalations(session.organizationId);
+    assertCapability(session, "work:mutate-own");
+    const projection = await ensurePastMeetingEscalations(session);
     const reconciliation = await reconcileOperations(session.organizationId);
     return NextResponse.json({ projection, reconciliation });
   } catch (error) {

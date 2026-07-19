@@ -388,6 +388,7 @@ function QueueRow({
   onRefresh: () => void;
 }) {
   const isDirectOutcome = item.kind === "TASK" && item.actionLabel === "Зафиксировать результат";
+  const allowsSecondaryOutcome = item.kind === "TASK" && !isDirectOutcome && item.actionLabel !== "Зафиксировать исход";
   return (
     <li className="td-entity-row min-w-0 px-4 py-4 sm:px-5">
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)_auto] xl:items-center">
@@ -426,7 +427,7 @@ function QueueRow({
               <ArrowRight size={14} weight="bold" />
             </Link>
           )}
-          {item.kind === "TASK" && !isDirectOutcome && (
+          {allowsSecondaryOutcome && (
             <button type="button" onClick={onBeginCompletion} className={buttonClasses({ variant: "ghost", size: "sm" })}>
               Зафиксировать результат
             </button>
@@ -486,11 +487,11 @@ function QueueRow({
 function Metadata({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex min-w-0 items-start gap-2">
-      <span className="mt-px flex-none text-ink-3" aria-hidden>{icon}</span>
-      <div className="min-w-0">
-        <dt className="sr-only">{label}</dt>
-        <dd className="break-words"><span className="text-ink-3">{label}:</span> <span className="font-medium text-ink-2">{value}</span></dd>
-      </div>
+      <dt className="mt-px flex-none text-ink-3">
+        <span aria-hidden>{icon}</span>
+        <span className="sr-only">{label}</span>
+      </dt>
+      <dd className="min-w-0 break-words"><span className="text-ink-3">{label}:</span> <span className="font-medium text-ink-2">{value}</span></dd>
     </div>
   );
 }

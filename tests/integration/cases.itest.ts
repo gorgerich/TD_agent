@@ -130,7 +130,7 @@ test("W2-09: an idempotency key cannot replay another case in the same tenant", 
   });
   assert.equal(aggregates.find((item) => item.leadId === leadIds[losingIndex])?.stage, "INTAKE");
   assert.equal(aggregates.find((item) => item.leadId !== leadIds[losingIndex])?.stage, "PLANNING");
-  assert.equal(await db.caseEvent.count({ where: { tenantId: `agent:${first.agentId}`, idempotencyKey: sharedKey } }), 1);
+  assert.equal(await db.caseEvent.count({ where: { tenantId: first.organizationId, idempotencyKey: sharedKey } }), 1);
 });
 
 test("AC-W2-01/W2-12: invalid transition is clear and has no side effects", opts, async () => {
@@ -217,12 +217,12 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   assert.equal(aggregate.stage, "CLOSED");
   assert.equal(await db.caseEvent.count({ where: { caseId: aggregate.id } }), 8);
   const [listProjection, detailProjection] = await Promise.all([
-    getCanonicalCases(fixture.agentId),
-    getCanonicalCase(fixture.agentId, leadId),
+    getCanonicalCases(fixture.context),
+    getCanonicalCase(fixture.context, leadId),
   ]);
   assert.equal(listProjection.find((item) => item.leadId === leadId)?.stage, aggregate.stage);
   assert.equal(detailProjection?.stage, aggregate.stage);
-  const report = await reconcileCaseState(fixture.agentId);
+  const report = await reconcileCaseState(fixture.context);
   assert.equal(report.discrepancyCount, 0, JSON.stringify(report.issues));
   assert.equal(report.leadCount, report.caseCount);
   assert.equal(report.documentCount, 1);

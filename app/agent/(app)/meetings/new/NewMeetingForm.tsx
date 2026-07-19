@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Warning } from "@phosphor-icons/react";
+import { WarningCircle } from "@phosphor-icons/react";
 import { phone as fmtPhone } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 
-type ClientOption = {
-  id: number;
-  name: string;
-  phone: string;
-};
+type ClientOption = { id: number; name: string; phone: string };
+type OwnerOption = { membershipId: string; name: string };
 
 function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -22,91 +19,157 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
   );
 }
 
-function FormInner({ clients }: { clients: ClientOption[] }) {
+function zonedLocalToIso(value: string, timezone: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  const desired = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+  let candidate = desired;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(candidate));
+    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
+    const represented = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
+    candidate += desired - represented;
+  }
+  return new Date(candidate).toISOString();
+}
+
+function FormInner({
+  clients,
+  owners,
+  defaultOwnerMembershipId,
+  timezone,
+}: {
+  clients: ClientOption[];
+  owners: OwnerOption[];
+  defaultOwnerMembershipId: string;
+  timezone: string;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [leadId, setLeadId] = useState(searchParams.get("leadId") ?? "");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [ownerMembershipId, setOwnerMembershipId] = useState(defaultOwnerMembershipId);
+  const [type, setType] = useState("CONSULTATION");
+  const [channel, setChannel] = useState("IN_PERSON");
+  const [location, setLocation] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState("60");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setLoading(true);
     setError(null);
+    const iso = scheduledAt ? zonedLocalToIso(scheduledAt, timezone) : null;
+    if (scheduledAt && !iso) {
+      setError("Проверьте дату и время.");
+      setLoading(false);
+      return;
+    }
     try {
-      const res = await fetch("/api/agent/meetings", {
+      const commandId = crypto.randomUUID();
+      const response = await fetch("/api/agent/meetings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: Number(leadId), scheduledAt: scheduledAt || undefined }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": commandId,
+          "X-Correlation-Id": commandId,
+        },
+        body: JSON.stringify({
+          leadId: Number(leadId),
+          scheduledAt: iso,
+          ownerMembershipId,
+          type,
+          channel,
+          location: location.trim() || null,
+          durationMinutes: Number(durationMinutes) || null,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? "Не удалось создать встречу. Попробуйте снова."); return; }
+      const data = await response.json().catch(() => null) as { id?: number; error?: string } | null;
+      if (!response.ok || !data?.id) {
+        setError(response.status === 409 ? "Такая команда уже обработана. Обновите календарь." : data?.error ?? "Не удалось создать встречу.");
+        return;
+      }
       router.push(`/agent/meetings/${data.id}`);
       router.refresh();
     } catch {
-      setError("Нет связи. Проверьте интернет и попробуйте снова.");
+      setError("Нет связи. Встреча не создана, повторите после восстановления подключения.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[620px] td-shell-elevated p-5 sm:p-7" aria-busy={loading}>
-      <div className="mb-6 flex items-start gap-3 border-b border-line pb-5">
-        <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-[13px] font-bold text-accent shadow-[var(--shadow-xs)]">1</span>
-        <span>
-          <span className="block text-[15px] font-semibold text-ink">Детали встречи</span>
-          <span className="mt-1 block text-[13px] leading-relaxed text-ink-3">Достаточно клиента и времени. Остальные детали заполняются уже в кейсе.</span>
-        </span>
-      </div>
-      <div className="space-y-5">
-        {clients.length > 0 ? (
-          <Field id="meeting-lead-id" label="Клиент" hint="Выберите клиента из текущих дел агента">
-            <select
-              id="meeting-lead-id"
-              className="td-field"
-              value={leadId}
-              onChange={(e) => setLeadId(e.target.value)}
-              required
-            >
+    <form onSubmit={handleSubmit} className="max-w-[720px] rounded-[var(--radius-card)] bg-surface px-5 py-5 shadow-[var(--shadow-xs),var(--hl-top)] sm:px-7 sm:py-6" aria-busy={loading}>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Field id="meeting-lead-id" label="Клиент" hint="Встреча всегда привязана к каноническому кейсу">
+            <select id="meeting-lead-id" className="td-field" value={leadId} onChange={(event) => setLeadId(event.target.value)} required>
               <option value="">Выберите клиента</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name} · {fmtPhone(client.phone)}
-                </option>
-              ))}
+              {clients.map((client) => <option key={client.id} value={client.id}>{client.name} · {fmtPhone(client.phone)}</option>)}
             </select>
           </Field>
-        ) : (
-          <Field id="meeting-lead-id" label="Клиент" hint="Клиенты не загрузились. Можно временно указать номер дела вручную">
-            <input id="meeting-lead-id" type="number" className="td-field" placeholder="Номер дела, например 1" value={leadId} onChange={(e) => setLeadId(e.target.value)} required min="1" />
-          </Field>
-        )}
+        </div>
 
-        <Field id="meeting-scheduled-at" label="Дата и время встречи">
-          <input id="meeting-scheduled-at" type="datetime-local" className="td-field" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+        <Field id="meeting-type" label="Тип встречи">
+          <select id="meeting-type" className="td-field" value={type} onChange={(event) => setType(event.target.value)}>
+            <option value="CONSULTATION">Консультация</option>
+            <option value="FOLLOW_UP">Повторная встреча</option>
+            <option value="DOCUMENT_REVIEW">Проверка документов</option>
+            <option value="CEREMONY_COORDINATION">Координация церемонии</option>
+            <option value="OTHER">Другая</option>
+          </select>
+        </Field>
+        <Field id="meeting-owner" label="Ответственный">
+          <select id="meeting-owner" className="td-field" value={ownerMembershipId} onChange={(event) => setOwnerMembershipId(event.target.value)} required>
+            {owners.map((owner) => <option key={owner.membershipId} value={owner.membershipId}>{owner.name}</option>)}
+          </select>
         </Field>
 
-        {error && (
-          <p role="alert" className="flex items-center gap-1.5 text-[13px] text-danger">
-            <Warning size={14} /> {error}
-          </p>
-        )}
+        <Field id="meeting-scheduled-at" label="Дата и время" hint={`24-часовой формат · ${timezone}. Можно оставить пустым, если время ещё не согласовано.`}>
+          <input id="meeting-scheduled-at" type="datetime-local" className="td-field" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+        </Field>
+        <Field id="meeting-duration" label="Длительность, минут">
+          <input id="meeting-duration" type="number" min={15} max={720} step={15} className="td-field" value={durationMinutes} onChange={(event) => setDurationMinutes(event.target.value)} />
+        </Field>
 
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <Button type="submit" size="lg" loading={loading} disabled={!leadId}>Создать встречу</Button>
-          <span className="text-[12px] text-ink-3">Время можно уточнить позже.</span>
-        </div>
+        <Field id="meeting-channel" label="Формат">
+          <select id="meeting-channel" className="td-field" value={channel} onChange={(event) => setChannel(event.target.value)}>
+            <option value="IN_PERSON">Лично</option>
+            <option value="PHONE">Телефон</option>
+            <option value="VIDEO">Видео</option>
+            <option value="OTHER">Другой</option>
+          </select>
+        </Field>
+        <Field id="meeting-location" label="Место или ссылка">
+          <input id="meeting-location" className="td-field" maxLength={300} value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Офис, адрес или ссылка" />
+        </Field>
+      </div>
+
+      {error && <p role="alert" className="mt-4 flex items-start gap-2 text-[13px] text-danger"><WarningCircle size={16} weight="fill" className="mt-0.5 flex-none" /> {error}</p>}
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <Button type="submit" size="lg" loading={loading} disabled={!leadId || !ownerMembershipId}>Создать встречу</Button>
+        <p className="text-[12px] text-ink-3">Пустая дата создаст честный статус «Время не согласовано».</p>
       </div>
     </form>
   );
 }
 
-export default function NewMeetingForm({ clients = [] }: { clients?: ClientOption[] }) {
-  return (
-    <Suspense>
-      <FormInner clients={clients} />
-    </Suspense>
-  );
+export default function NewMeetingForm(props: {
+  clients: ClientOption[];
+  owners: OwnerOption[];
+  defaultOwnerMembershipId: string;
+  timezone: string;
+}) {
+  return <Suspense><FormInner {...props} /></Suspense>;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Field } from "@/components/ui/Field";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { QuietShader } from "@/components/QuietShader";
@@ -19,8 +19,9 @@ import {
 
 type Mode = "login" | "register";
 
-export default function AgentLoginPage() {
+function AgentLoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,6 +30,17 @@ export default function AgentLoginPage() {
   const [loading, setLoading] = useState<"login" | "register" | "demo" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
+  const rawInviteToken = searchParams.get("invite")?.trim() ?? "";
+  const inviteToken = rawInviteToken.length >= 32 ? rawInviteToken : null;
+  const registrationAvailable = process.env.NODE_ENV !== "production" || Boolean(inviteToken);
+
+  useEffect(() => {
+    if (rawInviteToken) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invite");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, [rawInviteToken]);
 
   async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +54,7 @@ export default function AgentLoginPage() {
         body: JSON.stringify(
           mode === "login"
             ? { email, password }
-            : { name, email, phone, password },
+            : { name, email, phone, password, inviteToken: inviteToken ?? undefined },
         ),
       });
       const data = await res.json();
@@ -141,7 +153,7 @@ export default function AgentLoginPage() {
           <section className="td-shell">
             <div className="td-core p-5 sm:p-7">
               <div className="td-segmented w-full">
-                {(["login", "register"] as const).map((item) => (
+                {(["login", ...(registrationAvailable ? ["register" as const] : [])] as const).map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -163,8 +175,10 @@ export default function AgentLoginPage() {
               </h2>
               <p className="mt-2 text-[14px] leading-6 text-ink-2">
                 {isRegister
-                  ? "Профиль будет создан в постоянной базе и сразу откроет агентский кабинет."
-                  : "Используйте email и пароль агента. Демо-вход оставлен ниже отдельным вариантом."}
+                  ? "Приглашение привяжет профиль к рабочей организации и роли, указанной администратором."
+                  : registrationAvailable
+                    ? "Используйте email и пароль агента или перейдите к регистрации по приглашению."
+                    : "Используйте email и пароль агента. Новые рабочие аккаунты создаются только по приглашению организации."}
               </p>
 
               <form onSubmit={submitAuth} aria-busy={loading === mode} className="mt-8 grid gap-4">
@@ -279,4 +293,8 @@ export default function AgentLoginPage() {
       </main>
     </div>
   );
+}
+
+export default function AgentLoginPage() {
+  return <Suspense><AgentLoginContent /></Suspense>;
 }

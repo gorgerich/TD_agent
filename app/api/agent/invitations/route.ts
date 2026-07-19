@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { assertCapability } from "@/lib/operationalAuth";
 import { createInvitationToken, hashInvitationToken } from "@/lib/invitations";
 import { normalizeEmail } from "@/lib/agentAuth";
+import { runOperationalTransaction } from "@/lib/operationalTransaction";
 
 export const runtime = "nodejs";
 
@@ -25,7 +27,9 @@ export async function POST(req: NextRequest) {
     if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
 
     const token = createInvitationToken();
-    const invite = await prisma.$transaction(async (tx) => {
+    let invite;
+    try {
+      invite = await runOperationalTransaction(async (tx) => {
       const replay = await tx.operationalAuditEvent.findUnique({
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
       });
@@ -55,7 +59,15 @@ export async function POST(req: NextRequest) {
         },
       });
       return { id: created.id, replayed: false };
-    });
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const replay = await prisma.operationalAuditEvent.findUnique({
+        where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
+      });
+      if (!replay || replay.action !== "membership.invited") throw error;
+      invite = { id: replay.entityId, replayed: true };
+    }
 
     return NextResponse.json({ ...invite, token: invite.replayed ? undefined : token }, { status: invite.replayed ? 200 : 201 });
   } catch (error) {

@@ -9,7 +9,20 @@ import { DocumentsSection } from "./DocumentsSection";
 import { IntakeSection, type Intake } from "./IntakeSection";
 import { PaymentsSection, type PaymentItem } from "./PaymentsSection";
 
-type TaskItem = { id: number; title: string; dueAt: string | null; completedAt: string | null };
+type TaskItem = {
+  id: number;
+  title: string;
+  type: string;
+  priority: string;
+  status: string;
+  source: string;
+  expectedOutcome: string | null;
+  waitingReason: string | null;
+  ownerName: string;
+  version: number;
+  dueAt: string | null;
+  completedAt: string | null;
+};
 type NoteItem = { id: number; body: string; createdAt: string };
 type DocItem = { id: number; name: string; category: string; url: string; mimeType: string; size: number; createdAt: string };
 type ActivityItem = { label: string; sub?: string };
@@ -25,6 +38,8 @@ export function CaseTabs({
   context,
   payments,
   activity,
+  initialTab = "work",
+  canMutate = true,
 }: {
   caseId: number;
   tasks: TaskItem[];
@@ -34,9 +49,11 @@ export function CaseTabs({
   context: string | null;
   payments: PaymentItem[];
   activity: ActivityItem[];
+  initialTab?: TabId;
+  canMutate?: boolean;
 }) {
-  const [tab, setTab] = useState<TabId>("work");
-  const openTasks = tasks.filter((task) => !task.completedAt).length;
+  const [tab, setTab] = useState<TabId>(initialTab);
+  const openTasks = tasks.filter((task) => task.status === "OPEN").length;
   const missingDocs = docs.length === 0;
 
   const tabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
@@ -100,7 +117,7 @@ export function CaseTabs({
           {tab === "work" && (
             <div className={s.workGrid}>
               <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
-                <TasksSection caseId={caseId} initial={tasks} />
+                <TasksSection caseId={caseId} initial={tasks} canMutate={canMutate} />
               </Section>
               <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
                 <PaymentsSection caseId={caseId} initial={payments} />

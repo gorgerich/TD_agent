@@ -2,6 +2,7 @@ import type { CaseStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { CASE_STAGES } from "@/lib/caseDomain";
 import { tenantIdForAgent } from "@/lib/caseService";
+import type { OperationalContext } from "@/lib/operationalAuth";
 
 export type CaseReconciliationIssue = {
   code: "MISSING_CASE" | "TENANT_OWNER_MISMATCH" | "STAGE_BEHIND_ARTIFACTS" | "DOCUMENT_TENANT_MISMATCH";
@@ -18,10 +19,18 @@ export type CaseReconciliationReport = {
   discrepancyCount: number;
 };
 
-export async function reconcileCaseState(agentId: number): Promise<CaseReconciliationReport> {
-  const tenantId = tenantIdForAgent(agentId);
+export async function reconcileCaseState(scope: number | OperationalContext): Promise<CaseReconciliationReport> {
+  const legacy = typeof scope === "number";
+  const agentId = legacy ? scope : scope.agentId;
+  const tenantId = legacy ? tenantIdForAgent(agentId) : scope.organizationId;
+  const agentIds = legacy || scope.role === "AGENT"
+    ? [agentId]
+    : (await prisma.membership.findMany({
+        where: { organizationId: tenantId, agentId: { not: null } },
+        select: { agentId: true },
+      })).flatMap((membership) => membership.agentId == null ? [] : [membership.agentId]);
   const leads = await prisma.clientLead.findMany({
-    where: { agentId },
+    where: { agentId: { in: agentIds } },
     select: {
       id: true,
       agentId: true,
@@ -42,10 +51,10 @@ export async function reconcileCaseState(agentId: number): Promise<CaseReconcili
       issues.push({ code: "MISSING_CASE", leadId: lead.id, detail: "ClientLead не имеет canonical Case" });
       continue;
     }
-    if (lead.case.tenantId !== tenantId || lead.case.ownerId !== agentId) {
+    if (lead.case.tenantId !== tenantId || lead.case.ownerId !== lead.agentId) {
       issues.push({ code: "TENANT_OWNER_MISMATCH", leadId: lead.id, detail: "Case tenant/owner не совпадает с владельцем ClientLead" });
     }
-    if (lead.documents.some((document) => document.agentId !== agentId)) {
+    if (lead.documents.some((document) => document.agentId !== lead.agentId)) {
       issues.push({ code: "DOCUMENT_TENANT_MISMATCH", leadId: lead.id, detail: "Document owner не совпадает с tenant кейса" });
     }
     const minimumStage = inferMinimumStage(lead);

@@ -13,6 +13,7 @@ import {
 import { tenantIdForAgent } from "@/lib/caseService";
 import type { Stage } from "@/lib/case";
 import type { StatusTone, WaitingOn } from "@/lib/caseStatus";
+import type { OperationalContext } from "@/lib/operationalAuth";
 
 export type CanonicalCaseReadModel = {
   caseId: string;
@@ -57,10 +58,11 @@ export type CanonicalCaseReadModel = {
   quoteVersionCount: number;
 };
 
-export async function getCanonicalCases(agentId: number, now = new Date()): Promise<CanonicalCaseReadModel[]> {
-  if (!agentId) return [];
+export async function getCanonicalCases(scope: number | OperationalContext, now = new Date()): Promise<CanonicalCaseReadModel[]> {
+  const where = caseScope(scope);
+  if (!where) return [];
   const records = await prisma.case.findMany({
-    where: { tenantId: tenantIdForAgent(agentId), ownerId: agentId },
+    where,
     orderBy: { updatedAt: "desc" },
     take: 400,
     include: caseReadInclude,
@@ -68,10 +70,11 @@ export async function getCanonicalCases(agentId: number, now = new Date()): Prom
   return records.map((record) => toReadModel(record, now));
 }
 
-export async function getCanonicalCase(agentId: number, leadId: number, now = new Date()): Promise<CanonicalCaseReadModel | null> {
-  if (!agentId) return null;
+export async function getCanonicalCase(scope: number | OperationalContext, leadId: number, now = new Date()): Promise<CanonicalCaseReadModel | null> {
+  const where = caseScope(scope);
+  if (!where) return null;
   const record = await prisma.case.findFirst({
-    where: { leadId, tenantId: tenantIdForAgent(agentId), ownerId: agentId },
+    where: { ...where, leadId },
     include: caseReadInclude,
   });
   return record ? toReadModel(record, now) : null;
@@ -80,10 +83,13 @@ export async function getCanonicalCase(agentId: number, leadId: number, now = ne
 const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
   publishedQuoteVersion: { select: { id: true, total: true } },
   events: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
+  tasks: {
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, dueAt: true, completedAt: true, createdAt: true },
+  },
   lead: {
     include: {
       documents: { orderBy: { createdAt: "desc" }, select: { category: true, createdAt: true } },
-      tasks: { orderBy: { createdAt: "desc" }, select: { id: true, dueAt: true, completedAt: true, createdAt: true } },
       notes: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
       payments: { orderBy: { paidAt: "desc" }, select: { amountKopecks: true, paidAt: true } },
       meetings: {
@@ -106,7 +112,7 @@ type CaseRecord = Prisma.CaseGetPayload<{ include: typeof caseReadInclude }>;
 
 function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
   const guardState = normalizeGuardState(record.guardState);
-  const openTasks = record.lead.tasks.filter((task) => !task.completedAt);
+  const openTasks = record.tasks.filter((task) => task.status === "OPEN");
   const overdueTaskCount = openTasks.filter((task) => task.dueAt && task.dueAt < now).length;
   const nextOpenTaskDueAt = openTasks
     .map((task) => task.dueAt)
@@ -147,7 +153,7 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     record.updatedAt,
     record.events[0]?.createdAt,
     record.lead.documents[0]?.createdAt,
-    record.lead.tasks[0]?.createdAt,
+    record.tasks[0]?.createdAt,
     record.lead.notes[0]?.createdAt,
     record.lead.payments[0]?.paidAt,
     ...record.lead.meetings.flatMap((meeting) => [meeting.scheduledAt, meeting.startedAt, meeting.endedAt]),
@@ -194,6 +200,17 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     openTaskCount: openTasks.length,
     overdueTaskCount,
     quoteVersionCount,
+  };
+}
+
+function caseScope(scope: number | OperationalContext): Prisma.CaseWhereInput | null {
+  if (typeof scope === "number") {
+    return scope > 0 ? { tenantId: tenantIdForAgent(scope), ownerId: scope } : null;
+  }
+  if (scope.agentId <= 0) return null;
+  return {
+    tenantId: scope.organizationId,
+    ...(scope.role === "AGENT" ? { ownerId: scope.agentId } : {}),
   };
 }
 

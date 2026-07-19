@@ -9,6 +9,7 @@ import { buttonClasses } from "@/components/ui/Button";
 
 export type CalEvent = {
   id: number;
+  caseId: string;
   leadId: number;
   kind: "meeting" | "ceremony";
   name: string;
@@ -21,109 +22,97 @@ export type CalEvent = {
   nextAction: string;
   hasQuote: boolean;
   docCount: number;
+  channel?: string;
   place?: string | null;
+  outcome?: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  TENTATIVE: "Время не согласовано",
   SCHEDULED: "Запланирована",
-  IN_PROGRESS: "Идёт",
+  CONFIRMED: "Подтверждена",
   COMPLETED: "Завершена",
+  NO_SHOW: "Не состоялась",
   CANCELLED: "Отменена",
   CEREMONY: "Церемония",
 };
-const STATUS_DOT: Record<string, string> = {
-  SCHEDULED: "bg-info",
-  IN_PROGRESS: "bg-warning",
-  COMPLETED: "bg-success",
-  CANCELLED: "bg-ink-3",
-  CEREMONY: "bg-danger",
-};
-const STATUS_BAR: Record<string, string> = {
-  SCHEDULED: "before:bg-info",
-  IN_PROGRESS: "before:bg-warning",
-  COMPLETED: "before:bg-success",
-  CANCELLED: "before:bg-ink-3",
-  CEREMONY: "before:bg-danger",
-};
 
-// Чек-лист дня церемонии (не зависит от этапа кейса)
 const CEREMONY_PREP = [
   "Подтвердить транспорт и время выезда",
-  "Документы семье на руки",
-  "Связаться с площадкой (кладбище / крематорий)",
+  "Проверить комплект документов",
+  "Связаться с площадкой",
 ];
 
-// Что подготовить к встрече - по текущей стадии кейса.
 const STAGE_PREP: Record<Stage, string[]> = {
-  "Лид": ["Уточнить пожелания и бюджет семьи", "Подготовить типовые пакеты услуг"],
-  "Документы": ["Взять бланки договора и согласий", "Список документов от семьи (паспорт, свидетельство)"],
-  "Смета": ["Открыть смету для показа клиенту", "Подготовить 2-3 варианта пакета"],
-  "Договор": ["Распечатать/открыть договор", "Реквизиты и условия оплаты"],
-  "Оплата": ["Подтвердить детали оплаты", "Подготовить чек/квитанцию"],
-  "Завершено": ["Передать финальные документы", "Собрать обратную связь"],
+  "Лид": ["Уточнить пожелания и бюджет семьи", "Подготовить варианты организации"],
+  "Документы": ["Проверить список документов", "Зафиксировать отсутствующие документы"],
+  "Смета": ["Открыть актуальную версию сметы", "Подготовить варианты в рамках бюджета"],
+  "Договор": ["Проверить условия договора", "Согласовать следующий шаг"],
+  "Оплата": ["Подтвердить график оплаты", "Зафиксировать договорённость"],
+  "Завершено": ["Передать финальные документы", "Зафиксировать итог кейса"],
 };
 
-export function EventRow({ event: e }: { event: CalEvent }) {
+export function EventRow({ event }: { event: CalEvent }) {
   const [open, setOpen] = useState(false);
+  const statusLabel = event.past && event.kind === "meeting" ? "Нужен итог" : (STATUS_LABELS[event.status] ?? event.status);
 
   return (
     <li className="border-b border-line last:border-0">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className={`td-entity-row group relative grid w-full min-w-0 grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-2.5 py-3 pl-5 pr-4 text-left before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[52px_minmax(0,1fr)_auto_auto] sm:gap-3.5 ${STATUS_BAR[e.status] ?? "before:bg-ink-3"} ${e.past ? "opacity-55" : ""}`}
+        className="td-entity-row group grid w-full min-w-0 grid-cols-[88px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left sm:grid-cols-[110px_minmax(0,1fr)_160px_auto]"
       >
-        <span className="tnum text-[14px] font-semibold text-ink">{e.time}</span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{e.name}</span>
-        <span className="hidden items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[12px] font-medium text-ink-2 sm:inline-flex">
-          <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[e.status] ?? "bg-ink-3"}`} />
-          {STATUS_LABELS[e.status] ?? e.status}
+        <span className={`tnum text-[13px] font-semibold ${event.status === "TENTATIVE" ? "text-warning" : "text-ink"}`}>{event.time}</span>
+        <span className="min-w-0">
+          <span className="block truncate text-[14px] font-semibold text-ink">{event.name}</span>
+          <span className="mt-0.5 block truncate text-[11px] text-ink-3">{event.nextAction}</span>
         </span>
-        <CaretDown size={16} className={`flex-shrink-0 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} />
+        <span className={`hidden text-[12px] font-medium sm:block ${event.past ? "text-danger" : "text-ink-2"}`}>{statusLabel}</span>
+        <CaretDown size={16} weight="bold" className={`flex-none text-ink-3 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="border-t border-line bg-surface-2/40 px-5 py-4">
+        <div className="border-t border-line bg-surface-2/45 px-4 py-4">
           <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0">
-              <p className={`td-eyebrow ${e.kind === "ceremony" ? "text-danger" : "text-accent"}`}>
-                {e.kind === "ceremony" ? "День церемонии" : "Подготовка к встрече"}
+              <p className="text-[12px] font-semibold text-ink">
+                {event.kind === "ceremony" ? "Контроль дня церемонии" : event.past ? "Зафиксируйте результат встречи" : "Подготовка"}
               </p>
-              <p className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-2">
-                {e.kind === "ceremony" ? (
-                  e.place && <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2 py-0.5 text-[12px] font-medium text-danger">{e.place}</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[12px] font-medium text-accent">{e.stage}</span>
-                )}
-                <span className="text-ink-3">·</span>
-                <a href={`tel:${e.phone}`} className="inline-flex items-center gap-1 text-ink-2 hover:text-accent"><Phone size={13} /> {fmtPhone(e.phone)}</a>
+              <p className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
+                <span>{event.kind === "ceremony" ? "Церемония" : STATUS_LABELS[event.status]}</span>
+                {event.place && <><span aria-hidden>·</span><span>{event.place}</span></>}
+                <span aria-hidden>·</span>
+                <a href={`tel:${event.phone}`} className="inline-flex items-center gap-1 hover:text-accent"><Phone size={13} weight="bold" /> {fmtPhone(event.phone)}</a>
               </p>
-              <ul className="mt-3 space-y-1.5">
-                {(e.kind === "ceremony" ? CEREMONY_PREP : STAGE_PREP[e.stage]).map((item) => (
-                  <li key={item} className="flex items-start gap-2 text-[13px] text-ink">
-                    <Check size={14} weight="bold" className="mt-0.5 flex-shrink-0 text-accent" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              {e.kind !== "ceremony" && (
-                <p className="mt-3 text-[12px] text-ink-3">
-                  Смета: {e.hasQuote ? "собрана" : "не собрана"} · Документов: {e.docCount}
-                </p>
+              {event.outcome ? (
+                <p className="mt-3 max-w-[66ch] text-[13px] leading-relaxed text-ink-2"><strong className="text-ink">Результат:</strong> {event.outcome}</p>
+              ) : (
+                <ul className="mt-3 space-y-1.5">
+                  {(event.kind === "ceremony" ? CEREMONY_PREP : STAGE_PREP[event.stage]).map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-[13px] text-ink-2">
+                      <Check size={14} weight="bold" className="mt-0.5 flex-none text-accent" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {event.kind !== "ceremony" && (
+                <p className="mt-3 text-[11px] text-ink-3">Смета: {event.hasQuote ? "есть" : "не собрана"} · Документов: {event.docCount}</p>
               )}
             </div>
-            <div className={`grid gap-2 sm:flex sm:flex-col ${e.kind === "ceremony" ? "grid-cols-2" : "grid-cols-3"}`}>
-              <Link href={`/agent/cases/${e.leadId}`} className={buttonClasses({ size: "sm", className: "justify-center" })}>
-                <Briefcase size={14} weight="bold" /> Кейс
+            <div className={`grid gap-2 sm:flex sm:flex-col ${event.kind === "ceremony" ? "grid-cols-2" : "grid-cols-3"}`}>
+              <Link href={`/agent/cases/${event.leadId}?tab=work`} className={buttonClasses({ size: "sm", className: "justify-center" })}>
+                <Briefcase size={14} weight="fill" /> Кейс
               </Link>
-              {e.kind !== "ceremony" && (
-                <Link href={`/agent/meetings/${e.id}/quote`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
-                  <FileText size={14} /> Смета
+              {event.kind !== "ceremony" && (
+                <Link href={`/agent/meetings/${event.id}`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
+                  <FileText size={14} weight="bold" /> Встреча
                 </Link>
               )}
-              <Link href={`/agent/documents`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
-                <Files size={14} /> Док-ты
+              <Link href={`/agent/documents?case=${event.leadId}`} className={buttonClasses({ variant: "secondary", size: "sm", className: "justify-center" })}>
+                <Files size={14} weight="bold" /> Документы
               </Link>
             </div>
           </div>

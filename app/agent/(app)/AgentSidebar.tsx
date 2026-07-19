@@ -269,6 +269,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         ].join(" ")}
         aria-hidden={!open}
+        inert={!open}
       >
         <div className="absolute inset-0 bg-ink/24 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
         <nav

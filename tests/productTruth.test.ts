@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { IDS, MONEY, NOW, PAST_MEETING, eventEnvelope } from "./fixtures/productTruth";
 import { InMemoryTestStorage } from "./fixtures/testStorage";
 import { isIsolatedTestDatabase } from "./integration/testDatabaseSafety";
+import { productionRegistrationRequiresInvite } from "../lib/invitations";
 
 type MoneyValue = { kind: "KNOWN"; kopecks: number } | { kind: "UNKNOWN" };
 type QuoteVersion = { id: string; state: "DRAFT" | "PUBLISHED"; total: MoneyValue };
@@ -168,9 +169,17 @@ test("test storage fixture is isolated and deterministic", () => {
   assert.equal(storage.get("document-version-001"), null);
 });
 
-test("integration DB guard allows only exact local td_agent_test", () => {
+test("integration DB guard allows only approved exact local test databases", () => {
   assert.equal(isIsolatedTestDatabase("postgresql://postgres:postgres@127.0.0.1:5432/td_agent_test"), true);
+  assert.equal(isIsolatedTestDatabase("postgresql://local@127.0.0.1:5432/td_agent_m1_local_20260718"), true);
   assert.equal(isIsolatedTestDatabase("postgresql://postgres:postgres@localhost:5432/td_agent_prod"), false);
+  assert.equal(isIsolatedTestDatabase("postgresql://local@127.0.0.1:5432/td_agent_m1_local_20260718_copy"), false);
   assert.equal(isIsolatedTestDatabase("postgresql://user:pass@example.com/td_agent_test"), false);
   assert.equal(isIsolatedTestDatabase(undefined), false);
+});
+
+test("M1 production registration is invite-only", () => {
+  assert.equal(productionRegistrationRequiresInvite("production"), true);
+  assert.equal(productionRegistrationRequiresInvite("development"), false);
+  assert.equal(productionRegistrationRequiresInvite("test"), false);
 });

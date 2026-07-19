@@ -3,6 +3,7 @@ import { appendOperationalAudit, findOperationalReplay } from "@/lib/operational
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { closeMeetingEscalationInTransaction } from "@/lib/operationsProjection";
+import { prisma } from "@/lib/prisma";
 
 export type MeetingCommandMeta = {
   idempotencyKey: string;
@@ -38,7 +39,7 @@ export async function createMeeting(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runOperationalTransaction(async (tx) => {
+  return runMeetingCommand(context.organizationId, meta.idempotencyKey, "meeting.created", async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "meeting.created");
     if (replay) return replay;
 
@@ -182,7 +183,7 @@ async function changeMeeting(
   change: (tx: Prisma.TransactionClient, current: LoadedMeeting) => Promise<LoadedMeeting>,
   reason?: string,
 ) {
-  return runOperationalTransaction(async (tx) => {
+  return runMeetingCommand(context.organizationId, meta.idempotencyKey, action, async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action);
     if (replay) return replay;
     const current = await loadMeeting(tx, context, meetingId);
@@ -206,6 +207,22 @@ async function changeMeeting(
     });
     return result;
   });
+}
+
+async function runMeetingCommand(
+  organizationId: string,
+  idempotencyKey: string,
+  action: string,
+  command: (tx: Prisma.TransactionClient) => Promise<MeetingResult>,
+) {
+  try {
+    return await runOperationalTransaction(command);
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action));
+    if (replay) return replay;
+    throw error;
+  }
 }
 
 async function loadMeeting(tx: Prisma.TransactionClient, context: OperationalContext, meetingId: number) {

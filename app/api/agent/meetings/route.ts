@@ -17,15 +17,19 @@ const CreateMeetingSchema = z.object({
   attendees: z.array(z.object({ label: z.string().min(1).max(120), role: z.string().max(80).optional() })).max(20).optional(),
 });
 
+const MeetingStatusSchema = z.enum(["TENTATIVE", "SCHEDULED", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"]);
+
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAgent(req);
-    const status = new URL(req.url).searchParams.get("status") ?? undefined;
+    const rawStatus = new URL(req.url).searchParams.get("status");
+    const parsedStatus = rawStatus ? MeetingStatusSchema.safeParse(rawStatus) : null;
+    if (parsedStatus && !parsedStatus.success) return jsonError(400, "Неизвестный статус встречи");
     const meetings = await prisma.meeting.findMany({
       where: {
         organizationId: session.organizationId,
         ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
-        ...(status ? { operationalStatus: status as never } : {}),
+        ...(parsedStatus?.success ? { operationalStatus: parsedStatus.data } : {}),
       },
       orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
       take: 300,

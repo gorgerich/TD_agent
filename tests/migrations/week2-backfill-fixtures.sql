@@ -28,6 +28,10 @@ INSERT INTO "Meeting" ("id", "leadId", "agentId", "status", "coViewedAt") VALUES
   (9205, 9105, 9001, 'COMPLETED', NULL),
   (9206, 9106, 9001, 'COMPLETED', CURRENT_TIMESTAMP);
 
+INSERT INTO "Task" ("id", "leadId", "agentId", "title", "dueAt", "completedAt", "createdAt") VALUES
+  (9251, 9101, 9001, 'Legacy open task', CURRENT_TIMESTAMP + INTERVAL '1 day', NULL, CURRENT_TIMESTAMP),
+  (9252, 9102, 9001, 'Legacy completed task', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
 INSERT INTO "Quote" ("id", "meetingId") VALUES
   (9301, 9201), (9302, 9202), (9303, 9203), (9304, 9204), (9306, 9206);
 

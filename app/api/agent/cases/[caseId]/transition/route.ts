@@ -4,6 +4,7 @@ import { CASE_TRANSITION_EVENTS, CaseDomainError } from "@/lib/caseDomain";
 import { transitionCase } from "@/lib/caseService";
 import { getSessionFromRequest } from "@/lib/auth";
 import { handleApiError, parseId } from "@/lib/apiAuth";
+import { assertCapability } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
   if (!parsed.success) return NextResponse.json({ error: "Неизвестная команда кейса" }, { status: 400 });
 
   try {
+    assertCapability(session, "work:mutate-own");
     const result = await transitionCase({
       leadId: parseId((await params).caseId, "caseId"),
       eventType: parsed.data.eventType,

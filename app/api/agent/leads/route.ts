@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { encryptField, decryptField } from "@/lib/crypto";
 import { handleApiError } from "@/lib/apiAuth";
 import { ensureCanonicalCaseForLead } from "@/lib/caseService";
+import { assertCapability } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -21,15 +22,21 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    assertCapability(session, "work:read");
     const leads = await prisma.clientLead.findMany({
-      where: { agentId: session.agentId },
+      where: {
+        case: {
+          tenantId: session.organizationId,
+          ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 300,
       include: { meetings: { select: { status: true } } },
     });
     return NextResponse.json(leads.map((l) => ({ ...l, context: decryptField(l.context) })));
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (error) {
+    return handleApiError(error, "leads/list");
   }
 }
 
@@ -42,6 +49,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
 
   try {
+    assertCapability(session, "work:mutate-own");
     // Профиль агента должен существовать в текущей БД. После смены БД
     // (Neon → Railway) старая сессия может нести agentId, которого здесь нет —
     // тогда просим перелогиниться, а не отдаём непонятную 503 (FK-ошибка).

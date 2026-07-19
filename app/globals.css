@@ -34,11 +34,11 @@
   /* Нейтральный B2C ink: цветной отлив больше не загрязняет весь UI. */
   --color-ink: #171717;
   --color-ink-2: #4b5563;
-  --color-ink-3: #737373;
+  --color-ink-3: #686868;
 
   /* Синий action-акцент — общий с B2C. */
-  --color-accent: #168ff2;
-  --color-accent-hover: #0077ed;
+  --color-accent: #006fbc;
+  --color-accent-hover: #005d9f;
   --color-accent-soft: #eaf4fc;
   --color-on-accent: #ffffff;
 
@@ -53,11 +53,11 @@
   /* Семантика — читаемая (AA) на белом */
   --color-success: #4f8157;
   --color-success-soft: #e8f1e7;
-  --color-warning: #b7791f;
+  --color-warning: #875a19;
   --color-warning-soft: #fcefd6;
-  --color-danger: #dc2b3f;
+  --color-danger: #c82338;
   --color-danger-soft: #fde3e6;
-  --color-info: #168ff2;
+  --color-info: #006fbc;
   --color-info-soft: #e4f0fb;
 
   /* Радиусы (v3): шкала вместо двух значений. */
@@ -177,7 +177,7 @@ select, button, input, textarea { font-family: inherit; }
 button, a, [role="button"], label { -webkit-tap-highlight-color: transparent; }
 button, a, [role="button"] { touch-action: manipulation; }
 button, [role="button"] { min-height: 44px; }
-button { transition: transform 0.12s var(--ease-out), background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
+button { transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.2s ease; }
 
 /* Доступность: видимое фокус-кольцо для клавиатуры на ВСЕХ интерактивных
    элементах (раньше только в <Button>). :where() = специфичность 0, поэтому
@@ -186,8 +186,8 @@ button { transition: transform 0.12s var(--ease-out), background-color 0.18s eas
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
-/* Тактильный отклик нажатия: ровно 0.96 (ниже 0.95 — преувеличенно). */
-button:not(:disabled):active { transform: scale(0.96); }
+/* Нажатие меняет только тон: геометрия контрола остаётся стабильной. */
+button:not(:disabled):active { filter: brightness(0.98); }
 
 /* Контур фото — лёгкая глубина у растровых картинок. ЧИСТО чёрный (не тинт:
    тинт-нейтраль подхватывает фон и читается грязью по краю). */
@@ -302,7 +302,7 @@ button:not(:disabled):active { transform: scale(0.96); }
 @media (hover: hover) and (pointer: fine) {
   .td-work-row:hover { background: var(--color-surface-2); }
 }
-.td-work-row:active { transform: scale(0.998); }
+.td-work-row:active { background: var(--color-surface-2); }
 
 .td-form-surface {
   border-radius: var(--radius-card);
@@ -396,7 +396,7 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
   z-index: 2;
   background: var(--color-surface-2);
 }
-.td-entity-row:active { transform: scale(0.997); }
+.td-entity-row:active { background: var(--color-surface-2); }
 
 .td-mini-row {
   border-radius: 10px;
@@ -406,7 +406,7 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
     transform 0.12s var(--ease-out);
 }
 .td-mini-row:hover { background: var(--color-surface-2); color: var(--color-ink); }
-.td-mini-row:active { transform: scale(0.99); }
+.td-mini-row:active { background: var(--color-surface-3); }
 
 .td-segmented {
   display: flex;
@@ -494,7 +494,7 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
     transform 0.12s var(--ease-out);
 }
 .td-icon-button:hover { background: var(--color-surface-2); color: var(--color-ink); }
-.td-icon-button:active { transform: scale(0.96); }
+.td-icon-button:active { background: var(--color-surface-2); }
 
 .td-popover {
   border: 1px solid rgba(255, 255, 255, 0.42);
@@ -780,7 +780,7 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
 
 /* Мягкое появление секций — тихая, «дорогая» моторика */
 @keyframes rise {
-  from { opacity: 0; transform: translateY(6px); }
+  from { transform: translateY(6px); }
   /* to = transform:none (не translateY(0)) — иначе .rise держит transform и
      создаёт containing block для position:fixed → ломает модалки/sheet внутри */
   to { opacity: 1; transform: none; }
@@ -821,7 +821,7 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
 }
 
 /* Плавная смена контента табов карточки — мягкий fade-up (feel-better). */
-@keyframes tabfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes tabfade { from { transform: translateY(4px); } to { transform: none; } }
 .tab-panel { animation: tabfade 0.18s var(--ease-out); }
 @media (prefers-reduced-motion: reduce) { .tab-panel { animation: none; } }
 

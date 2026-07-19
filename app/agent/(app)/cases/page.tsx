@@ -2,7 +2,7 @@ import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
 import { CasesList, type Bucket } from "./CasesList";
 import { CalendarDots, Briefcase, Warning } from "@phosphor-icons/react/dist/ssr";
-import { getAgentSession } from "@/lib/auth";
+import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { type Stage, relTime } from "@/lib/case";
@@ -54,15 +54,13 @@ const fmtTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-d
 const fmtDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
 const fmtMoney = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 });
 
-async function getCases(agentId: number): Promise<CasesData> {
-  const empty: CasesData = { active: [], todayMeetings: [], upcoming: [], inactive: [] };
-  try {
+async function getCases(session: AgentSession): Promise<CasesData> {
     const nowDate = new Date();
     const now = nowDate.getTime();
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
     const todayEndMs = todayEnd.getTime();
-    const canonical = await getCanonicalCases(agentId, nowDate);
+    const canonical = await getCanonicalCases(session, nowDate);
     const rows: CaseRow[] = canonical.map((record) => {
       const stage = record.legacyStage;
       const nextMeetingAt = record.nextMeetingAt?.getTime() ?? null;
@@ -133,33 +131,31 @@ async function getCases(agentId: number): Promise<CasesData> {
     const inactive = active.filter((c) => c.stale).slice(0, 5);
 
     return { active, todayMeetings, upcoming, inactive };
-  } catch {
-    return empty;
-  }
 }
 
 type OverdueTask = { id: number; title: string; leadId: number; leadName: string };
 
-async function getOverdueTasks(agentId: number): Promise<OverdueTask[]> {
-  if (!agentId) return [];
-  try {
+async function getOverdueTasks(session: AgentSession): Promise<OverdueTask[]> {
     const tasks = await prisma.task.findMany({
-      where: { agentId, completedAt: null, dueAt: { lt: new Date() } },
+      where: {
+        organizationId: session.organizationId,
+        status: "OPEN",
+        dueAt: { lt: new Date() },
+        ...(session.role === "AGENT" ? { assigneeMembershipId: session.membershipId } : {}),
+      },
       orderBy: { dueAt: "asc" },
       take: 8,
       select: { id: true, title: true, leadId: true, lead: { select: { name: true } } },
     });
     return tasks.map((t) => ({ id: t.id, title: t.title, leadId: t.leadId, leadName: t.lead.name }));
-  } catch {
-    return [];
-  }
 }
 
 export default async function CasesPage() {
   const session = await getAgentSession();
+  if (!session) return null;
   const [{ active, todayMeetings }, overdueTasks] = await Promise.all([
-    getCases(session?.agentId ?? 0),
-    getOverdueTasks(session?.agentId ?? 0),
+    getCases(session),
+    getOverdueTasks(session),
   ]);
   // KPI команд-центра — выводимы из текущих данных (без новых таблиц).
   // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker
@@ -176,7 +172,7 @@ export default async function CasesPage() {
           <span className="td-eyebrow">Рабочий центр</span>
           <h1 className="td-display mt-1.5 text-[28px] text-ink sm:text-[32px]">Кейсы</h1>
         </div>
-        <NewCaseSheet />
+        {session.role !== "ADMIN" && <NewCaseSheet />}
       </header>
 
       {active.length > 0 && (

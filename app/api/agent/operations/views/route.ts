@@ -5,6 +5,7 @@ import { appendOperationalAudit } from "@/lib/operationalAudit";
 import { assertCapability } from "@/lib/operationalAuth";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
@@ -44,7 +45,22 @@ export async function POST(req: NextRequest) {
     const idempotencyKey = req.headers.get("idempotency-key")?.trim();
     const correlationId = req.headers.get("x-correlation-id")?.trim();
     if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
-    const view = await runOperationalTransaction(async (tx) => {
+    let replayed = false;
+    let view;
+    try {
+      view = await runOperationalTransaction(async (tx) => {
+      const replay = await tx.operationalAuditEvent.findUnique({
+        where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
+      });
+      if (replay) {
+        replayed = true;
+        const replayId = String((replay.result as Record<string, unknown>).id ?? "");
+        const replayView = await tx.savedOperationalView.findFirst({
+          where: { id: replayId, organizationId: session.organizationId, ownerMembershipId: session.membershipId },
+        });
+        if (!replayView) throw new Error("Saved view replay target missing");
+        return replayView;
+      }
       const current = await tx.savedOperationalView.findUnique({
         where: { ownerMembershipId_name: { ownerMembershipId: session.membershipId, name: parsed.data.name } },
       });
@@ -70,8 +86,20 @@ export async function POST(req: NextRequest) {
         result: { id: saved.id },
       });
       return saved;
-    });
-    return NextResponse.json({ view }, { status: 201 });
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const replay = await prisma.operationalAuditEvent.findUnique({
+        where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
+      });
+      const replayId = String((replay?.result as Record<string, unknown> | undefined)?.id ?? "");
+      view = await prisma.savedOperationalView.findFirst({
+        where: { id: replayId, organizationId: session.organizationId, ownerMembershipId: session.membershipId },
+      });
+      if (!view) throw error;
+      replayed = true;
+    }
+    return NextResponse.json({ view, replayed }, { status: replayed ? 200 : 201 });
   } catch (error) {
     return handleApiError(error, "operations/views/save");
   }

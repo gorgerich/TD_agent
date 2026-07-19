@@ -18,7 +18,18 @@ const rotatedPassword = `${randomBytes(32).toString("base64url")}!Bb2`;
 
 async function removeSmokeAccount() {
   if (skip) return;
-  const user = await db.user.findUnique({ where: { email: SMOKE_ACCOUNT_EMAIL }, select: { agent: { select: { id: true } } } });
+  const user = await db.user.findUnique({
+    where: { email: SMOKE_ACCOUNT_EMAIL },
+    select: { agent: { select: { id: true, membership: { select: { id: true, organizationId: true } } } } },
+  });
+  if (user?.agent?.membership) {
+    await db.operationalAuditEvent.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.projectionReceipt.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.savedOperationalView.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.organizationInvite.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.membership.delete({ where: { id: user.agent.membership.id } });
+    await db.organization.delete({ where: { id: user.agent.membership.organizationId } });
+  }
   if (user?.agent) await db.agent.delete({ where: { id: user.agent.id } });
   if (user) await db.user.delete({ where: { email: SMOKE_ACCOUNT_EMAIL } });
 }
@@ -74,6 +85,8 @@ test("smoke provisioning hashes before opening its transaction", opts, async () 
   assert.ok(transactionStartedAt >= hashFinishedAt);
   assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
   assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.organization.count({ where: { id: provisioned.tenantId } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId, status: "ACTIVE" } }), 1);
   assert.equal(await db.clientLead.count({ where: { agentId: provisioned.agentId } }), 0);
   assert.equal(await db.meeting.count({ where: { agentId: provisioned.agentId } }), 0);
   assert.equal(await db.case.count({ where: { ownerId: provisioned.agentId } }), 0);
@@ -116,6 +129,7 @@ test("release smoke account lifecycle is atomic, idempotent, isolated and passwo
   assert.equal(replay.replayed, true);
   assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
   assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId } }), 1);
 
   const otherUser = await db.user.create({ data: { email: `smoke-other-${Date.now()}@test.invalid`, name: "Other tenant" } });
   const tier = await db.agentTier.findFirstOrThrow();

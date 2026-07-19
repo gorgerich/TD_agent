@@ -62,7 +62,22 @@ export type TeamControlTower = {
   timezone: string;
   members: ControlTowerMember[];
   cases: ControlTowerCase[];
+  tasks: ControlTowerTask[];
   totals: { open: number; overdue: number; unassigned: number; ceremoniesSoon: number };
+};
+
+export type ControlTowerTask = {
+  id: number;
+  leadId: number;
+  caseId: string;
+  title: string;
+  clientName: string;
+  assigneeMembershipId: string | null;
+  ownerName: string;
+  dueAt: string | null;
+  priority: string;
+  version: number;
+  expectedOutcome: string | null;
 };
 
 const PRIORITY_SCORE: Record<TaskPriority | "CRITICAL", number> = {
@@ -84,7 +99,13 @@ export async function getOperationsQueue(context: OperationalContext, now = new 
         ...ownerFilter,
       },
       include: {
-        lead: { select: { name: true, ceremonyAt: true } },
+        lead: {
+          select: {
+            name: true,
+            ceremonyAt: true,
+            meetings: { orderBy: { id: "desc" }, take: 1, select: { id: true } },
+          },
+        },
         assignee: { select: { user: { select: { name: true } } } },
       },
       take: 500,
@@ -103,9 +124,17 @@ export async function getOperationsQueue(context: OperationalContext, now = new 
     }),
   ]);
 
+  const projectedMeetingIds = new Set(
+    tasks
+      .filter((task) => task.type === "MEETING_ESCALATION")
+      .map((task) => meetingIdFromSource(task.sourceEventId))
+      .filter((meetingId): meetingId is number => meetingId !== null),
+  );
   const items: QueueItem[] = [
     ...tasks.map((task) => taskQueueItem(task, context.timezone, now)),
-    ...meetings.map((meeting) => meetingQueueItem(meeting, context.timezone, now)),
+    ...meetings
+      .filter((meeting) => !projectedMeetingIds.has(meeting.id))
+      .map((meeting) => meetingQueueItem(meeting, context.timezone, now)),
   ];
   items.sort(compareQueueItems);
 
@@ -134,7 +163,20 @@ export async function getTeamControlTower(context: OperationalContext, now = new
     }),
     prisma.task.findMany({
       where: { organizationId: context.organizationId, status: "OPEN" },
-      select: { id: true, caseId: true, assigneeMembershipId: true, dueAt: true, waitingReason: true },
+      select: {
+        id: true,
+        leadId: true,
+        caseId: true,
+        title: true,
+        assigneeMembershipId: true,
+        dueAt: true,
+        waitingReason: true,
+        priority: true,
+        version: true,
+        expectedOutcome: true,
+        lead: { select: { name: true } },
+        assignee: { select: { user: { select: { name: true } } } },
+      },
     }),
     prisma.meeting.findMany({
       where: {
@@ -203,6 +245,22 @@ export async function getTeamControlTower(context: OperationalContext, now = new
     timezone: context.timezone,
     members,
     cases: caseRows,
+    tasks: tasks
+      .filter((task) => !task.assigneeMembershipId || (task.dueAt && zonedDateKey(task.dueAt, context.timezone) <= today))
+      .map((task) => ({
+        id: task.id,
+        leadId: task.leadId,
+        caseId: task.caseId,
+        title: task.title,
+        clientName: task.lead.name,
+        assigneeMembershipId: task.assigneeMembershipId,
+        ownerName: task.assignee?.user.name ?? "Не назначено",
+        dueAt: task.dueAt?.toISOString() ?? null,
+        priority: task.priority,
+        version: task.version,
+        expectedOutcome: task.expectedOutcome,
+      }))
+      .sort((a, b) => Number(!b.assigneeMembershipId) - Number(!a.assigneeMembershipId) || nullableTime(a.dueAt) - nullableTime(b.dueAt)),
     totals: {
       open: tasks.length,
       overdue: tasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length,
@@ -214,7 +272,7 @@ export async function getTeamControlTower(context: OperationalContext, now = new
 
 type TaskRow = Awaited<ReturnType<typeof prisma.task.findMany<{
   include: {
-    lead: { select: { name: true; ceremonyAt: true } };
+    lead: { select: { name: true; ceremonyAt: true; meetings: { orderBy: { id: "desc" }; take: 1; select: { id: true } } } };
     assignee: { select: { user: { select: { name: true } } } };
   };
 }>>>[number];
@@ -227,8 +285,13 @@ type MeetingRow = Awaited<ReturnType<typeof prisma.meeting.findMany<{
 }>>>[number];
 
 function taskQueueItem(task: TaskRow, timezone: string, now: Date): QueueItem {
-  const group = task.waitingReason ? "WAITING" : queueGroup(task.dueAt, timezone, now);
+  const group = task.type === "MEETING_ESCALATION"
+    ? "OVERDUE"
+    : task.waitingReason
+      ? "WAITING"
+      : queueGroup(task.dueAt, timezone, now);
   const escalationMeetingId = task.type === "MEETING_ESCALATION" ? meetingIdFromSource(task.sourceEventId) : null;
+  const quoteMeetingId = task.type === "QUOTE_SEND" ? task.lead.meetings[0]?.id ?? null : null;
   return {
     key: `task:${task.id}`,
     kind: "TASK",
@@ -249,7 +312,9 @@ function taskQueueItem(task: TaskRow, timezone: string, now: Date): QueueItem {
     actionLabel: taskActionLabel(task.type),
     href: escalationMeetingId
       ? `/agent/meetings/${escalationMeetingId}?from=today`
-      : `/agent/cases/${task.leadId}?tab=work&task=${task.id}`,
+      : quoteMeetingId
+        ? `/agent/meetings/${quoteMeetingId}/quote?from=today&task=${task.id}`
+        : `/agent/cases/${task.leadId}?tab=work&task=${task.id}`,
     riskScore: queueRiskScore(group, task.priority, task.dueAt, task.lead.ceremonyAt, now),
     version: task.version,
   };

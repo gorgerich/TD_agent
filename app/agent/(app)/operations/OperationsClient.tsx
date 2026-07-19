@@ -382,7 +382,14 @@ function MemberRow({ member }: { member: ControlTowerMember }) {
         </div>
         <span className={`flex-none text-[11px] font-semibold ${capacity.className}`}>{capacity.label}</span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-label={`Загрузка ${loadPercent}%`}>
+      <div
+        className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2"
+        role="progressbar"
+        aria-label="Загрузка исполнителя"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={loadPercent}
+      >
         <div className={`h-full rounded-full ${member.capacity === "OVERLOADED" ? "bg-danger" : member.capacity === "BALANCED" ? "bg-warning" : "bg-success"}`} style={{ width: `${loadPercent}%` }} />
       </div>
       <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] text-ink-3 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">

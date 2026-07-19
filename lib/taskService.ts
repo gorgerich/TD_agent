@@ -2,6 +2,7 @@ import { Prisma, type TaskPriority, type TaskStatus, type TaskType } from "@pris
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { prisma } from "@/lib/prisma";
 
 export type TaskCommandMeta = {
   idempotencyKey: string;
@@ -16,6 +17,8 @@ export type TaskResult = {
   status: TaskStatus;
   version: number;
   assigneeMembershipId: string | null;
+  dueAt: string | null;
+  waitingReason: string | null;
   completedAt: string | null;
   replayed: boolean;
 };
@@ -39,7 +42,7 @@ export async function createTask(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runOperationalTransaction(async (tx) => {
+  return runTaskCommand(context.organizationId, meta.idempotencyKey, "task.created", async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "task.created");
     if (replay) return replay;
 
@@ -173,6 +176,61 @@ export async function assignTask(
   }, input.reason);
 }
 
+export async function rescheduleTask(
+  context: OperationalContext,
+  taskId: number,
+  input: { dueAt: Date | null; reason: string; version: number },
+  meta: TaskCommandMeta,
+): Promise<TaskResult> {
+  assertCapability(context, "work:mutate-own");
+  validateMeta(meta);
+  if (!input.reason.trim()) throw new OperationalCommandError(422, "Укажите причину переноса");
+  return changeTask(context, taskId, input.version, meta, "task.rescheduled", async (tx, current) => {
+    if (current.status !== "OPEN") throw new OperationalCommandError(409, "Перенести можно только открытую задачу");
+    return tx.task.update({
+      where: { id: current.id },
+      data: { dueAt: input.dueAt, version: { increment: 1 } },
+    });
+  }, input.reason);
+}
+
+export async function waitTask(
+  context: OperationalContext,
+  taskId: number,
+  input: { waitingReason: string; version: number },
+  meta: TaskCommandMeta,
+): Promise<TaskResult> {
+  assertCapability(context, "work:mutate-own");
+  validateMeta(meta);
+  if (!input.waitingReason.trim()) throw new OperationalCommandError(422, "Укажите, что блокирует задачу");
+  return changeTask(context, taskId, input.version, meta, "task.waiting", async (tx, current) => {
+    if (current.status !== "OPEN") throw new OperationalCommandError(409, "Ожидание можно включить только для открытой задачи");
+    return tx.task.update({
+      where: { id: current.id },
+      data: { waitingReason: input.waitingReason.trim(), version: { increment: 1 } },
+    });
+  }, input.waitingReason);
+}
+
+export async function resumeTask(
+  context: OperationalContext,
+  taskId: number,
+  input: { reason: string; version: number },
+  meta: TaskCommandMeta,
+): Promise<TaskResult> {
+  assertCapability(context, "work:mutate-own");
+  validateMeta(meta);
+  if (!input.reason.trim()) throw new OperationalCommandError(422, "Укажите причину возобновления");
+  return changeTask(context, taskId, input.version, meta, "task.resumed", async (tx, current) => {
+    if (current.status !== "OPEN") throw new OperationalCommandError(409, "Возобновить можно только открытую задачу");
+    if (!current.waitingReason) throw new OperationalCommandError(409, "Задача не находится в ожидании");
+    return tx.task.update({
+      where: { id: current.id },
+      data: { waitingReason: null, version: { increment: 1 } },
+    });
+  }, input.reason);
+}
+
 async function changeTask(
   context: OperationalContext,
   taskId: number,
@@ -182,7 +240,7 @@ async function changeTask(
   change: (tx: Prisma.TransactionClient, current: LoadedTask) => Promise<LoadedTask>,
   reason?: string,
 ): Promise<TaskResult> {
-  return runOperationalTransaction(async (tx) => {
+  return runTaskCommand(context.organizationId, meta.idempotencyKey, action, async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action);
     if (replay) return replay;
     const current = await loadTask(tx, context, taskId);
@@ -206,6 +264,22 @@ async function changeTask(
     });
     return result;
   });
+}
+
+async function runTaskCommand(
+  organizationId: string,
+  idempotencyKey: string,
+  action: string,
+  command: (tx: Prisma.TransactionClient) => Promise<TaskResult>,
+) {
+  try {
+    return await runOperationalTransaction(command);
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action));
+    if (replay) return replay;
+    throw error;
+  }
 }
 
 async function loadTask(tx: Prisma.TransactionClient, context: OperationalContext, taskId: number) {
@@ -248,6 +322,8 @@ async function commandReplay(
     status: result.status as TaskStatus,
     version: Number(result.version),
     assigneeMembershipId: typeof result.assigneeMembershipId === "string" ? result.assigneeMembershipId : null,
+    dueAt: typeof result.dueAt === "string" ? result.dueAt : null,
+    waitingReason: typeof result.waitingReason === "string" ? result.waitingReason : null,
     completedAt: typeof result.completedAt === "string" ? result.completedAt : null,
     replayed: true,
   };
@@ -267,6 +343,8 @@ function toTaskResult(task: LoadedTask, replayed: boolean): TaskResult {
     status: task.status,
     version: task.version,
     assigneeMembershipId: task.assigneeMembershipId,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    waitingReason: task.waitingReason,
     completedAt: task.completedAt?.toISOString() ?? null,
     replayed,
   };
@@ -290,4 +368,3 @@ function taskSnapshot(task: LoadedTask): Prisma.InputJsonValue {
 function json(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
-

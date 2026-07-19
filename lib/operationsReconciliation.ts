@@ -28,10 +28,11 @@ export async function reconcileOperations(organizationId: string, now = new Date
     prisma.task.count({
       where: {
         organizationId,
-        status: { in: ["COMPLETED", "CANCELLED", "SUPERSEDED"] },
         dueAt: { lt: now },
-        completedAt: null,
-        cancelledAt: null,
+        OR: [
+          { status: "COMPLETED", completedAt: null },
+          { status: "CANCELLED", cancelledAt: null },
+        ],
       },
     }),
     prisma.task.groupBy({

@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // имени клиента (список ↔ кейс). Браузеры без View Transitions API
     // навигируют как раньше (DELIGHT, пункт View Transitions).
     <ViewTransitions>
-      <html lang="ru" className={`${sans.variable} ${mono.variable}`}>
+      <html lang="ru" className={`${sans.variable} ${mono.variable}`} data-scroll-behavior="smooth">
         <body>
           <a href="#main-content" className="skip-link">К основному содержимому</a>
           {children}

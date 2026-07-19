@@ -60,6 +60,7 @@ test("meetings: cannot attach meeting to another agent's lead (IDOR → 404)", o
     makeRequest("/api/agent/meetings", {
       method: "POST",
       cookie: await sessionCookieHeader(b.userId, b.agentId),
+      headers: { "idempotency-key": "it:idor:meeting", "x-correlation-id": "it:idor" },
       body: { leadId: lead.id },
     }),
   );
@@ -83,6 +84,7 @@ test("quote: save requires auth (401) and ownership (404)", opts, async () => {
     makeRequest("/api/agent/meetings", {
       method: "POST",
       cookie: await sessionCookieHeader(a.userId, a.agentId),
+      headers: { "idempotency-key": "it:quote:meeting", "x-correlation-id": "it:quote" },
       body: { leadId: lead.id },
     }),
   );

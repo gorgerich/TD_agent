@@ -10,27 +10,24 @@ import { ToastProvider } from "@/components/Toast";
 
 async function getOnboardingCompleted(agentId: number): Promise<boolean> {
   if (!agentId) return false; // dev-заглушка / нет агента → показать онбординг
-  try {
-    const agent = await prisma.agent.findUnique({
-      where: { id: agentId },
-      select: { onboardingCompleted: true },
-    });
-    return agent?.onboardingCompleted ?? false;
-  } catch {
-    return true; // БД недоступна → не навязываем тур
-  }
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: { onboardingCompleted: true },
+  });
+  return agent?.onboardingCompleted ?? false;
 }
 
 // Просроченные задачи - для бейджа в навигации (in-app напоминание).
-async function getOverdueCount(agentId: number, notify: boolean): Promise<number> {
-  if (!agentId || !notify) return 0;
-  try {
-    return await prisma.task.count({
-      where: { agentId, completedAt: null, dueAt: { lt: new Date() } },
-    });
-  } catch {
-    return 0;
-  }
+async function getOverdueCount(session: NonNullable<Awaited<ReturnType<typeof getAgentSession>>>, notify: boolean): Promise<number> {
+  if (!session.agentId || !notify) return 0;
+  return prisma.task.count({
+    where: {
+      organizationId: session.organizationId,
+      status: "OPEN",
+      dueAt: { lt: new Date() },
+      ...(session.role === "AGENT" ? { assigneeMembershipId: session.membershipId } : {}),
+    },
+  });
 }
 
 export default async function AgentAppLayout({ children }: { children: ReactNode }) {
@@ -42,11 +39,9 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
 
   const [onboardingCompleted, agentMeta] = await Promise.all([
     getOnboardingCompleted(session.agentId),
-    prisma.agent
-      .findUnique({ where: { id: session.agentId }, select: { notifyEnabled: true } })
-      .catch(() => null),
+    prisma.agent.findUnique({ where: { id: session.agentId }, select: { notifyEnabled: true } }),
   ]);
-  const overdue = await getOverdueCount(session.agentId, agentMeta?.notifyEnabled ?? true);
+  const overdue = await getOverdueCount(session, agentMeta?.notifyEnabled ?? true);
 
   return (
     <ToastProvider>

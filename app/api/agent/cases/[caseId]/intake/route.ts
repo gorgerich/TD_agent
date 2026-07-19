@@ -5,6 +5,7 @@ import { encryptField } from "@/lib/crypto";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
 import { saveCaseIntake } from "@/lib/caseService";
 import { CaseDomainError } from "@/lib/caseDomain";
+import { assertCapability } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
   }
 
   try {
+    assertCapability(session, "work:mutate-own");
     const leadId = parseId((await params).caseId, "caseId");
     await assertLeadOwned(leadId, session);
 

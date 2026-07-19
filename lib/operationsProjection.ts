@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import type { CaseCommandContext } from "@/lib/caseService";
 import { prisma } from "@/lib/prisma";
+import { runOperationalTransaction } from "@/lib/operationalTransaction";
+import type { OperationalContext } from "@/lib/operationalAuth";
 
 type CaseProjectionInput = {
   eventId: string;
@@ -96,10 +98,14 @@ export async function projectCaseEventInTransaction(
   return result;
 }
 
-export async function ensurePastMeetingEscalations(organizationId: string, now = new Date()) {
+export async function ensurePastMeetingEscalations(scope: string | OperationalContext, now = new Date()) {
+  const organizationId = typeof scope === "string" ? scope : scope.organizationId;
   const meetings = await prisma.meeting.findMany({
     where: {
       organizationId,
+      ...(typeof scope !== "string" && scope.role === "AGENT"
+        ? { ownerMembershipId: scope.membershipId }
+        : {}),
       operationalStatus: { in: ["SCHEDULED", "CONFIRMED"] },
       scheduledAt: { lt: now },
       outcomeRecordedAt: null,
@@ -117,8 +123,66 @@ export async function ensurePastMeetingEscalations(organizationId: string, now =
   let created = 0;
   for (const meeting of meetings) {
     const sourceEventId = `meeting:${meeting.id}:past-due:v1`;
-    await prisma.$transaction(async (tx) => {
-      const receipt = await tx.projectionReceipt.findUnique({
+    try {
+      const didCreate = await runOperationalTransaction(async (tx) => {
+        const receipt = await tx.projectionReceipt.findUnique({
+          where: {
+            organizationId_projector_sourceEventId: {
+              organizationId,
+              projector: "m1.meeting-escalation.v1",
+              sourceEventId,
+            },
+          },
+        });
+        if (receipt) return false;
+
+        const task = await tx.task.create({
+          data: {
+            organizationId,
+            caseId: meeting.caseId,
+            leadId: meeting.leadId,
+            agentId: meeting.agentId,
+            assigneeMembershipId: meeting.ownerMembershipId,
+            createdByMembershipId: meeting.ownerMembershipId,
+            type: "MEETING_ESCALATION",
+            priority: "CRITICAL",
+            status: "OPEN",
+            sourceEventId,
+            idempotencyKey: `projection:${sourceEventId}:task`,
+            title: "Зафиксировать итог прошедшей встречи",
+            expectedOutcome: "Указан результат: завершена, клиент не пришёл или отменена",
+            dueAt: now,
+          },
+        });
+        await tx.operationalAuditEvent.create({
+          data: {
+            organizationId,
+            actorType: "system",
+            entityType: "task",
+            entityId: String(task.id),
+            action: "task.escalated_from_meeting",
+            before: {},
+            after: projectionTaskSnapshot(task),
+            correlationId: sourceEventId,
+            causationId: sourceEventId,
+            idempotencyKey: `projection:${sourceEventId}:audit`,
+            result: { taskId: task.id },
+          },
+        });
+        await tx.projectionReceipt.create({
+          data: {
+            organizationId,
+            projector: "m1.meeting-escalation.v1",
+            sourceEventId,
+            result: { taskId: task.id },
+          },
+        });
+        return true;
+      });
+      if (didCreate) created += 1;
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+      const receipt = await prisma.projectionReceipt.findUnique({
         where: {
           organizationId_projector_sourceEventId: {
             organizationId,
@@ -127,51 +191,8 @@ export async function ensurePastMeetingEscalations(organizationId: string, now =
           },
         },
       });
-      if (receipt) return;
-
-      const task = await tx.task.create({
-        data: {
-          organizationId,
-          caseId: meeting.caseId,
-          leadId: meeting.leadId,
-          agentId: meeting.agentId,
-          assigneeMembershipId: meeting.ownerMembershipId,
-          createdByMembershipId: meeting.ownerMembershipId,
-          type: "MEETING_ESCALATION",
-          priority: "CRITICAL",
-          status: "OPEN",
-          sourceEventId,
-          idempotencyKey: `projection:${sourceEventId}:task`,
-          title: "Зафиксировать итог прошедшей встречи",
-          expectedOutcome: "Указан результат: завершена, клиент не пришёл или отменена",
-          dueAt: now,
-        },
-      });
-      await tx.operationalAuditEvent.create({
-        data: {
-          organizationId,
-          actorType: "system",
-          entityType: "task",
-          entityId: String(task.id),
-          action: "task.escalated_from_meeting",
-          before: {},
-          after: projectionTaskSnapshot(task),
-          correlationId: sourceEventId,
-          causationId: sourceEventId,
-          idempotencyKey: `projection:${sourceEventId}:audit`,
-          result: { taskId: task.id },
-        },
-      });
-      await tx.projectionReceipt.create({
-        data: {
-          organizationId,
-          projector: "m1.meeting-escalation.v1",
-          sourceEventId,
-          result: { taskId: task.id },
-        },
-      });
-      created += 1;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      if (!receipt) throw error;
+    }
   }
   return { scanned: meetings.length, created };
 }

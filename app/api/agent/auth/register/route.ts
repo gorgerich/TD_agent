@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import {
   createAgentSession,
-  getDefaultAgentTierId,
   normalizeEmail,
   normalizeOptionalPhone,
   setAgentSessionCookie,
@@ -38,7 +37,6 @@ export async function POST(req: NextRequest) {
   const email = normalizeEmail(parsed.data.email);
   const phone = normalizeOptionalPhone(parsed.data.phone);
   const passwordHash = hashPassword(parsed.data.password);
-  const tierId = await getDefaultAgentTierId();
   const inviteHash = parsed.data.inviteToken ? hashInvitationToken(parsed.data.inviteToken) : null;
 
   try {
@@ -55,12 +53,14 @@ export async function POST(req: NextRequest) {
       if (inviteHash && (!invite || invite.emailNormalized !== email || invite.acceptedAt || invite.revokedAt || invite.expiresAt <= new Date())) {
         throw new RegistrationError(403, "Приглашение недействительно или истекло");
       }
+      const tier = await tx.agentTier.findFirst({ orderBy: [{ commissionPct: "asc" }, { id: "asc" }] });
+      if (!tier) throw new RegistrationError(503, "Тариф агента не настроен");
 
       const agent = await tx.agent.create({
         data: {
           status: "ACTIVE",
           selfEmployed: true,
-          tier: { connect: { id: tierId } },
+          tier: { connect: { id: tier.id } },
           user: { create: { email, name: parsed.data.name.trim(), phone, passwordHash } },
         },
         include: { user: true },
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
 }
 
 class RegistrationError extends Error {
-  constructor(public readonly status: 403 | 409, message: string) {
+  constructor(public readonly status: 403 | 409 | 503, message: string) {
     super(message);
   }
 }
