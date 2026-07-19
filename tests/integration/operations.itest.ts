@@ -5,10 +5,11 @@ import { GET as operationsGet } from "../../app/api/agent/operations/route";
 import { GET as searchGet } from "../../app/api/agent/operations/search/route";
 import { GET as viewsGet, POST as viewsPost } from "../../app/api/agent/operations/views/route";
 import { transitionCase } from "../../lib/caseService";
+import { getCanonicalCase } from "../../lib/caseReadModel";
 import { createMeeting, rescheduleMeeting, updateMeetingStatus } from "../../lib/meetingService";
 import { OperationalAuthError } from "../../lib/operationalAuth";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
-import { ensurePastMeetingEscalations } from "../../lib/operationsProjection";
+import { ensurePastMeetingEscalations, projectPastMeetingEscalation } from "../../lib/operationsProjection";
 import { getOperationsQueue, getTeamControlTower } from "../../lib/operationsReadModel";
 import { reconcileOperations } from "../../lib/operationsReconciliation";
 import { assignTask, cancelTask, completeTask, createTask } from "../../lib/taskService";
@@ -79,6 +80,10 @@ test("M1 RBAC and tenant boundaries cover Agent, Manager and Admin reads/writes"
       version: task.version,
     }, meta(`m1:${fixtures.runId}:manager-assign`));
     assert.equal(assigned.assigneeMembershipId, teammate.membershipId);
+    await expectCommandError(completeTask(manager.context, task.id, {
+      outcome: "Manager must not close teammate work",
+      version: assigned.version,
+    }, meta(`m1:${fixtures.runId}:manager-teammate-mutate-denied`)), 404);
 
     await expectCommandError(createTask(admin.context, {
       leadId: ownCase.leadId,
@@ -100,8 +105,9 @@ test("M1 RBAC and tenant boundaries cover Agent, Manager and Admin reads/writes"
     const teammateQueue = await getOperationsQueue(teammate.context);
     assert.equal(Object.values(teammateQueue.groups).flat().some((item) => item.id === task.id), true);
     const managerQueue = await getOperationsQueue(manager.context);
-    assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.id === task.id), true);
+    assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.id === task.id), false);
     assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.caseId === foreignCase.id), false);
+    assert.equal((await getCanonicalCase(teammate.context, ownCase.leadId))?.caseId, ownCase.id);
 
     const team = await getTeamControlTower(manager.context);
     assert.equal(team.members.some((item) => item.membershipId === teammate.membershipId), true);
@@ -120,7 +126,9 @@ test("M1 RBAC and tenant boundaries cover Agent, Manager and Admin reads/writes"
     assert.equal(managerTeamResponse.status, 200);
 
     const agentAudit = await auditGet(makeRequest("/api/agent/operations/audit", { cookie: await cookie(agent) }));
-    assert.equal(agentAudit.status, 403);
+    assert.equal(agentAudit.status, 200);
+    const agentEvents = (await agentAudit.json() as { events: Array<{ actorMembershipId: string | null }> }).events;
+    assert.equal(agentEvents.some((event) => event.actorMembershipId === agent.membershipId), true);
     const managerAudit = await auditGet(makeRequest("/api/agent/operations/audit", { cookie: await cookie(manager) }));
     assert.equal(managerAudit.status, 200);
     const adminAudit = await auditGet(makeRequest("/api/agent/operations/audit", { cookie: await cookie(admin) }));
@@ -167,6 +175,14 @@ test("M1 task lifecycle requires outcome/reason, enforces version and audits ass
     }, meta(`m1:${fixtures.runId}:task-complete`));
     assert.equal(replay.replayed, true);
     assert.equal(replay.version, 2);
+    const otherTask = await createTask(owner.context, {
+      leadId: canonicalCase.leadId,
+      title: "Different entity for replay guard",
+    }, meta(`m1:${fixtures.runId}:task-replay-other-create`));
+    await expectCommandError(completeTask(owner.context, otherTask.id, {
+      outcome: "Must not replay another entity",
+      version: otherTask.version,
+    }, meta(`m1:${fixtures.runId}:task-complete`)), 409, "IDEMPOTENCY_CONFLICT");
     await expectCommandError(completeTask(owner.context, completedCandidate.id, {
       outcome: "Stale overwrite",
       version: 1,
@@ -267,6 +283,15 @@ test("M1 meeting lifecycle requires outcome/reason and rejects stale versions", 
     assert.equal(completedRow.outcome, "Needs and next step recorded");
     assert.ok(completedRow.outcomeRecordedAt);
     assert.ok(completedRow.endedAt);
+    const replayGuardMeeting = await createMeeting(owner.context, {
+      leadId: canonicalCase.leadId,
+      scheduledAt: new Date(Date.now() + 10_800_000),
+    }, meta(`m1:${fixtures.runId}:meeting-replay-guard-create`));
+    await expectCommandError(updateMeetingStatus(owner.context, replayGuardMeeting.id, {
+      status: "COMPLETED",
+      outcome: "Must not replay another entity",
+      version: replayGuardMeeting.version,
+    }, meta(`m1:${fixtures.runId}:meeting-complete`)), 409, "IDEMPOTENCY_CONFLICT");
     await expectCommandError(updateMeetingStatus(owner.context, tentative.id, {
       status: "CANCELLED",
       reason: "Stale cancel",
@@ -383,6 +408,11 @@ test("M1 past meeting escalation is visible, idempotent and reconciles to zero",
     assert.equal(escalation?.href, `/agent/meetings/${pastMeeting.id}?from=today`);
     assert.equal(afterItems.some((item) => item.key === `meeting:${pastMeeting.id}`), false);
     assert.equal(afterItems.filter((item) => item.href === `/agent/meetings/${pastMeeting.id}?from=today`).length, 1);
+    const escalationTaskBeforeOutcome = await db.task.findFirstOrThrow({ where: { organizationId: owner.organizationId, sourceEventId } });
+    await expectCommandError(completeTask(owner.context, escalationTaskBeforeOutcome.id, {
+      outcome: "Must be captured on the meeting",
+      version: escalationTaskBeforeOutcome.version,
+    }, meta(`m1:${fixtures.runId}:escalation-direct-complete-denied`)), 409, "MEETING_OUTCOME_REQUIRED");
     const reconciliation = await reconcileOperations(owner.organizationId, now);
     assert.equal(reconciliation.discrepancies, 0, JSON.stringify(reconciliation));
 
@@ -395,6 +425,33 @@ test("M1 past meeting escalation is visible, idempotent and reconciles to zero",
     const escalationTask = await db.task.findFirstOrThrow({ where: { organizationId: owner.organizationId, sourceEventId } });
     assert.equal(escalationTask.status, "COMPLETED");
     assert.equal(escalationTask.outcome, "Meeting outcome captured");
+    assert.equal((await reconcileOperations(owner.organizationId, new Date())).discrepancies, 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 stale past-meeting candidate cannot create escalation after terminal outcome", opts, async () => {
+  const fixtures = createFixtureContext("m1-escalation-race");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const canonicalCase = await fixtures.makeCase(owner, "past-meeting-race");
+    const pastMeeting = await createMeeting(owner.context, {
+      leadId: canonicalCase.leadId,
+      scheduledAt: new Date(Date.now() - 3_600_000),
+    }, meta(`m1:${fixtures.runId}:past-meeting-race`));
+    await updateMeetingStatus(owner.context, pastMeeting.id, {
+      status: "COMPLETED",
+      outcome: "Terminal outcome won the race",
+      version: pastMeeting.version,
+    }, meta(`m1:${fixtures.runId}:past-meeting-race-complete`));
+
+    const created = await projectPastMeetingEscalation(owner.organizationId, pastMeeting.id, new Date());
+    assert.equal(created, false);
+    assert.equal(await db.task.count({
+      where: { organizationId: owner.organizationId, sourceEventId: `meeting:${pastMeeting.id}:past-due:v1` },
+    }), 0);
     assert.equal((await reconcileOperations(owner.organizationId, new Date())).discrepancies, 0);
   } finally {
     await fixtures.cleanup();

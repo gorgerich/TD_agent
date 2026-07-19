@@ -178,15 +178,6 @@ SET
     WHEN m."scheduledAt" IS NULL THEN 'TENTATIVE'::"OperationalMeetingStatus"
     ELSE 'SCHEDULED'::"OperationalMeetingStatus"
   END,
-  "outcome" = CASE
-    WHEN m."status" = 'COMPLETED' THEN 'Перенесено из legacy: встреча была отмечена завершённой без отдельного итога'
-    WHEN m."status" = 'CANCELLED' THEN 'Перенесено из legacy: встреча была отмечена отменённой без отдельной причины'
-    ELSE NULL
-  END,
-  "outcomeRecordedAt" = CASE
-    WHEN m."status" IN ('COMPLETED', 'CANCELLED') THEN COALESCE(m."endedAt", m."scheduledAt", CURRENT_TIMESTAMP)
-    ELSE NULL
-  END,
   "idempotencyKey" = 'legacy:meeting:' || m."id"::text
 FROM "Case" c
 WHERE c."leadId" = m."leadId";
@@ -205,8 +196,8 @@ CREATE UNIQUE INDEX "OrganizationInvite_tokenHash_key" ON "OrganizationInvite"("
 CREATE INDEX "OrganizationInvite_organizationId_emailNormalized_idx" ON "OrganizationInvite"("organizationId", "emailNormalized");
 CREATE INDEX "OrganizationInvite_expiresAt_idx" ON "OrganizationInvite"("expiresAt");
 CREATE UNIQUE INDEX "OperationalAuditEvent_organizationId_idempotencyKey_key" ON "OperationalAuditEvent"("organizationId", "idempotencyKey");
-CREATE INDEX "OperationalAuditEvent_organizationId_entityType_entityId_cr_idx" ON "OperationalAuditEvent"("organizationId", "entityType", "entityId", "createdAt");
-CREATE INDEX "OperationalAuditEvent_organizationId_actorMembershipId_crea_idx" ON "OperationalAuditEvent"("organizationId", "actorMembershipId", "createdAt");
+CREATE INDEX "OperationalAuditEvent_organizationId_entityType_entityId_createdAt_idx" ON "OperationalAuditEvent"("organizationId", "entityType", "entityId", "createdAt");
+CREATE INDEX "OperationalAuditEvent_organizationId_actorMembershipId_createdAt_idx" ON "OperationalAuditEvent"("organizationId", "actorMembershipId", "createdAt");
 CREATE UNIQUE INDEX "SavedOperationalView_ownerMembershipId_name_key" ON "SavedOperationalView"("ownerMembershipId", "name");
 CREATE INDEX "SavedOperationalView_organizationId_scope_idx" ON "SavedOperationalView"("organizationId", "scope");
 CREATE UNIQUE INDEX "ProjectionReceipt_organizationId_projector_sourceEventId_key" ON "ProjectionReceipt"("organizationId", "projector", "sourceEventId");

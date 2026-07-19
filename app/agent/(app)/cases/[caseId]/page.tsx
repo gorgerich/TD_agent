@@ -32,7 +32,14 @@ async function getCase(caseId: number, session: AgentSession) {
       id: caseId,
       case: {
         tenantId: session.organizationId,
-        ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
+        ...(session.role === "ADMIN"
+          ? {}
+          : {
+              OR: [
+                { ownerId: session.agentId },
+                { tasks: { some: { assigneeMembershipId: session.membershipId } } },
+              ],
+            }),
       },
     },
     include: {
@@ -99,6 +106,8 @@ export default async function CasePage({
     version: t.version,
     dueAt: t.dueAt?.toISOString() ?? null,
     completedAt: t.completedAt?.toISOString() ?? null,
+    canMutate: session.role !== "ADMIN" && t.assigneeMembershipId === session.membershipId,
+    actionHref: meetingIdFromEscalationSource(t.sourceEventId),
   }));
   const notes = rawNotes.map((n) => ({
     id: n.id,
@@ -180,6 +189,7 @@ export default async function CasePage({
   ];
   const openTasksCount = tasks.filter((task) => task.status === "OPEN").length;
   const lastActivityText = activity[0]?.label ?? "Активности нет";
+  const canMutateCase = session.role !== "ADMIN" && canonicalCase.ownerId === session.agentId;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -237,6 +247,7 @@ export default async function CasePage({
           { label: "Остаток", value: canonicalCase.payment.balanceKopecks == null ? "Не рассчитан" : moneyFromKopecks(canonicalCase.payment.balanceKopecks), tone: canonicalCase.payment.balanceKopecks === 0 ? "success" : "neutral" },
         ]}
         lastActivity={lastActivityText}
+        canMutateCase={canMutateCase}
       />
 
       {risks.length > 0 && (
@@ -264,11 +275,17 @@ export default async function CasePage({
           payments={payments}
           activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
           initialTab={initialTab}
-          canMutate={session.role !== "ADMIN"}
+          timezone={session.timezone}
+          canMutateCase={canMutateCase}
         />
       </main>
     </div>
   );
+}
+
+function meetingIdFromEscalationSource(sourceEventId: string | null) {
+  const match = sourceEventId?.match(/^meeting:(\d+):past-due:v1$/);
+  return match ? `/agent/meetings/${match[1]}?from=case` : null;
 }
 
 function eventLabel(eventType: string): string {
@@ -298,6 +315,7 @@ function RouteActionPanel({
   cobrowse,
   controls,
   lastActivity,
+  canMutateCase,
 }: {
   current: number;
   statusLabel: string;
@@ -309,6 +327,7 @@ function RouteActionPanel({
   cobrowse: string | null;
   controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
   lastActivity: string;
+  canMutateCase: boolean;
 }) {
   const isDone = current >= STAGE_ORDER.length - 1;
   return (
@@ -320,7 +339,7 @@ function RouteActionPanel({
             <StatusChip label={statusLabel} tone={statusTone} />
           </div>
           <strong className="mt-2 block max-w-[760px] text-[20px] leading-snug text-ink sm:text-[23px]">{nextAction}</strong>
-          <div className="mt-4 flex flex-wrap gap-2">
+          {canMutateCase ? <div className="mt-4 flex flex-wrap gap-2">
             {firstMeetingId ? (
               <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
                 Открыть смету
@@ -335,7 +354,11 @@ function RouteActionPanel({
                 Клиентский вид
               </Action>
             )}
-          </div>
+          </div> : (
+            <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed text-ink-2">
+              Вы подключены к этому кейсу по назначенной задаче. Рабочее действие доступно в разделе «Работа».
+            </p>
+          )}
         </div>
 
         <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 xl:border-l xl:border-t-0">

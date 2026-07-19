@@ -42,7 +42,7 @@ export async function createTask(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runTaskCommand(context.organizationId, meta.idempotencyKey, "task.created", async (tx) => {
+  return runTaskCommand(context.organizationId, meta.idempotencyKey, "task.created", undefined, async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "task.created");
     if (replay) return replay;
 
@@ -240,11 +240,18 @@ async function changeTask(
   change: (tx: Prisma.TransactionClient, current: LoadedTask) => Promise<LoadedTask>,
   reason?: string,
 ): Promise<TaskResult> {
-  return runTaskCommand(context.organizationId, meta.idempotencyKey, action, async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action);
+  return runTaskCommand(context.organizationId, meta.idempotencyKey, action, String(taskId), async (tx) => {
+    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(taskId));
     if (replay) return replay;
-    const current = await loadTask(tx, context, taskId);
+    const current = await loadTask(tx, context, taskId, action === "task.assigned");
     if (!current) throw new OperationalCommandError(404, "Задача не найдена");
+    if (current.type === "MEETING_ESCALATION" && action !== "task.assigned") {
+      throw new OperationalCommandError(
+        409,
+        "Эскалация встречи закрывается только через фиксацию исхода встречи",
+        "MEETING_OUTCOME_REQUIRED",
+      );
+    }
     if (current.version !== expectedVersion) {
       throw new OperationalCommandError(409, "Задача уже изменена. Обновите список и повторите действие.", "VERSION_CONFLICT");
     }
@@ -270,24 +277,25 @@ async function runTaskCommand(
   organizationId: string,
   idempotencyKey: string,
   action: string,
+  entityId: string | undefined,
   command: (tx: Prisma.TransactionClient) => Promise<TaskResult>,
 ) {
   try {
     return await runOperationalTransaction(command);
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action));
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action, entityId));
     if (replay) return replay;
     throw error;
   }
 }
 
-async function loadTask(tx: Prisma.TransactionClient, context: OperationalContext, taskId: number) {
+async function loadTask(tx: Prisma.TransactionClient, context: OperationalContext, taskId: number, allowTeamScope = false) {
   return tx.task.findFirst({
     where: {
       id: taskId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { assigneeMembershipId: context.membershipId } : {}),
+      ...(context.role === "ADMIN" || allowTeamScope ? {} : { assigneeMembershipId: context.membershipId }),
     },
   });
 }
@@ -308,10 +316,15 @@ async function commandReplay(
   organizationId: string,
   idempotencyKey: string,
   expectedAction: string,
+  expectedEntityId?: string,
 ): Promise<TaskResult | null> {
   const replay = await findOperationalReplay(tx, organizationId, idempotencyKey);
   if (!replay) return null;
-  if (replay.action !== expectedAction || replay.entityType !== "task") {
+  if (
+    replay.action !== expectedAction
+    || replay.entityType !== "task"
+    || (expectedEntityId !== undefined && replay.entityId !== expectedEntityId)
+  ) {
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
   const result = replay.result as Record<string, unknown>;

@@ -51,6 +51,7 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260714090000_week2_canonical_case/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/week2-backfill-assertions.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260718090000_m1_operations_control_plane/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260719190000_m1_operations_integrity/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m1-operations-assertions.sql
       - name: Apply migrations to isolated test database
         run: npx prisma migrate deploy

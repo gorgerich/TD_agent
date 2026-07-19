@@ -12,7 +12,7 @@ type Note = {
   createdAt: string;
 };
 
-export function NotesSection({ caseId, initial }: { caseId: number; initial: Note[] }) {
+export function NotesSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Note[]; canMutate?: boolean }) {
   const [notes, setNotes] = useState<Note[]>(initial);
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
@@ -86,21 +86,23 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
                   <span className="block whitespace-pre-line text-[13px] leading-relaxed text-ink">{note.body}</span>
                   <span className="mt-2 block text-[12px] text-ink-3">{dateTime(note.createdAt)}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => deleteNote(note.id)}
-                  className="td-icon-button h-10 w-10 flex-shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger"
-                  aria-label="Удалить заметку"
-                >
-                  <Trash size={16} weight="bold" />
-                </button>
+                {canMutate && (
+                  <button
+                    type="button"
+                    onClick={() => deleteNote(note.id)}
+                    className="td-icon-button h-10 w-10 flex-shrink-0 text-ink-3 hover:bg-danger-soft hover:text-danger"
+                    aria-label="Удалить заметку"
+                  >
+                    <Trash size={16} weight="bold" />
+                  </button>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
 
-      {showForm ? (
+      {canMutate && (showForm ? (
         <form onSubmit={addNote} className="td-form-surface grid gap-3" aria-label="Новая заметка">
           <div className="flex items-center justify-between gap-3">
             <span className="text-[13px] font-semibold text-ink">Новая запись</span>
@@ -124,7 +126,8 @@ export function NotesSection({ caseId, initial }: { caseId: number; initial: Not
         <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={15} weight="bold" />} onClick={() => setShowForm(true)}>
           Добавить заметку
         </Button>
-      )}
+      ))}
+      {!canMutate && <p className="text-[12px] text-ink-3">Заметки доступны для контекста. Редактирует владелец кейса.</p>}
     </div>
   );
 }

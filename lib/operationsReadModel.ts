@@ -89,8 +89,8 @@ const PRIORITY_SCORE: Record<TaskPriority | "CRITICAL", number> = {
 
 export async function getOperationsQueue(context: OperationalContext, now = new Date()): Promise<OperationsQueue> {
   assertCapability(context, "work:read");
-  const ownerFilter = context.role === "AGENT" ? { assigneeMembershipId: context.membershipId } : {};
-  const meetingOwnerFilter = context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {};
+  const ownerFilter = context.role === "ADMIN" ? {} : { assigneeMembershipId: context.membershipId };
+  const meetingOwnerFilter = context.role === "ADMIN" ? {} : { ownerMembershipId: context.membershipId };
   const [tasks, meetings] = await Promise.all([
     prisma.task.findMany({
       where: {
@@ -201,8 +201,8 @@ export async function getTeamControlTower(context: OperationalContext, now = new
   const today = zonedDateKey(now, context.timezone);
   const members = memberships.map((membership) => {
     const ownTasks = tasks.filter((task) => task.assigneeMembershipId === membership.id);
-    const overdue = ownTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length;
-    const todayCount = ownTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) === today).length;
+    const overdue = ownTasks.filter((task) => task.dueAt && task.dueAt < now).length;
+    const todayCount = ownTasks.filter((task) => task.dueAt && task.dueAt >= now && zonedDateKey(task.dueAt, context.timezone) === today).length;
     const open = ownTasks.length;
     return {
       membershipId: membership.id,
@@ -218,7 +218,7 @@ export async function getTeamControlTower(context: OperationalContext, now = new
 
   const caseRows = cases.map((item) => {
     const caseTasks = tasks.filter((task) => task.caseId === item.id);
-    const overdue = caseTasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length;
+    const overdue = caseTasks.filter((task) => task.dueAt && task.dueAt < now).length;
     const unassigned = caseTasks.filter((task) => !task.assigneeMembershipId).length;
     const ceremonyRisk = item.lead.ceremonyAt ? hoursUntil(item.lead.ceremonyAt, now) : null;
     const risk = overdue > 0 || (ceremonyRisk !== null && ceremonyRisk <= 24)
@@ -263,7 +263,7 @@ export async function getTeamControlTower(context: OperationalContext, now = new
       .sort((a, b) => Number(!b.assigneeMembershipId) - Number(!a.assigneeMembershipId) || nullableTime(a.dueAt) - nullableTime(b.dueAt)),
     totals: {
       open: tasks.length,
-      overdue: tasks.filter((task) => task.dueAt && zonedDateKey(task.dueAt, context.timezone) < today).length,
+      overdue: tasks.filter((task) => task.dueAt && task.dueAt < now).length,
       unassigned: tasks.filter((task) => !task.assigneeMembershipId).length,
       ceremoniesSoon: cases.filter((item) => item.lead.ceremonyAt && hoursUntil(item.lead.ceremonyAt, now) <= 72).length,
     },
@@ -358,9 +358,9 @@ function meetingQueueItem(meeting: MeetingRow, timezone: string, now: Date): Que
 
 function queueGroup(value: Date | null, timezone: string, now: Date): QueueGroup {
   if (!value) return "UPCOMING";
+  if (value < now) return "OVERDUE";
   const key = zonedDateKey(value, timezone);
   const today = zonedDateKey(now, timezone);
-  if (key < today) return "OVERDUE";
   if (key === today) return "TODAY";
   return "UPCOMING";
 }

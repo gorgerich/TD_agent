@@ -34,18 +34,21 @@ page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
 
 try {
   await login(page, agentEmail, password);
-  await agentFlow(page, context);
+  const agentResult = await agentFlow(page, context);
   await context.clearCookies();
   await login(page, managerEmail, password);
-  await managerFlow(page);
+  const managerResult = await managerFlow(page);
+  await context.clearCookies();
+  await login(page, agentEmail, password);
+  const handoffResult = await assignedAgentFlow(page);
   await responsiveAndAccessibility(page);
   assert.equal(expectedConflictErrors, 2, "Both injected task version conflicts must reach the browser");
   assert.deepEqual(failures, [], `Unexpected browser errors:\n${failures.join("\n")}`);
   process.stdout.write(`${JSON.stringify({
-    agent: "PASS",
-    manager: "PASS",
-    cremation: "PASS",
-    relativeBurial: "PASS",
+    agent: agentResult,
+    manager: managerResult,
+    cremation: agentResult,
+    relativeBurial: handoffResult,
     accessibilityCriticalSerious: 0,
     mobile: "PASS",
     zoom200: "PASS",
@@ -127,6 +130,7 @@ async function agentFlow(target, browserContext) {
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
   await target.getByRole("button", { name: "Сохранить" }).click();
   await target.getByRole("status").filter({ hasText: "результат встречи сохранены" }).waitFor();
+  return "PASS";
 }
 
 async function managerFlow(target) {
@@ -166,6 +170,25 @@ async function managerFlow(target) {
   });
   assert.equal(audit.status, 200);
   assert.ok(audit.body.events.some((event) => event.action === "task.assigned"));
+  return "PASS";
+}
+
+async function assignedAgentFlow(target) {
+  await target.goto(`${baseUrl}/agent/tasks`, { waitUntil: "networkidle" });
+  await target.getByRole("heading", { name: "Сегодня", exact: true, level: 1 }).waitFor();
+  const assigned = target.locator("li").filter({ hasText: "Семья Участкова" }).filter({ hasText: "Подготовить сценарный чек-лист" }).first();
+  await assigned.waitFor();
+  await Promise.all([
+    target.waitForURL(/\/agent\/cases\/\d+\?tab=work/),
+    assigned.getByRole("link", { name: "Открыть подготовку" }).click(),
+  ]);
+  await target.getByRole("heading", { name: "Семья Участкова · синтетика", exact: true }).waitFor();
+  const task = target.locator("li").filter({ hasText: "Подготовить сценарный чек-лист" }).first();
+  await task.getByRole("button", { name: "Завершить подготовку" }).click();
+  await target.getByPlaceholder("Что получилось и что делать дальше").fill("Чек-лист родственного захоронения подготовлен и передан владельцу кейса");
+  await target.getByRole("button", { name: "Сохранить результат" }).click();
+  await target.getByRole("status").filter({ hasText: "Результат задачи зафиксирован" }).waitFor();
+  return "PASS";
 }
 
 async function responsiveAndAccessibility(target) {

@@ -1,10 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WarningCircle } from "@phosphor-icons/react";
 import { phone as fmtPhone } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import { zonedLocalToIso } from "@/lib/zonedDateTime";
 
 type ClientOption = { id: number; name: string; phone: string };
 type OwnerOption = { membershipId: string; name: string };
@@ -17,29 +19,6 @@ function Field({ id, label, hint, children }: { id: string; label: string; hint?
       {hint && <p className="td-field-help">{hint}</p>}
     </div>
   );
-}
-
-function zonedLocalToIso(value: string, timezone: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const [, year, month, day, hour, minute] = match;
-  const desired = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-  let candidate = desired;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date(candidate));
-    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
-    const represented = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
-    candidate += desired - represented;
-  }
-  return new Date(candidate).toISOString();
 }
 
 function FormInner({
@@ -64,6 +43,7 @@ function FormInner({
   const [durationMinutes, setDurationMinutes] = useState("60");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const command = useRef<ClientCommandIdentity | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -76,7 +56,16 @@ function FormInner({
       return;
     }
     try {
-      const commandId = crypto.randomUUID();
+      const body = {
+        leadId: Number(leadId),
+        scheduledAt: iso,
+        ownerMembershipId,
+        type,
+        channel,
+        location: location.trim() || null,
+        durationMinutes: Number(durationMinutes) || null,
+      };
+      const commandId = commandIdFor(command, JSON.stringify(body));
       const response = await fetch("/api/agent/meetings", {
         method: "POST",
         headers: {
@@ -84,21 +73,14 @@ function FormInner({
           "Idempotency-Key": commandId,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify({
-          leadId: Number(leadId),
-          scheduledAt: iso,
-          ownerMembershipId,
-          type,
-          channel,
-          location: location.trim() || null,
-          durationMinutes: Number(durationMinutes) || null,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json().catch(() => null) as { id?: number; error?: string } | null;
       if (!response.ok || !data?.id) {
         setError(response.status === 409 ? "Такая команда уже обработана. Обновите календарь." : data?.error ?? "Не удалось создать встречу.");
         return;
       }
+      clearCommandId(command);
       router.push(`/agent/meetings/${data.id}`);
       router.refresh();
     } catch {

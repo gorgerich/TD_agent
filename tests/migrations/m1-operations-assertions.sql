@@ -13,26 +13,29 @@ BEGIN
   SELECT count(*) INTO mismatch_count
   FROM "Task" t
   JOIN "Case" c ON c."id" = t."caseId"
-  WHERE t."id" IN (9251, 9252)
+  WHERE t."id" IN (9251, 9252, 9253)
     AND (
       t."organizationId" <> 'agent:9001'
+      OR t."agentId" <> 9001
       OR t."assigneeMembershipId" <> 'membership:agent:9001'
       OR t."createdByMembershipId" <> 'membership:agent:9001'
       OR t."idempotencyKey" <> 'legacy:task:' || t."id"::text
       OR c."leadId" <> t."leadId"
       OR (t."id" = 9251 AND t."status" <> 'OPEN')
       OR (t."id" = 9252 AND t."status" <> 'COMPLETED')
+      OR (t."id" = 9253 AND t."status" <> 'OPEN')
     );
-  IF mismatch_count <> 0 OR (SELECT count(*) FROM "Task" WHERE "id" IN (9251, 9252)) <> 2 THEN
+  IF mismatch_count <> 0 OR (SELECT count(*) FROM "Task" WHERE "id" IN (9251, 9252, 9253)) <> 3 THEN
     RAISE EXCEPTION 'M1 task backfill mismatches: %', mismatch_count;
   END IF;
 
   SELECT count(*) INTO mismatch_count
   FROM "Meeting" m
   JOIN "Case" c ON c."id" = m."caseId"
-  WHERE m."id" BETWEEN 9201 AND 9206
+  WHERE m."id" BETWEEN 9201 AND 9207
     AND (
       m."organizationId" <> 'agent:9001'
+      OR m."agentId" <> 9001
       OR m."ownerMembershipId" <> 'membership:agent:9001'
       OR m."idempotencyKey" <> 'legacy:meeting:' || m."id"::text
       OR m."operationalStatus" <> 'COMPLETED'
@@ -40,7 +43,7 @@ BEGIN
       OR m."outcomeRecordedAt" IS NULL
       OR c."leadId" <> m."leadId"
     );
-  IF mismatch_count <> 0 OR (SELECT count(*) FROM "Meeting" WHERE "id" BETWEEN 9201 AND 9206) <> 6 THEN
+  IF mismatch_count <> 0 OR (SELECT count(*) FROM "Meeting" WHERE "id" BETWEEN 9201 AND 9207) <> 7 THEN
     RAISE EXCEPTION 'M1 meeting backfill mismatches: %', mismatch_count;
   END IF;
 

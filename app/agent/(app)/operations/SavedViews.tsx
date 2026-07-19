@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookmarkSimple, FloppyDisk, WarningCircle, X } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 
 type QueryValue = string | number | boolean | null;
 type SavedView = {
@@ -30,6 +31,7 @@ export function SavedViews({
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const command = useRef<ClientCommandIdentity | null>(null);
 
   const relevantViews = useMemo(
     () => views.filter((view) => view.query.screen === screen),
@@ -76,7 +78,8 @@ export function SavedViews({
     setError(null);
     setNotice(null);
     try {
-      const commandId = crypto.randomUUID();
+      const body = { name: trimmedName, scope, query: { ...query, screen } };
+      const commandId = commandIdFor(command, JSON.stringify(body));
       const response = await fetch("/api/agent/operations/views", {
         method: "POST",
         headers: {
@@ -84,11 +87,12 @@ export function SavedViews({
           "Idempotency-Key": commandId,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify({ name: trimmedName, scope, query: { ...query, screen } }),
+        body: JSON.stringify(body),
       });
       const payload = await response.json().catch(() => null) as { view?: SavedView; error?: string } | null;
       if (!response.ok || !payload?.view) throw new Error(payload?.error ?? "Представление не сохранено");
       setViews((current) => [payload.view!, ...current.filter((view) => view.id !== payload.view!.id)]);
+      clearCommandId(command);
       setName("");
       setEditorOpen(false);
       setNotice(`Представление «${trimmedName}» сохранено.`);
@@ -124,6 +128,7 @@ export function SavedViews({
         <button
           type="button"
           onClick={() => {
+            clearCommandId(command);
             setEditorOpen((current) => !current);
             setError(null);
             setNotice(null);

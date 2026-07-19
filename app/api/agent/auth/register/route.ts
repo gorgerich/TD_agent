@@ -36,8 +36,19 @@ export async function POST(req: NextRequest) {
 
   const email = normalizeEmail(parsed.data.email);
   const phone = normalizeOptionalPhone(parsed.data.phone);
-  const passwordHash = hashPassword(parsed.data.password);
   const inviteHash = parsed.data.inviteToken ? hashInvitationToken(parsed.data.inviteToken) : null;
+
+  if (inviteHash) {
+    const invite = await prisma.organizationInvite.findUnique({
+      where: { tokenHash: inviteHash },
+      select: { emailNormalized: true, acceptedAt: true, revokedAt: true, expiresAt: true },
+    });
+    if (!invite || invite.emailNormalized !== email || invite.acceptedAt || invite.revokedAt || invite.expiresAt <= new Date()) {
+      return NextResponse.json({ error: "Приглашение недействительно или истекло" }, { status: 403 });
+    }
+  }
+
+  const passwordHash = hashPassword(parsed.data.password);
 
   try {
     const created = await prisma.$transaction(async (tx) => {

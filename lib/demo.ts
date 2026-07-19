@@ -9,8 +9,8 @@ export const DEMO_PHONE = "+79990000000";
 export const DEMO_CODE = "0000";
 const DEMO_EMAIL = "demo@tihiydom.local";
 
-export function isDemoMode(): boolean {
-  return process.env.DEMO_MODE === "1";
+export function isDemoMode(value = process.env.DEMO_MODE): boolean {
+  return value === "1";
 }
 
 /**
@@ -20,6 +20,7 @@ export function isDemoMode(): boolean {
  */
 export async function ensureDemoAgent(): Promise<{ userId: number; agentId: number; name: string }> {
   assertReleaseWritesAllowed("demo seed");
+  if (!isDemoMode()) throw new Error("Demo mode is disabled");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Senior" },
     update: {},

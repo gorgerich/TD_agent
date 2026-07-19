@@ -39,7 +39,7 @@ export async function createMeeting(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runMeetingCommand(context.organizationId, meta.idempotencyKey, "meeting.created", async (tx) => {
+  return runMeetingCommand(context.organizationId, meta.idempotencyKey, "meeting.created", undefined, async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "meeting.created");
     if (replay) return replay;
 
@@ -183,8 +183,8 @@ async function changeMeeting(
   change: (tx: Prisma.TransactionClient, current: LoadedMeeting) => Promise<LoadedMeeting>,
   reason?: string,
 ) {
-  return runMeetingCommand(context.organizationId, meta.idempotencyKey, action, async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action);
+  return runMeetingCommand(context.organizationId, meta.idempotencyKey, action, String(meetingId), async (tx) => {
+    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(meetingId));
     if (replay) return replay;
     const current = await loadMeeting(tx, context, meetingId);
     if (!current) throw new OperationalCommandError(404, "Встреча не найдена");
@@ -213,13 +213,14 @@ async function runMeetingCommand(
   organizationId: string,
   idempotencyKey: string,
   action: string,
+  entityId: string | undefined,
   command: (tx: Prisma.TransactionClient) => Promise<MeetingResult>,
 ) {
   try {
     return await runOperationalTransaction(command);
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action));
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action, entityId));
     if (replay) return replay;
     throw error;
   }
@@ -230,7 +231,7 @@ async function loadMeeting(tx: Prisma.TransactionClient, context: OperationalCon
     where: {
       id: meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(context.role === "ADMIN" ? {} : { ownerMembershipId: context.membershipId }),
     },
   });
 }
@@ -265,10 +266,15 @@ async function commandReplay(
   organizationId: string,
   idempotencyKey: string,
   expectedAction: string,
+  expectedEntityId?: string,
 ): Promise<MeetingResult | null> {
   const replay = await findOperationalReplay(tx, organizationId, idempotencyKey);
   if (!replay) return null;
-  if (replay.action !== expectedAction || replay.entityType !== "meeting") {
+  if (
+    replay.action !== expectedAction
+    || replay.entityType !== "meeting"
+    || (expectedEntityId !== undefined && replay.entityId !== expectedEntityId)
+  ) {
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
   const result = replay.result as Record<string, unknown>;

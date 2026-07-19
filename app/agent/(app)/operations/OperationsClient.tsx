@@ -1,7 +1,7 @@
 "use client";
 
 import { Link } from "next-view-transitions";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowClockwise,
@@ -12,6 +12,7 @@ import {
   WarningCircle,
 } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 import type { ControlTowerCase, ControlTowerMember, ControlTowerTask, TeamControlTower } from "@/lib/operationsReadModel";
 import { SavedViews } from "./SavedViews";
 
@@ -190,13 +191,12 @@ export function OperationsClient({
               </div>
               <span className="tnum text-[12px] font-semibold text-ink-3">{visibleCases.length} из {tower.cases.length}</span>
             </div>
-            <div className="mt-3 flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface p-1" role="tablist" aria-label="Фильтр кейсов">
+            <div className="mt-3 flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface p-1" role="group" aria-label="Фильтр кейсов">
               {FILTERS.map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  role="tab"
-                  aria-selected={filter === item.id}
+                  aria-pressed={filter === item.id}
                   onClick={() => setFilter(item.id)}
                   className={`min-h-9 flex-none rounded-full px-3 text-[11px] font-semibold transition-colors ${filter === item.id ? "bg-accent text-on-accent" : "text-ink-3 hover:bg-surface-2 hover:text-ink"}`}
                 >
@@ -241,6 +241,7 @@ function AssignmentRow({
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const command = useRef<ClientCommandIdentity | null>(null);
 
   async function assign() {
     if (!reason.trim()) {
@@ -255,7 +256,13 @@ function AssignmentRow({
     setPending(true);
     setError(null);
     try {
-      const commandId = crypto.randomUUID();
+      const body = {
+        action: "assign",
+        assigneeMembershipId: assigneeId || null,
+        reason: reason.trim(),
+        version: task.version,
+      };
+      const commandId = commandIdFor(command, JSON.stringify({ taskId: task.id, ...body }));
       const response = await fetch(`/api/agent/cases/${task.leadId}/tasks/${task.id}`, {
         method: "PATCH",
         headers: {
@@ -263,12 +270,7 @@ function AssignmentRow({
           "Idempotency-Key": commandId,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify({
-          action: "assign",
-          assigneeMembershipId: assigneeId || null,
-          reason: reason.trim(),
-          version: task.version,
-        }),
+        body: JSON.stringify(body),
       });
       const payload = await response.json().catch(() => null) as { task?: { version: number }; error?: string } | null;
       if (!response.ok || !payload?.task) {
@@ -283,6 +285,7 @@ function AssignmentRow({
       }
       const member = members.find((item) => item.membershipId === assigneeId);
       onAssigned(assigneeId || null, member?.name ?? "Не назначено", payload.task.version);
+      clearCommandId(command);
       setEditing(false);
       setReason("");
     } catch {
@@ -313,7 +316,7 @@ function AssignmentRow({
           {task.expectedOutcome && <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-3">Результат: {task.expectedOutcome}</p>}
         </div>
         {canAssign && (
-          <button type="button" onClick={() => { setEditing((current) => !current); setError(null); }} className={buttonClasses({ variant: "ghost", size: "sm", className: "w-fit" })} aria-expanded={editing}>
+          <button type="button" onClick={() => { clearCommandId(command); setEditing((current) => !current); setError(null); }} className={buttonClasses({ variant: "ghost", size: "sm", className: "w-fit" })} aria-expanded={editing}>
             {task.assigneeMembershipId ? "Переназначить" : "Назначить"}
           </button>
         )}
@@ -323,7 +326,7 @@ function AssignmentRow({
         <form
           className="mt-4 grid min-w-0 gap-3 rounded-[14px] bg-surface-2 p-3.5 lg:grid-cols-[minmax(180px,0.7fr)_minmax(0,1fr)_auto] lg:items-end"
           onSubmit={(event) => { event.preventDefault(); void assign(); }}
-          onKeyDown={(event) => { if (event.key === "Escape" && !pending) setEditing(false); }}
+          onKeyDown={(event) => { if (event.key === "Escape" && !pending) { clearCommandId(command); setEditing(false); } }}
         >
           <label className="min-w-0">
             <span className="td-field-label">Исполнитель</span>
@@ -338,7 +341,7 @@ function AssignmentRow({
           </label>
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={pending} className={buttonClasses({ size: "sm" })}>{pending ? "Сохраняю…" : "Сохранить"}</button>
-            <button type="button" onClick={() => setEditing(false)} disabled={pending} className={buttonClasses({ variant: "ghost", size: "sm" })}>Отмена</button>
+            <button type="button" onClick={() => { clearCommandId(command); setEditing(false); }} disabled={pending} className={buttonClasses({ variant: "ghost", size: "sm" })}>Отмена</button>
           </div>
           {error && (
             <div role="alert" className="flex flex-wrap items-center gap-2 text-[12px] text-danger lg:col-span-3">

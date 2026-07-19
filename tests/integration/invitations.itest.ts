@@ -67,7 +67,7 @@ test("M1 invitations are admin-only, tenant-scoped, single-use, recipient-bound 
     assert.ok((await db.organizationInvite.findUniqueOrThrow({ where: { id: createdBody.id } })).acceptedAt);
 
     const reused = await register(registrationRequest(acceptedEmail, createdBody.token));
-    assert.equal(reused.status, 409);
+    assert.equal(reused.status, 403);
     assert.equal(await db.user.count({ where: { email: acceptedEmail } }), 1);
 
     const wrongToken = randomBytes(32).toString("base64url");

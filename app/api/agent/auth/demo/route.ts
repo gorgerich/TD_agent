@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { createAgentSession, setAgentSessionCookie } from "@/lib/agentAuth";
-import { ensureDemoAgent } from "@/lib/demo";
+import { ensureDemoAgent, isDemoMode } from "@/lib/demo";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  if (!isDemoMode()) return NextResponse.json({ error: "Демо-режим отключён" }, { status: 404 });
   const limited = enforceRateLimit(req, "demo", 10, 60_000);
   if (limited) return limited;
 

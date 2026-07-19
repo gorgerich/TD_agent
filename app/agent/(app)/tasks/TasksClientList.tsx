@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 import type { OperationsQueue, QueueGroup, QueueItem } from "@/lib/operationsReadModel";
 import { SavedViews } from "../operations/SavedViews";
 
@@ -55,9 +56,11 @@ function useConnectivity() {
 export function TasksClientList({
   initialQueue,
   loadError,
+  canMutate,
 }: {
   initialQueue: OperationsQueue | null;
   loadError: string | null;
+  canMutate: boolean;
 }) {
   const router = useRouter();
   const online = useConnectivity();
@@ -67,9 +70,10 @@ export function TasksClientList({
   const [commandError, setCommandError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeGroup, setActiveGroup] = useState<QueueGroup | "ALL">("ALL");
-  const [syncState, setSyncState] = useState<"idle" | "syncing" | "complete" | "error">("idle");
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "complete" | "error">(canMutate ? "idle" : "complete");
   const [syncError, setSyncError] = useState<string | null>(null);
   const outcomeRef = useRef<HTMLTextAreaElement>(null);
+  const completionCommand = useRef<ClientCommandIdentity | null>(null);
   const syncStarted = useRef(false);
 
   useEffect(() => {
@@ -77,6 +81,7 @@ export function TasksClientList({
   }, [completion]);
 
   const syncQueue = useCallback(async () => {
+    if (!canMutate) return;
     if (!navigator.onLine) {
       setSyncState("error");
       setSyncError("Сверка обязательств не выполнена: нет подключения к сети.");
@@ -104,14 +109,14 @@ export function TasksClientList({
       setSyncState("error");
       setSyncError(syncFailure instanceof Error ? syncFailure.message : "Не удалось сверить обязательства");
     }
-  }, []);
+  }, [canMutate]);
 
   useEffect(() => {
-    if (!initialQueue || syncStarted.current) return;
+    if (!canMutate || !initialQueue || syncStarted.current) return;
     syncStarted.current = true;
     const start = window.setTimeout(() => void syncQueue(), 0);
     return () => window.clearTimeout(start);
-  }, [initialQueue, syncQueue]);
+  }, [canMutate, initialQueue, syncQueue]);
 
   const total = useMemo(
     () => queue ? Object.values(queue.counts).reduce((sum, count) => sum + count, 0) : 0,
@@ -119,6 +124,7 @@ export function TasksClientList({
   );
 
   function beginCompletion(item: QueueItem) {
+    clearCommandId(completionCommand);
     setCommandError(null);
     setNotice(null);
     setCompletion({ item, outcome: "" });
@@ -141,7 +147,8 @@ export function TasksClientList({
     setPendingId(item.id);
     setCommandError(null);
     try {
-      const commandId = crypto.randomUUID();
+      const body = { action: "complete", outcome, version: item.version };
+      const commandId = commandIdFor(completionCommand, JSON.stringify({ taskId: item.id, ...body }));
       const response = await fetch(`/api/agent/cases/${item.caseId}/tasks/${item.id}`, {
         method: "PATCH",
         headers: {
@@ -149,7 +156,7 @@ export function TasksClientList({
           "Idempotency-Key": commandId,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify({ action: "complete", outcome, version: item.version }),
+        body: JSON.stringify(body),
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) {
@@ -164,6 +171,7 @@ export function TasksClientList({
       }
 
       setQueue((current) => removeQueueItem(current, item));
+      clearCommandId(completionCommand);
       setCompletion(null);
       setNotice(`Результат по задаче «${item.title}» зафиксирован.`);
     } catch {
@@ -188,8 +196,9 @@ export function TasksClientList({
     <div className="space-y-5" aria-busy={pendingId !== null}>
       <div className="flex min-h-6 flex-wrap items-center justify-between gap-2 text-[11px] text-ink-3" aria-live="polite">
         <span>
+          {!canMutate && "Обзор операционной очереди. Действия выполняют агенты и руководители."}
           {syncState === "syncing" && "Сверяю просроченные встречи и обязательства…"}
-          {syncState === "complete" && "Обязательства сверены, очередь обновлена."}
+          {canMutate && syncState === "complete" && "Обязательства сверены, очередь обновлена."}
           {syncState === "idle" && "Подготовка сверки обязательств."}
         </span>
         {syncState === "syncing" && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line-strong border-t-accent" aria-hidden />}
@@ -272,11 +281,13 @@ export function TasksClientList({
             onBeginCompletion={beginCompletion}
             onOutcomeChange={(outcome) => setCompletion((current) => current ? { ...current, outcome } : current)}
             onCancelCompletion={() => {
+              clearCommandId(completionCommand);
               setCompletion(null);
               setCommandError(null);
             }}
             onComplete={() => void completeTask()}
             onRefresh={() => router.refresh()}
+            canMutate={canMutate}
           />
         );
       })}
@@ -309,6 +320,7 @@ function QueueSection({
   onCancelCompletion,
   onComplete,
   onRefresh,
+  canMutate,
 }: {
   group: (typeof GROUPS)[number];
   items: QueueItem[];
@@ -323,6 +335,7 @@ function QueueSection({
   onCancelCompletion: () => void;
   onComplete: () => void;
   onRefresh: () => void;
+  canMutate: boolean;
 }) {
   const Icon = group.icon;
   return (
@@ -353,6 +366,7 @@ function QueueSection({
             onCancelCompletion={onCancelCompletion}
             onComplete={onComplete}
             onRefresh={onRefresh}
+            canMutate={canMutate}
           />
         ))}
       </ul>
@@ -373,6 +387,7 @@ function QueueRow({
   onCancelCompletion,
   onComplete,
   onRefresh,
+  canMutate,
 }: {
   item: QueueItem;
   timezone: string;
@@ -386,6 +401,7 @@ function QueueRow({
   onCancelCompletion: () => void;
   onComplete: () => void;
   onRefresh: () => void;
+  canMutate: boolean;
 }) {
   const isDirectOutcome = item.kind === "TASK" && item.actionLabel === "Зафиксировать результат";
   const allowsSecondaryOutcome = item.kind === "TASK" && !isDirectOutcome && item.actionLabel !== "Зафиксировать исход";
@@ -416,7 +432,7 @@ function QueueRow({
         </div>
 
         <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
-          {isDirectOutcome ? (
+          {canMutate && (isDirectOutcome ? (
             <button type="button" onClick={onBeginCompletion} className={buttonClasses({ size: "sm" })}>
               <CheckCircle size={15} weight="fill" />
               {item.actionLabel}
@@ -426,8 +442,13 @@ function QueueRow({
               {item.actionLabel}
               <ArrowRight size={14} weight="bold" />
             </Link>
+          ))}
+          {!canMutate && (
+            <Link href={item.href} className={buttonClasses({ variant: "ghost", size: "sm" })}>
+              Открыть <ArrowRight size={14} weight="bold" />
+            </Link>
           )}
-          {allowsSecondaryOutcome && (
+          {canMutate && allowsSecondaryOutcome && (
             <button type="button" onClick={onBeginCompletion} className={buttonClasses({ variant: "ghost", size: "sm" })}>
               Зафиксировать результат
             </button>

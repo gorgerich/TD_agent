@@ -27,11 +27,18 @@ export function jsonError(status: number, message: string): NextResponse {
 
 /** Достаёт сессию агента или бросает 401. Fail-closed: dev-заглушка
  *  (agentId 0) допустима ТОЛЬКО в development; в проде такая сессия = 401. */
-export async function requireAgent(req: Request): Promise<AgentSession> {
+export async function requireAgent(req: Request, options: { allowAdminMutation?: boolean } = {}): Promise<AgentSession> {
   const session = await getSessionFromRequest(req);
   if (!session) throw new ApiError(401, "Unauthorized");
   if (session.agentId <= 0 && process.env.NODE_ENV !== "development") {
     throw new ApiError(401, "Unauthorized");
+  }
+  if (
+    session.role === "ADMIN"
+    && !options.allowAdminMutation
+    && !["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())
+  ) {
+    throw new ApiError(403, "Роль аудитора доступна только для чтения");
   }
   return session;
 }
@@ -71,7 +78,7 @@ export async function assertMeetingOwned(meetingId: number, session: AgentSessio
       : {
           id: meetingId,
           organizationId: session.organizationId,
-          ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+          ...(session.role === "ADMIN" ? {} : { ownerMembershipId: session.membershipId }),
         },
     select: { id: true },
   });
@@ -88,7 +95,7 @@ export async function assertLeadOwned(leadId: number, session: AgentSession | nu
           id: leadId,
           case: {
             tenantId: session.organizationId,
-            ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
+            ...(session.role === "ADMIN" ? {} : { ownerId: session.agentId }),
           },
         },
     select: { id: true },

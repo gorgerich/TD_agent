@@ -22,6 +22,8 @@ type TaskItem = {
   version: number;
   dueAt: string | null;
   completedAt: string | null;
+  canMutate: boolean;
+  actionHref: string | null;
 };
 type NoteItem = { id: number; body: string; createdAt: string };
 type DocItem = { id: number; name: string; category: string; url: string; mimeType: string; size: number; createdAt: string };
@@ -39,7 +41,8 @@ export function CaseTabs({
   payments,
   activity,
   initialTab = "work",
-  canMutate = true,
+  timezone,
+  canMutateCase = true,
 }: {
   caseId: number;
   tasks: TaskItem[];
@@ -50,7 +53,8 @@ export function CaseTabs({
   payments: PaymentItem[];
   activity: ActivityItem[];
   initialTab?: TabId;
-  canMutate?: boolean;
+  timezone: string;
+  canMutateCase?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const openTasks = tasks.filter((task) => task.status === "OPEN").length;
@@ -117,24 +121,24 @@ export function CaseTabs({
           {tab === "work" && (
             <div className={s.workGrid}>
               <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
-                <TasksSection caseId={caseId} initial={tasks} canMutate={canMutate} />
+                <TasksSection caseId={caseId} initial={tasks} timezone={timezone} canCreate={canMutateCase} />
               </Section>
               <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
-                <PaymentsSection caseId={caseId} initial={payments} />
+                <PaymentsSection caseId={caseId} initial={payments} canMutate={canMutateCase} />
               </Section>
             </div>
           )}
 
           {tab === "docs" && (
             <Section title="Документы" meta={missingDocs ? "нужно собрать" : `${docs.length} в кейсе`}>
-              <DocumentsSection caseId={caseId} initial={docs} />
+              <DocumentsSection caseId={caseId} initial={docs} canMutate={canMutateCase} />
             </Section>
           )}
 
           {tab === "family" && (
             <div className={s.stack}>
               <Section title="Потребности семьи">
-                <IntakeSection caseId={caseId} initial={intake} />
+                <IntakeSection caseId={caseId} initial={intake} canMutate={canMutateCase} />
               </Section>
               {context && (
                 <Section title="Контекст" icon={<FileText size={16} weight="fill" />}>
@@ -147,7 +151,7 @@ export function CaseTabs({
           {tab === "history" && (
             <div className={s.stack}>
               <Section title="Заметки" meta={notes.length ? String(notes.length) : "пусто"}>
-                <NotesSection caseId={caseId} initial={notes} />
+                <NotesSection caseId={caseId} initial={notes} canMutate={canMutateCase} />
               </Section>
               <Section title="Активность">
                 <ol className={s.activityList}>

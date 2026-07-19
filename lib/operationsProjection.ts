@@ -122,9 +122,15 @@ export async function ensurePastMeetingEscalations(scope: string | OperationalCo
 
   let created = 0;
   for (const meeting of meetings) {
-    const sourceEventId = `meeting:${meeting.id}:past-due:v1`;
-    try {
-      const didCreate = await runOperationalTransaction(async (tx) => {
+    if (await projectPastMeetingEscalation(organizationId, meeting.id, now)) created += 1;
+  }
+  return { scanned: meetings.length, created };
+}
+
+export async function projectPastMeetingEscalation(organizationId: string, meetingId: number, now: Date) {
+  const sourceEventId = `meeting:${meetingId}:past-due:v1`;
+  try {
+    return await runOperationalTransaction(async (tx) => {
         const receipt = await tx.projectionReceipt.findUnique({
           where: {
             organizationId_projector_sourceEventId: {
@@ -136,14 +142,41 @@ export async function ensurePastMeetingEscalations(scope: string | OperationalCo
         });
         if (receipt) return false;
 
+        const [current] = await tx.$queryRaw<Array<{
+          id: number;
+          caseId: string;
+          leadId: number;
+          agentId: number;
+          ownerMembershipId: string;
+          scheduledAt: Date | null;
+          operationalStatus: string;
+          outcomeRecordedAt: Date | null;
+        }>>(Prisma.sql`
+          SELECT
+            "id", "caseId", "leadId", "agentId", "ownerMembershipId",
+            "scheduledAt", "operationalStatus", "outcomeRecordedAt"
+          FROM "Meeting"
+          WHERE "id" = ${meetingId} AND "organizationId" = ${organizationId}
+          FOR UPDATE
+        `);
+        if (
+          !current
+          || !["SCHEDULED", "CONFIRMED"].includes(current.operationalStatus)
+          || !current.scheduledAt
+          || current.scheduledAt >= now
+          || current.outcomeRecordedAt
+        ) {
+          return false;
+        }
+
         const task = await tx.task.create({
           data: {
             organizationId,
-            caseId: meeting.caseId,
-            leadId: meeting.leadId,
-            agentId: meeting.agentId,
-            assigneeMembershipId: meeting.ownerMembershipId,
-            createdByMembershipId: meeting.ownerMembershipId,
+            caseId: current.caseId,
+            leadId: current.leadId,
+            agentId: current.agentId,
+            assigneeMembershipId: current.ownerMembershipId,
+            createdByMembershipId: current.ownerMembershipId,
             type: "MEETING_ESCALATION",
             priority: "CRITICAL",
             status: "OPEN",
@@ -178,23 +211,21 @@ export async function ensurePastMeetingEscalations(scope: string | OperationalCo
           },
         });
         return true;
-      });
-      if (didCreate) created += 1;
-    } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-      const receipt = await prisma.projectionReceipt.findUnique({
-        where: {
-          organizationId_projector_sourceEventId: {
-            organizationId,
-            projector: "m1.meeting-escalation.v1",
-            sourceEventId,
-          },
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+    const receipt = await prisma.projectionReceipt.findUnique({
+      where: {
+        organizationId_projector_sourceEventId: {
+          organizationId,
+          projector: "m1.meeting-escalation.v1",
+          sourceEventId,
         },
-      });
-      if (!receipt) throw error;
-    }
+      },
+    });
+    if (!receipt) throw error;
+    return false;
   }
-  return { scanned: meetings.length, created };
 }
 
 export async function closeMeetingEscalationInTransaction(

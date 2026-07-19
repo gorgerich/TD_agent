@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Link } from "next-view-transitions";
+import { useMemo, useRef, useState } from "react";
 import { CalendarBlank, Check, Clock, Flag, Plus, Prohibit, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/Toast";
 import { dateTime } from "@/lib/format";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import { zonedLocalInput, zonedLocalToIso } from "@/lib/zonedDateTime";
 
 type Task = {
   id: number;
@@ -19,16 +22,30 @@ type Task = {
   version: number;
   dueAt: string | null;
   completedAt: string | null;
+  canMutate: boolean;
+  actionHref: string | null;
 };
 
 type TaskAction = { task: Task; type: "complete" | "cancel" | "reschedule" | "wait" | "resume" } | null;
 
-export function TasksSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Task[]; canMutate?: boolean }) {
+export function TasksSection({
+  caseId,
+  initial,
+  timezone,
+  canCreate,
+}: {
+  caseId: number;
+  initial: Task[];
+  timezone: string;
+  canCreate: boolean;
+}) {
   const [tasks, setTasks] = useState(initial);
   const [showCreate, setShowCreate] = useState(false);
   const [action, setAction] = useState<TaskAction>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const createCommand = useRef<ClientCommandIdentity | null>(null);
+  const actionCommand = useRef<ClientCommandIdentity | null>(null);
   const toast = useToast();
   const open = useMemo(() => tasks.filter((task) => task.status === "OPEN"), [tasks]);
   const closed = useMemo(() => tasks.filter((task) => task.status !== "OPEN"), [tasks]);
@@ -37,7 +54,17 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
   async function createTask(input: NewTaskInput) {
     setPending(true);
     setMessage(null);
-    const operationId = crypto.randomUUID();
+    const dueAt = input.dueAt ? zonedLocalToIso(input.dueAt, timezone) : null;
+    if (input.dueAt && !dueAt) {
+      setMessage("Проверьте дату, время и часовой пояс организации.");
+      setPending(false);
+      return;
+    }
+    const requestBody = {
+      ...input,
+      dueAt,
+    };
+    const operationId = commandIdFor(createCommand, JSON.stringify(requestBody));
     try {
       const response = await fetch(`/api/agent/cases/${caseId}/tasks`, {
         method: "POST",
@@ -46,14 +73,11 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
           "Idempotency-Key": `task:create:${operationId}`,
           "X-Correlation-Id": operationId,
         },
-        body: JSON.stringify({
-          ...input,
-          dueAt: input.dueAt ? new Date(input.dueAt).toISOString() : null,
-        }),
+        body: JSON.stringify(requestBody),
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new CommandFailure(response.status, body.error ?? "Не удалось создать задачу", body.code);
-      const created = body.task as { id: number; status: string; version: number; completedAt: string | null };
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new CommandFailure(response.status, payload.error ?? "Не удалось создать задачу", payload.code);
+      const created = payload.task as { id: number; status: string; version: number; completedAt: string | null };
       setTasks((current) => [{
         id: created.id,
         title: input.title,
@@ -65,10 +89,13 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
         waitingReason: input.waitingReason || null,
         ownerName: "Вы",
         version: created.version,
-        dueAt: input.dueAt ? new Date(input.dueAt).toISOString() : null,
+        dueAt,
         completedAt: created.completedAt,
+        canMutate: true,
+        actionHref: null,
       }, ...current]);
       setShowCreate(false);
+      clearCommandId(createCommand);
       toast({ type: "success", message: "Задача добавлена в рабочую очередь." });
     } catch (error) {
       setMessage(commandMessage(error));
@@ -81,7 +108,13 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
     if (!action || !value.trim()) return;
     setPending(true);
     setMessage(null);
-    const operationId = crypto.randomUUID();
+    const requestBody = taskCommandPayload(action, value, dueAt, timezone);
+    if (action.type === "reschedule" && !("dueAt" in requestBody && requestBody.dueAt)) {
+      setMessage("Проверьте новую дату, время и часовой пояс организации.");
+      setPending(false);
+      return;
+    }
+    const operationId = commandIdFor(actionCommand, JSON.stringify({ taskId: action.task.id, ...requestBody }));
     try {
       const response = await fetch(`/api/agent/cases/${caseId}/tasks/${action.task.id}`, {
         method: "PATCH",
@@ -90,15 +123,16 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
           "Idempotency-Key": `task:${action.type}:${action.task.id}:${operationId}`,
           "X-Correlation-Id": operationId,
         },
-        body: JSON.stringify(taskCommandPayload(action, value, dueAt)),
+        body: JSON.stringify(requestBody),
       });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new CommandFailure(response.status, body.error ?? "Не удалось изменить задачу", body.code);
-      const updated = body.task as { status: string; version: number; completedAt: string | null; dueAt: string | null; waitingReason: string | null };
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new CommandFailure(response.status, payload.error ?? "Не удалось изменить задачу", payload.code);
+      const updated = payload.task as { status: string; version: number; completedAt: string | null; dueAt: string | null; waitingReason: string | null };
       setTasks((current) => current.map((task) => task.id === action.task.id
         ? { ...task, status: updated.status, version: updated.version, completedAt: updated.completedAt, dueAt: updated.dueAt, waitingReason: updated.waitingReason }
         : task));
       setAction(null);
+      clearCommandId(actionCommand);
       toast({ type: "success", message: taskSuccessMessage(action.type) });
     } catch (error) {
       setMessage(commandMessage(error));
@@ -127,7 +161,9 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
             <TaskRow
               key={task.id}
               task={task}
-              onAction={canMutate ? (type) => { setMessage(null); setAction({ task, type }); } : undefined}
+              onAction={task.canMutate && task.type !== "MEETING_ESCALATION"
+                ? (type) => { clearCommandId(actionCommand); setMessage(null); setAction({ task, type }); }
+                : undefined}
             />
           ))}
         </ul>
@@ -145,7 +181,8 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
           task={action.task}
           pending={pending}
           onSubmit={runAction}
-          onCancel={() => { setAction(null); setMessage(null); }}
+          onCancel={() => { clearCommandId(actionCommand); setAction(null); setMessage(null); }}
+          timezone={timezone}
         />
       )}
 
@@ -162,10 +199,12 @@ export function TasksSection({ caseId, initial, canMutate = true }: { caseId: nu
         </details>
       )}
 
-      {!canMutate && <p className="text-[12px] text-ink-3">Режим просмотра: изменение задач недоступно для этой роли.</p>}
+      {!canCreate && tasks.some((task) => !task.canMutate) && (
+        <p className="text-[12px] text-ink-3">Контекст кейса доступен для работы по назначенной задаче. Остальные действия остаются у владельца кейса.</p>
+      )}
 
-      {canMutate && (showCreate ? (
-        <NewTaskForm pending={pending} onSubmit={createTask} onCancel={() => { setShowCreate(false); setMessage(null); }} />
+      {canCreate && (showCreate ? (
+        <NewTaskForm pending={pending} onSubmit={createTask} onCancel={() => { clearCommandId(createCommand); setShowCreate(false); setMessage(null); }} />
       ) : (
         <Button type="button" variant="secondary" size="sm" leftIcon={<Plus size={15} weight="bold" />} onClick={() => { setShowCreate(true); setAction(null); }}>
           Добавить действие
@@ -195,6 +234,16 @@ function TaskRow({ task, onAction }: { task: Task; onAction?: (type: Exclude<Non
             <span className={overdue ? "font-semibold text-danger" : ""}>· {task.dueAt ? dateTime(task.dueAt) : "без срока"}</span>
           </p>
           {task.waitingReason && <p className="mt-2 border-l-2 border-warning pl-2 text-[12px] text-warning">Ожидание: {task.waitingReason}</p>}
+          {task.type === "MEETING_ESCALATION" && task.actionHref && (
+            <div className="mt-3">
+              <Link href={task.actionHref} className={buttonClassesForTaskLink()}>
+                Зафиксировать исход встречи
+              </Link>
+            </div>
+          )}
+          {task.type === "MEETING_ESCALATION" && !task.actionHref && (
+            <p className="mt-2 text-[12px] font-medium text-danger">Исход фиксируется в карточке встречи. Связанная встреча не найдена.</p>
+          )}
           {onAction && <div className="mt-3 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => onAction("complete")}>{actionLabel(task.type)}</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => onAction("reschedule")}>Перенести</Button>
@@ -252,9 +301,9 @@ function NewTaskForm({ pending, onSubmit, onCancel }: { pending: boolean; onSubm
   );
 }
 
-function OutcomeForm({ mode, task, pending, onSubmit, onCancel }: { mode: NonNullable<TaskAction>["type"]; task: Task; pending: boolean; onSubmit: (value: string, dueAt?: string) => Promise<void>; onCancel: () => void }) {
+function OutcomeForm({ mode, task, pending, onSubmit, onCancel, timezone }: { mode: NonNullable<TaskAction>["type"]; task: Task; pending: boolean; onSubmit: (value: string, dueAt?: string) => Promise<void>; onCancel: () => void; timezone: string }) {
   const [value, setValue] = useState("");
-  const [dueAt, setDueAt] = useState(task.dueAt ? toLocalDateTime(task.dueAt) : "");
+  const [dueAt, setDueAt] = useState(task.dueAt ? zonedLocalInput(task.dueAt, timezone) : "");
   return (
     <form className="border-l-2 border-accent bg-surface-2 px-4 py-3" onSubmit={(event) => { event.preventDefault(); void onSubmit(value, dueAt); }}>
       <strong className="text-[13px] text-ink">{taskFormTitle(mode, task.type)}</strong>
@@ -308,11 +357,11 @@ function priorityClass(priority: string) {
   return "text-ink-3";
 }
 
-function taskCommandPayload(action: NonNullable<TaskAction>, value: string, dueAt?: string) {
+function taskCommandPayload(action: NonNullable<TaskAction>, value: string, dueAt: string | undefined, timezone: string) {
   const base = { action: action.type, version: action.task.version };
   if (action.type === "complete") return { ...base, outcome: value.trim() };
   if (action.type === "wait") return { ...base, waitingReason: value.trim() };
-  if (action.type === "reschedule") return { ...base, dueAt: dueAt ? new Date(dueAt).toISOString() : null, reason: value.trim() };
+  if (action.type === "reschedule") return { ...base, dueAt: dueAt ? zonedLocalToIso(dueAt, timezone) : null, reason: value.trim() };
   return { ...base, reason: value.trim() };
 }
 
@@ -355,8 +404,6 @@ function taskSubmitLabel(mode: NonNullable<TaskAction>["type"]) {
   return "Вернуть в работу";
 }
 
-function toLocalDateTime(value: string) {
-  const date = new Date(value);
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+function buttonClassesForTaskLink() {
+  return "inline-flex min-h-9 items-center justify-center rounded-[12px] bg-accent px-3 text-[12px] font-semibold text-on-accent transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30";
 }

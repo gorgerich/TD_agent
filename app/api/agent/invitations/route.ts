@@ -18,7 +18,7 @@ const Body = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAgent(req);
+    const session = await requireAgent(req, { allowAdminMutation: true });
     assertCapability(session, "membership:invite");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");

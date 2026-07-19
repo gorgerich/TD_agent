@@ -4,6 +4,7 @@ import { IDS, MONEY, NOW, PAST_MEETING, eventEnvelope } from "./fixtures/product
 import { InMemoryTestStorage } from "./fixtures/testStorage";
 import { isIsolatedTestDatabase } from "./integration/testDatabaseSafety";
 import { productionRegistrationRequiresInvite } from "../lib/invitations";
+import { isDemoMode } from "../lib/demo";
 
 type MoneyValue = { kind: "KNOWN"; kopecks: number } | { kind: "UNKNOWN" };
 type QuoteVersion = { id: string; state: "DRAFT" | "PUBLISHED"; total: MoneyValue };
@@ -182,4 +183,10 @@ test("M1 production registration is invite-only", () => {
   assert.equal(productionRegistrationRequiresInvite("production"), true);
   assert.equal(productionRegistrationRequiresInvite("development"), false);
   assert.equal(productionRegistrationRequiresInvite("test"), false);
+});
+
+test("M1 demo authentication is explicitly enabled, never inferred", () => {
+  assert.equal(isDemoMode("1"), true);
+  assert.equal(isDemoMode("0"), false);
+  assert.equal(isDemoMode(undefined), false);
 });

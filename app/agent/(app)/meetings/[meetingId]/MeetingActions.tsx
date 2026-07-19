@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarBlank, CheckCircle, WarningCircle, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import { zonedLocalInput, zonedLocalToIso } from "@/lib/zonedDateTime";
 
 type MeetingAction = "confirm" | "complete" | "no_show" | "cancel" | "reschedule";
 
@@ -23,44 +25,6 @@ const ACTIONS: Record<string, Array<{ action: MeetingAction; label: string; tone
     { action: "cancel", label: "Отменить", tone: "secondary" },
   ],
 };
-
-function localInputValue(value: string | null, timezone: string) {
-  if (!value) return "";
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date(value));
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
-}
-
-function zonedLocalToIso(value: string, timezone: string) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const [, year, month, day, hour, minute] = match;
-  const desired = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
-  let candidate = desired;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date(candidate));
-    const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
-    const represented = Date.UTC(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
-    candidate += desired - represented;
-  }
-  return new Date(candidate).toISOString();
-}
 
 export default function MeetingActions({
   meetingId,
@@ -83,12 +47,13 @@ export default function MeetingActions({
   const online = useOnline();
   const [selected, setSelected] = useState<MeetingAction | null>(null);
   const [details, setDetails] = useState("");
-  const [dateTime, setDateTime] = useState(localInputValue(scheduledAt, timezone));
+  const [dateTime, setDateTime] = useState(scheduledAt ? zonedLocalInput(scheduledAt, timezone) : "");
   const [duration, setDuration] = useState(String(durationMinutes ?? 60));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const detailsRef = useRef<HTMLTextAreaElement>(null);
+  const command = useRef<ClientCommandIdentity | null>(null);
   const actions = useMemo(() => ACTIONS[currentStatus] ?? [], [currentStatus]);
 
   useEffect(() => {
@@ -96,6 +61,7 @@ export default function MeetingActions({
   }, [selected]);
 
   function choose(action: MeetingAction) {
+    clearCommandId(command);
     setSelected(action);
     setDetails("");
     setError(null);
@@ -119,7 +85,6 @@ export default function MeetingActions({
       return;
     }
 
-    const commandId = crypto.randomUUID();
     const body = selected === "reschedule"
       ? { action: selected, scheduledAt: nextDate, durationMinutes: Number(duration) || null, reason: trimmed, version: currentVersion }
       : selected === "complete" || selected === "no_show"
@@ -127,6 +92,7 @@ export default function MeetingActions({
         : selected === "cancel"
           ? { action: selected, reason: trimmed, version: currentVersion }
           : { action: selected, version: currentVersion };
+    const commandId = commandIdFor(command, JSON.stringify({ meetingId, ...body }));
 
     setPending(true);
     setError(null);
@@ -150,6 +116,7 @@ export default function MeetingActions({
         return;
       }
       setNotice(selected === "reschedule" ? "Новое время и причина сохранены." : "Статус и результат встречи сохранены.");
+      clearCommandId(command);
       setSelected(null);
       router.refresh();
     } catch {
@@ -189,7 +156,7 @@ export default function MeetingActions({
         <div className="mt-4 border-t border-line pt-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[13px] font-semibold text-ink">{actionTitle(selected)}</p>
-            <button type="button" onClick={() => setSelected(null)} className="grid min-h-10 min-w-10 place-items-center text-ink-3 hover:text-ink" aria-label="Закрыть форму">
+            <button type="button" onClick={() => { clearCommandId(command); setSelected(null); }} className="grid min-h-10 min-w-10 place-items-center text-ink-3 hover:text-ink" aria-label="Закрыть форму">
               <X size={17} weight="bold" />
             </button>
           </div>
@@ -222,7 +189,7 @@ export default function MeetingActions({
           {error && <p role="alert" className="mt-3 flex items-start gap-2 text-[12px] text-danger"><WarningCircle size={16} weight="fill" /> {error}</p>}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => void submit()} loading={pending}>Сохранить</Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(null)} disabled={pending}>Отмена</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => { clearCommandId(command); setSelected(null); }} disabled={pending}>Отмена</Button>
           </div>
         </div>
       )}

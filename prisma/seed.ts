@@ -49,6 +49,7 @@ async function resetAgentData(agentId: number) {
 
 async function main() {
   assertReleaseWritesAllowed("prisma seed");
+  if (process.env.DEMO_MODE !== "1") throw new Error("Prisma seed is restricted to DEMO_MODE=1");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Стандарт" },
     update: {},

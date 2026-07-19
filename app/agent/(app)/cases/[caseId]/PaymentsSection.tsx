@@ -17,7 +17,7 @@ export type PaymentItem = {
 const KINDS = ["аванс", "остаток", "полная"] as const;
 const METHODS = ["наличные", "карта", "счёт"] as const;
 
-export function PaymentsSection({ caseId, initial }: { caseId: number; initial: PaymentItem[] }) {
+export function PaymentsSection({ caseId, initial, canMutate = true }: { caseId: number; initial: PaymentItem[]; canMutate?: boolean }) {
   const [items, setItems] = useState<PaymentItem[]>(initial);
   const [amount, setAmount] = useState("");
   const [kind, setKind] = useState<string>(KINDS[0]);
@@ -91,14 +91,16 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
                   <span className="tnum block text-[14px] font-semibold text-ink">{moneyFromKopecks(payment.amountKopecks)}</span>
                   <span className="mt-1 block text-[12px] text-ink-3">{payment.kind} - {payment.method} - {dateTime(payment.paidAt)}</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => remove(payment.id)}
-                  className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger"
-                  aria-label={`Удалить оплату ${moneyFromKopecks(payment.amountKopecks)}`}
-                >
-                  <Trash size={16} weight="bold" />
-                </button>
+                {canMutate && (
+                  <button
+                    type="button"
+                    onClick={() => remove(payment.id)}
+                    className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger"
+                    aria-label={`Удалить оплату ${moneyFromKopecks(payment.amountKopecks)}`}
+                  >
+                    <Trash size={16} weight="bold" />
+                  </button>
+                )}
               </div>
             </li>
           ))}
@@ -109,7 +111,7 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
         <p className="text-[12px] leading-relaxed text-ink-3">Зафиксируйте аванс сразу после договорённости с семьёй. Это не заменяет платёжный документ.</p>
       )}
 
-      <form onSubmit={add} className="td-form-surface grid gap-4" aria-label="Записать оплату">
+      {canMutate && <form onSubmit={add} className="td-form-surface grid gap-4" aria-label="Записать оплату">
         <div className="flex items-center gap-2.5">
           <span className="grid h-9 w-9 place-items-center rounded-[13px] bg-surface text-accent shadow-[var(--shadow-xs)]">
             <Plus size={18} weight="bold" />
@@ -156,7 +158,8 @@ export function PaymentsSection({ caseId, initial }: { caseId: number; initial: 
           <Button type="submit" size="sm" loading={busy} disabled={!amount}>Записать оплату</Button>
           {err && <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {err}</span>}
         </div>
-      </form>
+      </form>}
+      {!canMutate && <p className="text-[12px] text-ink-3">Оплаты доступны для контекста. Записи ведёт владелец кейса.</p>}
     </div>
   );
 }

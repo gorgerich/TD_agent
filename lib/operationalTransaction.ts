@@ -11,12 +11,15 @@ export async function runOperationalTransaction<T>(
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034" || attempt === maxAttempts) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034") {
         throw error;
+      }
+      if (attempt === maxAttempts) {
+        throw new OperationalCommandError(409, "Конфликт параллельных изменений. Обновите данные и повторите действие.");
       }
     }
   }
-  throw new OperationalCommandError(409, "Конфликт параллельных изменений. Обновите данные и повторите действие.");
+  throw new OperationalCommandError(409, "Команда не была выполнена после повторных попыток.");
 }
 
 export class OperationalCommandError extends Error {
@@ -29,4 +32,3 @@ export class OperationalCommandError extends Error {
     this.name = "OperationalCommandError";
   }
 }
-

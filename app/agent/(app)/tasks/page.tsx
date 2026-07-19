@@ -4,20 +4,21 @@ import { getOperationsQueue, type OperationsQueue } from "@/lib/operationsReadMo
 import { TasksClientList } from "./TasksClientList";
 
 type QueueResult =
-  | { queue: OperationsQueue; error: null }
-  | { queue: null; error: string };
+  | { queue: OperationsQueue; error: null; canMutate: boolean }
+  | { queue: null; error: string; canMutate: false };
 
 async function loadQueue(): Promise<QueueResult> {
   const session = await getAgentSession();
-  if (!session) return { queue: null, error: "Сессия завершена. Войдите снова, чтобы открыть рабочий день." };
+  if (!session) return { queue: null, error: "Сессия завершена. Войдите снова, чтобы открыть рабочий день.", canMutate: false };
 
   try {
-    return { queue: await getOperationsQueue(session), error: null };
+    return { queue: await getOperationsQueue(session), error: null, canMutate: session.role !== "ADMIN" };
   } catch (error) {
     console.error("[tasks] operations queue unavailable", error);
     return {
       queue: null,
       error: "Не удалось загрузить рабочий день. Данные не скрыты: повторите запрос после восстановления связи.",
+      canMutate: false,
     };
   }
 }
@@ -42,7 +43,7 @@ async function TasksContent() {
         )}
       </header>
 
-      <TasksClientList initialQueue={result.queue} loadError={result.error} />
+      <TasksClientList initialQueue={result.queue} loadError={result.error} canMutate={result.canMutate} />
     </>
   );
 }
