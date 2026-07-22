@@ -12,7 +12,7 @@ type Note = {
   createdAt: string;
 };
 
-export function NotesSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Note[]; canMutate?: boolean }) {
+export function NotesSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: Note[]; timezone: string; canMutate?: boolean }) {
   const [notes, setNotes] = useState<Note[]>(initial);
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
@@ -84,7 +84,7 @@ export function NotesSection({ caseId, initial, canMutate = true }: { caseId: nu
                 </span>
                 <span className="min-w-0 flex-1 pt-0.5">
                   <span className="block whitespace-pre-line text-[13px] leading-relaxed text-ink">{note.body}</span>
-                  <span className="mt-2 block text-[12px] text-ink-3">{dateTime(note.createdAt)}</span>
+                  <span className="mt-2 block text-[12px] text-ink-3">{dateTime(note.createdAt, timezone)}</span>
                 </span>
                 {canMutate && (
                   <button

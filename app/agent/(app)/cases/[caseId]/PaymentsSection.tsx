@@ -17,7 +17,7 @@ export type PaymentItem = {
 const KINDS = ["аванс", "остаток", "полная"] as const;
 const METHODS = ["наличные", "карта", "счёт"] as const;
 
-export function PaymentsSection({ caseId, initial, canMutate = true }: { caseId: number; initial: PaymentItem[]; canMutate?: boolean }) {
+export function PaymentsSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: PaymentItem[]; timezone: string; canMutate?: boolean }) {
   const [items, setItems] = useState<PaymentItem[]>(initial);
   const [amount, setAmount] = useState("");
   const [kind, setKind] = useState<string>(KINDS[0]);
@@ -89,7 +89,7 @@ export function PaymentsSection({ caseId, initial, canMutate = true }: { caseId:
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="tnum block text-[14px] font-semibold text-ink">{moneyFromKopecks(payment.amountKopecks)}</span>
-                  <span className="mt-1 block text-[12px] text-ink-3">{payment.kind} - {payment.method} - {dateTime(payment.paidAt)}</span>
+                  <span className="mt-1 block text-[12px] text-ink-3">{payment.kind} - {payment.method} - {dateTime(payment.paidAt, timezone)}</span>
                 </span>
                 {canMutate && (
                   <button

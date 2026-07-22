@@ -2,6 +2,7 @@
 
 import { Link } from "next-view-transitions";
 import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarBlank, Check, Clock, Flag, Plus, Prohibit, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/Toast";
@@ -44,9 +45,11 @@ export function TasksSection({
   const [action, setAction] = useState<TaskAction>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const createCommand = useRef<ClientCommandIdentity | null>(null);
   const actionCommand = useRef<ClientCommandIdentity | null>(null);
   const toast = useToast();
+  const router = useRouter();
   const open = useMemo(() => tasks.filter((task) => task.status === "OPEN"), [tasks]);
   const closed = useMemo(() => tasks.filter((task) => task.status !== "OPEN"), [tasks]);
   const overdue = open.filter(isOverdue).length;
@@ -54,6 +57,7 @@ export function TasksSection({
   async function createTask(input: NewTaskInput) {
     setPending(true);
     setMessage(null);
+    setConflict(false);
     const dueAt = input.dueAt ? zonedLocalToIso(input.dueAt, timezone) : null;
     if (input.dueAt && !dueAt) {
       setMessage("Проверьте дату, время и часовой пояс организации.");
@@ -98,6 +102,7 @@ export function TasksSection({
       clearCommandId(createCommand);
       toast({ type: "success", message: "Задача добавлена в рабочую очередь." });
     } catch (error) {
+      setConflict(error instanceof CommandFailure && error.status === 409);
       setMessage(commandMessage(error));
     } finally {
       setPending(false);
@@ -108,6 +113,7 @@ export function TasksSection({
     if (!action || !value.trim()) return;
     setPending(true);
     setMessage(null);
+    setConflict(false);
     const requestBody = taskCommandPayload(action, value, dueAt, timezone);
     if (action.type === "reschedule" && !("dueAt" in requestBody && requestBody.dueAt)) {
       setMessage("Проверьте новую дату, время и часовой пояс организации.");
@@ -135,6 +141,7 @@ export function TasksSection({
       clearCommandId(actionCommand);
       toast({ type: "success", message: taskSuccessMessage(action.type) });
     } catch (error) {
+      setConflict(error instanceof CommandFailure && error.status === 409);
       setMessage(commandMessage(error));
     } finally {
       setPending(false);
@@ -152,6 +159,11 @@ export function TasksSection({
         <div role="alert" className="flex items-start gap-2 border-l-2 border-danger bg-danger-soft px-3 py-2.5 text-[13px] text-danger">
           <Warning size={16} weight="fill" className="mt-0.5 shrink-0" />
           <span>{message}</span>
+          {conflict && (
+            <button type="button" onClick={() => router.refresh()} className="font-semibold text-ink underline decoration-line-strong underline-offset-4">
+              Обновить данные
+            </button>
+          )}
         </div>
       )}
 
@@ -161,6 +173,7 @@ export function TasksSection({
             <TaskRow
               key={task.id}
               task={task}
+              timezone={timezone}
               onAction={task.canMutate && task.type !== "MEETING_ESCALATION"
                 ? (type) => { clearCommandId(actionCommand); setMessage(null); setAction({ task, type }); }
                 : undefined}
@@ -214,7 +227,7 @@ export function TasksSection({
   );
 }
 
-function TaskRow({ task, onAction }: { task: Task; onAction?: (type: Exclude<NonNullable<TaskAction>["type"], never>) => void }) {
+function TaskRow({ task, timezone, onAction }: { task: Task; timezone: string; onAction?: (type: Exclude<NonNullable<TaskAction>["type"], never>) => void }) {
   const overdue = isOverdue(task);
   return (
     <li className="px-1 py-3 sm:px-2">
@@ -231,7 +244,7 @@ function TaskRow({ task, onAction }: { task: Task; onAction?: (type: Exclude<Non
           <p className="mt-1 flex flex-wrap gap-x-2 text-[11px] text-ink-3">
             <span>{task.ownerName}</span>
             <span>· {task.source}</span>
-            <span className={overdue ? "font-semibold text-danger" : ""}>· {task.dueAt ? dateTime(task.dueAt) : "без срока"}</span>
+            <span className={overdue ? "font-semibold text-danger" : ""}>· {task.dueAt ? dateTime(task.dueAt, timezone) : "без срока"}</span>
           </p>
           {task.waitingReason && <p className="mt-2 border-l-2 border-warning pl-2 text-[12px] text-warning">Ожидание: {task.waitingReason}</p>}
           {task.type === "MEETING_ESCALATION" && task.actionHref && (

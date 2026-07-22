@@ -55,7 +55,7 @@ function fmtSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
 }
 
-export function DocumentsSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Doc[]; canMutate?: boolean }) {
+export function DocumentsSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: Doc[]; timezone: string; canMutate?: boolean }) {
   const [docs, setDocs] = useState<Doc[]>(initial);
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [busy, setBusy] = useState(false);
@@ -167,7 +167,7 @@ export function DocumentsSection({ caseId, initial, canMutate = true }: { caseId
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] font-semibold text-ink">{item.title}</span>
                     <span className="mt-1 block truncate text-[12px] text-ink-3">
-                      {uploaded ? `${uploaded.name} - ${fmtSize(uploaded.size)} - ${dateLong(uploaded.createdAt)}` : item.hint}
+                      {uploaded ? `${uploaded.name} - ${fmtSize(uploaded.size)} - ${dateLong(uploaded.createdAt, timezone)}` : item.hint}
                     </span>
                   </span>
                   {uploaded ? (
@@ -208,7 +208,7 @@ export function DocumentsSection({ caseId, initial, canMutate = true }: { caseId
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-ink">{doc.name}</span>
-                      <span className="mt-1 block truncate text-[12px] text-ink-3">{doc.category} - {fmtSize(doc.size)} - {dateLong(doc.createdAt)}</span>
+                      <span className="mt-1 block truncate text-[12px] text-ink-3">{doc.category} - {fmtSize(doc.size)} - {dateLong(doc.createdAt, timezone)}</span>
                     </span>
                     <a href={doc.url} target="_blank" rel="noopener" className="td-icon-button h-10 w-10 flex-shrink-0" aria-label={`Открыть ${doc.name}`}>
                       <ArrowSquareOut size={17} weight="bold" />

@@ -19,6 +19,7 @@ import { type StatusTone } from "@/lib/caseStatus";
 import { getCanonicalCase } from "@/lib/caseReadModel";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
+import { zonedLocalInput } from "@/lib/zonedDateTime";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -32,7 +33,7 @@ async function getCase(caseId: number, session: AgentSession) {
       id: caseId,
       case: {
         tenantId: session.organizationId,
-        ...(session.role === "ADMIN"
+        ...(session.role === "ADMIN" || session.role === "MANAGER"
           ? {}
           : {
               OR: [
@@ -43,6 +44,7 @@ async function getCase(caseId: number, session: AgentSession) {
       },
     },
     include: {
+      case: { select: { owner: { select: { user: { select: { name: true } } } } } },
       meetings: {
         orderBy: { id: "asc" },
         select: {
@@ -132,7 +134,7 @@ export default async function CasePage({
     deceasedName: decryptField(lead.deceasedName) ?? "",
     deceasedDate: lead.deceasedDate ? lead.deceasedDate.toISOString().slice(0, 10) : "",
     morgue: lead.morgue ?? "",
-    ceremonyAt: lead.ceremonyAt ? lead.ceremonyAt.toISOString().slice(0, 16) : "",
+    ceremonyAt: lead.ceremonyAt ? zonedLocalInput(lead.ceremonyAt.toISOString(), session.timezone) : "",
     ceremonyPlace: lead.ceremonyPlace ?? "",
   };
 
@@ -157,13 +159,13 @@ export default async function CasePage({
   // Derived activity feed
   const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Кейс создан" }];
   for (const m of meetings) {
-    if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt) });
+    if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt, session.timezone) });
   }
   for (const v of versions) activity.push({ at: v.createdAt.getTime(), label: "Смета сохранена" });
   for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ - ${o.status}` });
   for (const m of meetings) {
-    if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt) });
-    if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt) });
+    if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt, session.timezone) });
+    if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt, session.timezone) });
   }
   for (const event of rawEvents) {
     activity.push({
@@ -177,14 +179,14 @@ export default async function CasePage({
   const nowMs = projectionNow.getTime();
   const risks = canonicalCase.risk.reasons.map((risk) => ({
     tone: risk.level === "CRITICAL" ? "danger" as const : "warning" as const,
-    label: `${risk.label}${risk.deadline ? ` · до ${dateTime(risk.deadline)}` : ""}`,
+    label: `${risk.label}${risk.deadline ? ` · до ${dateTime(risk.deadline, session.timezone)}` : ""}`,
   }));
   const ceremonyMs = lead.ceremonyAt?.getTime() ?? null;
   const hoursToCeremony = ceremonyMs ? Math.round((ceremonyMs - nowMs) / 3_600_000) : null;
 
   const routeMeta = [
     `${curIdx + 1}/${STAGE_ORDER.length} этап`,
-    canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt)}` : "без срока",
+    canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt, session.timezone)}` : "без срока",
     `версия кейса ${canonicalCase.version}`,
   ];
   const openTasksCount = tasks.filter((task) => task.status === "OPEN").length;
@@ -210,9 +212,9 @@ export default async function CasePage({
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
               <span>Источник: {SOURCE_LABELS[lead.source] ?? lead.source}</span>
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
-              <span>Ведёт: {session?.name ?? "-"}</span>
+              <span>Ведёт: {lead.case?.owner.user.name ?? "-"}</span>
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
-              <span>Открыт: {dateTime(lead.createdAt)}</span>
+              <span>Открыт: {dateTime(lead.createdAt, session.timezone)}</span>
             </div>
           </div>
           {(intake.deceasedName || lead.ceremonyAt) && (
@@ -221,7 +223,7 @@ export default async function CasePage({
               {intake.morgue && <span className="text-ink-3">· {intake.morgue}</span>}
               {lead.ceremonyAt && (
                 <span className={hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48 ? "font-semibold text-danger" : "text-ink-2"}>
-                  · Церемония: {dateTime(lead.ceremonyAt)}
+                  · Церемония: {dateTime(lead.ceremonyAt, session.timezone)}
                   {intake.ceremonyPlace ? `, ${intake.ceremonyPlace}` : ""}
                   {hoursToCeremony !== null && hoursToCeremony > 0 ? ` (через ${hoursToCeremony} ч)` : ""}
                 </span>

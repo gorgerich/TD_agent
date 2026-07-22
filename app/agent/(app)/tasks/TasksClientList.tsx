@@ -422,7 +422,7 @@ function QueueRow({
             <Metadata icon={<UserCircle size={15} weight="fill" />} label="Владелец" value={item.ownerName} />
             <Metadata icon={<Clock size={15} weight="fill" />} label="Срок" value={dateTimeLabel(item.dueAt, timezone)} />
             <Metadata icon={<ArrowRight size={15} weight="bold" />} label="Источник" value={item.source} />
-            {item.reason && <Metadata icon={<Hourglass size={15} weight="fill" />} label="Ожидание" value={item.reason} />}
+            {item.reason && <Metadata icon={<Hourglass size={15} weight="fill" />} label="Почему сейчас" value={item.reason} />}
           </dl>
         </div>
 

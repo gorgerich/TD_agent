@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ClipboardText, ClockCounterClockwise, Files, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
 import s from "./CaseTabs.module.css";
 import { TasksSection } from "./TasksSection";
@@ -57,6 +57,7 @@ export function CaseTabs({
   canMutateCase?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>(initialTab);
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
   const openTasks = tasks.filter((task) => task.status === "OPEN").length;
   const missingDocs = docs.length === 0;
 
@@ -93,13 +94,33 @@ export function CaseTabs({
             return (
               <button
                 key={item.id}
+                id={`case-tab-${item.id}`}
+                ref={(node) => { tabRefs.current[item.id] = node; }}
                 type="button"
                 role="tab"
                 aria-selected={active}
                 aria-controls={`case-panel-${item.id}`}
+                tabIndex={active ? 0 : -1}
                 data-active={active ? "true" : undefined}
                 className={`${s.navItem} td-press`}
                 onClick={() => setTab(item.id)}
+                onKeyDown={(event) => {
+                  const currentIndex = tabs.findIndex((candidate) => candidate.id === item.id);
+                  const nextIndex = event.key === "ArrowRight"
+                    ? (currentIndex + 1) % tabs.length
+                    : event.key === "ArrowLeft"
+                      ? (currentIndex - 1 + tabs.length) % tabs.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? tabs.length - 1
+                          : null;
+                  if (nextIndex === null) return;
+                  event.preventDefault();
+                  const nextId = tabs[nextIndex].id;
+                  setTab(nextId);
+                  tabRefs.current[nextId]?.focus();
+                }}
               >
                 <span className={s.navIcon} data-active={active ? "true" : undefined}>
                   <ItemIcon size={22} weight="fill" />
@@ -117,21 +138,21 @@ export function CaseTabs({
       </nav>
 
       <div className={s.canvas}>
-        <div key={tab} id={`case-panel-${tab}`} role="tabpanel" className={`tab-panel ${s.panel}`}>
+        <div key={tab} id={`case-panel-${tab}`} role="tabpanel" aria-labelledby={`case-tab-${tab}`} className={`tab-panel ${s.panel}`}>
           {tab === "work" && (
             <div className={s.workGrid}>
               <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
                 <TasksSection caseId={caseId} initial={tasks} timezone={timezone} canCreate={canMutateCase} />
               </Section>
               <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
-                <PaymentsSection caseId={caseId} initial={payments} canMutate={canMutateCase} />
+                <PaymentsSection caseId={caseId} initial={payments} timezone={timezone} canMutate={canMutateCase} />
               </Section>
             </div>
           )}
 
           {tab === "docs" && (
             <Section title="Документы" meta={missingDocs ? "нужно собрать" : `${docs.length} в кейсе`}>
-              <DocumentsSection caseId={caseId} initial={docs} canMutate={canMutateCase} />
+              <DocumentsSection caseId={caseId} initial={docs} timezone={timezone} canMutate={canMutateCase} />
             </Section>
           )}
 
@@ -151,7 +172,7 @@ export function CaseTabs({
           {tab === "history" && (
             <div className={s.stack}>
               <Section title="Заметки" meta={notes.length ? String(notes.length) : "пусто"}>
-                <NotesSection caseId={caseId} initial={notes} canMutate={canMutateCase} />
+                <NotesSection caseId={caseId} initial={notes} timezone={timezone} canMutate={canMutateCase} />
               </Section>
               <Section title="Активность">
                 <ol className={s.activityList}>

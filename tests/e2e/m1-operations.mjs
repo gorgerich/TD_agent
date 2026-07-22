@@ -87,6 +87,14 @@ async function agentFlow(target, browserContext) {
   await target.getByRole("option", { name: /Семья Кремова.*Кейс \/ клиент/ }).waitFor();
   await target.keyboard.press("Escape");
 
+  const commandTrigger = target.getByRole("button", { name: /Поиск и действия/ }).first();
+  await commandTrigger.click();
+  await target.getByRole("combobox", { name: "Поиск команд" }).waitFor();
+  await target.keyboard.press("Escape");
+  const commandTriggerHandle = await commandTrigger.elementHandle();
+  await target.waitForFunction((element) => document.activeElement === element, commandTriggerHandle);
+  assert.equal(await commandTrigger.evaluate((element) => element === document.activeElement), true, "Command palette must restore trigger focus");
+
   const urgentRow = target.locator("li").filter({ hasText: "Синтетический UAT: срочное действие" });
   await urgentRow.getByRole("button", { name: "Зафиксировать результат" }).click();
   await urgentRow.locator("textarea").fill("Синтетический результат агента");
@@ -157,12 +165,32 @@ async function managerFlow(target) {
   await target.unroute("**/api/agent/cases/*/tasks/*");
   await unassigned.getByRole("button", { name: "Сохранить", exact: true }).click();
   await target.getByRole("status").filter({ hasText: "Исполнитель задачи" }).waitFor();
+  await target.getByRole("heading", { name: "Последние изменения" }).waitFor();
+  await target.getByText("Исполнитель задачи изменён", { exact: true }).first().waitFor();
 
   await target.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
   const search = target.getByRole("combobox", { name: "Поиск команд" });
   await search.fill("Участкова");
   await target.getByRole("option", { name: /Семья Участкова.*Кейс \/ клиент/ }).waitFor();
-  await target.keyboard.press("Escape");
+  await target.keyboard.press("Enter");
+  await target.waitForURL(/\/agent\/cases\/\d+/);
+  await target.getByRole("heading", { name: "Семья Участкова · синтетика", exact: true }).waitFor();
+  await target.getByRole("tab", { name: "Работа" }).focus();
+  await target.keyboard.press("ArrowRight");
+  assert.equal(await target.getByRole("tab", { name: "Документы" }).getAttribute("aria-selected"), "true");
+  await target.goto(`${baseUrl}/agent/operations`, { waitUntil: "networkidle" });
+
+  await target.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await assertNoHorizontalOverflow(target, "manager 200% zoom");
+  await target.evaluate(() => { document.documentElement.style.zoom = ""; });
+
+  await target.setViewportSize({ width: 390, height: 844 });
+  await target.goto(`${baseUrl}/agent/operations`, { waitUntil: "networkidle" });
+  const mobileTeam = target.getByRole("navigation", { name: "Основная навигация" }).getByRole("link", { name: "Команда" });
+  await mobileTeam.waitFor();
+  assert.equal(await mobileTeam.getAttribute("aria-current"), "page");
+  await assertNoHorizontalOverflow(target, "mobile manager control tower");
+  await target.setViewportSize({ width: 1280, height: 900 });
 
   const audit = await target.evaluate(async () => {
     const response = await fetch("/api/agent/operations/audit?entityType=task");
@@ -188,6 +216,9 @@ async function assignedAgentFlow(target) {
   await target.getByPlaceholder("Что получилось и что делать дальше").fill("Чек-лист родственного захоронения подготовлен и передан владельцу кейса");
   await target.getByRole("button", { name: "Сохранить результат" }).click();
   await target.getByRole("status").filter({ hasText: "Результат задачи зафиксирован" }).waitFor();
+  await target.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await assertNoHorizontalOverflow(target, "case workspace 200% zoom");
+  await target.evaluate(() => { document.documentElement.style.zoom = ""; });
   return "PASS";
 }
 
@@ -196,6 +227,13 @@ async function responsiveAndAccessibility(target) {
   await target.evaluate(() => { document.documentElement.style.zoom = "2"; });
   await assertNoHorizontalOverflow(target, "200% zoom");
   await target.evaluate(() => { document.documentElement.style.zoom = ""; });
+
+  await target.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  await target.getByRole("combobox", { name: "Поиск команд" }).waitFor();
+  await target.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await assertNoHorizontalOverflow(target, "command palette 200% zoom");
+  await target.evaluate(() => { document.documentElement.style.zoom = ""; });
+  await target.keyboard.press("Escape");
 
   await target.setViewportSize({ width: 390, height: 844 });
   await target.goto(`${baseUrl}/agent/tasks`, { waitUntil: "networkidle" });

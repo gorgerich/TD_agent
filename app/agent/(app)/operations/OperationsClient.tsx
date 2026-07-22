@@ -107,7 +107,7 @@ export function OperationsClient({
         </div>
       )}
 
-      <section aria-label="Сводка команды" className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-line shadow-[var(--shadow-soft),var(--hl-top)] lg:grid-cols-4">
+      <section aria-label="Сводка команды" className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius-card)] bg-line lg:grid-cols-4">
         <Metric label="Открыто" value={tower.totals.open} hint="задач в работе" />
         <Metric label="Просрочено" value={tower.totals.overdue} hint="нарушен срок" critical={tower.totals.overdue > 0} />
         <Metric label="Без исполнителя" value={tower.totals.unassigned} hint="нужно назначить" critical={tower.totals.unassigned > 0} />
@@ -126,7 +126,7 @@ export function OperationsClient({
         />
       </div>
 
-      <section className="mt-5 min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+      <section className="mt-5 min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface">
         <header className="flex flex-wrap items-end justify-between gap-3 bg-surface-2/60 px-4 py-3.5 sm:px-5">
           <div>
             <h2 className="text-[14px] font-semibold text-ink">Распределение задач</h2>
@@ -165,7 +165,7 @@ export function OperationsClient({
       </section>
 
       <div className="mt-6 grid min-w-0 gap-5 xl:grid-cols-[minmax(300px,0.76fr)_minmax(0,1.24fr)]">
-        <section className="min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+        <section className="min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface">
           <header className="flex items-center justify-between gap-3 bg-surface-2/60 px-4 py-3.5 sm:px-5">
             <div>
               <h2 className="text-[14px] font-semibold text-ink">Загрузка команды</h2>
@@ -182,7 +182,7 @@ export function OperationsClient({
           )}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-soft),var(--hl-top)]">
+        <section className="min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface">
           <header className="bg-surface-2/60 px-4 py-3.5 sm:px-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -218,6 +218,31 @@ export function OperationsClient({
           )}
         </section>
       </div>
+
+      <section className="mt-5 min-w-0 overflow-hidden rounded-[var(--radius-card)] bg-surface">
+        <header className="flex items-end justify-between gap-3 bg-surface-2/60 px-4 py-3.5 sm:px-5">
+          <div>
+            <h2 className="text-[14px] font-semibold text-ink">Последние изменения</h2>
+            <p className="mt-0.5 text-[11px] text-ink-3">Неизменяемая история операционных действий</p>
+          </div>
+          <span className="tnum text-[12px] font-semibold text-ink-3">{tower.auditEvents.length}</span>
+        </header>
+        {tower.auditEvents.length === 0 ? (
+          <CompactEmpty title="Изменений пока нет" description="Назначения и ключевые действия появятся здесь автоматически." />
+        ) : (
+          <ol className="divide-y divide-line" aria-label="Последние изменения команды">
+            {tower.auditEvents.map((event) => (
+              <li key={event.id} className="grid gap-1 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:px-5">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-ink">{event.action}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-3">{event.entityType} · {event.actorName}{event.reason ? ` · ${event.reason}` : ""}</p>
+                </div>
+                <time className="text-[11px] text-ink-3" dateTime={event.createdAt}>{dateTimeLabel(event.createdAt, tower.timezone)}</time>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </div>
   );
 }
@@ -369,7 +394,7 @@ function Metric({ label, value, hint, critical = false }: { label: string; value
 }
 
 function MemberRow({ member }: { member: ControlTowerMember }) {
-  const loadPercent = Math.min(100, Math.round((member.open / 12) * 100));
+  const loadPercent = Math.min(100, Math.round((member.workload / 12) * 100));
   const capacity = member.capacity === "OVERLOADED"
     ? { label: "Перегрузка", className: "text-danger" }
     : member.capacity === "BALANCED"
@@ -401,6 +426,7 @@ function MemberRow({ member }: { member: ControlTowerMember }) {
         <Count label="Просрочено" value={member.overdue} danger={member.overdue > 0} />
         <Count label="Встречи" value={member.meetings} />
       </dl>
+      <p className="mt-2 text-[10px] text-ink-3">Индекс нагрузки: {member.workload} · встреча = 2 единицы</p>
     </li>
   );
 }
@@ -494,6 +520,10 @@ function priorityLabel(priority: string) {
 
 function stageLabel(stage: string) {
   const labels: Record<string, string> = {
+    INTAKE: "Сбор данных",
+    PLANNING: "Планирование",
+    QUOTING: "Смета",
+    CONTRACTING: "Договор",
     NEW: "Новый кейс",
     PREPARATION: "Подготовка",
     MEETING: "Встреча",

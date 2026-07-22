@@ -4,6 +4,7 @@
 const RU_MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"] as const;
 const RU_MONTHS_LONG = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"] as const;
 const MOSCOW_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DEFAULT_TIMEZONE = "Europe/Moscow";
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -31,41 +32,60 @@ function toDate(d: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function toMoscowParts(d: DateInput) {
+function toZonedParts(d: DateInput, timezone = DEFAULT_TIMEZONE) {
   const date = toDate(d);
   if (!date) return null;
-  // Moscow stays UTC+3 year-round. Manual parts avoid Node/browser Intl punctuation differences during hydration.
-  const moscow = new Date(date.getTime() + MOSCOW_OFFSET_MS);
+  // Preserve deterministic legacy output while allowing organization timezones.
+  if (timezone === DEFAULT_TIMEZONE) {
+    const moscow = new Date(date.getTime() + MOSCOW_OFFSET_MS);
+    return {
+      day: moscow.getUTCDate(),
+      month: moscow.getUTCMonth(),
+      year: moscow.getUTCFullYear(),
+      hour: moscow.getUTCHours(),
+      minute: moscow.getUTCMinutes(),
+    };
+  }
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
   return {
-    day: moscow.getUTCDate(),
-    month: moscow.getUTCMonth(),
-    year: moscow.getUTCFullYear(),
-    hour: moscow.getUTCHours(),
-    minute: moscow.getUTCMinutes(),
+    day: part("day"),
+    month: part("month") - 1,
+    year: part("year"),
+    hour: part("hour"),
+    minute: part("minute"),
   };
 }
 
 /** «5 июн» */
-export function dateShort(d: DateInput): string {
-  const value = toMoscowParts(d);
+export function dateShort(d: DateInput, timezone = DEFAULT_TIMEZONE): string {
+  const value = toZonedParts(d, timezone);
   return value ? `${value.day} ${RU_MONTHS_SHORT[value.month]}` : "—";
 }
 
 /** «5 июня 2026 г.» */
-export function dateLong(d: DateInput): string {
-  const value = toMoscowParts(d);
+export function dateLong(d: DateInput, timezone = DEFAULT_TIMEZONE): string {
+  const value = toZonedParts(d, timezone);
   return value ? `${value.day} ${RU_MONTHS_LONG[value.month]} ${value.year} г.` : "—";
 }
 
 /** «14:30» */
-export function time(d: DateInput): string {
-  const value = toMoscowParts(d);
+export function time(d: DateInput, timezone = DEFAULT_TIMEZONE): string {
+  const value = toZonedParts(d, timezone);
   return value ? `${pad(value.hour)}:${pad(value.minute)}` : "—";
 }
 
 /** «5 июня, 14:30» */
-export function dateTime(d: DateInput): string {
-  const value = toMoscowParts(d);
+export function dateTime(d: DateInput, timezone = DEFAULT_TIMEZONE): string {
+  const value = toZonedParts(d, timezone);
   return value ? `${value.day} ${RU_MONTHS_LONG[value.month]}, ${pad(value.hour)}:${pad(value.minute)}` : "—";
 }
 

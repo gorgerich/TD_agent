@@ -5,6 +5,8 @@ import { InMemoryTestStorage } from "./fixtures/testStorage";
 import { isIsolatedTestDatabase } from "./integration/testDatabaseSafety";
 import { productionRegistrationRequiresInvite } from "../lib/invitations";
 import { isDemoMode } from "../lib/demo";
+import { dateTime } from "../lib/format";
+import { zonedLocalInput, zonedLocalToIso } from "../lib/zonedDateTime";
 
 type MoneyValue = { kind: "KNOWN"; kopecks: number } | { kind: "UNKNOWN" };
 type QuoteVersion = { id: string; state: "DRAFT" | "PUBLISHED"; total: MoneyValue };
@@ -188,5 +190,15 @@ test("M1 production registration is invite-only", () => {
 test("M1 demo authentication is explicitly enabled, never inferred", () => {
   assert.equal(isDemoMode("1"), true);
   assert.equal(isDemoMode("0"), false);
-  assert.equal(isDemoMode(undefined), false);
+  assert.equal(isDemoMode(""), false);
+  assert.equal(isDemoMode(), process.env.DEMO_MODE === "1");
+});
+
+test("M1 organization timezone round-trips case ceremony input and display", () => {
+  const local = "2026-07-22T10:30";
+  const iso = zonedLocalToIso(local, "Asia/Yekaterinburg");
+  assert.equal(iso, "2026-07-22T05:30:00.000Z");
+  assert.equal(zonedLocalInput(iso!, "Asia/Yekaterinburg"), local);
+  assert.equal(dateTime(iso, "Asia/Yekaterinburg"), "22 июля, 10:30");
+  assert.equal(dateTime(iso, "Europe/Moscow"), "22 июля, 08:30");
 });

@@ -51,6 +51,7 @@ export default function MeetingActions({
   const [duration, setDuration] = useState(String(durationMinutes ?? 60));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const detailsRef = useRef<HTMLTextAreaElement>(null);
   const command = useRef<ClientCommandIdentity | null>(null);
@@ -65,6 +66,7 @@ export default function MeetingActions({
     setSelected(action);
     setDetails("");
     setError(null);
+    setConflict(false);
     setNotice(null);
   }
 
@@ -96,6 +98,7 @@ export default function MeetingActions({
 
     setPending(true);
     setError(null);
+    setConflict(false);
     try {
       const response = await fetch(`/api/agent/meetings/${meetingId}`, {
         method: "PATCH",
@@ -108,6 +111,7 @@ export default function MeetingActions({
       });
       const payload = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) {
+        setConflict(response.status === 409);
         setError(response.status === 409
           ? "Встреча уже изменена в другом окне. Обновите страницу перед повтором."
           : response.status === 403
@@ -186,7 +190,12 @@ export default function MeetingActions({
               />
             </label>
           )}
-          {error && <p role="alert" className="mt-3 flex items-start gap-2 text-[12px] text-danger"><WarningCircle size={16} weight="fill" /> {error}</p>}
+          {error && (
+            <p role="alert" className="mt-3 flex flex-wrap items-start gap-2 text-[12px] text-danger">
+              <WarningCircle size={16} weight="fill" /> {error}
+              {conflict && <button type="button" onClick={() => router.refresh()} className="font-semibold text-ink underline decoration-line-strong underline-offset-4">Обновить данные</button>}
+            </p>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => void submit()} loading={pending}>Сохранить</Button>
             <Button type="button" size="sm" variant="ghost" onClick={() => { clearCommandId(command); setSelected(null); }} disabled={pending}>Отмена</Button>

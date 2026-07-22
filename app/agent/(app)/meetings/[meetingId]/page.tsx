@@ -140,7 +140,7 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
         scheduledAt={meeting.scheduledAt?.toISOString() ?? null}
         durationMinutes={meeting.durationMinutes}
         timezone={meeting.timezone}
-        canMutate={session.role !== "ADMIN"}
+        canMutate={session.role !== "ADMIN" && meeting.ownerMembershipId === session.membershipId}
       />
     </div>
   );

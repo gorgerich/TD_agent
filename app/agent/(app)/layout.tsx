@@ -50,7 +50,7 @@ export default async function AgentAppLayout({ children }: { children: ReactNode
         <main id="main-content" className="relative min-h-[100dvh] pb-[104px] pt-14 lg:pb-0 lg:pl-[260px] lg:pt-0">
           {children}
         </main>
-        <AgentBottomNav overdue={overdue} />
+        <AgentBottomNav overdue={overdue} role={session.role} />
         <CommandPalette />
         <OnboardingTour onboardingCompleted={onboardingCompleted} />
       </div>

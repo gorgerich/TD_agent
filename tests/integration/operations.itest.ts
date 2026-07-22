@@ -108,11 +108,15 @@ test("M1 RBAC and tenant boundaries cover Agent, Manager and Admin reads/writes"
     assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.id === task.id), false);
     assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.caseId === foreignCase.id), false);
     assert.equal((await getCanonicalCase(teammate.context, ownCase.leadId))?.caseId, ownCase.id);
+    assert.equal((await getCanonicalCase(manager.context, ownCase.leadId))?.caseId, ownCase.id);
 
     const team = await getTeamControlTower(manager.context);
     assert.equal(team.members.some((item) => item.membershipId === teammate.membershipId), true);
     assert.equal(team.cases.some((item) => item.caseId === ownCase.id), true);
     assert.equal(team.cases.some((item) => item.caseId === foreignCase.id), false);
+    assert.equal(team.auditEvents.some((event) => event.action === "Исполнитель задачи изменён" && event.actorName === manager.context.name), true);
+    const teammateLoad = team.members.find((item) => item.membershipId === teammate.membershipId);
+    assert.equal(teammateLoad?.workload, (teammateLoad?.open ?? 0) + (teammateLoad?.meetings ?? 0) * 2);
     await assert.rejects(getTeamControlTower(agent.context), OperationalAuthError);
     assert.equal((await getTeamControlTower(admin.context)).cases.some((item) => item.caseId === ownCase.id), true);
 
@@ -453,6 +457,41 @@ test("M1 stale past-meeting candidate cannot create escalation after terminal ou
       where: { organizationId: owner.organizationId, sourceEventId: `meeting:${pastMeeting.id}:past-due:v1` },
     }), 0);
     assert.equal((await reconcileOperations(owner.organizationId, new Date())).discrepancies, 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 control tower counts only upcoming ceremony SLA and includes meetings in capacity", opts, async () => {
+  const fixtures = createFixtureContext("m1-capacity-sla");
+  try {
+    const now = new Date("2026-07-22T09:00:00.000Z");
+    const organizationId = await fixtures.makeOrganization("capacity-team");
+    const agent = await fixtures.makeMember("capacity-agent", { organizationId, role: "AGENT" });
+    const manager = await fixtures.makeMember("capacity-manager", { organizationId, role: "MANAGER" });
+    await fixtures.makeCase(agent, "past-ceremony", { ceremonyAt: new Date(now.getTime() - 3_600_000) });
+    const futureCase = await fixtures.makeCase(agent, "future-ceremony", { ceremonyAt: new Date(now.getTime() + 48 * 3_600_000) });
+    const manual = await createTask(agent.context, {
+      leadId: futureCase.leadId,
+      title: "Confirm ceremony details",
+      dueAt: new Date(now.getTime() + 2 * 3_600_000),
+    }, meta(`m1:${fixtures.runId}:capacity-task`));
+    await createMeeting(agent.context, {
+      leadId: futureCase.leadId,
+      scheduledAt: new Date(now.getTime() + 4 * 3_600_000),
+    }, meta(`m1:${fixtures.runId}:capacity-meeting`));
+
+    const queue = await getOperationsQueue(agent.context, now);
+    const manualItem = Object.values(queue.groups).flat().find((item) => item.id === manual.id && item.kind === "TASK");
+    assert.equal(manualItem?.reason, "Агент зафиксировал обязательное действие по кейсу");
+
+    const tower = await getTeamControlTower(manager.context, now);
+    assert.equal(tower.totals.ceremoniesSoon, 1, "Past ceremonies must not remain in the 72-hour SLA window");
+    const member = tower.members.find((item) => item.membershipId === agent.membershipId);
+    assert.ok(member);
+    assert.equal(member.workload, member.open + member.meetings * 2);
+    assert.equal(member.meetings, 1);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

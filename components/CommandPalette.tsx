@@ -48,7 +48,7 @@ type SearchResult = {
   href: string;
 };
 
-type SearchState = "idle" | "loading" | "success" | "error";
+type SearchState = "idle" | "loading" | "success" | "offline" | "forbidden" | "error";
 
 const SEARCH_DELAY_MS = 240;
 
@@ -62,6 +62,9 @@ export default function CommandPalette() {
   const [retryKey, setRetryKey] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -69,6 +72,11 @@ export default function CommandPalette() {
     setActive(0);
     setSearchResults([]);
     setSearchState("idle");
+  }, []);
+
+  const show = useCallback(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setOpen(true);
   }, []);
 
   const commands: Command[] = useMemo(() => {
@@ -144,6 +152,11 @@ export default function CommandPalette() {
           signal: controller.signal,
           headers: { Accept: "application/json" },
         });
+        if (response.status === 403) {
+          setSearchState("forbidden");
+          setSearchResults([]);
+          return;
+        }
         if (!response.ok) throw new Error(`Search failed: ${response.status}`);
         const payload: unknown = await response.json();
         if (!isSearchPayload(payload)) throw new Error("Invalid search response");
@@ -153,7 +166,7 @@ export default function CommandPalette() {
       } catch {
         if (controller.signal.aborted) return;
         setSearchResults([]);
-        setSearchState("error");
+        setSearchState(navigator.onLine ? "error" : "offline");
         setActive(0);
       }
     }, SEARCH_DELAY_MS);
@@ -170,11 +183,11 @@ export default function CommandPalette() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         if (open) close();
-        else setOpen(true);
+        else show();
       }
     }
     function onOpen() {
-      setOpen(true);
+      show();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener(COMMAND_OPEN_EVENT, onOpen);
@@ -182,18 +195,38 @@ export default function CommandPalette() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener(COMMAND_OPEN_EVENT, onOpen);
     };
-  }, [close, open]);
+  }, [close, open, show]);
 
   // Фокус в инпут при открытии; сброс активного индекса при изменении фильтра.
   useEffect(() => {
     if (open) inputRef.current?.focus();
+    if (!open && wasOpenRef.current) {
+      window.requestAnimationFrame(() => previousFocusRef.current?.focus());
+    }
+    wasOpenRef.current = open;
   }, [open]);
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.preventDefault();
       close();
-    } else if (e.key === "ArrowDown") {
+      return;
+    }
+    if (e.key === "Tab") {
+      const focusable = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+        'input, button:not([disabled]):not([tabindex="-1"])',
+      ) ?? [])];
+      if (focusable.length === 0) return;
+      const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = e.shiftKey
+        ? (currentIndex <= 0 ? focusable.length - 1 : currentIndex - 1)
+        : (currentIndex >= focusable.length - 1 ? 0 : currentIndex + 1);
+      e.preventDefault();
+      focusable[nextIndex]?.focus();
+      return;
+    }
+    if (e.target !== inputRef.current) return;
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => (filtered.length === 0 ? 0 : (i + 1) % filtered.length));
     } else if (e.key === "ArrowUp") {
@@ -224,6 +257,7 @@ export default function CommandPalette() {
     >
       <div className="absolute inset-0 bg-[rgba(8,14,28,0.42)] backdrop-blur-[3px]" />
       <div
+        ref={panelRef}
         className="td-popover td-popover-in relative w-full max-w-[560px] overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
@@ -340,7 +374,9 @@ function CommandSection({
             aria-selected={isActive}
             data-idx={index}
             onMouseEnter={() => setActive(index)}
+            onFocus={() => setActive(index)}
             onClick={command.run}
+            tabIndex={-1}
             className={`td-entity-row flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors duration-150 ${
               isActive ? "bg-accent-soft text-accent" : "text-ink-2 hover:bg-surface-2"
             }`}
@@ -389,20 +425,25 @@ function SearchStatus({
     );
   }
 
-  if (state === "error") {
+  if (state === "error" || state === "offline" || state === "forbidden") {
+    const message = state === "offline"
+      ? "Нет подключения. Команды навигации остаются доступны."
+      : state === "forbidden"
+        ? "Поиск рабочих данных недоступен для вашей роли."
+        : "Не удалось выполнить поиск. Команды остаются доступны.";
     return (
       <div className="mx-1 my-2 flex items-center gap-3 rounded-[10px] bg-surface-2 px-3 py-3" role="alert">
         <p className="min-w-0 flex-1 text-[12px] leading-5 text-ink-2">
-          Не удалось выполнить поиск. Команды остаются доступны.
+          {message}
         </p>
-        <button
+        {state !== "forbidden" && <button
           type="button"
           onClick={onRetry}
           className="inline-flex min-h-9 flex-shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 text-[12px] font-semibold text-accent hover:bg-accent-soft"
         >
           <ArrowClockwise size={15} weight="bold" />
           Повторить
-        </button>
+        </button>}
       </div>
     );
   }

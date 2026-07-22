@@ -50,11 +50,11 @@ type CasesData = {
 
 const DAY = 86_400_000;
 
-const fmtTime = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
-const fmtDate = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" });
 const fmtMoney = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 });
 
 async function getCases(session: AgentSession): Promise<CasesData> {
+    const fmtTime = new Intl.DateTimeFormat("ru-RU", { timeZone: session.timezone, hour: "2-digit", minute: "2-digit" });
+    const fmtDate = new Intl.DateTimeFormat("ru-RU", { timeZone: session.timezone, day: "numeric", month: "short" });
     const nowDate = new Date();
     const now = nowDate.getTime();
     const todayEnd = new Date();

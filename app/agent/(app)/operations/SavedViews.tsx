@@ -26,6 +26,7 @@ export function SavedViews({
 }) {
   const [views, setViews] = useState<SavedView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [name, setName] = useState("");
@@ -40,6 +41,7 @@ export function SavedViews({
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
+    setLoadFailed(false);
     setError(null);
     try {
       const response = await fetch("/api/agent/operations/views", { method: "GET", signal });
@@ -48,6 +50,7 @@ export function SavedViews({
       setViews(payload?.views ?? []);
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === "AbortError") return;
+      setLoadFailed(true);
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить сохранённые виды");
     } finally {
       setLoading(false);
@@ -122,7 +125,7 @@ export function SavedViews({
             }
           }}
         >
-          <option value="">{loading ? "Загружаю виды…" : relevantViews.length ? "Выбрать сохранённый вид" : "Сохранённых видов нет"}</option>
+          <option value="">{loading ? "Загружаю виды…" : loadFailed ? "Виды не загрузились" : relevantViews.length ? "Выбрать сохранённый вид" : "Сохранённых видов нет"}</option>
           {relevantViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}
         </select>
         <button
@@ -171,7 +174,7 @@ export function SavedViews({
         <div role="alert" className="mt-2.5 flex items-start gap-2 text-[12px] text-danger">
           <WarningCircle size={15} weight="fill" className="mt-0.5 flex-none" />
           <span>{error}</span>
-          {!editorOpen && (
+          {loadFailed && !editorOpen && (
             <button type="button" onClick={() => void load()} className="font-semibold text-ink underline decoration-line-strong underline-offset-4">Повторить</button>
           )}
         </div>

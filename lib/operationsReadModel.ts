@@ -41,7 +41,17 @@ export type ControlTowerMember = {
   overdue: number;
   today: number;
   meetings: number;
+  workload: number;
   capacity: "AVAILABLE" | "BALANCED" | "OVERLOADED";
+};
+
+export type ControlTowerAuditEvent = {
+  id: string;
+  action: string;
+  entityType: string;
+  actorName: string;
+  reason: string | null;
+  createdAt: string;
 };
 
 export type ControlTowerCase = {
@@ -63,6 +73,7 @@ export type TeamControlTower = {
   members: ControlTowerMember[];
   cases: ControlTowerCase[];
   tasks: ControlTowerTask[];
+  auditEvents: ControlTowerAuditEvent[];
   totals: { open: number; overdue: number; unassigned: number; ceremoniesSoon: number };
 };
 
@@ -155,7 +166,7 @@ export async function getOperationsQueue(context: OperationalContext, now = new 
 
 export async function getTeamControlTower(context: OperationalContext, now = new Date()): Promise<TeamControlTower> {
   assertCapability(context, "team:read");
-  const [memberships, tasks, meetings, cases] = await Promise.all([
+  const [memberships, tasks, meetings, cases, auditEvents] = await Promise.all([
     prisma.membership.findMany({
       where: { organizationId: context.organizationId, status: "ACTIVE", agentId: { not: null } },
       select: { id: true, role: true, user: { select: { name: true } } },
@@ -196,6 +207,19 @@ export async function getTeamControlTower(context: OperationalContext, now = new
       },
       take: 500,
     }),
+    prisma.operationalAuditEvent.findMany({
+      where: { organizationId: context.organizationId },
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        reason: true,
+        createdAt: true,
+        actor: { select: { user: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+    }),
   ]);
 
   const today = zonedDateKey(now, context.timezone);
@@ -204,6 +228,8 @@ export async function getTeamControlTower(context: OperationalContext, now = new
     const overdue = ownTasks.filter((task) => task.dueAt && task.dueAt < now).length;
     const todayCount = ownTasks.filter((task) => task.dueAt && task.dueAt >= now && zonedDateKey(task.dueAt, context.timezone) === today).length;
     const open = ownTasks.length;
+    const meetingCount = meetings.filter((meeting) => meeting.ownerMembershipId === membership.id).length;
+    const workload = open + meetingCount * 2;
     return {
       membershipId: membership.id,
       name: membership.user.name ?? "Без имени",
@@ -211,8 +237,9 @@ export async function getTeamControlTower(context: OperationalContext, now = new
       open,
       overdue,
       today: todayCount,
-      meetings: meetings.filter((meeting) => meeting.ownerMembershipId === membership.id).length,
-      capacity: open >= 12 || overdue >= 4 ? "OVERLOADED" : open >= 6 ? "BALANCED" : "AVAILABLE",
+      meetings: meetingCount,
+      workload,
+      capacity: workload >= 12 || overdue >= 4 ? "OVERLOADED" : workload >= 6 ? "BALANCED" : "AVAILABLE",
     } satisfies ControlTowerMember;
   });
 
@@ -220,7 +247,7 @@ export async function getTeamControlTower(context: OperationalContext, now = new
     const caseTasks = tasks.filter((task) => task.caseId === item.id);
     const overdue = caseTasks.filter((task) => task.dueAt && task.dueAt < now).length;
     const unassigned = caseTasks.filter((task) => !task.assigneeMembershipId).length;
-    const ceremonyRisk = item.lead.ceremonyAt ? hoursUntil(item.lead.ceremonyAt, now) : null;
+    const ceremonyRisk = item.lead.ceremonyAt ? futureHoursUntil(item.lead.ceremonyAt, now) : null;
     const risk = overdue > 0 || (ceremonyRisk !== null && ceremonyRisk <= 24)
       ? "CRITICAL"
       : unassigned > 0 || (ceremonyRisk !== null && ceremonyRisk <= 72)
@@ -261,11 +288,22 @@ export async function getTeamControlTower(context: OperationalContext, now = new
         expectedOutcome: task.expectedOutcome,
       }))
       .sort((a, b) => Number(!b.assigneeMembershipId) - Number(!a.assigneeMembershipId) || nullableTime(a.dueAt) - nullableTime(b.dueAt)),
+    auditEvents: auditEvents.map((event) => ({
+      id: event.id,
+      action: auditActionLabel(event.action),
+      entityType: auditEntityLabel(event.entityType),
+      actorName: event.actor?.user.name ?? "Система",
+      reason: event.reason,
+      createdAt: event.createdAt.toISOString(),
+    })),
     totals: {
       open: tasks.length,
       overdue: tasks.filter((task) => task.dueAt && task.dueAt < now).length,
       unassigned: tasks.filter((task) => !task.assigneeMembershipId).length,
-      ceremoniesSoon: cases.filter((item) => item.lead.ceremonyAt && hoursUntil(item.lead.ceremonyAt, now) <= 72).length,
+      ceremoniesSoon: cases.filter((item) => {
+        const hours = item.lead.ceremonyAt ? futureHoursUntil(item.lead.ceremonyAt, now) : null;
+        return hours !== null && hours <= 72;
+      }).length,
     },
   };
 }
@@ -308,7 +346,7 @@ function taskQueueItem(task: TaskRow, timezone: string, now: Date): QueueItem {
     status: task.status,
     source: taskSourceLabel(task.type),
     expectedOutcome: task.expectedOutcome ?? defaultTaskOutcome(task.type),
-    reason: task.waitingReason,
+    reason: task.waitingReason ?? taskReason(task.type),
     actionLabel: taskActionLabel(task.type),
     href: escalationMeetingId
       ? `/agent/meetings/${escalationMeetingId}?from=today`
@@ -348,7 +386,11 @@ function meetingQueueItem(meeting: MeetingRow, timezone: string, now: Date): Que
     status: meeting.operationalStatus,
     source: "Встреча",
     expectedOutcome: past ? "Результат: завершена, неявка или отмена" : "Встреча проведена и результат зафиксирован",
-    reason: meeting.operationalStatus === "TENTATIVE" ? "Время ещё не согласовано" : null,
+    reason: meeting.operationalStatus === "TENTATIVE"
+      ? "Время ещё не согласовано"
+      : past
+        ? "Встреча прошла, но итог ещё не зафиксирован"
+        : "Запланированная встреча по активному кейсу",
     actionLabel: past ? "Зафиксировать исход" : meeting.operationalStatus === "TENTATIVE" ? "Назначить время" : "Открыть встречу",
     href: `/agent/meetings/${meeting.id}?from=today`,
     riskScore: queueRiskScore(group, past ? "CRITICAL" : "HIGH", meeting.scheduledAt, meeting.lead.ceremonyAt, now),
@@ -379,7 +421,8 @@ export function zonedDateKey(value: Date, timezone: string): string {
 function queueRiskScore(group: QueueGroup, priority: TaskPriority | "CRITICAL", dueAt: Date | null, ceremonyAt: Date | null, now: Date) {
   const groupScore = group === "OVERDUE" ? 80 : group === "TODAY" ? 50 : group === "WAITING" ? 30 : 10;
   const overdueHours = dueAt && dueAt < now ? Math.min(48, Math.floor((now.getTime() - dueAt.getTime()) / 3_600_000)) : 0;
-  const ceremonyScore = ceremonyAt && hoursUntil(ceremonyAt, now) <= 24 ? 50 : ceremonyAt && hoursUntil(ceremonyAt, now) <= 72 ? 25 : 0;
+  const ceremonyHours = ceremonyAt ? futureHoursUntil(ceremonyAt, now) : null;
+  const ceremonyScore = ceremonyHours !== null && ceremonyHours <= 24 ? 50 : ceremonyHours !== null && ceremonyHours <= 72 ? 25 : 0;
   return groupScore + PRIORITY_SCORE[priority] + overdueHours + ceremonyScore;
 }
 
@@ -397,6 +440,11 @@ function hoursUntil(value: Date, now: Date) {
   return (value.getTime() - now.getTime()) / 3_600_000;
 }
 
+function futureHoursUntil(value: Date, now: Date) {
+  const hours = hoursUntil(value, now);
+  return hours >= 0 ? hours : null;
+}
+
 function riskWeight(value: ControlTowerCase["risk"]) {
   return value === "CRITICAL" ? 3 : value === "ATTENTION" ? 2 : 1;
 }
@@ -407,6 +455,31 @@ function taskSourceLabel(type: TaskType) {
   if (type === "MEETING_ESCALATION") return "Просроченная встреча";
   if (type === "FOLLOW_UP") return "Итог встречи";
   return "Агент";
+}
+
+function taskReason(type: TaskType) {
+  if (type === "PREPARATION") return "Подготовка нужна для следующего этапа кейса";
+  if (type === "QUOTE_SEND") return "Клиенту нужно получить актуальную смету";
+  if (type === "MEETING_ESCALATION") return "Прошедшая встреча остаётся без зафиксированного исхода";
+  if (type === "FOLLOW_UP") return "После встречи требуется следующий подтверждённый шаг";
+  return "Агент зафиксировал обязательное действие по кейсу";
+}
+
+function auditActionLabel(action: string) {
+  if (action === "task.assigned") return "Исполнитель задачи изменён";
+  if (action === "task.completed") return "Задача завершена";
+  if (action === "task.created") return "Задача создана";
+  if (action === "meeting.status_changed") return "Статус встречи изменён";
+  if (action === "case.intake_saved") return "Данные кейса обновлены";
+  return action.replaceAll("_", " ").replaceAll(".", " · ");
+}
+
+function auditEntityLabel(entityType: string) {
+  if (entityType.toLowerCase() === "task") return "Задача";
+  if (entityType.toLowerCase() === "meeting") return "Встреча";
+  if (entityType.toLowerCase() === "case") return "Кейс";
+  if (entityType.toLowerCase() === "savedoperationalview" || entityType.toLowerCase() === "saved_view") return "Сохранённый вид";
+  return entityType;
 }
 
 function defaultTaskOutcome(type: TaskType) {

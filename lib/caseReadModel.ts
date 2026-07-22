@@ -210,7 +210,7 @@ function caseScope(scope: number | OperationalContext): Prisma.CaseWhereInput | 
   if (scope.agentId <= 0) return null;
   return {
     tenantId: scope.organizationId,
-    ...(scope.role === "ADMIN"
+    ...(scope.role === "ADMIN" || scope.role === "MANAGER"
       ? {}
       : {
           OR: [
