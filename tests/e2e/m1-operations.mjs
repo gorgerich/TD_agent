@@ -7,6 +7,7 @@ const axePath = require.resolve("axe-core/axe.min.js");
 const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M1_UAT_RUN_ID ?? "mission-1";
 const agentEmail = process.env.E2E_AGENT_EMAIL ?? `m1-agent-${runId}@synthetic.invalid`;
+const assignedAgentEmail = process.env.E2E_ASSIGNED_AGENT_EMAIL ?? `m1-assigned-${runId}@synthetic.invalid`;
 const managerEmail = process.env.E2E_MANAGER_EMAIL ?? `m1-manager-${runId}@synthetic.invalid`;
 const password = process.env.M1_UAT_PASSWORD;
 
@@ -17,9 +18,11 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
 const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;
+let offlineProbeActive = false;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const location = message.location().url;
+  if (offlineProbeActive && message.text().includes("net::ERR_INTERNET_DISCONNECTED")) return;
   if (
     message.text().includes("server responded with a status of 409")
     && location.includes("/api/agent/cases/")
@@ -39,7 +42,7 @@ try {
   await login(page, managerEmail, password);
   const managerResult = await managerFlow(page);
   await context.clearCookies();
-  await login(page, agentEmail, password);
+  await login(page, assignedAgentEmail, password);
   const handoffResult = await assignedAgentFlow(page);
   await responsiveAndAccessibility(page);
   assert.equal(expectedConflictErrors, 2, "Both injected task version conflicts must reach the browser");
@@ -116,12 +119,16 @@ async function agentFlow(target, browserContext) {
   const preparationRow = target.locator("li").filter({ hasText: "Подготовить сценарный чек-лист" }).first();
   await preparationRow.getByRole("button", { name: "Зафиксировать результат" }).click();
   await preparationRow.locator("textarea").fill("Не отправлять при офлайн-проверке");
+  offlineProbeActive = true;
   await browserContext.setOffline(true);
   const offlineSubmit = preparationRow.getByRole("button", { name: "Сохранить результат" });
   await target.locator('[role="status"]').filter({ hasText: "Офлайн." }).waitFor();
   assert.equal(await offlineSubmit.isDisabled(), true, "Offline outcome submit must fail closed before a network request");
   assert.equal(await preparationRow.locator("textarea").inputValue(), "Не отправлять при офлайн-проверке");
   await browserContext.setOffline(false);
+  await target.waitForFunction(() => navigator.onLine);
+  await target.waitForTimeout(100);
+  offlineProbeActive = false;
   await preparationRow.getByRole("button", { name: "Отмена" }).click();
 
   await target.goto(`${baseUrl}/agent/operations`, { waitUntil: "networkidle" });
@@ -149,7 +156,7 @@ async function managerFlow(target) {
 
   const unassigned = target.locator("li").filter({ hasText: "Не назначено" }).filter({ hasText: "Подготовить сценарный чек-лист" }).first();
   await unassigned.getByRole("button", { name: "Назначить", exact: true }).click();
-  await unassigned.getByLabel("Исполнитель").selectOption({ label: "Синтетический агент" });
+  await unassigned.getByLabel("Исполнитель").selectOption({ label: "Синтетический координатор" });
   await unassigned.getByLabel("Причина изменения").fill("UAT: распределение нагрузки");
   let conflictInjected = false;
   await target.route("**/api/agent/cases/*/tasks/*", async (route) => {
@@ -211,6 +218,10 @@ async function assignedAgentFlow(target) {
     assigned.getByRole("link", { name: "Открыть подготовку" }).click(),
   ]);
   await target.getByRole("heading", { name: "Семья Участкова · синтетика", exact: true }).waitFor();
+  await target.getByText(/доступен только контекст назначенных задач/).waitFor();
+  assert.equal(await target.getByRole("tab").count(), 1);
+  assert.equal(await target.getByRole("tab", { name: "Документы" }).count(), 0);
+  assert.equal(await target.locator('a[href^="tel:"]').count(), 0);
   const task = target.locator("li").filter({ hasText: "Подготовить сценарный чек-лист" }).first();
   await task.getByRole("button", { name: "Завершить подготовку" }).click();
   await target.getByPlaceholder("Что получилось и что делать дальше").fill("Чек-лист родственного захоронения подготовлен и передан владельцу кейса");

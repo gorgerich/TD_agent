@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { type Stage, relTime } from "@/lib/case";
 import { type StatusTone, type WaitingOn } from "@/lib/caseStatus";
 import { getCanonicalCases } from "@/lib/caseReadModel";
+import { zonedDayBounds } from "@/lib/zonedDateTime";
 
 type CaseRow = {
   id: number;
@@ -57,9 +58,7 @@ async function getCases(session: AgentSession): Promise<CasesData> {
     const fmtDate = new Intl.DateTimeFormat("ru-RU", { timeZone: session.timezone, day: "numeric", month: "short" });
     const nowDate = new Date();
     const now = nowDate.getTime();
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-    const todayEndMs = todayEnd.getTime();
+    const todayEndMs = zonedDayBounds(nowDate, session.timezone).end.getTime();
     const canonical = await getCanonicalCases(session, nowDate);
     const rows: CaseRow[] = canonical.map((record) => {
       const stage = record.legacyStage;
@@ -159,8 +158,9 @@ export default async function CasesPage() {
   ]);
   // KPI команд-центра — выводимы из текущих данных (без новых таблиц).
   // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker
-  const kpiNow = Date.now();
-  const kpiTodayEnd = new Date(); kpiTodayEnd.setHours(23, 59, 59, 999);
+  const kpiDate = new Date();
+  const kpiNow = kpiDate.getTime();
+  const kpiTodayEnd = zonedDayBounds(kpiDate, session.timezone).end;
   const attentionCases = active.filter((c) => c.urgent).length;
   const ceremonyToday = active.filter((c) => c.ceremonyAt && c.ceremonyAt >= kpiNow && c.ceremonyAt <= kpiTodayEnd.getTime()).length;
   const awaitingPayment = active.filter((c) => c.bucket === "awaitPayment").length;

@@ -143,7 +143,6 @@ export async function updateMeetingStatus(
       }
       return updated;
     },
-    input.reason,
   );
 }
 
@@ -161,6 +160,7 @@ export async function rescheduleMeeting(
     if (["COMPLETED", "NO_SHOW", "CANCELLED"].includes(current.operationalStatus)) {
       throw new OperationalCommandError(409, "Завершённую встречу нельзя перенести");
     }
+    await cancelMeetingEscalationsForReschedule(tx, context, current, meta);
     return tx.meeting.update({
       where: { id: current.id },
       data: {
@@ -171,7 +171,7 @@ export async function rescheduleMeeting(
         version: { increment: 1 },
       },
     });
-  }, input.reason);
+  });
 }
 
 async function changeMeeting(
@@ -181,7 +181,6 @@ async function changeMeeting(
   meta: MeetingCommandMeta,
   action: string,
   change: (tx: Prisma.TransactionClient, current: LoadedMeeting) => Promise<LoadedMeeting>,
-  reason?: string,
 ) {
   return runMeetingCommand(context.organizationId, meta.idempotencyKey, action, String(meetingId), async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(meetingId));
@@ -199,7 +198,6 @@ async function changeMeeting(
       action,
       before: meetingSnapshot(current),
       after: meetingSnapshot(updated),
-      reason,
       correlationId: meta.correlationId,
       causationId: meta.causationId,
       idempotencyKey: meta.idempotencyKey,
@@ -318,10 +316,74 @@ function meetingSnapshot(meeting: LoadedMeeting): Prisma.InputJsonValue {
     durationMinutes: meeting.durationMinutes,
     timezone: meeting.timezone,
     channel: meeting.channel,
-    location: meeting.location,
-    outcome: meeting.outcome,
+    hasLocation: Boolean(meeting.location),
+    hasOutcome: Boolean(meeting.outcome),
     outcomeRecordedAt: meeting.outcomeRecordedAt?.toISOString() ?? null,
     version: meeting.version,
+  };
+}
+
+async function cancelMeetingEscalationsForReschedule(
+  tx: Prisma.TransactionClient,
+  context: OperationalContext,
+  meeting: LoadedMeeting,
+  meta: MeetingCommandMeta,
+) {
+  const tasks = await tx.task.findMany({
+    where: {
+      organizationId: context.organizationId,
+      type: "MEETING_ESCALATION",
+      status: "OPEN",
+      sourceEventId: { startsWith: `meeting:${meeting.id}:past-due:v` },
+    },
+  });
+  for (const task of tasks) {
+    const updated = await tx.task.update({
+      where: { id: task.id },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(),
+        waitingReason: null,
+        version: { increment: 1 },
+      },
+    });
+    await appendOperationalAudit(tx, context, {
+      entityType: "task",
+      entityId: String(task.id),
+      action: "task.cancelled_by_meeting_reschedule",
+      before: meetingEscalationSnapshot(task),
+      after: meetingEscalationSnapshot(updated),
+      correlationId: meta.correlationId,
+      causationId: String(meeting.id),
+      idempotencyKey: `${meta.idempotencyKey}:escalation:${task.id}`,
+      result: { taskId: task.id, status: updated.status },
+    });
+  }
+}
+
+function meetingEscalationSnapshot(task: {
+  status: string;
+  type: string;
+  priority: string;
+  assigneeMembershipId: string | null;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  outcome: string | null;
+  waitingReason: string | null;
+  version: number;
+}): Prisma.InputJsonValue {
+  return {
+    status: task.status,
+    type: task.type,
+    priority: task.priority,
+    assigneeMembershipId: task.assigneeMembershipId,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    cancelledAt: task.cancelledAt?.toISOString() ?? null,
+    hasOutcome: Boolean(task.outcome),
+    isWaiting: Boolean(task.waitingReason),
+    version: task.version,
   };
 }
 

@@ -93,7 +93,7 @@ export async function createTask(
       correlationId: meta.correlationId,
       causationId: meta.causationId,
       idempotencyKey: meta.idempotencyKey,
-      result: json(result),
+      result: auditTaskResult(result),
     });
     return result;
   });
@@ -147,7 +147,7 @@ export async function cancelTask(
         version: { increment: 1 },
       },
     });
-  }, input.reason);
+  });
 }
 
 export async function assignTask(
@@ -173,7 +173,7 @@ export async function assignTask(
         version: { increment: 1 },
       },
     });
-  }, input.reason);
+  });
 }
 
 export async function rescheduleTask(
@@ -191,7 +191,7 @@ export async function rescheduleTask(
       where: { id: current.id },
       data: { dueAt: input.dueAt, version: { increment: 1 } },
     });
-  }, input.reason);
+  });
 }
 
 export async function waitTask(
@@ -209,7 +209,7 @@ export async function waitTask(
       where: { id: current.id },
       data: { waitingReason: input.waitingReason.trim(), version: { increment: 1 } },
     });
-  }, input.waitingReason);
+  });
 }
 
 export async function resumeTask(
@@ -228,7 +228,7 @@ export async function resumeTask(
       where: { id: current.id },
       data: { waitingReason: null, version: { increment: 1 } },
     });
-  }, input.reason);
+  });
 }
 
 async function changeTask(
@@ -238,7 +238,6 @@ async function changeTask(
   meta: TaskCommandMeta,
   action: string,
   change: (tx: Prisma.TransactionClient, current: LoadedTask) => Promise<LoadedTask>,
-  reason?: string,
 ): Promise<TaskResult> {
   return runTaskCommand(context.organizationId, meta.idempotencyKey, action, String(taskId), async (tx) => {
     const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(taskId));
@@ -256,6 +255,21 @@ async function changeTask(
       throw new OperationalCommandError(409, "Задача уже изменена. Обновите список и повторите действие.", "VERSION_CONFLICT");
     }
     const updated = await change(tx, current);
+    if (updated === current || updated.version === current.version) {
+      const result = toTaskResult(current, true);
+      await appendOperationalAudit(tx, context, {
+        entityType: "task",
+        entityId: String(taskId),
+        action: "task.completion_noop",
+        before: taskSnapshot(current),
+        after: taskSnapshot(current),
+        correlationId: meta.correlationId,
+        causationId: meta.causationId,
+        idempotencyKey: meta.idempotencyKey,
+        result: auditTaskResult(result),
+      });
+      return result;
+    }
     const result = toTaskResult(updated, false);
     await appendOperationalAudit(tx, context, {
       entityType: "task",
@@ -263,11 +277,10 @@ async function changeTask(
       action,
       before: taskSnapshot(current),
       after: taskSnapshot(updated),
-      reason,
       correlationId: meta.correlationId,
       causationId: meta.causationId,
       idempotencyKey: meta.idempotencyKey,
-      result: json(result),
+      result: auditTaskResult(result),
     });
     return result;
   });
@@ -321,7 +334,7 @@ async function commandReplay(
   const replay = await findOperationalReplay(tx, organizationId, idempotencyKey);
   if (!replay) return null;
   if (
-    replay.action !== expectedAction
+    (replay.action !== expectedAction && !(expectedAction === "task.completed" && replay.action === "task.completion_noop"))
     || replay.entityType !== "task"
     || (expectedEntityId !== undefined && replay.entityId !== expectedEntityId)
   ) {
@@ -372,10 +385,14 @@ function taskSnapshot(task: LoadedTask): Prisma.InputJsonValue {
     dueAt: task.dueAt?.toISOString() ?? null,
     completedAt: task.completedAt?.toISOString() ?? null,
     cancelledAt: task.cancelledAt?.toISOString() ?? null,
-    outcome: task.outcome,
-    waitingReason: task.waitingReason,
+    hasOutcome: Boolean(task.outcome),
+    isWaiting: Boolean(task.waitingReason),
     version: task.version,
   };
+}
+
+function auditTaskResult(result: TaskResult): Prisma.InputJsonValue {
+  return json({ ...result, waitingReason: null });
 }
 
 function json(value: unknown): Prisma.InputJsonValue {

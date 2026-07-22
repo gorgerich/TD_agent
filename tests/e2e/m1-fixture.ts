@@ -12,6 +12,7 @@ const command = process.argv[2];
 const runId = (process.env.M1_UAT_RUN_ID ?? "mission-1").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
 const organizationId = `m1-uat:${runId}`;
 const agentEmail = `m1-agent-${runId}@synthetic.invalid`;
+const assignedAgentEmail = `m1-assigned-${runId}@synthetic.invalid`;
 const managerEmail = `m1-manager-${runId}@synthetic.invalid`;
 const productionFingerprint = process.env.M1_PRODUCTION_DATABASE_FINGERPRINT;
 const directUrl = process.env.DATABASE_URL_UNPOOLED;
@@ -60,9 +61,9 @@ async function verifyTargetIdentity() {
   }
   const [foreignOrganizations, users, agents, leads, cases] = await Promise.all([
     db.organization.count({ where: { id: { not: organizationId } } }),
-    db.user.count({ where: { email: { notIn: [agentEmail, managerEmail] } } }),
-    db.agent.count({ where: { user: { email: { notIn: [agentEmail, managerEmail] } } } }),
-    db.clientLead.count({ where: { agent: { user: { email: { notIn: [agentEmail, managerEmail] } } } } }),
+    db.user.count({ where: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } }),
+    db.agent.count({ where: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } }),
+    db.clientLead.count({ where: { agent: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } } }),
     db.case.count({ where: { tenantId: { not: organizationId } } }),
   ]);
   if (!isLocalTarget(directUrl) && foreignOrganizations + users + agents + leads + cases > 0) {
@@ -86,8 +87,9 @@ async function provision() {
       data: { id: organizationId, slug: `m1-uat-${runId}`, name: "Синтетическая команда M1", timezone: "Europe/Moscow" },
     });
     const agent = await createIdentity(tx, tier.id, "agent", "Синтетический агент", agentEmail, "AGENT", passwordHash);
+    const assignedAgent = await createIdentity(tx, tier.id, "assigned", "Синтетический координатор", assignedAgentEmail, "AGENT", passwordHash);
     const manager = await createIdentity(tx, tier.id, "manager", "Синтетический руководитель", managerEmail, "MANAGER", passwordHash);
-    return { organization, agent, manager };
+    return { organization, agent, assignedAgent, manager };
   });
 
   const agent = operationalContext(identities.agent, "AGENT", "Синтетический агент");
@@ -185,6 +187,7 @@ async function provision() {
     status: "READY",
     organizationId,
     agentEmail,
+    assignedAgentEmail,
     managerEmail,
     pilots: pilotRows,
     reconciliation: reconciliation.discrepancies,

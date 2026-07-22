@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { zonedLocalInput, zonedLocalToIso } from "../lib/zonedDateTime";
+import { zonedDayBounds, zonedLocalInput, zonedLocalToIso } from "../lib/zonedDateTime";
 
 test("organization-local task time round-trips independently of browser timezone", () => {
   const local = "2026-07-19T14:30";
@@ -16,4 +16,10 @@ test("nonexistent DST wall-clock time fails closed", () => {
 test("invalid datetime-local input fails closed", () => {
   assert.equal(zonedLocalToIso("19.07.2026 14:30", "Europe/Moscow"), null);
   assert.equal(zonedLocalInput("invalid", "Europe/Moscow"), "");
+});
+
+test("organization day bounds do not depend on server timezone", () => {
+  const bounds = zonedDayBounds(new Date("2026-07-22T21:30:00.000Z"), "Europe/Moscow");
+  assert.equal(bounds.start.toISOString(), "2026-07-22T21:00:00.000Z");
+  assert.equal(bounds.end.toISOString(), "2026-07-23T20:59:59.999Z");
 });

@@ -468,6 +468,8 @@ function taskReason(type: TaskType) {
 function auditActionLabel(action: string) {
   if (action === "task.assigned") return "Исполнитель задачи изменён";
   if (action === "task.completed") return "Задача завершена";
+  if (action === "task.completion_noop") return "Повторное завершение подтверждено без изменений";
+  if (action === "task.cancelled_by_meeting_reschedule") return "Эскалация закрыта после переноса встречи";
   if (action === "task.created") return "Задача создана";
   if (action === "meeting.status_changed") return "Статус встречи изменён";
   if (action === "case.intake_saved") return "Данные кейса обновлены";
@@ -501,6 +503,6 @@ function meetingTitle(status: OperationalMeetingStatus) {
 }
 
 function meetingIdFromSource(source: string | null) {
-  const match = source?.match(/^meeting:(\d+):past-due:v1$/);
+  const match = source?.match(/^meeting:(\d+):past-due:v\d+$/);
   return match ? Number(match[1]) : null;
 }

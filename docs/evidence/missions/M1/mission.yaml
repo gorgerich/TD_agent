@@ -21,4 +21,3 @@ required_gates:
   - independent_review
 open_blockers: []
 owner_release_authorization: false
-

@@ -35,11 +35,13 @@
 ## Event and projection rules
 
 - Every accepted business mutation writes one `OperationalAuditEvent` in the same
-  transaction as the aggregate change.
+  transaction as the aggregate change. A valid no-op writes an explicit no-op
+  receipt and never masquerades as a state change.
 - Event identity is unique by organization and idempotency key. A replay returns
   the original result without another mutation or audit event.
 - Assignment, reassignment, status, outcome and reschedule events contain actor,
-  time, entity, before, after, reason, correlation ID and optional causation ID.
+  time, entity, redacted before/after state, correlation ID and optional causation
+  ID. User-entered outcomes, locations and reasons stay out of immutable audit.
 - A source event can own one active projected task. Retry never creates a second
   projection. Supersession records `supersededById`; projected tasks are not
   deleted.
@@ -67,4 +69,3 @@
 - Ceremonial 2.5D visualization (M4).
 - Production load, penetration, legal or pilot acceptance (M5).
 - Production merge, database migration, environment change or deployment.
-

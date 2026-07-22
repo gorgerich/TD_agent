@@ -25,6 +25,21 @@ export function zonedLocalInput(value: string, timezone: string): string {
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
+export function zonedDayBounds(value: Date, timezone: string): { start: Date; end: Date } {
+  const localDate = zonedLocalInput(value.toISOString(), timezone).slice(0, 10);
+  const [year, month, day] = localDate.split("-").map(Number);
+  const nextDay = new Date(Date.UTC(year, month - 1, day + 1));
+  const nextDate = [
+    nextDay.getUTCFullYear(),
+    String(nextDay.getUTCMonth() + 1).padStart(2, "0"),
+    String(nextDay.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+  const startIso = zonedLocalToIso(`${localDate}T00:00`, timezone);
+  const nextStartIso = zonedLocalToIso(`${nextDate}T00:00`, timezone);
+  if (!startIso || !nextStartIso) throw new RangeError(`Cannot calculate day bounds for timezone ${timezone}`);
+  return { start: new Date(startIso), end: new Date(new Date(nextStartIso).getTime() - 1) };
+}
+
 function zonedPartsAsUtc(value: Date, timezone: string): number {
   const parts = formatter(timezone).formatToParts(value);
   const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value ?? 0);
@@ -40,5 +55,6 @@ function formatter(timezone: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    hourCycle: "h23",
   });
 }

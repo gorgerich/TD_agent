@@ -36,4 +36,3 @@ not receive routes or UI.
 - Forged cookie role differing from database membership.
 - Replay and optimistic-version conflict behavior.
 - Invitation reuse, expiry and wrong-recipient attempts.
-

@@ -6,7 +6,7 @@ import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { assertCapability } from "@/lib/operationalAuth";
 import { createInvitationToken, hashInvitationToken } from "@/lib/invitations";
 import { normalizeEmail } from "@/lib/agentAuth";
-import { runOperationalTransaction } from "@/lib/operationalTransaction";
+import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 
 export const runtime = "nodejs";
 
@@ -33,7 +33,10 @@ export async function POST(req: NextRequest) {
       const replay = await tx.operationalAuditEvent.findUnique({
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
       });
-      if (replay) return { id: replay.entityId, replayed: true };
+      if (replay) {
+        assertInvitationReplay(replay);
+        return { id: replay.entityId, replayed: true };
+      }
       const created = await tx.organizationInvite.create({
         data: {
           organizationId: session.organizationId,
@@ -65,12 +68,19 @@ export async function POST(req: NextRequest) {
       const replay = await prisma.operationalAuditEvent.findUnique({
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
       });
-      if (!replay || replay.action !== "membership.invited") throw error;
+      if (!replay) throw error;
+      assertInvitationReplay(replay);
       invite = { id: replay.entityId, replayed: true };
     }
 
     return NextResponse.json({ ...invite, token: invite.replayed ? undefined : token }, { status: invite.replayed ? 200 : 201 });
   } catch (error) {
     return handleApiError(error, "invitations/create");
+  }
+}
+
+function assertInvitationReplay(replay: { action: string; entityType: string; entityId: string }) {
+  if (replay.action !== "membership.invited" || replay.entityType !== "membership") {
+    throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
 }

@@ -41,6 +41,30 @@ test("M1 invitations are admin-only, tenant-scoped, single-use, recipient-bound 
     }));
     assert.equal(denied.status, 403);
 
+    const conflictKey = `invite:${fixtures.runId}:conflict`;
+    await db.operationalAuditEvent.create({
+      data: {
+        organizationId,
+        actorMembershipId: admin.membershipId,
+        entityType: "task",
+        entityId: "synthetic-task",
+        action: "task.created",
+        before: {},
+        after: {},
+        correlationId: conflictKey,
+        idempotencyKey: conflictKey,
+        result: { id: 1 },
+      },
+    });
+    const conflictingReplay = await createInvitation(makeRequest("/api/agent/invitations", {
+      method: "POST",
+      cookie: adminCookie,
+      headers: { "idempotency-key": conflictKey, "x-correlation-id": conflictKey },
+      body: { email: acceptedEmail, role: "AGENT", expiresInHours: 24 },
+    }));
+    assert.equal(conflictingReplay.status, 409);
+    assert.equal(await db.organizationInvite.count({ where: { organizationId } }), 0);
+
     const created = await createInvitation(invitationRequest());
     assert.equal(created.status, 201);
     const createdBody = await created.json() as { id: string; token: string; replayed: boolean };

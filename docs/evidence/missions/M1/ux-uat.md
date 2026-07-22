@@ -33,4 +33,3 @@
   meeting -> outcome -> ready for commercial step.
 - Relative burial: intake -> operational plan -> manager reassignment -> overdue
   escalation -> outcome -> ready for commercial step.
-

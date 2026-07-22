@@ -12,7 +12,7 @@ import { OperationalCommandError } from "../../lib/operationalTransaction";
 import { ensurePastMeetingEscalations, projectPastMeetingEscalation } from "../../lib/operationsProjection";
 import { getOperationsQueue, getTeamControlTower } from "../../lib/operationsReadModel";
 import { reconcileOperations } from "../../lib/operationsReconciliation";
-import { assignTask, cancelTask, completeTask, createTask } from "../../lib/taskService";
+import { assignTask, cancelTask, completeTask, createTask, waitTask } from "../../lib/taskService";
 import {
   createFixtureContext,
   db,
@@ -162,15 +162,16 @@ test("M1 task lifecycle requires outcome/reason, enforces version and audits ass
       version: completedCandidate.version,
     }, meta(`m1:${fixtures.runId}:task-empty-outcome`)), 422);
 
+    const sensitiveTaskOutcome = `PRIVATE-TASK-OUTCOME-${fixtures.runId}`;
     const completed = await completeTask(owner.context, completedCandidate.id, {
-      outcome: "Client approved next step",
+      outcome: sensitiveTaskOutcome,
       version: completedCandidate.version,
     }, meta(`m1:${fixtures.runId}:task-complete`));
     assert.equal(completed.status, "COMPLETED");
     assert.equal(completed.version, 2);
     assert.ok(completed.completedAt);
     const completedRow = await db.task.findUniqueOrThrow({ where: { id: completed.id } });
-    assert.equal(completedRow.outcome, "Client approved next step");
+    assert.equal(completedRow.outcome, sensitiveTaskOutcome);
     assert.ok(completedRow.completedAt);
 
     const replay = await completeTask(owner.context, completedCandidate.id, {
@@ -179,6 +180,18 @@ test("M1 task lifecycle requires outcome/reason, enforces version and audits ass
     }, meta(`m1:${fixtures.runId}:task-complete`));
     assert.equal(replay.replayed, true);
     assert.equal(replay.version, 2);
+    const noOpKey = `m1:${fixtures.runId}:task-complete-noop`;
+    const noOp = await completeTask(owner.context, completedCandidate.id, {
+      outcome: `PRIVATE-NOOP-${fixtures.runId}`,
+      version: completed.version,
+    }, meta(noOpKey));
+    assert.equal(noOp.replayed, true);
+    assert.equal(noOp.version, completed.version);
+    const noOpAudit = await db.operationalAuditEvent.findUniqueOrThrow({
+      where: { organizationId_idempotencyKey: { organizationId, idempotencyKey: noOpKey } },
+    });
+    assert.equal(noOpAudit.action, "task.completion_noop");
+    assert.deepEqual(noOpAudit.before, noOpAudit.after);
     const otherTask = await createTask(owner.context, {
       leadId: canonicalCase.leadId,
       title: "Different entity for replay guard",
@@ -229,8 +242,22 @@ test("M1 task lifecycle requires outcome/reason, enforces version and audits ass
       },
     });
     assert.equal(assignmentAudit.action, "task.assigned");
-    assert.equal(assignmentAudit.reason, "Assignee owns document workflow");
+    assert.equal(assignmentAudit.reason, null);
     assert.equal(assignmentAudit.actorMembershipId, manager.membershipId);
+    const waitingCandidate = await createTask(owner.context, {
+      leadId: canonicalCase.leadId,
+      title: "Wait for external confirmation",
+    }, meta(`m1:${fixtures.runId}:task-wait-create`));
+    const sensitiveWaitingReason = `PRIVATE-WAITING-REASON-${fixtures.runId}`;
+    await waitTask(owner.context, waitingCandidate.id, {
+      waitingReason: sensitiveWaitingReason,
+      version: waitingCandidate.version,
+    }, meta(`m1:${fixtures.runId}:task-wait`));
+    const taskAudit = await db.operationalAuditEvent.findMany({ where: { organizationId, entityType: "task" } });
+    const serializedTaskAudit = JSON.stringify(taskAudit);
+    assert.equal(serializedTaskAudit.includes(sensitiveTaskOutcome), false);
+    assert.equal(serializedTaskAudit.includes(sensitiveWaitingReason), false);
+    assert.equal(serializedTaskAudit.includes("Assignee owns document workflow"), false);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
@@ -245,6 +272,7 @@ test("M1 meeting lifecycle requires outcome/reason and rejects stale versions", 
     const tentative = await createMeeting(owner.context, {
       leadId: canonicalCase.leadId,
       scheduledAt: null,
+      location: `PRIVATE-MEETING-LOCATION-${fixtures.runId}`,
     }, meta(`m1:${fixtures.runId}:meeting-create`));
     assert.equal(tentative.status, "TENTATIVE");
     assert.equal(tentative.scheduledAt, null);
@@ -287,6 +315,11 @@ test("M1 meeting lifecycle requires outcome/reason and rejects stale versions", 
     assert.equal(completedRow.outcome, "Needs and next step recorded");
     assert.ok(completedRow.outcomeRecordedAt);
     assert.ok(completedRow.endedAt);
+    const meetingAudit = await db.operationalAuditEvent.findMany({ where: { organizationId: owner.organizationId, entityType: "meeting" } });
+    const serializedMeetingAudit = JSON.stringify(meetingAudit);
+    assert.equal(serializedMeetingAudit.includes(`PRIVATE-MEETING-LOCATION-${fixtures.runId}`), false);
+    assert.equal(serializedMeetingAudit.includes("Family confirmed a time"), false);
+    assert.equal(serializedMeetingAudit.includes("Needs and next step recorded"), false);
     const replayGuardMeeting = await createMeeting(owner.context, {
       leadId: canonicalCase.leadId,
       scheduledAt: new Date(Date.now() + 10_800_000),
@@ -457,6 +490,52 @@ test("M1 stale past-meeting candidate cannot create escalation after terminal ou
       where: { organizationId: owner.organizationId, sourceEventId: `meeting:${pastMeeting.id}:past-due:v1` },
     }), 0);
     assert.equal((await reconcileOperations(owner.organizationId, new Date())).discrepancies, 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 rescheduled past meeting closes stale escalation and projects the new schedule once", opts, async () => {
+  const fixtures = createFixtureContext("m1-escalation-reschedule");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const canonicalCase = await fixtures.makeCase(owner, "past-meeting-rescheduled");
+    const initialNow = new Date();
+    const meeting = await createMeeting(owner.context, {
+      leadId: canonicalCase.leadId,
+      scheduledAt: new Date(initialNow.getTime() - 3_600_000),
+    }, meta(`m1:${fixtures.runId}:meeting`));
+    assert.equal((await ensurePastMeetingEscalations(owner.organizationId, initialNow)).created, 1);
+    const staleSource = `meeting:${meeting.id}:past-due:v${meeting.version}`;
+    const staleTask = await db.task.findFirstOrThrow({ where: { organizationId: owner.organizationId, sourceEventId: staleSource } });
+    assert.equal(staleTask.status, "OPEN");
+
+    const futureAt = new Date(initialNow.getTime() + 3_600_000);
+    const rescheduled = await rescheduleMeeting(owner.context, meeting.id, {
+      scheduledAt: futureAt,
+      reason: "Synthetic reschedule reason",
+      version: meeting.version,
+    }, meta(`m1:${fixtures.runId}:reschedule`));
+    assert.equal(rescheduled.version, meeting.version + 1);
+    assert.equal((await db.task.findUniqueOrThrow({ where: { id: staleTask.id } })).status, "CANCELLED");
+    assert.equal((await reconcileOperations(owner.organizationId, initialNow)).discrepancies, 0);
+    assert.equal((await ensurePastMeetingEscalations(owner.organizationId, initialNow)).created, 0);
+
+    const afterRescheduledTime = new Date(futureAt.getTime() + 1_000);
+    const projections = await Promise.all(Array.from({ length: 3 }, () => ensurePastMeetingEscalations(owner.organizationId, afterRescheduledTime)));
+    assert.equal(projections.reduce((sum, projection) => sum + projection.created, 0), 1);
+    const currentSource = `meeting:${meeting.id}:past-due:v${rescheduled.version}`;
+    assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, sourceEventId: currentSource, status: "OPEN" } }), 1);
+    assert.equal((await reconcileOperations(owner.organizationId, afterRescheduledTime)).discrepancies, 0);
+
+    await updateMeetingStatus(owner.context, meeting.id, {
+      status: "COMPLETED",
+      outcome: "Synthetic meeting outcome",
+      version: rescheduled.version,
+    }, meta(`m1:${fixtures.runId}:complete`));
+    assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, type: "MEETING_ESCALATION", status: "OPEN" } }), 0);
+    assert.equal((await reconcileOperations(owner.organizationId, afterRescheduledTime)).discrepancies, 0);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

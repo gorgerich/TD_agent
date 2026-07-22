@@ -27,21 +27,29 @@ const SOURCE_LABELS: Record<string, string> = {
 
 type Activity = { at: number; label: string; sub?: string };
 
-async function getCase(caseId: number, session: AgentSession) {
+async function getCaseAccess(caseId: number, session: AgentSession) {
+  return prisma.case.findFirst({
+    where: { leadId: caseId, tenantId: session.organizationId },
+    select: {
+      id: true,
+      leadId: true,
+      ownerId: true,
+      owner: { select: { user: { select: { name: true } } } },
+      lead: { select: { name: true, createdAt: true } },
+      tasks: {
+        where: { assigneeMembershipId: session.membershipId },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
+}
+
+async function getFullCase(caseId: number, session: AgentSession) {
   return prisma.clientLead.findFirst({
     where: {
       id: caseId,
-      case: {
-        tenantId: session.organizationId,
-        ...(session.role === "ADMIN" || session.role === "MANAGER"
-          ? {}
-          : {
-              OR: [
-                { ownerId: session.agentId },
-                { tasks: { some: { assigneeMembershipId: session.membershipId } } },
-              ],
-            }),
-      },
+      case: { tenantId: session.organizationId },
     },
     include: {
       case: { select: { owner: { select: { user: { select: { name: true } } } } } },
@@ -72,9 +80,16 @@ export default async function CasePage({
 
   const session = await getAgentSession();
   if (!session) notFound();
+  const access = await getCaseAccess(id, session);
+  if (!access) notFound();
+  const limitedTaskContext = session.role === "AGENT" && access.ownerId !== session.agentId;
+  if (limitedTaskContext) {
+    if (access.tasks.length === 0) notFound();
+    return <AssignedTaskCaseView access={access} session={session} />;
+  }
   const projectionNow = new Date();
   const [lead, canonicalCase] = await Promise.all([
-    getCase(id, session),
+    getFullCase(id, session),
     getCanonicalCase(session, id, projectionNow),
   ]);
   if (!lead || !canonicalCase) notFound();
@@ -286,8 +301,80 @@ export default async function CasePage({
 }
 
 function meetingIdFromEscalationSource(sourceEventId: string | null) {
-  const match = sourceEventId?.match(/^meeting:(\d+):past-due:v1$/);
+  const match = sourceEventId?.match(/^meeting:(\d+):past-due:v\d+$/);
   return match ? `/agent/meetings/${match[1]}?from=case` : null;
+}
+
+async function AssignedTaskCaseView({
+  access,
+  session,
+}: {
+  access: NonNullable<Awaited<ReturnType<typeof getCaseAccess>>>;
+  session: AgentSession;
+}) {
+  const rawTasks = await prisma.task.findMany({
+    where: {
+      leadId: access.leadId,
+      organizationId: session.organizationId,
+      assigneeMembershipId: session.membershipId,
+    },
+    orderBy: { createdAt: "desc" },
+    include: { assignee: { select: { user: { select: { name: true } } } } },
+  });
+  const tasks = rawTasks.map((task) => ({
+    id: task.id,
+    title: task.title,
+    type: task.type,
+    priority: task.priority,
+    status: task.status,
+    source: task.sourceEventId ? "Событие кейса" : "Агент",
+    expectedOutcome: task.expectedOutcome,
+    waitingReason: task.waitingReason,
+    ownerName: task.assignee?.user.name ?? "Не назначено",
+    version: task.version,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    canMutate: task.status === "OPEN",
+    actionHref: meetingIdFromEscalationSource(task.sourceEventId),
+  }));
+  const openTasks = tasks.filter((task) => task.status === "OPEN").length;
+
+  return (
+    <div className="td-page mx-auto w-full max-w-[1120px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
+      <Link href="/agent/tasks" className="rise inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink">
+        <ArrowLeft size={15} /> К моим задачам
+      </Link>
+      <header className="rise rise-1 td-shell-elevated mt-4 mb-5 px-5 py-5 sm:px-6 sm:py-6">
+        <span className="td-eyebrow">Назначенный кейс · #{access.leadId}</span>
+        <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]">{access.lead.name}</h1>
+        <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed text-ink-2">
+          Ведёт: {access.owner.user.name}. Вам доступен только контекст назначенных задач; данные семьи, документы и финансы остаются у владельца кейса.
+        </p>
+      </header>
+      <section className="rise rise-1 td-accent-panel mb-5 px-5 py-4 sm:px-6">
+        <span className="td-eyebrow text-accent">Ваш следующий шаг</span>
+        <strong className="mt-2 block text-[20px] leading-snug text-ink">
+          {openTasks > 0 ? `Завершить ${openTasks === 1 ? "назначенную задачу" : `${openTasks} назначенные задачи`}` : "Назначенные задачи выполнены"}
+        </strong>
+      </section>
+      <main className="rise rise-2 min-w-0">
+        <CaseTabs
+          caseId={access.leadId}
+          tasks={tasks}
+          docs={[]}
+          notes={[]}
+          intake={{ ceremonyType: "", budget: "", religion: "", needs: "", deceasedName: "", deceasedDate: "", morgue: "", ceremonyAt: "", ceremonyPlace: "" }}
+          context={null}
+          payments={[]}
+          activity={[]}
+          initialTab="work"
+          timezone={session.timezone}
+          canMutateCase={false}
+          limitedTaskContext
+        />
+      </main>
+    </div>
+  );
 }
 
 function eventLabel(eventType: string): string {

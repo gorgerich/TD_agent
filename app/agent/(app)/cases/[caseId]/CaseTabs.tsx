@@ -43,6 +43,7 @@ export function CaseTabs({
   initialTab = "work",
   timezone,
   canMutateCase = true,
+  limitedTaskContext = false,
 }: {
   caseId: number;
   tasks: TaskItem[];
@@ -55,13 +56,14 @@ export function CaseTabs({
   initialTab?: TabId;
   timezone: string;
   canMutateCase?: boolean;
+  limitedTaskContext?: boolean;
 }) {
   const [tab, setTab] = useState<TabId>(initialTab);
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
   const openTasks = tasks.filter((task) => task.status === "OPEN").length;
   const missingDocs = docs.length === 0;
 
-  const tabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
+  const allTabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
     {
       id: "work",
       label: "Работа",
@@ -78,13 +80,16 @@ export function CaseTabs({
     { id: "family", label: "Семья", subtitle: "Потребности и контекст", icon: UsersThree },
     { id: "history", label: "История", subtitle: "Заметки и события", icon: ClockCounterClockwise },
   ];
+  const tabs = limitedTaskContext ? allTabs.slice(0, 1) : allTabs;
   return (
     <section className={`td-shell ${s.workspace}`} aria-label="Рабочая зона кейса">
       <nav className={s.nav} aria-label="Разделы кейса">
         <div className={s.navIntro}>
           <span className="td-eyebrow">Кейс</span>
           <span className={s.navSummary}>
-            {openTasks > 0 ? `${openTasks} требуют внимания` : "Кейс под контролем"}
+            {limitedTaskContext
+              ? (openTasks > 0 ? `${openTasks} назначено вам` : "Ваши задачи выполнены")
+              : (openTasks > 0 ? `${openTasks} требуют внимания` : "Кейс под контролем")}
           </span>
         </div>
         <div className={s.navItems} role="tablist" aria-label="Разделы рабочей зоны">
@@ -144,9 +149,11 @@ export function CaseTabs({
               <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
                 <TasksSection caseId={caseId} initial={tasks} timezone={timezone} canCreate={canMutateCase} />
               </Section>
-              <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
-                <PaymentsSection caseId={caseId} initial={payments} timezone={timezone} canMutate={canMutateCase} />
-              </Section>
+              {!limitedTaskContext && (
+                <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
+                  <PaymentsSection caseId={caseId} initial={payments} timezone={timezone} canMutate={canMutateCase} />
+                </Section>
+              )}
             </div>
           )}
 
