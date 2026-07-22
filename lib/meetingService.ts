@@ -2,7 +2,7 @@ import { Prisma, type MeetingChannel, type OperationalMeetingStatus, type Operat
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
-import { closeMeetingEscalationInTransaction, projectPastMeetingEscalation } from "@/lib/operationsProjection";
+import { closeMeetingEscalationInTransaction, projectPastMeetingEscalationInTransaction } from "@/lib/operationsProjection";
 import { prisma } from "@/lib/prisma";
 
 export type MeetingCommandMeta = {
@@ -112,7 +112,7 @@ export async function updateMeetingStatus(
     throw new OperationalCommandError(422, "Зафиксируйте результат или причину");
   }
 
-  const result = await changeMeeting(
+  return changeMeeting(
     context,
     meetingId,
     input.version,
@@ -143,14 +143,12 @@ export async function updateMeetingStatus(
           explanation!.trim(),
           `${meta.idempotencyKey}:escalation`,
         );
+      } else if (input.status === "CONFIRMED") {
+        await projectPastMeetingEscalationInTransaction(tx, context.organizationId, meetingId, new Date());
       }
       return updated;
     },
   );
-  if (input.status === "CONFIRMED") {
-    await projectPastMeetingEscalation(context.organizationId, meetingId, new Date());
-  }
-  return result;
 }
 
 export async function rescheduleMeeting(

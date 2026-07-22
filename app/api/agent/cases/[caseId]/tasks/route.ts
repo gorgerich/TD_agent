@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const CreateBody = z.object({
   title: z.string().min(1).max(500),
   dueAt: z.string().datetime({ offset: true }).optional().nullable(),
-  type: z.enum(["MANUAL", "PREPARATION", "FOLLOW_UP", "MEETING_ESCALATION", "QUOTE_SEND"]).optional(),
+  type: z.enum(["MANUAL", "PREPARATION", "FOLLOW_UP", "QUOTE_SEND"]).optional(),
   priority: z.enum(["LOW", "NORMAL", "HIGH", "CRITICAL"]).optional(),
   expectedOutcome: z.string().max(500).optional().nullable(),
   waitingReason: z.string().max(500).optional().nullable(),

@@ -131,88 +131,17 @@ export async function projectPastMeetingEscalation(organizationId: string, meeti
   let sourceEventId: string | null = null;
   try {
     return await runOperationalTransaction(async (tx) => {
-        const [current] = await tx.$queryRaw<Array<{
-          id: number;
-          caseId: string;
-          leadId: number;
-          agentId: number;
-          ownerMembershipId: string;
-          scheduledAt: Date | null;
-          operationalStatus: string;
-          outcomeRecordedAt: Date | null;
-          version: number;
-        }>>(Prisma.sql`
-          SELECT
-            "id", "caseId", "leadId", "agentId", "ownerMembershipId",
-            "scheduledAt", "operationalStatus", "outcomeRecordedAt", "version"
-          FROM "Meeting"
-          WHERE "id" = ${meetingId} AND "organizationId" = ${organizationId}
-          FOR UPDATE
-        `);
-        if (
-          !current
-          || !["SCHEDULED", "CONFIRMED"].includes(current.operationalStatus)
-          || !current.scheduledAt
-          || current.scheduledAt >= now
-          || current.outcomeRecordedAt
-        ) {
-          return false;
-        }
-
-        sourceEventId = `meeting:${meetingId}:past-due:v${current.version}`;
-        const receipt = await tx.projectionReceipt.findUnique({
-          where: {
-            organizationId_projector_sourceEventId: {
-              organizationId,
-              projector: "m1.meeting-escalation.v1",
-              sourceEventId,
-            },
-          },
-        });
-        if (receipt) return false;
-
-        const task = await tx.task.create({
-          data: {
-            organizationId,
-            caseId: current.caseId,
-            leadId: current.leadId,
-            agentId: current.agentId,
-            assigneeMembershipId: current.ownerMembershipId,
-            createdByMembershipId: current.ownerMembershipId,
-            type: "MEETING_ESCALATION",
-            priority: "CRITICAL",
-            status: "OPEN",
-            sourceEventId,
-            idempotencyKey: `projection:${sourceEventId}:task`,
-            title: "Зафиксировать итог прошедшей встречи",
-            expectedOutcome: "Указан результат: завершена, клиент не пришёл или отменена",
-            dueAt: now,
-          },
-        });
-        await tx.operationalAuditEvent.create({
-          data: {
-            organizationId,
-            actorType: "system",
-            entityType: "task",
-            entityId: String(task.id),
-            action: "task.escalated_from_meeting",
-            before: {},
-            after: projectionTaskSnapshot(task),
-            correlationId: sourceEventId,
-            causationId: sourceEventId,
-            idempotencyKey: `projection:${sourceEventId}:audit`,
-            result: { taskId: task.id },
-          },
-        });
-        await tx.projectionReceipt.create({
-          data: {
-            organizationId,
-            projector: "m1.meeting-escalation.v1",
-            sourceEventId,
-            result: { taskId: task.id },
-          },
-        });
-        return true;
+      const projected = await projectPastMeetingEscalationInTransaction(
+        tx,
+        organizationId,
+        meetingId,
+        now,
+        (projectedSourceEventId) => {
+          sourceEventId = projectedSourceEventId;
+        },
+      );
+      sourceEventId = projected.sourceEventId;
+      return projected.created;
     });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
@@ -229,6 +158,98 @@ export async function projectPastMeetingEscalation(organizationId: string, meeti
     if (!receipt) throw error;
     return false;
   }
+}
+
+export async function projectPastMeetingEscalationInTransaction(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  meetingId: number,
+  now: Date,
+  onSourceEventId?: (sourceEventId: string) => void,
+) {
+  const [current] = await tx.$queryRaw<Array<{
+    id: number;
+    caseId: string;
+    leadId: number;
+    agentId: number;
+    ownerMembershipId: string;
+    scheduledAt: Date | null;
+    operationalStatus: string;
+    outcomeRecordedAt: Date | null;
+    version: number;
+  }>>(Prisma.sql`
+    SELECT
+      "id", "caseId", "leadId", "agentId", "ownerMembershipId",
+      "scheduledAt", "operationalStatus", "outcomeRecordedAt", "version"
+    FROM "Meeting"
+    WHERE "id" = ${meetingId} AND "organizationId" = ${organizationId}
+    FOR UPDATE
+  `);
+  if (
+    !current
+    || !["SCHEDULED", "CONFIRMED"].includes(current.operationalStatus)
+    || !current.scheduledAt
+    || current.scheduledAt >= now
+    || current.outcomeRecordedAt
+  ) {
+    return { created: false, sourceEventId: null };
+  }
+
+  const sourceEventId = `meeting:${meetingId}:past-due:v${current.version}`;
+  onSourceEventId?.(sourceEventId);
+  const receipt = await tx.projectionReceipt.findUnique({
+    where: {
+      organizationId_projector_sourceEventId: {
+        organizationId,
+        projector: "m1.meeting-escalation.v1",
+        sourceEventId,
+      },
+    },
+  });
+  if (receipt) return { created: false, sourceEventId };
+
+  const task = await tx.task.create({
+    data: {
+      organizationId,
+      caseId: current.caseId,
+      leadId: current.leadId,
+      agentId: current.agentId,
+      assigneeMembershipId: current.ownerMembershipId,
+      createdByMembershipId: current.ownerMembershipId,
+      type: "MEETING_ESCALATION",
+      priority: "CRITICAL",
+      status: "OPEN",
+      sourceEventId,
+      idempotencyKey: `projection:${sourceEventId}:task`,
+      title: "Зафиксировать итог прошедшей встречи",
+      expectedOutcome: "Указан результат: завершена, клиент не пришёл или отменена",
+      dueAt: now,
+    },
+  });
+  await tx.operationalAuditEvent.create({
+    data: {
+      organizationId,
+      actorType: "system",
+      entityType: "task",
+      entityId: String(task.id),
+      action: "task.escalated_from_meeting",
+      before: {},
+      after: projectionTaskSnapshot(task),
+      correlationId: sourceEventId,
+      causationId: sourceEventId,
+      idempotencyKey: `projection:${sourceEventId}:audit`,
+      result: { taskId: task.id },
+    },
+  });
+  await tx.projectionReceipt.create({
+    data: {
+      organizationId,
+      projector: "m1.meeting-escalation.v1",
+      sourceEventId,
+      result: { taskId: task.id },
+    },
+  });
+  return { created: true, sourceEventId };
 }
 
 export async function closeMeetingEscalationInTransaction(

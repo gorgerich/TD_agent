@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { Prisma } from "@prisma/client";
 import { GET as auditGet } from "../../app/api/agent/operations/audit/route";
 import { GET as operationsGet } from "../../app/api/agent/operations/route";
 import { GET as searchGet } from "../../app/api/agent/operations/search/route";
@@ -560,6 +561,71 @@ test("M1 confirming a past meeting replaces its versioned escalation exactly onc
     assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, type: "MEETING_ESCALATION", status: "OPEN" } }), 1);
     assert.equal((await ensurePastMeetingEscalations(owner.organizationId, now)).created, 0);
     assert.equal((await reconcileOperations(owner.organizationId, now)).discrepancies, 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 meeting confirmation rolls back status and stale escalation when projection fails", opts, async () => {
+  const fixtures = createFixtureContext("m1-escalation-confirm-rollback");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const canonicalCase = await fixtures.makeCase(owner, "past-meeting-confirm-rollback");
+    const now = new Date();
+    const meeting = await createMeeting(owner.context, {
+      leadId: canonicalCase.leadId,
+      scheduledAt: new Date(now.getTime() - 3_600_000),
+    }, meta(`m1:${fixtures.runId}:meeting`));
+    assert.equal((await ensurePastMeetingEscalations(owner.organizationId, now)).created, 1);
+    const oldSource = `meeting:${meeting.id}:past-due:v${meeting.version}`;
+    const conflictingProjectionKey = `projection:meeting:${meeting.id}:past-due:v${meeting.version + 1}:task`;
+    await createTask(owner.context, {
+      leadId: canonicalCase.leadId,
+      title: "Synthetic projection conflict",
+    }, meta(conflictingProjectionKey));
+
+    await assert.rejects(updateMeetingStatus(owner.context, meeting.id, {
+      status: "CONFIRMED",
+      version: meeting.version,
+    }, meta(`m1:${fixtures.runId}:confirm`)), (error: unknown) => {
+      assert.ok(error instanceof Prisma.PrismaClientKnownRequestError);
+      assert.equal(error.code, "P2002");
+      return true;
+    });
+
+    const unchangedMeeting = await db.meeting.findUniqueOrThrow({ where: { id: meeting.id } });
+    assert.equal(unchangedMeeting.operationalStatus, "SCHEDULED");
+    assert.equal(unchangedMeeting.version, meeting.version);
+    assert.equal(await db.task.count({
+      where: { organizationId: owner.organizationId, sourceEventId: oldSource, status: "OPEN" },
+    }), 1);
+    assert.equal(await db.projectionReceipt.count({
+      where: {
+        organizationId: owner.organizationId,
+        projector: "m1.meeting-escalation.v1",
+        sourceEventId: `meeting:${meeting.id}:past-due:v${meeting.version + 1}`,
+      },
+    }), 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 meeting escalations are system-only tasks", opts, async () => {
+  const fixtures = createFixtureContext("m1-system-task-type");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const canonicalCase = await fixtures.makeCase(owner, "system-task-type");
+    await expectCommandError(createTask(owner.context, {
+      leadId: canonicalCase.leadId,
+      title: "Manual escalation must be rejected",
+      type: "MEETING_ESCALATION",
+    }, meta(`m1:${fixtures.runId}:manual-escalation`)), 422, "SYSTEM_TASK_TYPE");
+    assert.equal(await db.task.count({
+      where: { organizationId: owner.organizationId, type: "MEETING_ESCALATION" },
+    }), 0);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

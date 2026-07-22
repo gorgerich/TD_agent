@@ -41,6 +41,13 @@ export async function createTask(
 ): Promise<TaskResult> {
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
+  if (input.type === "MEETING_ESCALATION") {
+    throw new OperationalCommandError(
+      422,
+      "Эскалация прошедшей встречи создаётся системой",
+      "SYSTEM_TASK_TYPE",
+    );
+  }
 
   return runTaskCommand(context, meta.idempotencyKey, "task.created", undefined, async (tx) => {
     const replay = await commandReplay(tx, context, meta.idempotencyKey, "task.created");
