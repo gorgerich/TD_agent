@@ -2,7 +2,7 @@ import { Prisma, type MeetingChannel, type OperationalMeetingStatus, type Operat
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
-import { closeMeetingEscalationInTransaction } from "@/lib/operationsProjection";
+import { closeMeetingEscalationInTransaction, projectPastMeetingEscalation } from "@/lib/operationsProjection";
 import { prisma } from "@/lib/prisma";
 
 export type MeetingCommandMeta = {
@@ -39,8 +39,8 @@ export async function createMeeting(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runMeetingCommand(context.organizationId, meta.idempotencyKey, "meeting.created", undefined, async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "meeting.created");
+  return runMeetingCommand(context, meta.idempotencyKey, "meeting.created", undefined, async (tx) => {
+    const replay = await commandReplay(tx, context, meta.idempotencyKey, "meeting.created");
     if (replay) return replay;
 
     const canonicalCase = await tx.case.findFirst({
@@ -112,7 +112,7 @@ export async function updateMeetingStatus(
     throw new OperationalCommandError(422, "Зафиксируйте результат или причину");
   }
 
-  return changeMeeting(
+  const result = await changeMeeting(
     context,
     meetingId,
     input.version,
@@ -121,6 +121,9 @@ export async function updateMeetingStatus(
     async (tx, current) => {
       assertMeetingTransition(current.operationalStatus, input.status);
       const terminal = ["COMPLETED", "NO_SHOW", "CANCELLED"].includes(input.status);
+      if (!terminal) {
+        await cancelStaleMeetingEscalations(tx, context, current, meta, "task.cancelled_by_meeting_status_change");
+      }
       const updated = await tx.meeting.update({
         where: { id: current.id },
         data: {
@@ -144,6 +147,10 @@ export async function updateMeetingStatus(
       return updated;
     },
   );
+  if (input.status === "CONFIRMED") {
+    await projectPastMeetingEscalation(context.organizationId, meetingId, new Date());
+  }
+  return result;
 }
 
 export async function rescheduleMeeting(
@@ -160,7 +167,7 @@ export async function rescheduleMeeting(
     if (["COMPLETED", "NO_SHOW", "CANCELLED"].includes(current.operationalStatus)) {
       throw new OperationalCommandError(409, "Завершённую встречу нельзя перенести");
     }
-    await cancelMeetingEscalationsForReschedule(tx, context, current, meta);
+    await cancelStaleMeetingEscalations(tx, context, current, meta, "task.cancelled_by_meeting_reschedule");
     return tx.meeting.update({
       where: { id: current.id },
       data: {
@@ -182,8 +189,8 @@ async function changeMeeting(
   action: string,
   change: (tx: Prisma.TransactionClient, current: LoadedMeeting) => Promise<LoadedMeeting>,
 ) {
-  return runMeetingCommand(context.organizationId, meta.idempotencyKey, action, String(meetingId), async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(meetingId));
+  return runMeetingCommand(context, meta.idempotencyKey, action, String(meetingId), async (tx) => {
+    const replay = await commandReplay(tx, context, meta.idempotencyKey, action, String(meetingId));
     if (replay) return replay;
     const current = await loadMeeting(tx, context, meetingId);
     if (!current) throw new OperationalCommandError(404, "Встреча не найдена");
@@ -208,7 +215,7 @@ async function changeMeeting(
 }
 
 async function runMeetingCommand(
-  organizationId: string,
+  context: OperationalContext,
   idempotencyKey: string,
   action: string,
   entityId: string | undefined,
@@ -218,7 +225,7 @@ async function runMeetingCommand(
     return await runOperationalTransaction(command);
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action, entityId));
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, context, idempotencyKey, action, entityId));
     if (replay) return replay;
     throw error;
   }
@@ -261,12 +268,12 @@ function assertMeetingTransition(from: OperationalMeetingStatus, to: Operational
 
 async function commandReplay(
   tx: Prisma.TransactionClient,
-  organizationId: string,
+  context: OperationalContext,
   idempotencyKey: string,
   expectedAction: string,
   expectedEntityId?: string,
 ): Promise<MeetingResult | null> {
-  const replay = await findOperationalReplay(tx, organizationId, idempotencyKey);
+  const replay = await findOperationalReplay(tx, context.organizationId, idempotencyKey);
   if (!replay) return null;
   if (
     replay.action !== expectedAction
@@ -276,6 +283,17 @@ async function commandReplay(
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
   const result = replay.result as Record<string, unknown>;
+  const authorized = expectedEntityId === undefined
+    ? await tx.case.findFirst({
+        where: {
+          id: String(result.caseId),
+          tenantId: context.organizationId,
+          ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+        },
+        select: { id: true },
+      })
+    : await loadMeeting(tx, context, Number(expectedEntityId));
+  if (!authorized) throw new OperationalCommandError(404, "Встреча не найдена");
   return {
     id: Number(result.id),
     caseId: String(result.caseId),
@@ -323,11 +341,12 @@ function meetingSnapshot(meeting: LoadedMeeting): Prisma.InputJsonValue {
   };
 }
 
-async function cancelMeetingEscalationsForReschedule(
+async function cancelStaleMeetingEscalations(
   tx: Prisma.TransactionClient,
   context: OperationalContext,
   meeting: LoadedMeeting,
   meta: MeetingCommandMeta,
+  action: "task.cancelled_by_meeting_reschedule" | "task.cancelled_by_meeting_status_change",
 ) {
   const tasks = await tx.task.findMany({
     where: {
@@ -350,7 +369,7 @@ async function cancelMeetingEscalationsForReschedule(
     await appendOperationalAudit(tx, context, {
       entityType: "task",
       entityId: String(task.id),
-      action: "task.cancelled_by_meeting_reschedule",
+      action,
       before: meetingEscalationSnapshot(task),
       after: meetingEscalationSnapshot(updated),
       correlationId: meta.correlationId,

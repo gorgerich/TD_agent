@@ -66,6 +66,35 @@ test("AC-W2-02: create and transition retries are idempotent", opts, async () =>
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "intake.completed.v1" } }), 1);
 });
 
+test("AC-W2-01: lead replay cannot disclose another agent's case", opts, async () => {
+  const organizationId = await fixtures.makeOrganization("lead-replay-team");
+  const owner = await fixtures.makeMember("lead-replay-owner", { organizationId, role: "AGENT" });
+  const teammate = await fixtures.makeMember("lead-replay-teammate", { organizationId, role: "AGENT" });
+  const ownerCookie = await sessionCookieHeader(owner.userId, owner.agentId);
+  const teammateCookie = await sessionCookieHeader(teammate.userId, teammate.agentId);
+  const key = `it:${fixtures.runId}:lead-replay-owner`;
+  const ownerResponse = await leadsPost(makeRequest("/api/agent/leads", {
+    method: "POST",
+    cookie: ownerCookie,
+    headers: { "idempotency-key": key, "x-correlation-id": key },
+    body: { name: "Private owner lead", phone: "+79160000123", source: "agent", context: "Private owner context" },
+  }));
+  assert.equal(ownerResponse.status, 201);
+
+  const denied = await leadsPost(makeRequest("/api/agent/leads", {
+    method: "POST",
+    cookie: teammateCookie,
+    headers: { "idempotency-key": key, "x-correlation-id": key },
+    body: { name: "Teammate request", phone: "+79160000456", source: "agent" },
+  }));
+  assert.equal(denied.status, 404);
+  const body = await denied.json() as Record<string, unknown>;
+  assert.deepEqual(Object.keys(body), ["error"]);
+  assert.equal(JSON.stringify(body).includes("+79160000123"), false);
+  assert.equal(JSON.stringify(body).includes("Private owner context"), false);
+  assert.equal(await db.clientLead.count({ where: { agentId: teammate.agentId } }), 0);
+});
+
 test("W2-09: intake save and derived transitions replay atomically", opts, async () => {
   const fixture = await createCase("intake-idem");
   const key = "it:intake-idem:save";

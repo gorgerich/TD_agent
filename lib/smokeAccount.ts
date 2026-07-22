@@ -45,7 +45,7 @@ export async function manageSmokeAccount(
       ? await passwordHasher(input.newPassword!)
       : undefined;
 
-  return db.$transaction(async (tx) => {
+  const execute = () => db.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({
       where: { email: SMOKE_ACCOUNT_EMAIL },
       include: { agent: true },
@@ -174,6 +174,16 @@ export async function manageSmokeAccount(
       at: (input.now ?? new Date()).toISOString(),
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await execute();
+    } catch (error) {
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retryable || attempt === 3) throw error;
+    }
+  }
+  throw new Error("Smoke account transaction retry exhausted");
 }
 
 function validateInput(input: SmokeAccountInput): void {

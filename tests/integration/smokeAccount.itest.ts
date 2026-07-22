@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, test } from "node:test";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { POST as login } from "../../app/api/agent/auth/login/route";
 import { hashPassword } from "../../lib/password";
@@ -91,6 +92,29 @@ test("smoke provisioning hashes before opening its transaction", opts, async () 
   assert.equal(await db.meeting.count({ where: { agentId: provisioned.agentId } }), 0);
   assert.equal(await db.case.count({ where: { ownerId: provisioned.agentId } }), 0);
   assert.equal(await db.caseEvent.count({ where: { actorId: provisioned.agentId } }), 0);
+});
+
+test("smoke provisioning retries a serializable write conflict without losing atomicity", opts, async () => {
+  let attempts = 0;
+  const observedDb = Object.create(db) as typeof db;
+  const runTransaction = db.$transaction.bind(db);
+  observedDb.$transaction = ((...args: unknown[]) => {
+    attempts += 1;
+    if (attempts === 1) {
+      throw new Prisma.PrismaClientKnownRequestError("Synthetic serializable conflict", {
+        code: "P2034",
+        clientVersion: Prisma.prismaVersion.client,
+      });
+    }
+    return Reflect.apply(runTransaction, db, args);
+  }) as typeof db.$transaction;
+
+  const provisioned = await manageSmokeAccount(observedDb, { action: "provision", password: firstPassword });
+  assert.equal(attempts, 2);
+  assert.equal(provisioned.created, true);
+  assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
+  assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId } }), 1);
 });
 
 test("smoke provisioning rolls back User when nested Agent creation fails", opts, async () => {

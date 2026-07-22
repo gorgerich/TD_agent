@@ -9,11 +9,22 @@ import { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 
+const SavedQuerySchema = z.discriminatedUnion("screen", [
+  z.object({
+    screen: z.literal("today"),
+    group: z.enum(["ALL", "OVERDUE", "TODAY", "UPCOMING", "WAITING"]),
+  }).strict(),
+  z.object({
+    screen: z.literal("team"),
+    filter: z.enum(["ATTENTION", "UNASSIGNED", "ALL"]),
+  }).strict(),
+]);
+
 const ViewSchema = z.object({
   name: z.string().trim().min(1).max(80),
   scope: z.enum(["MY", "TEAM"]).default("MY"),
-  query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
-});
+  query: SavedQuerySchema,
+}).strict();
 
 export async function GET(req: NextRequest) {
   try {
@@ -79,8 +90,8 @@ export async function POST(req: NextRequest) {
         entityType: "saved_view",
         entityId: saved.id,
         action: current ? "saved_view.updated" : "saved_view.created",
-        before: current ? { name: current.name, scope: current.scope, query: current.query } : {},
-        after: { name: saved.name, scope: saved.scope, query: saved.query },
+        before: current ? savedViewAuditSnapshot(current.scope, current.query) : {},
+        after: savedViewAuditSnapshot(saved.scope, saved.query),
         correlationId,
         idempotencyKey,
         result: { id: saved.id },
@@ -103,4 +114,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return handleApiError(error, "operations/views/save");
   }
+}
+
+function savedViewAuditSnapshot(scope: "MY" | "TEAM", query: Prisma.JsonValue): Prisma.InputJsonValue {
+  const screen = query && !Array.isArray(query) && typeof query === "object" && typeof query.screen === "string"
+    ? query.screen
+    : "unknown";
+  return { scope, screen, hasFilter: true };
 }

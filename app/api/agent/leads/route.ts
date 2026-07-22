@@ -64,15 +64,22 @@ export async function POST(req: NextRequest) {
     if (requestedKey) {
       const replay = await prisma.caseEvent.findUnique({
         where: { tenantId_idempotencyKey: { tenantId: session.organizationId, idempotencyKey: requestedKey } },
-        select: { eventType: true, case: { include: { lead: true } } },
+        select: {
+          eventType: true,
+          case: { select: { id: true, publicRef: true, leadId: true, ownerId: true } },
+        },
       });
       if (replay) {
+        if (session.role === "AGENT" && replay.case.ownerId !== session.agentId) {
+          return NextResponse.json({ error: "Кейс не найден" }, { status: 404 });
+        }
         if (replay.eventType !== "case.created.v1") {
           return NextResponse.json({ error: "Idempotency key уже использован другой командой" }, { status: 409 });
         }
+        const lead = await prisma.clientLead.findUniqueOrThrow({ where: { id: replay.case.leadId } });
         return NextResponse.json({
-          ...replay.case.lead,
-          context: decryptField(replay.case.lead.context),
+          ...lead,
+          context: decryptField(lead.context),
           caseId: replay.case.id,
           caseRef: replay.case.publicRef,
           replayed: true,

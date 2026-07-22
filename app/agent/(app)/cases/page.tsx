@@ -157,7 +157,6 @@ export default async function CasesPage() {
     getOverdueTasks(session),
   ]);
   // KPI команд-центра — выводимы из текущих данных (без новых таблиц).
-  // eslint-disable-next-line react-hooks/purity -- server-rendered freshness marker
   const kpiDate = new Date();
   const kpiNow = kpiDate.getTime();
   const kpiTodayEnd = zonedDayBounds(kpiDate, session.timezone).end;

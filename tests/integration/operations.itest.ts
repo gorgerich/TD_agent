@@ -5,7 +5,7 @@ import { GET as operationsGet } from "../../app/api/agent/operations/route";
 import { GET as searchGet } from "../../app/api/agent/operations/search/route";
 import { GET as viewsGet, POST as viewsPost } from "../../app/api/agent/operations/views/route";
 import { transitionCase } from "../../lib/caseService";
-import { getCanonicalCase } from "../../lib/caseReadModel";
+import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
 import { createMeeting, rescheduleMeeting, updateMeetingStatus } from "../../lib/meetingService";
 import { OperationalAuthError } from "../../lib/operationalAuth";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
@@ -107,7 +107,8 @@ test("M1 RBAC and tenant boundaries cover Agent, Manager and Admin reads/writes"
     const managerQueue = await getOperationsQueue(manager.context);
     assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.id === task.id), false);
     assert.equal(Object.values(managerQueue.groups).flat().some((item) => item.caseId === foreignCase.id), false);
-    assert.equal((await getCanonicalCase(teammate.context, ownCase.leadId))?.caseId, ownCase.id);
+    assert.equal(await getCanonicalCase(teammate.context, ownCase.leadId), null);
+    assert.equal((await getCanonicalCases(teammate.context)).some((item) => item.caseId === ownCase.id), false);
     assert.equal((await getCanonicalCase(manager.context, ownCase.leadId))?.caseId, ownCase.id);
 
     const team = await getTeamControlTower(manager.context);
@@ -258,6 +259,66 @@ test("M1 task lifecycle requires outcome/reason, enforces version and audits ass
     assert.equal(serializedTaskAudit.includes(sensitiveTaskOutcome), false);
     assert.equal(serializedTaskAudit.includes(sensitiveWaitingReason), false);
     assert.equal(serializedTaskAudit.includes("Assignee owns document workflow"), false);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 idempotency replay reauthorizes task and meeting resources", opts, async () => {
+  const fixtures = createFixtureContext("m1-replay-auth");
+  try {
+    const organizationId = await fixtures.makeOrganization("team");
+    const owner = await fixtures.makeMember("owner", { organizationId, role: "AGENT" });
+    const teammate = await fixtures.makeMember("teammate", { organizationId, role: "AGENT" });
+    const manager = await fixtures.makeMember("manager", { organizationId, role: "MANAGER" });
+    const ownerCase = await fixtures.makeCase(owner, "owner-case");
+    const teammateCase = await fixtures.makeCase(teammate, "teammate-case");
+
+    const taskCreateKey = `m1:${fixtures.runId}:task-create`;
+    const task = await createTask(owner.context, {
+      leadId: ownerCase.leadId,
+      title: "Owner-only replay target",
+    }, meta(taskCreateKey));
+    await expectCommandError(createTask(teammate.context, {
+      leadId: teammateCase.leadId,
+      title: "Must not receive owner replay",
+    }, meta(taskCreateKey)), 404);
+    assert.equal(await db.task.count({ where: { caseId: teammateCase.id } }), 0);
+    assert.equal((await createTask(manager.context, {
+      leadId: ownerCase.leadId,
+      title: "Manager may replay team command",
+    }, meta(taskCreateKey))).replayed, true);
+
+    const taskCompleteKey = `m1:${fixtures.runId}:task-complete`;
+    const completed = await completeTask(owner.context, task.id, {
+      outcome: "Owner completed the task",
+      version: task.version,
+    }, meta(taskCompleteKey));
+    await expectCommandError(completeTask(teammate.context, task.id, {
+      outcome: "Must not receive owner result",
+      version: completed.version,
+    }, meta(taskCompleteKey)), 404);
+
+    const meetingCreateKey = `m1:${fixtures.runId}:meeting-create`;
+    const meeting = await createMeeting(owner.context, {
+      leadId: ownerCase.leadId,
+      scheduledAt: new Date(Date.now() + 3_600_000),
+    }, meta(meetingCreateKey));
+    await expectCommandError(createMeeting(teammate.context, {
+      leadId: teammateCase.leadId,
+      scheduledAt: new Date(Date.now() + 7_200_000),
+    }, meta(meetingCreateKey)), 404);
+
+    const meetingStatusKey = `m1:${fixtures.runId}:meeting-confirm`;
+    const confirmed = await updateMeetingStatus(owner.context, meeting.id, {
+      status: "CONFIRMED",
+      version: meeting.version,
+    }, meta(meetingStatusKey));
+    await expectCommandError(updateMeetingStatus(teammate.context, meeting.id, {
+      status: "CONFIRMED",
+      version: confirmed.version,
+    }, meta(meetingStatusKey)), 404);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
@@ -416,6 +477,8 @@ test("M1 past meeting escalation is visible, idempotent and reconciles to zero",
   const fixtures = createFixtureContext("m1-escalation");
   try {
     const owner = await fixtures.makeAgent("owner");
+    const teammate = await fixtures.makeMember("teammate", { organizationId: owner.organizationId, role: "AGENT" });
+    const manager = await fixtures.makeMember("manager", { organizationId: owner.organizationId, role: "MANAGER" });
     const canonicalCase = await fixtures.makeCase(owner, "past-meeting");
     const pastMeeting = await createMeeting(owner.context, {
       leadId: canonicalCase.leadId,
@@ -446,6 +509,11 @@ test("M1 past meeting escalation is visible, idempotent and reconciles to zero",
     assert.equal(afterItems.some((item) => item.key === `meeting:${pastMeeting.id}`), false);
     assert.equal(afterItems.filter((item) => item.href === `/agent/meetings/${pastMeeting.id}?from=today`).length, 1);
     const escalationTaskBeforeOutcome = await db.task.findFirstOrThrow({ where: { organizationId: owner.organizationId, sourceEventId } });
+    await expectCommandError(assignTask(manager.context, escalationTaskBeforeOutcome.id, {
+      assigneeMembershipId: teammate.membershipId,
+      reason: "Must remain executable by the meeting owner",
+      version: escalationTaskBeforeOutcome.version,
+    }, meta(`m1:${fixtures.runId}:escalation-reassign-denied`)), 409, "MEETING_OWNER_REQUIRED");
     await expectCommandError(completeTask(owner.context, escalationTaskBeforeOutcome.id, {
       outcome: "Must be captured on the meeting",
       version: escalationTaskBeforeOutcome.version,
@@ -463,6 +531,35 @@ test("M1 past meeting escalation is visible, idempotent and reconciles to zero",
     assert.equal(escalationTask.status, "COMPLETED");
     assert.equal(escalationTask.outcome, "Meeting outcome captured");
     assert.equal((await reconcileOperations(owner.organizationId, new Date())).discrepancies, 0);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M1 confirming a past meeting replaces its versioned escalation exactly once", opts, async () => {
+  const fixtures = createFixtureContext("m1-escalation-confirm");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const canonicalCase = await fixtures.makeCase(owner, "past-meeting-confirm");
+    const now = new Date();
+    const meeting = await createMeeting(owner.context, {
+      leadId: canonicalCase.leadId,
+      scheduledAt: new Date(now.getTime() - 3_600_000),
+    }, meta(`m1:${fixtures.runId}:meeting`));
+    assert.equal((await ensurePastMeetingEscalations(owner.organizationId, now)).created, 1);
+    const oldSource = `meeting:${meeting.id}:past-due:v${meeting.version}`;
+
+    const confirmed = await updateMeetingStatus(owner.context, meeting.id, {
+      status: "CONFIRMED",
+      version: meeting.version,
+    }, meta(`m1:${fixtures.runId}:confirm`));
+    const currentSource = `meeting:${meeting.id}:past-due:v${confirmed.version}`;
+    assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, sourceEventId: oldSource, status: "CANCELLED" } }), 1);
+    assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, sourceEventId: currentSource, status: "OPEN" } }), 1);
+    assert.equal(await db.task.count({ where: { organizationId: owner.organizationId, type: "MEETING_ESCALATION", status: "OPEN" } }), 1);
+    assert.equal((await ensurePastMeetingEscalations(owner.organizationId, now)).created, 0);
+    assert.equal((await reconcileOperations(owner.organizationId, now)).discrepancies, 0);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
@@ -761,7 +858,7 @@ test("M1 saved views and search remain tenant-scoped", opts, async () => {
       method: "POST",
       cookie: await cookie(agent),
       headers: { "idempotency-key": agentViewKey, "x-correlation-id": `correlation:${agentViewKey}` },
-      body: { name: "Мои просроченные", scope: "MY", query: { group: "OVERDUE" } },
+      body: { name: "Мои просроченные", scope: "MY", query: { screen: "today", group: "OVERDUE" } },
     }));
     assert.equal(agentView.status, 201);
 
@@ -770,7 +867,7 @@ test("M1 saved views and search remain tenant-scoped", opts, async () => {
       method: "POST",
       cookie: await cookie(manager),
       headers: { "idempotency-key": managerViewKey, "x-correlation-id": `correlation:${managerViewKey}` },
-      body: { name: "Команда сегодня", scope: "TEAM", query: { group: "TODAY" } },
+      body: { name: "Команда сегодня", scope: "TEAM", query: { screen: "team", filter: "ATTENTION" } },
     }));
     assert.equal(managerView.status, 201);
 
@@ -779,8 +876,21 @@ test("M1 saved views and search remain tenant-scoped", opts, async () => {
       method: "POST",
       cookie: await cookie(foreign),
       headers: { "idempotency-key": foreignViewKey, "x-correlation-id": `correlation:${foreignViewKey}` },
-      body: { name: "Foreign view", scope: "MY", query: { group: "WAITING" } },
+      body: { name: "Foreign view", scope: "MY", query: { screen: "today", group: "WAITING" } },
     }))).status, 201);
+
+    const sensitiveMarker = `PRIVATE-FAMILY-NOTE-${fixtures.runId}`;
+    const rejectedViewKey = `m1:${fixtures.runId}:sensitive-view`;
+    assert.equal((await viewsPost(makeRequest("/api/agent/operations/views", {
+      method: "POST",
+      cookie: await cookie(agent),
+      headers: { "idempotency-key": rejectedViewKey, "x-correlation-id": `correlation:${rejectedViewKey}` },
+      body: {
+        name: sensitiveMarker,
+        scope: "MY",
+        query: { screen: "today", group: "TODAY", familyNote: sensitiveMarker },
+      },
+    }))).status, 400);
 
     const agentViews = await viewsGet(makeRequest("/api/agent/operations/views", { cookie: await cookie(agent) }));
     const agentList = (await agentViews.json() as { views: Array<{ name: string }> }).views;
@@ -793,9 +903,13 @@ test("M1 saved views and search remain tenant-scoped", opts, async () => {
 
     const audit = await db.operationalAuditEvent.findMany({
       where: { organizationId, entityType: "saved_view" },
-      select: { idempotencyKey: true },
+      select: { idempotencyKey: true, before: true, after: true },
     });
     assert.deepEqual(new Set(audit.map((item) => item.idempotencyKey)), new Set([agentViewKey, managerViewKey]));
+    const serializedAudit = JSON.stringify(audit);
+    assert.equal(serializedAudit.includes("Мои просроченные"), false);
+    assert.equal(serializedAudit.includes("Команда сегодня"), false);
+    assert.equal(serializedAudit.includes(sensitiveMarker), false);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

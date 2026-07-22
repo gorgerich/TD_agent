@@ -42,8 +42,8 @@ export async function createTask(
   assertCapability(context, "work:mutate-own");
   validateMeta(meta);
 
-  return runTaskCommand(context.organizationId, meta.idempotencyKey, "task.created", undefined, async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, "task.created");
+  return runTaskCommand(context, meta.idempotencyKey, "task.created", undefined, async (tx) => {
+    const replay = await commandReplay(tx, context, meta.idempotencyKey, "task.created");
     if (replay) return replay;
 
     const canonicalCase = await tx.case.findFirst({
@@ -162,6 +162,22 @@ export async function assignTask(
 
   return changeTask(context, taskId, input.version, meta, "task.assigned", async (tx, current) => {
     if (current.status !== "OPEN") throw new OperationalCommandError(409, "Назначить можно только открытую задачу");
+    if (current.type === "MEETING_ESCALATION") {
+      const meetingId = meetingIdFromEscalationSource(current.sourceEventId);
+      const meeting = meetingId == null
+        ? null
+        : await tx.meeting.findFirst({
+            where: { id: meetingId, organizationId: context.organizationId },
+            select: { ownerMembershipId: true },
+          });
+      if (!meeting || input.assigneeMembershipId !== meeting.ownerMembershipId) {
+        throw new OperationalCommandError(
+          409,
+          "Эскалация должна оставаться у владельца встречи",
+          "MEETING_OWNER_REQUIRED",
+        );
+      }
+    }
     const assignee = input.assigneeMembershipId
       ? await activeAssignee(tx, context.organizationId, input.assigneeMembershipId)
       : null;
@@ -239,8 +255,8 @@ async function changeTask(
   action: string,
   change: (tx: Prisma.TransactionClient, current: LoadedTask) => Promise<LoadedTask>,
 ): Promise<TaskResult> {
-  return runTaskCommand(context.organizationId, meta.idempotencyKey, action, String(taskId), async (tx) => {
-    const replay = await commandReplay(tx, context.organizationId, meta.idempotencyKey, action, String(taskId));
+  return runTaskCommand(context, meta.idempotencyKey, action, String(taskId), async (tx) => {
+    const replay = await commandReplay(tx, context, meta.idempotencyKey, action, String(taskId));
     if (replay) return replay;
     const current = await loadTask(tx, context, taskId, action === "task.assigned");
     if (!current) throw new OperationalCommandError(404, "Задача не найдена");
@@ -287,7 +303,7 @@ async function changeTask(
 }
 
 async function runTaskCommand(
-  organizationId: string,
+  context: OperationalContext,
   idempotencyKey: string,
   action: string,
   entityId: string | undefined,
@@ -297,7 +313,7 @@ async function runTaskCommand(
     return await runOperationalTransaction(command);
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
-    const replay = await prisma.$transaction((tx) => commandReplay(tx, organizationId, idempotencyKey, action, entityId));
+    const replay = await prisma.$transaction((tx) => commandReplay(tx, context, idempotencyKey, action, entityId));
     if (replay) return replay;
     throw error;
   }
@@ -326,12 +342,12 @@ async function activeAssignee(tx: Prisma.TransactionClient, organizationId: stri
 
 async function commandReplay(
   tx: Prisma.TransactionClient,
-  organizationId: string,
+  context: OperationalContext,
   idempotencyKey: string,
   expectedAction: string,
   expectedEntityId?: string,
 ): Promise<TaskResult | null> {
-  const replay = await findOperationalReplay(tx, organizationId, idempotencyKey);
+  const replay = await findOperationalReplay(tx, context.organizationId, idempotencyKey);
   if (!replay) return null;
   if (
     (replay.action !== expectedAction && !(expectedAction === "task.completed" && replay.action === "task.completion_noop"))
@@ -341,6 +357,17 @@ async function commandReplay(
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
   const result = replay.result as Record<string, unknown>;
+  const authorized = expectedEntityId === undefined
+    ? await tx.case.findFirst({
+        where: {
+          id: String(result.caseId),
+          tenantId: context.organizationId,
+          ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+        },
+        select: { id: true },
+      })
+    : await loadTask(tx, context, Number(expectedEntityId), expectedAction === "task.assigned");
+  if (!authorized) throw new OperationalCommandError(404, "Задача не найдена");
   return {
     id: Number(result.id),
     caseId: String(result.caseId),
@@ -353,6 +380,13 @@ async function commandReplay(
     completedAt: typeof result.completedAt === "string" ? result.completedAt : null,
     replayed: true,
   };
+}
+
+function meetingIdFromEscalationSource(sourceEventId: string | null): number | null {
+  const match = sourceEventId?.match(/^meeting:(\d+):past-due:v\d+$/);
+  if (!match) return null;
+  const meetingId = Number(match[1]);
+  return Number.isSafeInteger(meetingId) && meetingId > 0 ? meetingId : null;
 }
 
 function validateMeta(meta: TaskCommandMeta) {

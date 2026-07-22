@@ -212,12 +212,7 @@ function caseScope(scope: number | OperationalContext): Prisma.CaseWhereInput | 
     tenantId: scope.organizationId,
     ...(scope.role === "ADMIN" || scope.role === "MANAGER"
       ? {}
-      : {
-          OR: [
-            { ownerId: scope.agentId },
-            { tasks: { some: { assigneeMembershipId: scope.membershipId } } },
-          ],
-        }),
+      : { ownerId: scope.agentId }),
   };
 }
 
