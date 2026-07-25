@@ -23,8 +23,9 @@ exact implementation deployment then passed full UAT. No production data or
 deployment was involved.
 
 Temporary fixture-management deployments and temporary Preview-only secrets were
-removed after verification. The exact release Preview and isolated synthetic fixture
-remain available for owner review.
+removed after verification. The exact release Preview remains available. The
+isolated synthetic fixture is retained only as a controlled cleanup resource;
+its local credentials were destroyed and it is not a reusable login artifact.
 
 PR #22 remains open. Merge, production migration and production deployment require
 one explicit owner release decision.
