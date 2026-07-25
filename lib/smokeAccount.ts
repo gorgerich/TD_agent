@@ -45,7 +45,7 @@ export async function manageSmokeAccount(
       ? await passwordHasher(input.newPassword!)
       : undefined;
 
-  return db.$transaction(async (tx) => {
+  const execute = () => db.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({
       where: { email: SMOKE_ACCOUNT_EMAIL },
       include: { agent: true },
@@ -113,6 +113,45 @@ export async function manageSmokeAccount(
     }
 
     if (!user.agent) throw new Error("Smoke account Agent profile was not created");
+    const organizationId = `agent:${user.agent.id}`;
+    const membershipId = `membership:agent:${user.agent.id}`;
+    const existingMembership = await tx.membership.findUnique({
+      where: { agentId: user.agent.id },
+      select: { id: true, organizationId: true, userId: true, role: true, status: true },
+    });
+    if (created) {
+      await tx.organization.create({
+        data: {
+          id: organizationId,
+          name: `Рабочая организация ${user.agent.id}`,
+          slug: `legacy-agent-${user.agent.id}`,
+        },
+      });
+      await tx.membership.create({
+        data: {
+          id: membershipId,
+          organizationId,
+          userId: user.id,
+          agentId: user.agent.id,
+          role: "AGENT",
+          status: "ACTIVE",
+        },
+      });
+    } else if (
+      !existingMembership
+      || existingMembership.id !== membershipId
+      || existingMembership.organizationId !== organizationId
+      || existingMembership.userId !== user.id
+      || existingMembership.role !== "AGENT"
+    ) {
+      throw new Error("Synthetic smoke account membership is not canonical");
+    }
+
+    if (input.action === "disable") {
+      await tx.membership.update({ where: { id: membershipId }, data: { status: "SUSPENDED" } });
+    } else if (input.action === "enable") {
+      await tx.membership.update({ where: { id: membershipId }, data: { status: "ACTIVE" } });
+    }
     const [leadCount, meetingCount] = await Promise.all([
       tx.clientLead.count({ where: { agentId: user.agent.id } }),
       tx.meeting.count({ where: { agentId: user.agent.id } }),
@@ -126,7 +165,7 @@ export async function manageSmokeAccount(
       accountRef: createHash("sha256").update(SMOKE_ACCOUNT_EMAIL).digest("hex").slice(0, 16),
       userId: user.id,
       agentId: user.agent.id,
-      tenantId: `agent:${user.agent.id}`,
+      tenantId: organizationId,
       status: user.agent.status,
       created,
       replayed,
@@ -135,6 +174,16 @@ export async function manageSmokeAccount(
       at: (input.now ?? new Date()).toISOString(),
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await execute();
+    } catch (error) {
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retryable || attempt === 3) throw error;
+    }
+  }
+  throw new Error("Smoke account transaction retry exhausted");
 }
 
 function validateInput(input: SmokeAccountInput): void {

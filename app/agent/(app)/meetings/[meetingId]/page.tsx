@@ -1,202 +1,156 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, ArrowSquareOut, Check } from "@phosphor-icons/react/dist/ssr";
-import { getAgentSession } from "@/lib/auth";
+import { ArrowLeft, ArrowSquareOut, Briefcase, CalendarBlank, FileText } from "@phosphor-icons/react/dist/ssr";
+import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
 import MeetingActions from "./MeetingActions";
 import CopyCodeButton from "./CopyCodeButton";
 
-async function getMeeting(meetingId: number, agentId: number) {
-  try {
-    return await prisma.meeting.findFirst({
-      where: { id: meetingId, agentId },
-      include: {
-        lead: { select: { id: true, name: true, phone: true } },
-        quotes: { orderBy: { id: "desc" }, take: 1, include: { versions: { orderBy: { createdAt: "desc" }, take: 1 } } },
-        orders: { select: { id: true } },
-      },
-    });
-  } catch {
-    return null;
-  }
-}
-
-function formatDate(d: Date | null | undefined) {
-  if (!d) return "-";
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
+async function getMeeting(meetingId: number, session: AgentSession) {
+  return prisma.meeting.findFirst({
+    where: {
+      id: meetingId,
+      organizationId: session.organizationId,
+      ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+    },
+    include: {
+      ownerMembership: { select: { user: { select: { name: true } } } },
+      lead: { select: { id: true, name: true, phone: true, ceremonyAt: true } },
+      quotes: { orderBy: { id: "desc" }, take: 1, include: { versions: { orderBy: { createdAt: "desc" }, take: 1 } } },
+      orders: { select: { id: true } },
+    },
+  });
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  TENTATIVE: "Время не согласовано",
   SCHEDULED: "Запланирована",
-  IN_PROGRESS: "Идёт",
+  CONFIRMED: "Подтверждена",
   COMPLETED: "Завершена",
+  NO_SHOW: "Не состоялась",
   CANCELLED: "Отменена",
 };
 
-const STATUS_DOT: Record<string, string> = {
-  SCHEDULED: "bg-info",
-  IN_PROGRESS: "bg-warning",
-  COMPLETED: "bg-success",
-  CANCELLED: "bg-ink-3",
+const TYPE_LABELS: Record<string, string> = {
+  CONSULTATION: "Консультация",
+  FOLLOW_UP: "Повторная встреча",
+  DOCUMENT_REVIEW: "Проверка документов",
+  CEREMONY_COORDINATION: "Координация церемонии",
+  OTHER: "Другая встреча",
 };
+
+const CHANNEL_LABELS: Record<string, string> = {
+  IN_PERSON: "Лично",
+  PHONE: "Телефон",
+  VIDEO: "Видео",
+  OTHER: "Другой канал",
+};
+
+function formatDate(value: Date | null, timezone: string) {
+  if (!value) return "Время ещё не согласовано";
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: timezone,
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(value);
+}
 
 export default async function MeetingDetailPage({ params }: { params: Promise<{ meetingId: string }> }) {
   const { meetingId } = await params;
   const session = await getAgentSession();
-  const meeting = await getMeeting(Number(meetingId), session?.agentId ?? 0);
-
+  if (!session) notFound();
+  const parsedMeetingId = Number(meetingId);
+  if (!Number.isInteger(parsedMeetingId) || parsedMeetingId <= 0) notFound();
+  const meeting = await getMeeting(parsedMeetingId, session);
   if (!meeting) notFound();
 
   const cobrowseCode = meeting.cobrowseCode ?? `DEV-${meeting.id}`;
   const lastVersion = meeting.quotes[0]?.versions[0];
-  const hasQuote = Boolean(lastVersion);
-  const hasOrder = meeting.orders.length > 0;
-  const completed = meeting.status === "COMPLETED";
+  const statusLabel = STATUS_LABELS[meeting.operationalStatus] ?? meeting.operationalStatus;
+  const terminal = ["COMPLETED", "NO_SHOW", "CANCELLED"].includes(meeting.operationalStatus);
 
   return (
-    <div className="td-page mx-auto max-w-[900px] px-4 py-7 sm:px-7 sm:py-9">
-      <Link href="/agent/meetings" className="mb-6 inline-flex items-center gap-1.5 text-[12px] text-ink-2 transition-colors hover:text-ink">
-        <ArrowLeft size={14} /> Все встречи
+    <div className="td-page mx-auto max-w-[980px] px-4 py-6 sm:px-7 sm:py-9">
+      <Link href="/agent/meetings" className="mb-5 inline-flex min-h-10 items-center gap-1.5 text-[12px] font-semibold text-ink-2 hover:text-ink">
+        <ArrowLeft size={14} weight="bold" /> Календарь
       </Link>
 
-      {/* Top strip */}
-      <header className="rise td-page-header mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="td-eyebrow mb-1.5">Встреча №{meeting.id}</p>
-          <h1 className="td-display text-[26px] text-ink sm:text-[30px]">{meeting.lead.name}</h1>
-          <p className="tnum mt-1 text-[13px] text-ink-2">{formatDate(meeting.scheduledAt)}</p>
-        </div>
-        <div className="td-shell-elevated flex-shrink-0 bg-accent-soft px-5 py-4 sm:min-w-[170px] sm:text-right">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-accent/80">Код co-browse</p>
-          <p className="tnum font-mono text-[24px] font-semibold tracking-[0.16em] text-accent">{cobrowseCode}</p>
-          <p className="mt-1.5 text-[10px] text-ink-3">/co/{cobrowseCode}</p>
+      <header className="rise td-page-header mb-5">
+        <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold text-accent">{TYPE_LABELS[meeting.type]} · встреча №{meeting.id}</p>
+            <h1 className="td-display mt-1 truncate text-[30px] leading-tight text-ink sm:text-[38px]">{meeting.lead.name}</h1>
+            <p className={`tnum mt-2 text-[13px] font-medium ${meeting.operationalStatus === "TENTATIVE" ? "text-warning" : "text-ink-2"}`}>
+              {formatDate(meeting.scheduledAt, meeting.timezone)}
+            </p>
+            <p className="mt-1 text-[11px] text-ink-3">24-часовой формат · {meeting.timezone}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px]">
+            <span className={`font-semibold ${meeting.operationalStatus === "NO_SHOW" || meeting.operationalStatus === "CANCELLED" ? "text-danger" : terminal ? "text-success" : "text-ink"}`}>{statusLabel}</span>
+            <span className="text-ink-3">Ответственный: {meeting.ownerMembership.user.name ?? "Без имени"}</span>
+          </div>
         </div>
       </header>
 
-      {/* Воронка действий по сделке */}
-      <DealFunnel
-        meetingId={meeting.id}
-        hasQuote={hasQuote}
-        hasOrder={hasOrder}
-        completed={completed}
-        cancelled={meeting.status === "CANCELLED"}
-      />
-
-      {/* Info grid */}
-      <div className="rise rise-1 td-shell mb-5 p-5 sm:p-6">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3">
-          <InfoField label="Клиент">
-            <Link href={`/agent/cases/${meeting.lead.id}`} className="text-[14px] font-medium text-accent transition-colors hover:text-accent-hover">
-              {meeting.lead.name}
-            </Link>
-          </InfoField>
-          <InfoField label="Телефон">
-            <span className="tnum font-mono text-[14px] text-ink">{meeting.lead.phone}</span>
-          </InfoField>
-          <InfoField label="Статус">
-            <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink">
-              <span className={`h-2 w-2 rounded-full ${STATUS_DOT[meeting.status] ?? "bg-ink-3"}`} />
-              {STATUS_LABELS[meeting.status] ?? meeting.status}
-            </span>
-          </InfoField>
-          {lastVersion && (
-            <InfoField label="Последняя смета">
-              <span className="tnum text-[14px] font-medium text-ink">
-                {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((lastVersion.total ?? 0) / 100)}
-              </span>
-            </InfoField>
-          )}
+      {meeting.operationalStatus === "TENTATIVE" && (
+        <div role="status" className="rise mb-5 flex items-start gap-3 rounded-[var(--radius-card)] bg-warning-soft px-4 py-3 text-[13px] text-ink-2">
+          <CalendarBlank size={18} weight="fill" className="mt-0.5 flex-none text-warning" />
+          <span><strong className="text-ink">Время не выдумано.</strong> Согласуйте его с семьёй и сохраните причину изменения ниже.</span>
         </div>
-      </div>
+      )}
 
-      {/* Actions row */}
-      <div className="rise rise-2 td-form-surface mb-5 flex flex-wrap gap-2.5">
-        <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses()}>
-          <FileText size={16} /> Конструктор сметы
-        </Link>
-        <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={buttonClasses({ variant: "secondary" })}>
-          <ArrowSquareOut size={16} /> Co-browse
-        </a>
-        <CopyCodeButton code={cobrowseCode} />
-      </div>
+      {meeting.outcome && (
+        <section className="rise mb-5 rounded-[var(--radius-card)] bg-surface px-5 py-4 shadow-[var(--shadow-xs),var(--hl-top)]">
+          <p className="text-[11px] font-semibold text-ink-3">Зафиксированный результат</p>
+          <p className="mt-2 max-w-[72ch] text-[14px] leading-relaxed text-ink">{meeting.outcome}</p>
+          {meeting.outcomeRecordedAt && <p className="mt-2 text-[11px] text-ink-3">{formatDate(meeting.outcomeRecordedAt, meeting.timezone)}</p>}
+        </section>
+      )}
 
-      <MeetingActions meetingId={meeting.id} currentStatus={meeting.status} />
+      <section className="rise rise-1 overflow-hidden rounded-[var(--radius-card)] bg-surface shadow-[var(--shadow-xs),var(--hl-top)]">
+        <div className="grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-4">
+          <Info label="Канал" value={CHANNEL_LABELS[meeting.channel] ?? meeting.channel} />
+          <Info label="Место" value={meeting.location || "Не указано"} />
+          <Info label="Длительность" value={meeting.durationMinutes ? `${meeting.durationMinutes} мин` : "Не указана"} />
+          <Info label="Версия" value={`v${meeting.version}`} />
+        </div>
+        <div className="flex flex-wrap gap-2 border-t border-line px-4 py-4">
+          <Link href={`/agent/cases/${meeting.lead.id}?tab=work`} className={buttonClasses({ size: "sm" })}>
+            <Briefcase size={15} weight="fill" /> Открыть кейс
+          </Link>
+          <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses({ variant: "secondary", size: "sm" })}>
+            <FileText size={15} weight="bold" /> Смета{lastVersion ? " · есть версия" : ""}
+          </Link>
+          <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={buttonClasses({ variant: "ghost", size: "sm" })}>
+            <ArrowSquareOut size={15} weight="bold" /> Показ клиенту
+          </a>
+          <CopyCodeButton code={cobrowseCode} />
+        </div>
+      </section>
+
+      <MeetingActions
+        meetingId={meeting.id}
+        currentStatus={meeting.operationalStatus}
+        currentVersion={meeting.version}
+        scheduledAt={meeting.scheduledAt?.toISOString() ?? null}
+        durationMinutes={meeting.durationMinutes}
+        timezone={meeting.timezone}
+        canMutate={session.role !== "ADMIN" && meeting.ownerMembershipId === session.membershipId}
+      />
     </div>
   );
 }
 
-function DealFunnel({
-  meetingId,
-  hasQuote,
-  hasOrder,
-  completed,
-  cancelled,
-}: {
-  meetingId: number;
-  hasQuote: boolean;
-  hasOrder: boolean;
-  completed: boolean;
-  cancelled: boolean;
-}) {
-  const stages = [
-    { label: "Лид", done: true, href: undefined as string | undefined },
-    { label: "Встреча", done: true, href: undefined },
-    { label: "Смета", done: hasQuote, href: `/agent/meetings/${meetingId}/quote` },
-    { label: "Подписание", done: hasOrder, href: undefined },
-    { label: "Заказ", done: completed, href: undefined },
-  ];
-  // Текущий этап - первый незавершённый (если сделка не отменена).
-  const currentIndex = cancelled ? -1 : stages.findIndex((s) => !s.done);
-
+function Info({ label, value }: { label: string; value: string }) {
   return (
-    <nav aria-label="Этапы сделки" className="rise rise-1 td-shell mb-5 px-3 py-4 sm:px-5">
-      <ol className="flex items-center gap-1 overflow-x-auto">
-        {stages.map((stage, i) => {
-          const active = i === currentIndex;
-          const done = stage.done;
-          const node = (
-            <span className="flex flex-col items-center gap-1.5 px-1.5">
-              <span
-                className={[
-                  "grid h-7 w-7 flex-shrink-0 place-items-center rounded-full text-[11px] font-semibold transition-colors",
-                  done
-                    ? "bg-accent text-on-accent"
-                    : active
-                      ? "border-2 border-accent bg-accent-soft text-accent"
-                      : "border border-line-strong bg-surface text-ink-3",
-                ].join(" ")}
-              >
-                {done ? <Check size={13} weight="bold" /> : i + 1}
-              </span>
-              <span className={`whitespace-nowrap text-[11px] font-medium ${active ? "text-ink" : done ? "text-ink-2" : "text-ink-3"}`}>
-                {stage.label}
-              </span>
-            </span>
-          );
-          return (
-            <li key={stage.label} className="flex flex-1 items-center">
-              {stage.href ? (
-                <Link href={stage.href} className="rounded-lg transition-opacity hover:opacity-80">{node}</Link>
-              ) : (
-                node
-              )}
-              {i < stages.length - 1 && (
-                <span className={`mx-0.5 h-px flex-1 ${stages[i + 1].done || done ? "bg-accent/45" : "bg-line"}`} aria-hidden />
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
-}
-
-function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</p>
-      {children}
+    <div className="min-w-0 bg-surface px-4 py-3.5">
+      <p className="text-[11px] font-medium text-ink-3">{label}</p>
+      <p className="mt-1 truncate text-[13px] font-semibold text-ink">{value}</p>
     </div>
   );
 }

@@ -66,6 +66,35 @@ test("AC-W2-02: create and transition retries are idempotent", opts, async () =>
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "intake.completed.v1" } }), 1);
 });
 
+test("AC-W2-01: lead replay cannot disclose another agent's case", opts, async () => {
+  const organizationId = await fixtures.makeOrganization("lead-replay-team");
+  const owner = await fixtures.makeMember("lead-replay-owner", { organizationId, role: "AGENT" });
+  const teammate = await fixtures.makeMember("lead-replay-teammate", { organizationId, role: "AGENT" });
+  const ownerCookie = await sessionCookieHeader(owner.userId, owner.agentId);
+  const teammateCookie = await sessionCookieHeader(teammate.userId, teammate.agentId);
+  const key = `it:${fixtures.runId}:lead-replay-owner`;
+  const ownerResponse = await leadsPost(makeRequest("/api/agent/leads", {
+    method: "POST",
+    cookie: ownerCookie,
+    headers: { "idempotency-key": key, "x-correlation-id": key },
+    body: { name: "Private owner lead", phone: "+79160000123", source: "agent", context: "Private owner context" },
+  }));
+  assert.equal(ownerResponse.status, 201);
+
+  const denied = await leadsPost(makeRequest("/api/agent/leads", {
+    method: "POST",
+    cookie: teammateCookie,
+    headers: { "idempotency-key": key, "x-correlation-id": key },
+    body: { name: "Teammate request", phone: "+79160000456", source: "agent" },
+  }));
+  assert.equal(denied.status, 404);
+  const body = await denied.json() as Record<string, unknown>;
+  assert.deepEqual(Object.keys(body), ["error"]);
+  assert.equal(JSON.stringify(body).includes("+79160000123"), false);
+  assert.equal(JSON.stringify(body).includes("Private owner context"), false);
+  assert.equal(await db.clientLead.count({ where: { agentId: teammate.agentId } }), 0);
+});
+
 test("W2-09: intake save and derived transitions replay atomically", opts, async () => {
   const fixture = await createCase("intake-idem");
   const key = "it:intake-idem:save";
@@ -130,7 +159,7 @@ test("W2-09: an idempotency key cannot replay another case in the same tenant", 
   });
   assert.equal(aggregates.find((item) => item.leadId === leadIds[losingIndex])?.stage, "INTAKE");
   assert.equal(aggregates.find((item) => item.leadId !== leadIds[losingIndex])?.stage, "PLANNING");
-  assert.equal(await db.caseEvent.count({ where: { tenantId: `agent:${first.agentId}`, idempotencyKey: sharedKey } }), 1);
+  assert.equal(await db.caseEvent.count({ where: { tenantId: first.organizationId, idempotencyKey: sharedKey } }), 1);
 });
 
 test("AC-W2-01/W2-12: invalid transition is clear and has no side effects", opts, async () => {
@@ -158,7 +187,21 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "intake.completed.v1", key: "it:chain:intake" })).status, 200);
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "scenario.selected.v1", key: "it:chain:scenario", payload: { scenarioId: "CREMATION_V1" } })).status, 200);
 
-  const meeting = await db.meeting.create({ data: { leadId, agentId: fixture.agentId, status: "COMPLETED" } });
+  const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
+  const meeting = await db.meeting.create({
+    data: {
+      leadId,
+      agentId: fixture.agentId,
+      organizationId: membership.organizationId,
+      caseId: fixture.lead.caseId,
+      ownerMembershipId: membership.id,
+      idempotencyKey: `it:chain:meeting:${leadId}`,
+      status: "COMPLETED",
+      operationalStatus: "COMPLETED",
+      outcome: "Integration fixture",
+      outcomeRecordedAt: new Date(),
+    },
+  });
   const quote = await db.quote.create({ data: { meetingId: meeting.id } });
   const version = await db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000_00 } });
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.published.v1", key: "it:chain:publish", payload: { quoteVersionId: version.id } })).status, 200);
@@ -203,12 +246,12 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   assert.equal(aggregate.stage, "CLOSED");
   assert.equal(await db.caseEvent.count({ where: { caseId: aggregate.id } }), 8);
   const [listProjection, detailProjection] = await Promise.all([
-    getCanonicalCases(fixture.agentId),
-    getCanonicalCase(fixture.agentId, leadId),
+    getCanonicalCases(fixture.context),
+    getCanonicalCase(fixture.context, leadId),
   ]);
   assert.equal(listProjection.find((item) => item.leadId === leadId)?.stage, aggregate.stage);
   assert.equal(detailProjection?.stage, aggregate.stage);
-  const report = await reconcileCaseState(fixture.agentId);
+  const report = await reconcileCaseState(fixture.context);
   assert.equal(report.discrepancyCount, 0, JSON.stringify(report.issues));
   assert.equal(report.leadCount, report.caseCount);
   assert.equal(report.documentCount, 1);

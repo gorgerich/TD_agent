@@ -36,5 +36,6 @@ test("integration fixtures clean only their own rows under parallel activity", o
     assert.equal(await db.clientLead.count({ where: { agentId: rightAgent.agentId } }), 2);
   } finally {
     await Promise.all([left.cleanup(), right.cleanup()]);
+    await Promise.all([left.assertNoResidue(), right.assertNoResidue()]);
   }
 });

@@ -1,67 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, jsonError, parseId, requireAgent } from "@/lib/apiAuth";
+import { rescheduleMeeting, updateMeetingStatus } from "@/lib/meetingService";
 
-const PatchMeetingSchema = z.object({
-  status: z.enum(["SCHEDULED", "IN_PROGRESS", "COMPLETED", "CANCELLED"]).optional(),
-  scheduledAt: z.string().trim().min(1).optional(),
-});
+export const runtime = "nodejs";
 
-function parseMeetingDatetime(value?: string): Date | undefined {
-  if (!value) return undefined;
-  const normalized = value.includes("Z") ? value : `${value}:00`;
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
+const PatchMeetingSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("confirm"), version: z.number().int().positive() }),
+  z.object({ action: z.literal("complete"), outcome: z.string().min(1).max(2000), version: z.number().int().positive() }),
+  z.object({ action: z.literal("no_show"), outcome: z.string().min(1).max(2000), version: z.number().int().positive() }),
+  z.object({ action: z.literal("cancel"), reason: z.string().min(1).max(2000), version: z.number().int().positive() }),
+  z.object({
+    action: z.literal("reschedule"),
+    scheduledAt: z.string().datetime({ offset: true }).nullable(),
+    durationMinutes: z.number().int().min(15).max(720).optional().nullable(),
+    reason: z.string().min(1).max(1000),
+    version: z.number().int().positive(),
+  }),
+]);
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { meetingId } = await params;
-
   try {
+    const session = await requireAgent(req);
     const meeting = await prisma.meeting.findFirst({
-      where: { id: Number(meetingId), agentId: session.agentId },
+      where: {
+        id: parseId((await params).meetingId, "meetingId"),
+        organizationId: session.organizationId,
+        ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+      },
       include: { lead: { select: { name: true, phone: true } } },
     });
-    if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!meeting) return jsonError(404, "Встреча не найдена");
     return NextResponse.json(meeting);
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (err) {
+    return handleApiError(err, "meetings/get");
   }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { meetingId } = await params;
-  const body = await req.json().catch(() => null);
-  const parsed = PatchMeetingSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
-
   try {
-    const updateData: Record<string, unknown> = {};
-    if (parsed.data.status) {
-      updateData.status = parsed.data.status;
-      if (parsed.data.status === "IN_PROGRESS") updateData.startedAt = new Date();
-      if (parsed.data.status === "COMPLETED") updateData.endedAt = new Date();
-    }
-    if (parsed.data.scheduledAt) {
-      const scheduledAt = parseMeetingDatetime(parsed.data.scheduledAt);
-      if (!scheduledAt) return NextResponse.json({ error: "Некорректная дата встречи" }, { status: 400 });
-      updateData.scheduledAt = scheduledAt;
-    }
+    const session = await requireAgent(req);
+    const meetingId = parseId((await params).meetingId, "meetingId");
+    const parsed = PatchMeetingSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");
+    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
+    const correlationId = req.headers.get("x-correlation-id")?.trim();
+    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
+    const meta = { idempotencyKey, correlationId };
 
-    const meeting = await prisma.meeting.updateMany({
-      where: { id: Number(meetingId), agentId: session.agentId },
-      data: updateData,
-    });
-    if (meeting.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+    const result = parsed.data.action === "reschedule"
+      ? await rescheduleMeeting(session, meetingId, {
+          ...parsed.data,
+          scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
+        }, meta)
+      : await updateMeetingStatus(session, meetingId, {
+          status: parsed.data.action === "confirm"
+            ? "CONFIRMED"
+            : parsed.data.action === "complete"
+              ? "COMPLETED"
+              : parsed.data.action === "no_show"
+                ? "NO_SHOW"
+                : "CANCELLED",
+          outcome: "outcome" in parsed.data ? parsed.data.outcome : undefined,
+          reason: "reason" in parsed.data ? parsed.data.reason : undefined,
+          version: parsed.data.version,
+        }, meta);
+
+    return NextResponse.json({ ok: true, meeting: result });
+  } catch (err) {
+    return handleApiError(err, "meetings/command");
   }
 }

@@ -6,11 +6,14 @@ VALUES (9001, 'MigrationFixture', 10.00);
 
 INSERT INTO "User" ("id", "email", "name") VALUES
   (9001, 'migration-agent@test.local', 'Migration Agent'),
-  (9002, 'migration-client@test.local', 'Migration Client');
+  (9002, 'migration-client@test.local', 'Migration Client'),
+  (9003, 'migration-mismatched-agent@test.local', 'Migration Mismatched Agent');
 
 INSERT INTO "Agent" (
   "id", "userId", "status", "tierId", "selfEmployed", "onboardingCompleted", "notifyEnabled", "createdAt"
-) VALUES (9001, 9001, 'ACTIVE', 9001, true, true, true, CURRENT_TIMESTAMP);
+) VALUES
+  (9001, 9001, 'ACTIVE', 9001, true, true, true, CURRENT_TIMESTAMP),
+  (9003, 9003, 'ACTIVE', 9001, true, true, true, CURRENT_TIMESTAMP);
 
 INSERT INTO "ClientLead" ("id", "agentId", "name", "phone", "source", "ceremonyType", "createdAt") VALUES
   (9101, 9001, 'Pending with quote', '+79000009101', 'migration', 'погребение', CURRENT_TIMESTAMP),
@@ -26,7 +29,13 @@ INSERT INTO "Meeting" ("id", "leadId", "agentId", "status", "coViewedAt") VALUES
   (9203, 9103, 9001, 'COMPLETED', NULL),
   (9204, 9104, 9001, 'COMPLETED', NULL),
   (9205, 9105, 9001, 'COMPLETED', NULL),
-  (9206, 9106, 9001, 'COMPLETED', CURRENT_TIMESTAMP);
+  (9206, 9106, 9001, 'COMPLETED', CURRENT_TIMESTAMP),
+  (9207, 9102, 9003, 'COMPLETED', NULL);
+
+INSERT INTO "Task" ("id", "leadId", "agentId", "title", "dueAt", "completedAt", "createdAt") VALUES
+  (9251, 9101, 9001, 'Legacy open task', CURRENT_TIMESTAMP + INTERVAL '1 day', NULL, CURRENT_TIMESTAMP),
+  (9252, 9102, 9001, 'Legacy completed task', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (9253, 9101, 9003, 'Legacy cross-tenant task', CURRENT_TIMESTAMP + INTERVAL '2 days', NULL, CURRENT_TIMESTAMP);
 
 INSERT INTO "Quote" ("id", "meetingId") VALUES
   (9301, 9201), (9302, 9202), (9303, 9203), (9304, 9204), (9306, 9206);

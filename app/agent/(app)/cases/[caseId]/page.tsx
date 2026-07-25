@@ -10,7 +10,7 @@ import {
   Warning,
   Phone,
 } from "@phosphor-icons/react/dist/ssr";
-import { getAgentSession } from "@/lib/auth";
+import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
@@ -19,6 +19,7 @@ import { type StatusTone } from "@/lib/caseStatus";
 import { getCanonicalCase } from "@/lib/caseReadModel";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
+import { zonedLocalInput } from "@/lib/zonedDateTime";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -26,61 +27,104 @@ const SOURCE_LABELS: Record<string, string> = {
 
 type Activity = { at: number; label: string; sub?: string };
 
-async function getCase(caseId: number, agentId: number) {
-  try {
-    return await prisma.clientLead.findFirst({
-      where: {
-        id: caseId,
-        ...(agentId
-          ? { OR: [{ agentId }, { meetings: { some: { agentId } } }] }
-          : {}),
+async function getCaseAccess(caseId: number, session: AgentSession) {
+  return prisma.case.findFirst({
+    where: { leadId: caseId, tenantId: session.organizationId },
+    select: {
+      id: true,
+      leadId: true,
+      ownerId: true,
+      owner: { select: { user: { select: { name: true } } } },
+      lead: { select: { name: true, createdAt: true } },
+      tasks: {
+        where: { assigneeMembershipId: session.membershipId },
+        take: 1,
+        select: { id: true },
       },
-      include: {
-        meetings: {
-          orderBy: { id: "asc" },
-          select: {
-            id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
-            quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
-            orders: { select: { status: true, createdAt: true } },
-          },
-        },
-      },
-    });
-  } catch {
-    return null;
-  }
+    },
+  });
 }
 
-export default async function CasePage({ params }: { params: Promise<{ caseId: string }> }) {
+async function getFullCase(caseId: number, session: AgentSession) {
+  return prisma.clientLead.findFirst({
+    where: {
+      id: caseId,
+      case: { tenantId: session.organizationId },
+    },
+    include: {
+      case: { select: { owner: { select: { user: { select: { name: true } } } } } },
+      meetings: {
+        orderBy: { id: "asc" },
+        select: {
+          id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
+          quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
+          orders: { select: { status: true, createdAt: true } },
+        },
+      },
+    },
+  });
+}
+
+export default async function CasePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ caseId: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { caseId } = await params;
+  const requestedTab = (await searchParams).tab;
+  const initialTab = requestedTab === "docs" || requestedTab === "family" || requestedTab === "history" ? requestedTab : "work";
   const id = Number(caseId);
   if (!Number.isInteger(id) || id <= 0) notFound();
 
   const session = await getAgentSession();
+  if (!session) notFound();
+  const access = await getCaseAccess(id, session);
+  if (!access) notFound();
+  const limitedTaskContext = session.role === "AGENT" && access.ownerId !== session.agentId;
+  if (limitedTaskContext) {
+    if (access.tasks.length === 0) notFound();
+    return <AssignedTaskCaseView access={access} session={session} />;
+  }
   const projectionNow = new Date();
   const [lead, canonicalCase] = await Promise.all([
-    getCase(id, session?.agentId ?? 0),
-    getCanonicalCase(session?.agentId ?? 0, id, projectionNow),
+    getFullCase(id, session),
+    getCanonicalCase(session, id, projectionNow),
   ]);
   if (!lead || !canonicalCase) notFound();
 
   // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
   const [rawTasks, rawNotes, rawDocs, rawPayments, rawEvents] = await Promise.all([
-    prisma.task.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.caseNote.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.document.findMany({ where: { leadId: id }, orderBy: { createdAt: "desc" } }).catch(() => []),
-    prisma.casePayment.findMany({ where: { leadId: id }, orderBy: { paidAt: "desc" } }).catch(() => []),
+    prisma.task.findMany({
+      where: { leadId: id, organizationId: session.organizationId },
+      orderBy: { createdAt: "desc" },
+      include: { assignee: { select: { user: { select: { name: true } } } } },
+    }),
+    prisma.caseNote.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
+    prisma.document.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
+    prisma.casePayment.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { paidAt: "desc" } }),
     prisma.caseEvent.findMany({
       where: { case: { leadId: id, tenantId: canonicalCase.tenantId } },
       orderBy: { createdAt: "desc" },
       select: { id: true, eventType: true, createdAt: true, fromStage: true, toStage: true },
-    }).catch(() => []),
+    }),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
     title: t.title,
+    type: t.type,
+    priority: t.priority,
+    status: t.status,
+    source: t.sourceEventId ? "Событие кейса" : "Агент",
+    expectedOutcome: t.expectedOutcome,
+    waitingReason: t.waitingReason,
+    ownerName: t.assignee?.user.name ?? "Не назначено",
+    version: t.version,
     dueAt: t.dueAt?.toISOString() ?? null,
     completedAt: t.completedAt?.toISOString() ?? null,
+    canMutate: session.role !== "ADMIN" && t.assigneeMembershipId === session.membershipId,
+    actionHref: meetingIdFromEscalationSource(t.sourceEventId),
   }));
   const notes = rawNotes.map((n) => ({
     id: n.id,
@@ -105,7 +149,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
     deceasedName: decryptField(lead.deceasedName) ?? "",
     deceasedDate: lead.deceasedDate ? lead.deceasedDate.toISOString().slice(0, 10) : "",
     morgue: lead.morgue ?? "",
-    ceremonyAt: lead.ceremonyAt ? lead.ceremonyAt.toISOString().slice(0, 16) : "",
+    ceremonyAt: lead.ceremonyAt ? zonedLocalInput(lead.ceremonyAt.toISOString(), session.timezone) : "",
     ceremonyPlace: lead.ceremonyPlace ?? "",
   };
 
@@ -130,13 +174,13 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   // Derived activity feed
   const activity: Activity[] = [{ at: lead.createdAt.getTime(), label: "Кейс создан" }];
   for (const m of meetings) {
-    if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt) });
+    if (m.scheduledAt) activity.push({ at: m.scheduledAt.getTime(), label: "Встреча назначена", sub: dateTime(m.scheduledAt, session.timezone) });
   }
   for (const v of versions) activity.push({ at: v.createdAt.getTime(), label: "Смета сохранена" });
   for (const o of orders) activity.push({ at: o.createdAt.getTime(), label: `Заказ - ${o.status}` });
   for (const m of meetings) {
-    if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt) });
-    if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt) });
+    if (m.coViewedAt) activity.push({ at: m.coViewedAt.getTime(), label: "Клиент открыл смету", sub: dateTime(m.coViewedAt, session.timezone) });
+    if (m.coAgreedAt) activity.push({ at: m.coAgreedAt.getTime(), label: "Клиент согласовал смету", sub: dateTime(m.coAgreedAt, session.timezone) });
   }
   for (const event of rawEvents) {
     activity.push({
@@ -150,18 +194,19 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
   const nowMs = projectionNow.getTime();
   const risks = canonicalCase.risk.reasons.map((risk) => ({
     tone: risk.level === "CRITICAL" ? "danger" as const : "warning" as const,
-    label: `${risk.label}${risk.deadline ? ` · до ${dateTime(risk.deadline)}` : ""}`,
+    label: `${risk.label}${risk.deadline ? ` · до ${dateTime(risk.deadline, session.timezone)}` : ""}`,
   }));
   const ceremonyMs = lead.ceremonyAt?.getTime() ?? null;
   const hoursToCeremony = ceremonyMs ? Math.round((ceremonyMs - nowMs) / 3_600_000) : null;
 
   const routeMeta = [
     `${curIdx + 1}/${STAGE_ORDER.length} этап`,
-    canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt)}` : "без срока",
+    canonicalCase.nextAction.dueAt ? `срок ${dateTime(canonicalCase.nextAction.dueAt, session.timezone)}` : "без срока",
     `версия кейса ${canonicalCase.version}`,
   ];
-  const openTasksCount = tasks.filter((task) => !task.completedAt).length;
+  const openTasksCount = tasks.filter((task) => task.status === "OPEN").length;
   const lastActivityText = activity[0]?.label ?? "Активности нет";
+  const canMutateCase = session.role !== "ADMIN" && canonicalCase.ownerId === session.agentId;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -182,9 +227,9 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
               <span>Источник: {SOURCE_LABELS[lead.source] ?? lead.source}</span>
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
-              <span>Ведёт: {session?.name ?? "-"}</span>
+              <span>Ведёт: {lead.case?.owner.user.name ?? "-"}</span>
               <span className="h-1 w-1 rounded-full bg-line-strong" aria-hidden="true" />
-              <span>Открыт: {dateTime(lead.createdAt)}</span>
+              <span>Открыт: {dateTime(lead.createdAt, session.timezone)}</span>
             </div>
           </div>
           {(intake.deceasedName || lead.ceremonyAt) && (
@@ -193,7 +238,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
               {intake.morgue && <span className="text-ink-3">· {intake.morgue}</span>}
               {lead.ceremonyAt && (
                 <span className={hoursToCeremony !== null && hoursToCeremony > 0 && hoursToCeremony <= 48 ? "font-semibold text-danger" : "text-ink-2"}>
-                  · Церемония: {dateTime(lead.ceremonyAt)}
+                  · Церемония: {dateTime(lead.ceremonyAt, session.timezone)}
                   {intake.ceremonyPlace ? `, ${intake.ceremonyPlace}` : ""}
                   {hoursToCeremony !== null && hoursToCeremony > 0 ? ` (через ${hoursToCeremony} ч)` : ""}
                 </span>
@@ -219,6 +264,7 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           { label: "Остаток", value: canonicalCase.payment.balanceKopecks == null ? "Не рассчитан" : moneyFromKopecks(canonicalCase.payment.balanceKopecks), tone: canonicalCase.payment.balanceKopecks === 0 ? "success" : "neutral" },
         ]}
         lastActivity={lastActivityText}
+        canMutateCase={canMutateCase}
       />
 
       {risks.length > 0 && (
@@ -245,6 +291,86 @@ export default async function CasePage({ params }: { params: Promise<{ caseId: s
           context={context}
           payments={payments}
           activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
+          initialTab={initialTab}
+          timezone={session.timezone}
+          canMutateCase={canMutateCase}
+        />
+      </main>
+    </div>
+  );
+}
+
+function meetingIdFromEscalationSource(sourceEventId: string | null) {
+  const match = sourceEventId?.match(/^meeting:(\d+):past-due:v\d+$/);
+  return match ? `/agent/meetings/${match[1]}?from=case` : null;
+}
+
+async function AssignedTaskCaseView({
+  access,
+  session,
+}: {
+  access: NonNullable<Awaited<ReturnType<typeof getCaseAccess>>>;
+  session: AgentSession;
+}) {
+  const rawTasks = await prisma.task.findMany({
+    where: {
+      leadId: access.leadId,
+      organizationId: session.organizationId,
+      assigneeMembershipId: session.membershipId,
+    },
+    orderBy: { createdAt: "desc" },
+    include: { assignee: { select: { user: { select: { name: true } } } } },
+  });
+  const tasks = rawTasks.map((task) => ({
+    id: task.id,
+    title: task.title,
+    type: task.type,
+    priority: task.priority,
+    status: task.status,
+    source: task.sourceEventId ? "Событие кейса" : "Агент",
+    expectedOutcome: task.expectedOutcome,
+    waitingReason: task.waitingReason,
+    ownerName: task.assignee?.user.name ?? "Не назначено",
+    version: task.version,
+    dueAt: task.dueAt?.toISOString() ?? null,
+    completedAt: task.completedAt?.toISOString() ?? null,
+    canMutate: task.status === "OPEN",
+    actionHref: meetingIdFromEscalationSource(task.sourceEventId),
+  }));
+  const openTasks = tasks.filter((task) => task.status === "OPEN").length;
+
+  return (
+    <div className="td-page mx-auto w-full max-w-[1120px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
+      <Link href="/agent/tasks" className="rise inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 transition-colors hover:text-ink">
+        <ArrowLeft size={15} /> К моим задачам
+      </Link>
+      <header className="rise rise-1 td-shell-elevated mt-4 mb-5 px-5 py-5 sm:px-6 sm:py-6">
+        <span className="td-eyebrow">Назначенный кейс · #{access.leadId}</span>
+        <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]">{access.lead.name}</h1>
+        <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed text-ink-2">
+          Ведёт: {access.owner.user.name}. Вам доступен только контекст назначенных задач; данные семьи, документы и финансы остаются у владельца кейса.
+        </p>
+      </header>
+      <section className="rise rise-1 td-accent-panel mb-5 px-5 py-4 sm:px-6">
+        <span className="td-eyebrow text-accent">Ваш следующий шаг</span>
+        <strong className="mt-2 block text-[20px] leading-snug text-ink">
+          {openTasks > 0 ? `Завершить ${openTasks === 1 ? "назначенную задачу" : `${openTasks} назначенные задачи`}` : "Назначенные задачи выполнены"}
+        </strong>
+      </section>
+      <main className="rise rise-2 min-w-0">
+        <CaseTabs
+          caseId={access.leadId}
+          tasks={tasks}
+          docs={[]}
+          notes={[]}
+          intake={{ ceremonyType: "", budget: "", religion: "", needs: "", deceasedName: "", deceasedDate: "", morgue: "", ceremonyAt: "", ceremonyPlace: "" }}
+          context={null}
+          payments={[]}
+          activity={[]}
+          initialTab="work"
+          timezone={session.timezone}
+          canMutateCase={false}
+          limitedTaskContext
         />
       </main>
     </div>
@@ -278,6 +404,7 @@ function RouteActionPanel({
   cobrowse,
   controls,
   lastActivity,
+  canMutateCase,
 }: {
   current: number;
   statusLabel: string;
@@ -289,6 +416,7 @@ function RouteActionPanel({
   cobrowse: string | null;
   controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
   lastActivity: string;
+  canMutateCase: boolean;
 }) {
   const isDone = current >= STAGE_ORDER.length - 1;
   return (
@@ -300,7 +428,7 @@ function RouteActionPanel({
             <StatusChip label={statusLabel} tone={statusTone} />
           </div>
           <strong className="mt-2 block max-w-[760px] text-[20px] leading-snug text-ink sm:text-[23px]">{nextAction}</strong>
-          <div className="mt-4 flex flex-wrap gap-2">
+          {canMutateCase ? <div className="mt-4 flex flex-wrap gap-2">
             {firstMeetingId ? (
               <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
                 Открыть смету
@@ -315,7 +443,11 @@ function RouteActionPanel({
                 Клиентский вид
               </Action>
             )}
-          </div>
+          </div> : (
+            <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed text-ink-2">
+              Вы подключены к этому кейсу по назначенной задаче. Рабочее действие доступно в разделе «Работа».
+            </p>
+          )}
         </div>
 
         <div className="order-2 min-w-0 border-t border-line bg-surface px-4 py-4 xl:border-l xl:border-t-0">

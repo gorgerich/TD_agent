@@ -55,7 +55,7 @@ function fmtSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
 }
 
-export function DocumentsSection({ caseId, initial }: { caseId: number; initial: Doc[] }) {
+export function DocumentsSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: Doc[]; timezone: string; canMutate?: boolean }) {
   const [docs, setDocs] = useState<Doc[]>(initial);
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [busy, setBusy] = useState(false);
@@ -118,7 +118,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
         {readyCount < REQUIRED_DOCUMENTS.length && <span className="font-semibold text-warning">Нужно собрать ещё {REQUIRED_DOCUMENTS.length - readyCount}</span>}
       </div>
 
-      <div className="td-upload-surface">
+      {canMutate && <div className="td-upload-surface">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent shadow-[var(--shadow-xs)]">
             <FileArrowUp size={19} weight="fill" />
@@ -146,7 +146,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
           </button>
         </div>
         <p className="text-[12px] text-ink-3">PDF, JPG, PNG - до 10 МБ</p>
-      </div>
+      </div>}
 
       {error && <p role="alert" className="rounded-[10px] bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
 
@@ -167,7 +167,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] font-semibold text-ink">{item.title}</span>
                     <span className="mt-1 block truncate text-[12px] text-ink-3">
-                      {uploaded ? `${uploaded.name} - ${fmtSize(uploaded.size)} - ${dateLong(uploaded.createdAt)}` : item.hint}
+                      {uploaded ? `${uploaded.name} - ${fmtSize(uploaded.size)} - ${dateLong(uploaded.createdAt, timezone)}` : item.hint}
                     </span>
                   </span>
                   {uploaded ? (
@@ -175,9 +175,11 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                       <a href={uploaded.url} target="_blank" rel="noopener" className="td-icon-button h-10 w-10" aria-label={`Открыть ${item.title}`}>
                         <ArrowSquareOut size={17} weight="bold" />
                       </a>
-                      <button type="button" onClick={() => remove(uploaded.id)} className="td-icon-button h-10 w-10 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${item.title}`}>
-                        <Trash size={16} weight="bold" />
-                      </button>
+                      {canMutate && (
+                        <button type="button" onClick={() => remove(uploaded.id)} className="td-icon-button h-10 w-10 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${item.title}`}>
+                          <Trash size={16} weight="bold" />
+                        </button>
+                      )}
                     </span>
                   ) : (
                     <span className="flex-shrink-0 text-[12px] font-semibold text-warning">Нужно</span>
@@ -206,14 +208,16 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] font-semibold text-ink">{doc.name}</span>
-                      <span className="mt-1 block truncate text-[12px] text-ink-3">{doc.category} - {fmtSize(doc.size)} - {dateLong(doc.createdAt)}</span>
+                      <span className="mt-1 block truncate text-[12px] text-ink-3">{doc.category} - {fmtSize(doc.size)} - {dateLong(doc.createdAt, timezone)}</span>
                     </span>
                     <a href={doc.url} target="_blank" rel="noopener" className="td-icon-button h-10 w-10 flex-shrink-0" aria-label={`Открыть ${doc.name}`}>
                       <ArrowSquareOut size={17} weight="bold" />
                     </a>
-                    <button type="button" onClick={() => remove(doc.id)} className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${doc.name}`}>
-                      <Trash size={16} weight="bold" />
-                    </button>
+                    {canMutate && (
+                      <button type="button" onClick={() => remove(doc.id)} className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${doc.name}`}>
+                        <Trash size={16} weight="bold" />
+                      </button>
+                    )}
                   </div>
                 </li>
               );
@@ -227,6 +231,7 @@ export function DocumentsSection({ caseId, initial }: { caseId: number; initial:
           <Files size={15} weight="fill" /> Начните с документа, который сейчас есть у клиента.
         </div>
       )}
+      {!canMutate && <p className="text-[12px] text-ink-3">Документы доступны для просмотра. Загружает и удаляет их владелец кейса.</p>}
     </div>
   );
 }

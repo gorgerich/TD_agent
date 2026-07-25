@@ -1,0 +1,57 @@
+{
+  "mission": "M1",
+  "state": "MISSION_RELEASE_READY",
+  "implementationSha": "a2c1f603e8ae2e506be981de265b75d9373a5387",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/29910111013",
+  "previewDeploymentId": "dpl_93zVXvz1eMywgJ5LKcE5BE9n423P",
+  "checks": {
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 54
+    },
+    "integration": {
+      "status": "PASS",
+      "passed": 32,
+      "localFullSuiteRepeats": 5,
+      "targetedEscalationRepeats": 5,
+      "atomicRollbackRepeats": 5,
+      "residue": 0
+    },
+    "e2e": {
+      "status": "PASS",
+      "agent": "PASS",
+      "manager": "PASS",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "mobile": "PASS",
+      "zoom200": "PASS"
+    },
+    "build": "PASS",
+    "migrationRehearsal": {
+      "status": "PASS",
+      "repeatedDeploy": "NO_OP"
+    },
+    "schemaParity": "PASS",
+    "permissions": "PASS",
+    "idempotency": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0
+    },
+    "previewUat": "PASS",
+    "independentReview": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0
+    },
+    "skipped": 0,
+    "notRun": 0
+  }
+}

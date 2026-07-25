@@ -1,75 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { assertLeadAccess, handleApiError } from "@/lib/apiAuth";
+import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
+import { createMeeting } from "@/lib/meetingService";
 
-function generateCobrowseCode(): string {
-  // 5 байт = 10 hex-символов (~1.1e12 вариантов). Код даёт доступ к co-state с
-  // ПДн без авторизации, поэтому пространство должно быть неперебираемым.
-  return Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString("hex").toUpperCase();
-}
+export const runtime = "nodejs";
 
 const CreateMeetingSchema = z.object({
   leadId: z.number().int().positive(),
-  scheduledAt: z.string().trim().min(1).optional(),
+  scheduledAt: z.string().datetime({ offset: true }).optional().nullable(),
+  ownerMembershipId: z.string().min(1).optional(),
+  type: z.enum(["CONSULTATION", "FOLLOW_UP", "DOCUMENT_REVIEW", "CEREMONY_COORDINATION", "OTHER"]).optional(),
+  channel: z.enum(["IN_PERSON", "PHONE", "VIDEO", "OTHER"]).optional(),
+  location: z.string().max(300).optional().nullable(),
+  durationMinutes: z.number().int().min(15).max(720).optional().nullable(),
+  attendees: z.array(z.object({ label: z.string().min(1).max(120), role: z.string().max(80).optional() })).max(20).optional(),
 });
 
-function parseMeetingDatetime(value?: string): Date | undefined {
-  if (!value) return undefined;
-  const normalized = /(?:Z|[+-]\d{2}:\d{2})$/.test(value) || value.length > 16 ? value : `${value}:00`;
-  const date = new Date(normalized);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
+const MeetingStatusSchema = z.enum(["TENTATIVE", "SCHEDULED", "CONFIRMED", "COMPLETED", "NO_SHOW", "CANCELLED"]);
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const url = new URL(req.url);
-  const status = url.searchParams.get("status") ?? undefined;
-
   try {
+    const session = await requireAgent(req);
+    const rawStatus = new URL(req.url).searchParams.get("status");
+    const parsedStatus = rawStatus ? MeetingStatusSchema.safeParse(rawStatus) : null;
+    if (parsedStatus && !parsedStatus.success) return jsonError(400, "Неизвестный статус встречи");
     const meetings = await prisma.meeting.findMany({
-      where: { agentId: session.agentId, ...(status ? { status: status as "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" } : {}) },
-      orderBy: { scheduledAt: "desc" },
+      where: {
+        organizationId: session.organizationId,
+        ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+        ...(parsedStatus?.success ? { operationalStatus: parsedStatus.data } : {}),
+      },
+      orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
       take: 300,
       include: { lead: { select: { name: true, phone: true } } },
     });
     return NextResponse.json(meetings);
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (err) {
+    return handleApiError(err, "meetings/list");
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => null);
-  const parsed = CreateMeetingSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
-
-  const scheduledAt = parseMeetingDatetime(parsed.data.scheduledAt);
-  if (parsed.data.scheduledAt && !scheduledAt) {
-    return NextResponse.json({ error: "Некорректная дата встречи" }, { status: 400 });
-  }
-
-  const cobrowseCode = generateCobrowseCode();
-
   try {
-    // Владение: лид должен принадлежать агенту (иначе IDOR — привязка к чужому клиенту).
-    // agentId === 0 — только dev-заглушка без куки (в prod невозможна).
-    await assertLeadAccess(parsed.data.leadId, session);
+    const session = await requireAgent(req);
+    const parsed = CreateMeetingSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");
+    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
+    const correlationId = req.headers.get("x-correlation-id")?.trim();
+    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
 
-    const meeting = await prisma.meeting.create({
-      data: {
-        leadId: parsed.data.leadId,
-        agentId: session.agentId,
-        cobrowseCode,
-        scheduledAt,
-      },
-    });
+    const meeting = await createMeeting(session, {
+      ...parsed.data,
+      scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
+    }, { idempotencyKey, correlationId });
     return NextResponse.json(meeting, { status: 201 });
   } catch (err) {
     return handleApiError(err, "meetings/create");

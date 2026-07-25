@@ -1,0 +1,21 @@
+{
+  "mission": "M1",
+  "state": "MISSION_RELEASE_READY",
+  "acceptance": [
+    { "id": "M1-AC-01", "status": "PASS", "requirement": "Server-side cross-tenant read/write isolation for every M1 endpoint.", "evidence": "Canonical integration suite verifies organization and assigned-agent isolation." },
+    { "id": "M1-AC-02", "status": "PASS", "requirement": "Agent, Manager and Admin permission matrix passes positive and negative tests.", "evidence": "Integration and authenticated UAT verify Agent denial, Manager access and read-only reserved-role behavior." },
+    { "id": "M1-AC-03", "status": "PASS", "requirement": "Open production registration cannot create an active production agent or membership.", "evidence": "Registration is invitation-bound outside explicitly isolated development behavior." },
+    { "id": "M1-AC-04", "status": "PASS", "requirement": "Task event projections are idempotent under retry and concurrency.", "evidence": "Projection receipts, unique identities and concurrent integration assertions pass." },
+    { "id": "M1-AC-05", "status": "PASS", "requirement": "Past scheduled meeting has an outcome or exactly one visible escalation.", "evidence": "Targeted projection and atomic rollback tests pass 5/5; exact Preview shows one obligation." },
+    { "id": "M1-AC-06", "status": "PASS", "requirement": "Assignment, status, outcome and reschedule audit completeness equals 100 percent.", "evidence": "Integration assertions and manager UAT confirm same-transaction audit records." },
+    { "id": "M1-AC-07", "status": "PASS", "requirement": "Agent operational queue reports zero false overdue tasks after completed events.", "evidence": "Read-model integration coverage and completed-outcome Preview flow pass." },
+    { "id": "M1-AC-08", "status": "PASS", "requirement": "Manager control tower supports capacity, assignment and reasoned reassignment.", "evidence": "Authenticated Manager Preview flow assigns work and observes immutable audit output." },
+    { "id": "M1-AC-09", "status": "PASS", "requirement": "Tenant-scoped operational search and saved views work without cross-tenant leakage.", "evidence": "Integration isolation and Agent/Manager command-palette UAT pass." },
+    { "id": "M1-AC-10", "status": "PASS", "requirement": "Migration rehearsal, repeated deploy no-op, schema parity and legacy counts pass.", "evidence": "CI migration fixtures pass, repeated deploy is no-op and Prisma reports no difference." },
+    { "id": "M1-AC-11", "status": "PASS", "requirement": "Case-Task-Meeting reconciliation reports zero discrepancies.", "evidence": "Local, CI and isolated Preview reconciliation all report zero." },
+    { "id": "M1-AC-12", "status": "PASS", "requirement": "Touched flows expose loading, empty, error, retry, conflict, offline and permission states.", "evidence": "UI state coverage and authenticated conflict/offline/permission UAT pass." },
+    { "id": "M1-AC-13", "status": "PASS", "requirement": "Keyboard, mobile and 200 percent zoom critical paths have zero critical or serious accessibility findings.", "evidence": "Exact Preview axe checks: critical 0, serious 0; mobile and 200 percent zoom pass." },
+    { "id": "M1-AC-14", "status": "PASS", "requirement": "Synthetic cremation and relative-burial Agent and Manager Preview scenarios pass on exact SHA.", "evidence": "Deployment dpl_93zVXvz1eMywgJ5LKcE5BE9n423P on a2c1f603 passes both scenarios." },
+    { "id": "M1-AC-15", "status": "PASS", "requirement": "Independent adversarial review reports zero P0 and P1 findings.", "evidence": "Independent review of a2c1f603 reports P0=0 and P1=0." }
+  ]
+}

@@ -10,6 +10,7 @@ import { encryptField } from "../lib/crypto";
 import { SCENARIO_CLOSURE_GUARDS, isSupportedScenario } from "../lib/caseDomain";
 import { ensureCanonicalCaseForLead, scenarioFromCeremonyType, transitionCase } from "../lib/caseService";
 import { assertReleaseWritesAllowed } from "../lib/releaseWriteFreeze";
+import { ensureLegacyOrganizationForAgent } from "../lib/operationalAuth";
 
 const prisma = new PrismaClient();
 const DEMO_EMAIL = "demo@tihiydom.local";
@@ -22,6 +23,13 @@ async function resetAgentData(agentId: number) {
   // Дети дела (task/note/payment/document) каскадятся при удалении лида.
   const meetings = await prisma.meeting.findMany({ where: { agentId }, select: { id: true } });
   const meetingIds = meetings.map((m) => m.id);
+  const membership = await prisma.membership.findUnique({ where: { agentId }, select: { id: true, organizationId: true } });
+
+  if (membership) {
+    await prisma.projectionReceipt.deleteMany({ where: { organizationId: membership.organizationId } });
+    await prisma.operationalAuditEvent.deleteMany({ where: { organizationId: membership.organizationId } });
+    await prisma.savedOperationalView.deleteMany({ where: { organizationId: membership.organizationId } });
+  }
 
   await prisma.commission.deleteMany({ where: { agentId } });
   await prisma.payout.deleteMany({ where: { agentId } });
@@ -41,6 +49,7 @@ async function resetAgentData(agentId: number) {
 
 async function main() {
   assertReleaseWritesAllowed("prisma seed");
+  if (process.env.DEMO_MODE !== "1") throw new Error("Prisma seed is restricted to DEMO_MODE=1");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Стандарт" },
     update: {},
@@ -56,6 +65,11 @@ async function main() {
     where: { userId: user.id },
     update: { status: "ACTIVE" },
     create: { userId: user.id, status: "ACTIVE", selfEmployed: true, tierId: tier.id },
+  });
+  const operational = await ensureLegacyOrganizationForAgent({
+    agentId: agent.id,
+    userId: user.id,
+    agentStatus: "ACTIVE",
   });
 
   await resetAgentData(agent.id);
@@ -114,6 +128,14 @@ async function main() {
         createdAt: s.stale ? new Date(now - 9 * DAY) : new Date(now - Math.random() * 2 * DAY),
       },
     });
+    const canonical = await ensureCanonicalCaseForLead({
+      leadId: created.id,
+      organizationId: operational.organizationId,
+      agentId: agent.id,
+      actorId: agent.id,
+      idempotencyKey: `seed:case-created:${created.id}`,
+      correlationId: `seed:${created.id}`,
+    }, prisma);
 
     const needMeeting = s.stage !== "lead";
     let meetingId: number | null = null;
@@ -121,6 +143,11 @@ async function main() {
       const m = await prisma.meeting.create({
         data: {
           leadId: created.id, agentId: agent.id,
+          organizationId: operational.organizationId,
+          caseId: canonical.caseId,
+          ownerMembershipId: operational.membershipId,
+          idempotencyKey: `seed:meeting:${created.id}`,
+          operationalStatus: s.meetingIn === undefined ? "TENTATIVE" : "SCHEDULED",
           status: "SCHEDULED",
           cobrowseCode: Buffer.from(crypto.getRandomValues(new Uint8Array(5))).toString("hex").toUpperCase(),
           // meetingIn:0 — встреча сегодня, но в БУДУЩЕМ (now+2ч), чтобы попасть в бакет «Сегодня».
@@ -170,6 +197,13 @@ async function main() {
       await prisma.task.create({
         data: {
           leadId: created.id, agentId: agent.id,
+          organizationId: operational.organizationId,
+          caseId: canonical.caseId,
+          assigneeMembershipId: operational.membershipId,
+          createdByMembershipId: operational.membershipId,
+          idempotencyKey: `seed:task:${created.id}`,
+          type: s.stage === "docs" ? "PREPARATION" : "QUOTE_SEND",
+          expectedOutcome: s.stage === "docs" ? "Документ получен" : "Смета отправлена клиенту",
           title: s.stage === "docs" ? "Получить справку о смерти" : "Отправить смету клиенту",
           dueAt: s.stale ? new Date(now - 2 * DAY) : at(1),
         },
@@ -181,19 +215,14 @@ async function main() {
       });
     }
 
-    const canonical = await ensureCanonicalCaseForLead({
-      leadId: created.id,
-      agentId: agent.id,
-      actorId: agent.id,
-      idempotencyKey: `seed:case-created:${created.id}`,
-      correlationId: `seed:${created.id}`,
-    }, prisma);
     const command = async (suffix: string, eventType: Parameters<typeof transitionCase>[0]["eventType"], payload?: Record<string, unknown>) =>
       transitionCase({
         leadId: created.id,
         eventType,
         payload,
         context: {
+          organizationId: operational.organizationId,
+          membershipId: operational.membershipId,
           agentId: agent.id,
           actorId: agent.id,
           idempotencyKey: `seed:${created.id}:${suffix}`,

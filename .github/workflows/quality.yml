@@ -37,7 +37,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Verify Week 2 legacy backfill fixtures
+      - name: Verify Week 2 and M1 legacy backfill fixtures
         run: |
           set -euo pipefail
           MIGRATION_DB=td_agent_migration_test
@@ -50,14 +50,40 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/week2-backfill-fixtures.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260714090000_week2_canonical_case/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/week2-backfill-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260718090000_m1_operations_control_plane/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260719190000_m1_operations_integrity/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m1-operations-assertions.sql
       - name: Apply migrations to isolated test database
         run: npx prisma migrate deploy
+      - name: Verify repeated migration deploy is a no-op
+        run: |
+          output="$(npx prisma migrate deploy)"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | grep -Eq 'No pending migrations to apply|No pending migrations'
       - name: Verify migration/schema parity
         run: npx prisma migrate diff --from-url "$DATABASE_URL_UNPOOLED" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run test:integration
+      - name: Provision isolated M1 browser UAT fixture
+        run: |
+          set -euo pipefail
+          fingerprint="$(npx tsx -e 'import { inspectDirectMigrationUrl } from "./lib/migrationTarget"; process.stdout.write(inspectDirectMigrationUrl(process.env.DATABASE_URL_UNPOOLED).fingerprint)')"
+          password="$(openssl rand -base64 36 | tr -d '\n')!Aa9"
+          printf '::add-mask::%s\n' "$password"
+          {
+            printf 'EXPECTED_DATABASE_FINGERPRINT=%s\n' "$fingerprint"
+            printf 'M1_UAT_FIXTURE=1\n'
+            printf 'M1_UAT_RUN_ID=ci-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'M1_UAT_PASSWORD=%s\n' "$password"
+          } >> "$GITHUB_ENV"
+          touch "$RUNNER_TEMP/m1-uat-ready"
+          EXPECTED_DATABASE_FINGERPRINT="$fingerprint" \
+          M1_UAT_FIXTURE=1 \
+          M1_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+          M1_UAT_PASSWORD="$password" \
+          npx tsx tests/e2e/m1-fixture.ts provision
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start production server
@@ -71,3 +97,9 @@ jobs:
           cat /tmp/td-agent-next.log
           exit 1
       - run: npm run test:e2e
+      - name: Cleanup isolated M1 browser UAT fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/m1-uat-ready" ]; then
+            npx tsx tests/e2e/m1-fixture.ts cleanup
+          fi

@@ -1,21 +1,34 @@
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "./session";
+import { resolveOperationalContext, type OperationalRole } from "./operationalAuth";
 
-export type Role = "AGENT" | "SENIOR_AGENT" | "COORDINATOR" | "ADMIN" | "SUPPORT";
+export type Role = "AGENT" | "MANAGER" | "SENIOR_AGENT" | "COORDINATOR" | "ADMIN" | "SUPPORT";
 
 export interface AgentSession {
   userId: number;
   agentId: number;
-  role: Role;
+  membershipId: string;
+  organizationId: string;
+  role: OperationalRole;
+  timezone: string;
   name?: string;
 }
 
 const DEV_SESSION: AgentSession = {
   userId: 0,
   agentId: 0,
+  membershipId: "development",
+  organizationId: "development",
   role: "AGENT",
+  timezone: "Europe/Moscow",
   name: "Агент (dev)",
 };
+
+async function hydrateSession(payload: SessionPayload): Promise<AgentSession | null> {
+  const context = await resolveOperationalContext(payload.userId, payload.agentId);
+  if (!context) return null;
+  return { ...context, name: context.name ?? payload.name };
+}
 
 export async function getAgentSession(): Promise<AgentSession | null> {
   try {
@@ -31,7 +44,7 @@ export async function getAgentSession(): Promise<AgentSession | null> {
     const payload: SessionPayload | null = await verifySession(token);
     if (!payload) return null;
 
-    return { userId: payload.userId, agentId: payload.agentId, role: payload.role, name: payload.name };
+    return hydrateSession(payload);
   } catch {
     if (process.env.NODE_ENV === "development") return DEV_SESSION;
     return null;
@@ -49,5 +62,5 @@ export async function getSessionFromRequest(req: Request): Promise<AgentSession 
   }
   const payload = await verifySession(token);
   if (!payload) return null;
-  return { userId: payload.userId, agentId: payload.agentId, role: payload.role, name: payload.name };
+  return hydrateSession(payload);
 }

@@ -8,15 +8,15 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const BASE =
-  "relative isolate inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45 disabled:active:scale-100";
+  "relative isolate inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold transition-colors duration-150 ease-out active:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-default disabled:opacity-45";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent shadow-[var(--shadow-accent)] hover:bg-accent-hover hover:shadow-[var(--shadow-lift)]",
+    "bg-accent text-on-accent shadow-[inset_0_1px_0_color-mix(in_srgb,var(--color-on-accent)_18%,transparent)] hover:bg-accent-hover",
   secondary:
-    "bg-surface text-ink shadow-[var(--shadow-soft),var(--hl-top)] hover:bg-surface-2 hover:shadow-[var(--shadow-lift)]",
+    "bg-surface text-ink shadow-[var(--hl-top)] ring-1 ring-inset ring-line hover:bg-surface-2",
   ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
-  danger: "bg-danger text-white shadow-[var(--shadow-soft)] hover:brightness-95 hover:shadow-[var(--shadow-lift)]",
+  danger: "bg-danger text-white hover:brightness-95",
 };
 
 const SIZES: Record<Size, string> = {

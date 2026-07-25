@@ -17,6 +17,7 @@ import {
   GraduationCap,
   MagnifyingGlass,
   Package,
+  UsersThree,
   type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
@@ -44,7 +45,11 @@ const PRIMARY_NAV = [
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/estimates", icon: FileText, label: "Сметы" },
   { href: "/agent/documents", icon: Files, label: "Документы" },
-  { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
+  { href: "/agent/tasks", icon: CheckSquare, label: "Сегодня" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
+const TEAM_NAV = [
+  { href: "/agent/operations", icon: UsersThree, label: "Команда" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
 const TOOL_NAV = [
@@ -54,10 +59,8 @@ const TOOL_NAV = [
 
 const ROLE_LABELS: Record<string, string> = {
   AGENT: "Агент",
-  SENIOR_AGENT: "Старший агент",
-  COORDINATOR: "Координатор",
+  MANAGER: "Руководитель",
   ADMIN: "Администратор",
-  SUPPORT: "Поддержка",
 };
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -82,10 +85,22 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function NavLinks({ pathname, onNavigate, overdue = 0 }: { pathname: string; onNavigate?: () => void; overdue?: number }) {
+function NavLinks({
+  pathname,
+  role,
+  onNavigate,
+  overdue = 0,
+}: {
+  pathname: string;
+  role?: AgentSession["role"];
+  onNavigate?: () => void;
+  overdue?: number;
+}) {
+  const canSeeTeam = role === "MANAGER" || role === "ADMIN";
   return (
     <div className="space-y-6">
       <NavGroup label="Работа" items={PRIMARY_NAV} pathname={pathname} overdue={overdue} onNavigate={onNavigate} />
+      {canSeeTeam && <NavGroup label="Управление" items={TEAM_NAV} pathname={pathname} overdue={overdue} onNavigate={onNavigate} />}
       <NavGroup label="Инструменты" items={TOOL_NAV} pathname={pathname} overdue={overdue} onNavigate={onNavigate} />
     </div>
   );
@@ -225,7 +240,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           <CommandTrigger />
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
-          <NavLinks pathname={pathname} overdue={overdue} />
+          <NavLinks pathname={pathname} role={session?.role} overdue={overdue} />
         </div>
         <div className="border-t border-line px-4 py-4">
           <UserBlock session={session} onLogout={logout} onStartTour={startTour} />
@@ -254,6 +269,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
         ].join(" ")}
         aria-hidden={!open}
+        inert={!open}
       >
         <div className="absolute inset-0 bg-ink/24 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
         <nav
@@ -279,7 +295,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
             <CommandTrigger />
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-5">
-            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} overdue={overdue} />
+            <NavLinks pathname={pathname} role={session?.role} onNavigate={() => setOpen(false)} overdue={overdue} />
           </div>
           <div className="border-t border-line px-4 py-4">
             <UserBlock session={session} onLogout={logout} onStartTour={startTour} />

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 
 export type Intake = {
   ceremonyType: string;
@@ -18,11 +19,12 @@ export type Intake = {
 
 const CEREMONY = ["кремация", "погребение"] as const;
 
-export function IntakeSection({ caseId, initial }: { caseId: number; initial: Intake }) {
+export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Intake; canMutate?: boolean }) {
   const [value, setValue] = useState<Intake>(initial);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const command = useRef<ClientCommandIdentity | null>(null);
 
   function set<K extends keyof Intake>(key: K, next: Intake[K]) {
     setValue((current) => ({ ...current, [key]: next }));
@@ -34,7 +36,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
     setErr(null);
     setOk(false);
     try {
-      const commandId = crypto.randomUUID();
+      const commandId = commandIdFor(command, JSON.stringify(value));
       const res = await fetch(`/api/agent/cases/${caseId}/intake`, {
         method: "PATCH",
         headers: {
@@ -49,6 +51,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
         setErr(data.error ?? "Не удалось сохранить. Попробуйте снова.");
         return;
       }
+      clearCommandId(command);
       setOk(true);
     } catch {
       setErr("Нет связи. Проверьте интернет и попробуйте снова.");
@@ -64,7 +67,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
         <span className="text-ink-3">Видно только агенту</span>
       </div>
 
-      <fieldset className="border-b border-line pb-6">
+      <fieldset disabled={!canMutate} className="border-b border-line pb-6 disabled:opacity-80">
         <legend className="mb-4 text-[13px] font-semibold text-ink">Усопший и церемония</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="ФИО усопшего">
@@ -85,7 +88,7 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
         </div>
       </fieldset>
 
-      <fieldset className="border-b border-line pb-6">
+      <fieldset disabled={!canMutate} className="border-b border-line pb-6 disabled:opacity-80">
         <legend className="mb-4 text-[13px] font-semibold text-ink">Пожелания семьи</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Тип церемонии" className="sm:col-span-2">
@@ -122,11 +125,11 @@ export function IntakeSection({ caseId, initial }: { caseId: number; initial: In
         </div>
       </fieldset>
 
-      <div className="flex flex-wrap items-center gap-3">
+      {canMutate ? <div className="flex flex-wrap items-center gap-3">
         <Button type="button" size="sm" loading={busy} onClick={save}>Сохранить изменения</Button>
         {ok && <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success"><Check size={15} weight="bold" /> Сохранено</span>}
         {err && <span role="alert" className="inline-flex max-w-full items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {err}</span>}
-      </div>
+      </div> : <p className="text-[12px] text-ink-3">Данные семьи доступны для контекста. Изменяет их владелец кейса.</p>}
     </div>
   );
 }

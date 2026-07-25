@@ -1,0 +1,23 @@
+mission: M1
+name: Operations Control Plane
+state: MISSION_RELEASE_READY
+base_sha: ea6af5f591f7462abb11847cdd51e8c88fdaf390
+implementation_sha: a2c1f603e8ae2e506be981de265b75d9373a5387
+review_sha: a2c1f603e8ae2e506be981de265b75d9373a5387
+preview_deployment_id: dpl_93zVXvz1eMywgJ5LKcE5BE9n423P
+production_deployment_id: null
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - permissions
+  - idempotency
+  - reconciliation
+  - accessibility
+  - preview_uat
+  - independent_review
+open_blockers: []
+owner_release_authorization: false

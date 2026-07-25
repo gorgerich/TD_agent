@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, test } from "node:test";
+import { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { POST as login } from "../../app/api/agent/auth/login/route";
 import { hashPassword } from "../../lib/password";
@@ -18,7 +19,18 @@ const rotatedPassword = `${randomBytes(32).toString("base64url")}!Bb2`;
 
 async function removeSmokeAccount() {
   if (skip) return;
-  const user = await db.user.findUnique({ where: { email: SMOKE_ACCOUNT_EMAIL }, select: { agent: { select: { id: true } } } });
+  const user = await db.user.findUnique({
+    where: { email: SMOKE_ACCOUNT_EMAIL },
+    select: { agent: { select: { id: true, membership: { select: { id: true, organizationId: true } } } } },
+  });
+  if (user?.agent?.membership) {
+    await db.operationalAuditEvent.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.projectionReceipt.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.savedOperationalView.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.organizationInvite.deleteMany({ where: { organizationId: user.agent.membership.organizationId } });
+    await db.membership.delete({ where: { id: user.agent.membership.id } });
+    await db.organization.delete({ where: { id: user.agent.membership.organizationId } });
+  }
   if (user?.agent) await db.agent.delete({ where: { id: user.agent.id } });
   if (user) await db.user.delete({ where: { email: SMOKE_ACCOUNT_EMAIL } });
 }
@@ -74,10 +86,35 @@ test("smoke provisioning hashes before opening its transaction", opts, async () 
   assert.ok(transactionStartedAt >= hashFinishedAt);
   assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
   assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.organization.count({ where: { id: provisioned.tenantId } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId, status: "ACTIVE" } }), 1);
   assert.equal(await db.clientLead.count({ where: { agentId: provisioned.agentId } }), 0);
   assert.equal(await db.meeting.count({ where: { agentId: provisioned.agentId } }), 0);
   assert.equal(await db.case.count({ where: { ownerId: provisioned.agentId } }), 0);
   assert.equal(await db.caseEvent.count({ where: { actorId: provisioned.agentId } }), 0);
+});
+
+test("smoke provisioning retries a serializable write conflict without losing atomicity", opts, async () => {
+  let attempts = 0;
+  const observedDb = Object.create(db) as typeof db;
+  const runTransaction = db.$transaction.bind(db);
+  observedDb.$transaction = ((...args: unknown[]) => {
+    attempts += 1;
+    if (attempts === 1) {
+      throw new Prisma.PrismaClientKnownRequestError("Synthetic serializable conflict", {
+        code: "P2034",
+        clientVersion: Prisma.prismaVersion.client,
+      });
+    }
+    return Reflect.apply(runTransaction, db, args);
+  }) as typeof db.$transaction;
+
+  const provisioned = await manageSmokeAccount(observedDb, { action: "provision", password: firstPassword });
+  assert.equal(attempts, 2);
+  assert.equal(provisioned.created, true);
+  assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
+  assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId } }), 1);
 });
 
 test("smoke provisioning rolls back User when nested Agent creation fails", opts, async () => {
@@ -116,6 +153,7 @@ test("release smoke account lifecycle is atomic, idempotent, isolated and passwo
   assert.equal(replay.replayed, true);
   assert.equal(await db.user.count({ where: { email: SMOKE_ACCOUNT_EMAIL } }), 1);
   assert.equal(await db.agent.count({ where: { user: { email: SMOKE_ACCOUNT_EMAIL } } }), 1);
+  assert.equal(await db.membership.count({ where: { agentId: provisioned.agentId } }), 1);
 
   const otherUser = await db.user.create({ data: { email: `smoke-other-${Date.now()}@test.invalid`, name: "Other tenant" } });
   const tier = await db.agentTier.findFirstOrThrow();

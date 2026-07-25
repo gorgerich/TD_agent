@@ -5,17 +5,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, CalendarDots, CheckSquare, FileText, type Icon } from "@phosphor-icons/react";
+import { Briefcase, CalendarDots, CheckSquare, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
+import type { OperationalRole } from "@/lib/operationalAuth";
 
 const TABS = [
   { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
   { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
   { href: "/agent/estimates", icon: FileText, label: "Сметы" },
-  { href: "/agent/tasks", icon: CheckSquare, label: "Задачи" },
+  { href: "/agent/tasks", icon: CheckSquare, label: "Сегодня" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
-export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
+const TEAM_TABS = [
+  { href: "/agent/cases", icon: Briefcase, label: "Кейсы" },
+  { href: "/agent/meetings", icon: CalendarDots, label: "Календарь" },
+  { href: "/agent/tasks", icon: CheckSquare, label: "Сегодня" },
+  { href: "/agent/operations", icon: UsersThree, label: "Команда" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
+export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number; role: OperationalRole }) {
   const pathname = usePathname();
+  const tabs = role === "AGENT" ? TABS : TEAM_TABS;
   // В открытом кейсе глобальный dock конкурирует с маршрутной панелью и
   // перекрывает рабочие элементы на mobile. Навигация остаётся в шапке и
   // во вкладках самого кейса.
@@ -27,7 +36,7 @@ export default function AgentBottomNav({ overdue = 0 }: { overdue?: number }) {
       aria-label="Основная навигация"
       className="td-mobile-dock fixed z-40 grid grid-cols-4 px-2 py-1 lg:hidden"
     >
-      {TABS.map(({ href, icon: IconComponent, label }) => {
+      {tabs.map(({ href, icon: IconComponent, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         const badge = href === "/agent/tasks" && overdue > 0 ? overdue : 0;
         return (

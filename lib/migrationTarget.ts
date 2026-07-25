@@ -13,6 +13,8 @@ export type MigrationChecksum = {
 export const RELEASE_GATE_A_MIGRATION_CHECKSUMS: Readonly<Record<string, string>> = {
   "20260713000000_baseline": "420fa8e66fd5211c3725c6d1870e991482f79596bc2edd9cc34e16f92d6b93b3",
   "20260714090000_week2_canonical_case": "04a60742e28be9a628e7085007cb3a222c373539dc8018eab447900103c4a0b8",
+  "20260718090000_m1_operations_control_plane": "04aed4c1b9f261a6ef49f239255257cb8343fde753c13af3e75631c63342906e",
+  "20260719190000_m1_operations_integrity": "f1e3d1e2201230473ef838b00f61b3e4783d8eeae396d3aec97d783c6c06cb2d",
 };
 
 export function inspectDirectMigrationUrl(value: string | undefined): MigrationTarget {

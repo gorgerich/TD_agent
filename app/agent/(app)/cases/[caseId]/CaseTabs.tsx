@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ClipboardText, ClockCounterClockwise, Files, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
 import s from "./CaseTabs.module.css";
 import { TasksSection } from "./TasksSection";
@@ -9,7 +9,22 @@ import { DocumentsSection } from "./DocumentsSection";
 import { IntakeSection, type Intake } from "./IntakeSection";
 import { PaymentsSection, type PaymentItem } from "./PaymentsSection";
 
-type TaskItem = { id: number; title: string; dueAt: string | null; completedAt: string | null };
+type TaskItem = {
+  id: number;
+  title: string;
+  type: string;
+  priority: string;
+  status: string;
+  source: string;
+  expectedOutcome: string | null;
+  waitingReason: string | null;
+  ownerName: string;
+  version: number;
+  dueAt: string | null;
+  completedAt: string | null;
+  canMutate: boolean;
+  actionHref: string | null;
+};
 type NoteItem = { id: number; body: string; createdAt: string };
 type DocItem = { id: number; name: string; category: string; url: string; mimeType: string; size: number; createdAt: string };
 type ActivityItem = { label: string; sub?: string };
@@ -25,6 +40,10 @@ export function CaseTabs({
   context,
   payments,
   activity,
+  initialTab = "work",
+  timezone,
+  canMutateCase = true,
+  limitedTaskContext = false,
 }: {
   caseId: number;
   tasks: TaskItem[];
@@ -34,12 +53,17 @@ export function CaseTabs({
   context: string | null;
   payments: PaymentItem[];
   activity: ActivityItem[];
+  initialTab?: TabId;
+  timezone: string;
+  canMutateCase?: boolean;
+  limitedTaskContext?: boolean;
 }) {
-  const [tab, setTab] = useState<TabId>("work");
-  const openTasks = tasks.filter((task) => !task.completedAt).length;
+  const [tab, setTab] = useState<TabId>(initialTab);
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+  const openTasks = tasks.filter((task) => task.status === "OPEN").length;
   const missingDocs = docs.length === 0;
 
-  const tabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
+  const allTabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
     {
       id: "work",
       label: "Работа",
@@ -56,13 +80,16 @@ export function CaseTabs({
     { id: "family", label: "Семья", subtitle: "Потребности и контекст", icon: UsersThree },
     { id: "history", label: "История", subtitle: "Заметки и события", icon: ClockCounterClockwise },
   ];
+  const tabs = limitedTaskContext ? allTabs.slice(0, 1) : allTabs;
   return (
     <section className={`td-shell ${s.workspace}`} aria-label="Рабочая зона кейса">
       <nav className={s.nav} aria-label="Разделы кейса">
         <div className={s.navIntro}>
           <span className="td-eyebrow">Кейс</span>
           <span className={s.navSummary}>
-            {openTasks > 0 ? `${openTasks} требуют внимания` : "Кейс под контролем"}
+            {limitedTaskContext
+              ? (openTasks > 0 ? `${openTasks} назначено вам` : "Ваши задачи выполнены")
+              : (openTasks > 0 ? `${openTasks} требуют внимания` : "Кейс под контролем")}
           </span>
         </div>
         <div className={s.navItems} role="tablist" aria-label="Разделы рабочей зоны">
@@ -72,13 +99,33 @@ export function CaseTabs({
             return (
               <button
                 key={item.id}
+                id={`case-tab-${item.id}`}
+                ref={(node) => { tabRefs.current[item.id] = node; }}
                 type="button"
                 role="tab"
                 aria-selected={active}
                 aria-controls={`case-panel-${item.id}`}
+                tabIndex={active ? 0 : -1}
                 data-active={active ? "true" : undefined}
                 className={`${s.navItem} td-press`}
                 onClick={() => setTab(item.id)}
+                onKeyDown={(event) => {
+                  const currentIndex = tabs.findIndex((candidate) => candidate.id === item.id);
+                  const nextIndex = event.key === "ArrowRight"
+                    ? (currentIndex + 1) % tabs.length
+                    : event.key === "ArrowLeft"
+                      ? (currentIndex - 1 + tabs.length) % tabs.length
+                      : event.key === "Home"
+                        ? 0
+                        : event.key === "End"
+                          ? tabs.length - 1
+                          : null;
+                  if (nextIndex === null) return;
+                  event.preventDefault();
+                  const nextId = tabs[nextIndex].id;
+                  setTab(nextId);
+                  tabRefs.current[nextId]?.focus();
+                }}
               >
                 <span className={s.navIcon} data-active={active ? "true" : undefined}>
                   <ItemIcon size={22} weight="fill" />
@@ -96,28 +143,30 @@ export function CaseTabs({
       </nav>
 
       <div className={s.canvas}>
-        <div key={tab} id={`case-panel-${tab}`} role="tabpanel" className={`tab-panel ${s.panel}`}>
+        <div key={tab} id={`case-panel-${tab}`} role="tabpanel" aria-labelledby={`case-tab-${tab}`} className={`tab-panel ${s.panel}`}>
           {tab === "work" && (
             <div className={s.workGrid}>
               <Section title="Задачи" meta={openTasks > 0 ? `${openTasks} открыто` : "всё сделано"}>
-                <TasksSection caseId={caseId} initial={tasks} />
+                <TasksSection caseId={caseId} initial={tasks} timezone={timezone} canCreate={canMutateCase} />
               </Section>
-              <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
-                <PaymentsSection caseId={caseId} initial={payments} />
-              </Section>
+              {!limitedTaskContext && (
+                <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
+                  <PaymentsSection caseId={caseId} initial={payments} timezone={timezone} canMutate={canMutateCase} />
+                </Section>
+              )}
             </div>
           )}
 
           {tab === "docs" && (
             <Section title="Документы" meta={missingDocs ? "нужно собрать" : `${docs.length} в кейсе`}>
-              <DocumentsSection caseId={caseId} initial={docs} />
+              <DocumentsSection caseId={caseId} initial={docs} timezone={timezone} canMutate={canMutateCase} />
             </Section>
           )}
 
           {tab === "family" && (
             <div className={s.stack}>
               <Section title="Потребности семьи">
-                <IntakeSection caseId={caseId} initial={intake} />
+                <IntakeSection caseId={caseId} initial={intake} canMutate={canMutateCase} />
               </Section>
               {context && (
                 <Section title="Контекст" icon={<FileText size={16} weight="fill" />}>
@@ -130,7 +179,7 @@ export function CaseTabs({
           {tab === "history" && (
             <div className={s.stack}>
               <Section title="Заметки" meta={notes.length ? String(notes.length) : "пусто"}>
-                <NotesSection caseId={caseId} initial={notes} />
+                <NotesSection caseId={caseId} initial={notes} timezone={timezone} canMutate={canMutateCase} />
               </Section>
               <Section title="Активность">
                 <ol className={s.activityList}>

@@ -3,13 +3,14 @@ import { encryptField } from "@/lib/crypto";
 import { ensureCanonicalCaseForLead, scenarioFromCeremonyType } from "@/lib/caseService";
 import { CaseStage } from "@prisma/client";
 import { assertReleaseWritesAllowed } from "@/lib/releaseWriteFreeze";
+import { ensureLegacyOrganizationForAgent } from "@/lib/operationalAuth";
 
 export const DEMO_PHONE = "+79990000000";
 export const DEMO_CODE = "0000";
 const DEMO_EMAIL = "demo@tihiydom.local";
 
-export function isDemoMode(): boolean {
-  return process.env.DEMO_MODE === "1";
+export function isDemoMode(value = process.env.DEMO_MODE): boolean {
+  return value === "1";
 }
 
 /**
@@ -19,6 +20,7 @@ export function isDemoMode(): boolean {
  */
 export async function ensureDemoAgent(): Promise<{ userId: number; agentId: number; name: string }> {
   assertReleaseWritesAllowed("demo seed");
+  if (!isDemoMode()) throw new Error("Demo mode is disabled");
   const tier = await prisma.agentTier.upsert({
     where: { name: "Senior" },
     update: {},
@@ -35,6 +37,11 @@ export async function ensureDemoAgent(): Promise<{ userId: number; agentId: numb
     where: { userId: user.id },
     update: { status: "ACTIVE" },
     create: { userId: user.id, status: "ACTIVE", tierId: tier.id, selfEmployed: true },
+  });
+  const operational = await ensureLegacyOrganizationForAgent({
+    agentId: agent.id,
+    userId: user.id,
+    agentStatus: "ACTIVE",
   });
 
   // Примеры данных создаём один раз — если у демо-агента ещё нет лидов.
@@ -67,10 +74,24 @@ export async function ensureDemoAgent(): Promise<{ userId: number; agentId: numb
       const lead = await prisma.clientLead.create({
         data: { agentId: agent.id, name: s.name, phone: s.phone, context: encryptField(s.context), source: s.source },
       });
+      const canonical = await ensureCanonicalCaseForLead({
+        leadId: lead.id,
+        organizationId: operational.organizationId,
+        agentId: agent.id,
+        actorId: agent.id,
+        stage: CaseStage.PLANNING,
+        idempotencyKey: `demo:case-created:${lead.id}`,
+        correlationId: `demo:${lead.id}`,
+      });
       await prisma.meeting.create({
         data: {
           leadId: lead.id,
           agentId: agent.id,
+          organizationId: operational.organizationId,
+          caseId: canonical.caseId,
+          ownerMembershipId: operational.membershipId,
+          idempotencyKey: `demo:meeting:${lead.id}`,
+          operationalStatus: s.status === "COMPLETED" ? "COMPLETED" : s.status === "IN_PROGRESS" ? "CONFIRMED" : "SCHEDULED",
           status: s.status,
           scheduledAt: s.scheduledAt,
           cobrowseCode: s.code,
@@ -92,6 +113,7 @@ export async function ensureDemoAgent(): Promise<{ userId: number; agentId: numb
   for (const lead of demoLeads) {
     await ensureCanonicalCaseForLead({
       leadId: lead.id,
+      organizationId: operational.organizationId,
       agentId: agent.id,
       actorId: agent.id,
       scenarioId: scenarioFromCeremonyType(lead.ceremonyType),

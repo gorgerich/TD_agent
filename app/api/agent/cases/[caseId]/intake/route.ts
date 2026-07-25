@@ -5,6 +5,8 @@ import { encryptField } from "@/lib/crypto";
 import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
 import { saveCaseIntake } from "@/lib/caseService";
 import { CaseDomainError } from "@/lib/caseDomain";
+import { assertCapability } from "@/lib/operationalAuth";
+import { zonedLocalToIso } from "@/lib/zonedDateTime";
 
 export const runtime = "nodejs";
 
@@ -27,6 +29,13 @@ function parseDate(s: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+function parseCeremonyDate(value: string | null | undefined, timezone: string): Date | null {
+  if (!value) return null;
+  const zoned = zonedLocalToIso(value, timezone);
+  const parsed = new Date(zoned ?? value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ caseId: string }> }) {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
@@ -38,13 +47,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
   }
 
   try {
+    assertCapability(session, "work:mutate-own");
     const leadId = parseId((await params).caseId, "caseId");
-    await assertLeadOwned(leadId, session.agentId);
+    await assertLeadOwned(leadId, session);
 
     const parsed = Schema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
 
     const { ceremonyType, budget, religion, needs, deceasedName, deceasedDate, morgue, ceremonyAt, ceremonyPlace } = parsed.data;
+    const parsedCeremonyAt = parseCeremonyDate(ceremonyAt, session.timezone);
+    if (ceremonyAt && !parsedCeremonyAt) {
+      return NextResponse.json({ error: "Проверьте дату, время и часовой пояс организации" }, { status: 400 });
+    }
     const result = await saveCaseIntake({
       leadId,
       data: {
@@ -55,10 +69,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
         deceasedName: deceasedName ? encryptField(deceasedName) : null, // ПДн усопшего — шифруем
         deceasedDate: parseDate(deceasedDate),
         morgue: morgue ?? null,
-        ceremonyAt: parseDate(ceremonyAt),
+        ceremonyAt: parsedCeremonyAt,
         ceremonyPlace: ceremonyPlace ?? null,
       },
-      context: { agentId: session.agentId, actorId: session.agentId, idempotencyKey, correlationId },
+      context: {
+        organizationId: session.organizationId,
+        membershipId: session.membershipId,
+        agentId: session.agentId,
+        actorId: session.agentId,
+        idempotencyKey,
+        correlationId,
+      },
     });
     return NextResponse.json({ ok: true, ...result });
   } catch (err) {
