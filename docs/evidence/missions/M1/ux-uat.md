@@ -33,3 +33,36 @@
   meeting -> outcome -> ready for commercial step.
 - Relative burial: intake -> operational plan -> manager reassignment -> overdue
   escalation -> outcome -> ready for commercial step.
+
+## Exact Preview result
+
+Status: `PASS`.
+
+- implementation SHA: `a2c1f603e8ae2e506be981de265b75d9373a5387`;
+- deployment: `dpl_93zVXvz1eMywgJ5LKcE5BE9n423P`;
+- URL:
+  `https://td-agent-m1-uat-20260719-c3ghbzsoy-rics-projects-9baa2793.vercel.app`;
+- protection method: authenticated Vercel automation bypass, secret not persisted
+  in Git or evidence.
+
+Authenticated results:
+
+| Scenario | Result |
+| --- | --- |
+| Agent Today, outcome and offline recovery | PASS |
+| Manager control tower, assignment and audit | PASS |
+| Cremation | PASS |
+| Relative burial | PASS |
+| Assigned-agent reduced case context | PASS |
+| Conflict recovery | PASS |
+| Command palette keyboard/focus behavior | PASS |
+| Mobile width | PASS |
+| 200% zoom | PASS |
+| WCAG critical/serious | 0 / 0 |
+| Skipped | 0 |
+
+Visual screenshots covered Today, Cases, open Case and Team Control Tower on
+desktop plus Today and Team on 390 x 844 mobile. Content remained visible by
+default; no horizontal overflow, clipped text, incoherent overlap or inaccessible
+focus state was found. Navigation styling follows the previously approved filled,
+high-weight icon direction rather than introducing a second icon language.

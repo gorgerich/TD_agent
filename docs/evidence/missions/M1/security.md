@@ -36,3 +36,19 @@ not receive routes or UI.
 - Forged cookie role differing from database membership.
 - Replay and optimistic-version conflict behavior.
 - Invitation reuse, expiry and wrong-recipient attempts.
+
+## Verification result
+
+Status: `PASS` on `a2c1f603e8ae2e506be981de265b75d9373a5387`.
+
+- Cross-tenant, forged-role, inactive-membership and wrong-assignee paths are
+  denied by server-side membership context.
+- Agent access to Team Control Tower is denied; Manager assignment is constrained
+  to active same-organization memberships.
+- Invitation and open-registration guards pass their negative tests.
+- Optimistic conflict and idempotent replay behavior pass integration and
+  authenticated Preview UAT.
+- Operational audit stores redacted structured state; secrets and family-sensitive
+  free text are not added to immutable payloads.
+- Secrets scan found no credentials, connection strings, cookies or tokens.
+- `RISK-W1-TECH-HUMAN-REVIEW` remains open and is not waived by M1.

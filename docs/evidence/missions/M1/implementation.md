@@ -69,3 +69,23 @@
 - Ceremonial 2.5D visualization (M4).
 - Production load, penetration, legal or pilot acceptance (M5).
 - Production merge, database migration, environment change or deployment.
+
+## Implemented result
+
+Implementation SHA: `a2c1f603e8ae2e506be981de265b75d9373a5387`.
+
+- Membership-backed tenant and role authorization is canonical for M1 reads and
+  mutations.
+- Task and Meeting commands use version checks, idempotency identities and
+  same-transaction immutable audit records.
+- Meeting confirmation, stale escalation cancellation and current escalation
+  projection are atomic.
+- `MEETING_ESCALATION` is system-owned and rejected by public/manual task
+  creation.
+- Agent Today, manager Team Control Tower, assignment, saved views, operational
+  search and case workspace actions use the canonical operational read model.
+- Touched loading, empty, error, conflict, offline and permission states fail
+  visibly rather than returning false empty data.
+
+The implementation does not change quote publication/client decision, payment,
+document verification or visualization ownership reserved for later missions.
