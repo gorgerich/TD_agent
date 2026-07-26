@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { POST as login } from "../../app/api/agent/auth/login/route";
+import { POST as activatePlatformAccount } from "../../app/api/platform-admin/activation/route";
 import { GET as platformDashboard } from "../../app/api/platform-admin/dashboard/route";
 import {
   GET as platformOrganization,
@@ -11,7 +12,7 @@ import { POST as createInvitation } from "../../app/api/agent/invitations/route"
 import { GET as readTeam } from "../../app/api/agent/organization/team/route";
 import { PATCH as updateMembership } from "../../app/api/agent/organization/memberships/[membershipId]/route";
 import { bootstrapPlatformSuperAdmin } from "../../lib/platformBootstrap";
-import { hashPassword } from "../../lib/password";
+import { hashPassword, verifyPassword } from "../../lib/password";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
 import {
   createFixtureContext,
@@ -56,6 +57,166 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
     assert.equal(dashboard.status, 200);
     await db.user.update({ where: { id: user.id }, data: { platformRole: "USER" } });
     assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie }))).status, 403);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M2 first platform admin activation is hash-only, one-time and preserves existing credentials", opts, async () => {
+  const fixtures = createFixtureContext("m2-platform-activation");
+  const email = `m2-activation-${randomBytes(6).toString("hex")}@test.invalid`;
+  const existingEmail = `m2-existing-${randomBytes(6).toString("hex")}@test.invalid`;
+  const password = "M2-First-Owner-Private-Password-42!";
+  const existingPassword = "M2-Existing-Owner-Password-42!";
+  const blockedEmail = `m2-blocked-${randomBytes(6).toString("hex")}@test.invalid`;
+  try {
+    await assert.rejects(
+      db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, blockedEmail)),
+      /CONFIRM_PLATFORM_ADMIN_ACTIVATION_OUTPUT=YES/,
+    );
+    assert.equal(await db.user.count({ where: { email: blockedEmail } }), 0);
+
+    const first = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, email.toUpperCase(), {
+      allowActivationOutput: true,
+    }));
+    fixtures.trackUser(first.userId);
+    assert.ok(first.activation);
+    const provisioned = await db.user.findUniqueOrThrow({
+      where: { id: first.userId },
+      select: { email: true, passwordHash: true, platformRole: true },
+    });
+    assert.equal(provisioned.email, email);
+    assert.equal(provisioned.passwordHash, null);
+    assert.equal(provisioned.platformRole, "SUPER_ADMIN");
+    assert.equal(await db.agent.count({ where: { userId: first.userId } }), 0);
+    assert.equal(await db.membership.count({ where: { userId: first.userId } }), 0);
+
+    const firstActivation = await db.platformAccountActivation.findFirstOrThrow({
+      where: { userId: first.userId },
+    });
+    assert.equal(firstActivation.tokenHash.length, 64);
+    assert.notEqual(firstActivation.tokenHash, first.activation.token);
+    assert.equal(JSON.stringify(firstActivation).includes(first.activation.token), false);
+    const firstAudit = await db.platformAuditEvent.findMany({
+      where: { actorUserId: first.userId },
+      select: { action: true, metadata: true },
+    });
+    assert.equal(JSON.stringify(firstAudit).includes(first.activation.token), false);
+    assert.equal(firstAudit.some((event) => event.action === "PLATFORM_ADMIN_USER_PROVISIONED"), true);
+    assert.equal(firstAudit.some((event) => event.action === "PLATFORM_ACCOUNT_ACTIVATION_CREATED"), true);
+
+    const replacement = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, email, {
+      allowActivationOutput: true,
+    }));
+    assert.ok(replacement.activation);
+    assert.notEqual(replacement.activation.token, first.activation.token);
+    assert.equal((await db.platformAccountActivation.findUniqueOrThrow({
+      where: { id: firstActivation.id },
+      select: { revokedAt: true },
+    })).revokedAt instanceof Date, true);
+
+    const revoked = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.1" },
+      body: { action: "VERIFY", token: first.activation.token },
+    }));
+    assert.equal(revoked.status, 400);
+
+    const activation = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.2" },
+      body: {
+        action: "ACTIVATE",
+        token: replacement.activation.token,
+        password,
+        confirmation: password,
+      },
+    }));
+    assert.equal(activation.status, 200);
+    assert.equal((await activation.clone().json()).redirectTo, "/platform-admin");
+    assert.ok(activation.headers.get("set-cookie"));
+    const activated = await db.user.findUniqueOrThrow({
+      where: { id: first.userId },
+      select: { passwordHash: true },
+    });
+    assert.equal(verifyPassword(password, activated.passwordHash), true);
+    assert.equal((await db.platformAccountActivation.findFirstOrThrow({
+      where: { userId: first.userId, consumedAt: { not: null } },
+      select: { consumedAt: true },
+    })).consumedAt instanceof Date, true);
+
+    const replay = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.3" },
+      body: {
+        action: "ACTIVATE",
+        token: replacement.activation.token,
+        password,
+        confirmation: password,
+      },
+    }));
+    assert.equal(replay.status, 400);
+    assert.deepEqual(await replay.json(), await revoked.json());
+
+    const loginResponse = await login(makeRequest("/api/agent/auth/login", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.4" },
+      body: { email, password },
+    }));
+    assert.equal(loginResponse.status, 200);
+    assert.equal((await loginResponse.json()).redirectTo, "/platform-admin");
+
+    const expired = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, `${email}.expired`, {
+      allowActivationOutput: true,
+      now: new Date(Date.now() - 60_000),
+      activationTtlMs: 1,
+    }));
+    fixtures.trackUser(expired.userId);
+    assert.ok(expired.activation);
+    const expiredResponse = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.5" },
+      body: { action: "VERIFY", token: expired.activation.token },
+    }));
+    assert.equal(expiredResponse.status, 400);
+
+    const existingHash = hashPassword(existingPassword);
+    const existing = await db.user.create({
+      data: { email: existingEmail, passwordHash: existingHash },
+      select: { id: true },
+    });
+    fixtures.trackUser(existing.id);
+    const existingBootstrap = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, existingEmail));
+    const existingReplay = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, existingEmail));
+    assert.equal(existingBootstrap.activation, undefined);
+    assert.equal(existingReplay.replayed, true);
+    assert.equal((await db.user.findUniqueOrThrow({
+      where: { id: existing.id },
+      select: { passwordHash: true, platformRole: true },
+    })).passwordHash, existingHash);
+    assert.equal(verifyPassword(existingPassword, existingHash), true);
+    assert.equal(await db.platformAuditEvent.count({
+      where: { actorUserId: existing.id, action: "PLATFORM_ROLE_BOOTSTRAPPED" },
+    }), 1);
+
+    const massAssignment = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.6" },
+      body: { action: "VERIFY", token: "x".repeat(43), platformRole: "SUPER_ADMIN", email },
+    }));
+    assert.equal(massAssignment.status, 400);
+
+    let rateLimitedStatus = 0;
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      const response = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
+        method: "POST",
+        headers: { "x-forwarded-for": "127.0.20.7" },
+        body: { action: "VERIFY", token: "z".repeat(43) },
+      }));
+      rateLimitedStatus = response.status;
+    }
+    assert.equal(rateLimitedStatus, 429);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

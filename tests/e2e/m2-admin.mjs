@@ -6,27 +6,60 @@ import { chromium } from "playwright";
 const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M2_UAT_RUN_ID ?? "mission-2";
 const password = process.env.M2_UAT_PASSWORD;
+const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
 const evidenceDir = process.env.M2_EVIDENCE_DIR;
 const emails = {
   platform: `m2-platform-${runId}@synthetic.invalid`,
+  activation: `m2-activation-${runId}@synthetic.invalid`,
   admin: `m2-admin-${runId}@synthetic.invalid`,
   manager: `m2-manager-${runId}@synthetic.invalid`,
   agent: `m2-agent-${runId}@synthetic.invalid`,
   second: `m2-second-${runId}@synthetic.invalid`,
 };
 if (!password) throw new Error("M2_UAT_PASSWORD is required");
+if (!activationToken) throw new Error("M2_UAT_ACTIVATION_TOKEN is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
 const page = await context.newPage();
 const browserErrors = [];
+let expectedActivationRejection = 0;
 page.on("console", (message) => {
+  if (
+    message.type() === "error"
+    && message.text().includes("status of 400")
+    && message.location().url.includes("/api/platform-admin/activation")
+  ) {
+    expectedActivationRejection += 1;
+    return;
+  }
   if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
 try {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openActivation(page, activationToken);
+  await page.getByRole("heading", { name: "Первый вход владельца платформы" }).waitFor();
+  try {
+    await page.waitForFunction(() => window.location.hash === "", undefined, { timeout: 5_000 });
+  } catch {
+    throw new Error("Raw activation token was not removed from browser URL");
+  }
+  await page.getByLabel("Новый пароль").fill(password);
+  await page.getByLabel("Повторите пароль").fill(password);
+  await screenshot(page, "platform-activation-mobile.png");
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === "/platform-admin"),
+    page.getByRole("button", { name: "Установить пароль" }).click(),
+  ]);
+  await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
+  await context.clearCookies();
+  await openActivation(page, activationToken);
+  await page.getByRole("heading", { name: "Не удалось активировать аккаунт" }).waitFor();
+
+  await page.setViewportSize({ width: 1365, height: 900 });
   await login(page, emails.platform, "/platform-admin");
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
   await page.getByText("Администрирование платформы", { exact: true }).first().waitFor();
@@ -100,8 +133,10 @@ try {
   await page.getByRole("heading", { name: "Нет доступа к администрированию платформы" }).waitFor();
 
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
+  assert.equal(expectedActivationRejection, 1, "Consumed activation token must be rejected exactly once");
   process.stdout.write(`${JSON.stringify({
     platformSuperAdmin: "PASS",
+    platformActivation: "PASS",
     organizationAdmin: "PASS",
     managerForbidden: "PASS",
     agentForbidden: "PASS",
@@ -122,6 +157,17 @@ async function login(target, email, expectedPath) {
     target.waitForURL((url) => url.pathname === expectedPath),
     target.locator('form button[type="submit"]').click(),
   ]);
+}
+
+async function openActivation(target, rawToken) {
+  try {
+    await target.goto(
+      `${baseUrl}/setup/platform-admin#token=${encodeURIComponent(rawToken)}`,
+      { waitUntil: "domcontentloaded", timeout: 30_000 },
+    );
+  } catch {
+    throw new Error("Platform activation page navigation failed");
+  }
 }
 
 async function assertNoOverflow(target, label) {

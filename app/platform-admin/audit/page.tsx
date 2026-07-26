@@ -20,7 +20,11 @@ export default async function PlatformAuditPage({ searchParams }: { searchParams
       <form className="mt-6 flex gap-3 rounded-[12px] bg-white p-3 shadow-[0_1px_2px_rgba(13,47,42,0.08)]">
         <select name="action" defaultValue={action} aria-label="Фильтр действия" className="min-h-11 min-w-0 flex-1 rounded-[9px] bg-[#f3f5f4] px-3 text-[13px]">
           <option value="">Все действия</option>
+          <option value="PLATFORM_ADMIN_USER_PROVISIONED">Создание владельца</option>
           <option value="PLATFORM_ROLE_BOOTSTRAPPED">Назначение владельца</option>
+          <option value="PLATFORM_ACCOUNT_ACTIVATION_CREATED">Ссылка активации создана</option>
+          <option value="PLATFORM_ACCOUNT_ACTIVATED">Аккаунт активирован</option>
+          <option value="PLATFORM_ACCOUNT_ACTIVATION_REVOKED">Ссылка активации отозвана</option>
           <option value="ORGANIZATION_SUSPENDED">Приостановка организации</option>
           <option value="ORGANIZATION_REACTIVATED">Возобновление организации</option>
         </select>

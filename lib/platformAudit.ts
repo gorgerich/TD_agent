@@ -24,8 +24,15 @@ export async function appendPlatformAudit(
   tx: Prisma.TransactionClient,
   input: {
     actorUserId: number;
-    action: "PLATFORM_ROLE_BOOTSTRAPPED" | "ORGANIZATION_SUSPENDED" | "ORGANIZATION_REACTIVATED";
-    targetType: "user" | "organization";
+    action:
+      | "PLATFORM_ADMIN_USER_PROVISIONED"
+      | "PLATFORM_ROLE_BOOTSTRAPPED"
+      | "PLATFORM_ACCOUNT_ACTIVATION_CREATED"
+      | "PLATFORM_ACCOUNT_ACTIVATED"
+      | "PLATFORM_ACCOUNT_ACTIVATION_REVOKED"
+      | "ORGANIZATION_SUSPENDED"
+      | "ORGANIZATION_REACTIVATED";
+    targetType: "user" | "organization" | "activation";
     targetId?: string | null;
     metadata: unknown;
   },

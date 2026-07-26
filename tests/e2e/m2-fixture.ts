@@ -1,6 +1,7 @@
 import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 import { hashPassword } from "../../lib/password";
+import { hashPlatformActivationToken, isPlatformActivationTokenShape } from "../../lib/platformActivation";
 
 const command = process.argv[2];
 const runId = (process.env.M2_UAT_RUN_ID ?? "mission-2").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
@@ -11,6 +12,7 @@ const organizationA = `m2-uat-${runId}-a`;
 const organizationB = `m2-uat-${runId}-b`;
 const emails = {
   platform: `m2-platform-${runId}@synthetic.invalid`,
+  activation: `m2-activation-${runId}@synthetic.invalid`,
   admin: `m2-admin-${runId}@synthetic.invalid`,
   manager: `m2-manager-${runId}@synthetic.invalid`,
   agent: `m2-agent-${runId}@synthetic.invalid`,
@@ -56,7 +58,11 @@ async function verifyTarget() {
 async function provision() {
   await cleanup();
   const password = process.env.M2_UAT_PASSWORD;
+  const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
   if (!password || password.length < 32) throw new Error("M2_UAT_PASSWORD must contain at least 32 characters");
+  if (!activationToken || !isPlatformActivationTokenShape(activationToken)) {
+    throw new Error("M2_UAT_ACTIVATION_TOKEN must be a 32-byte base64url token");
+  }
   const passwordHash = hashPassword(password);
   const tier = await db.agentTier.upsert({
     where: { name: "M2 Synthetic UAT" },
@@ -78,12 +84,36 @@ async function provision() {
         metadata: { source: "isolated-e2e-fixture" },
       },
     });
+    const activationUser = await tx.user.create({
+      data: {
+        email: emails.activation,
+        name: "Первичная активация M2",
+        passwordHash: null,
+        platformRole: "SUPER_ADMIN",
+      },
+    });
+    const activation = await tx.platformAccountActivation.create({
+      data: {
+        userId: activationUser.id,
+        tokenHash: hashPlatformActivationToken(activationToken),
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+    await tx.platformAuditEvent.create({
+      data: {
+        actorUserId: activationUser.id,
+        action: "PLATFORM_ACCOUNT_ACTIVATION_CREATED",
+        targetType: "activation",
+        targetId: activation.id,
+        metadata: { source: "isolated-e2e-fixture" },
+      },
+    });
     await createOperationalIdentity(tx, tier.id, organizationA, "admin", emails.admin, "Администратор M2", "ADMIN", passwordHash);
     await createOperationalIdentity(tx, tier.id, organizationA, "manager", emails.manager, "Руководитель M2", "MANAGER", passwordHash);
     await createOperationalIdentity(tx, tier.id, organizationA, "agent", emails.agent, "Агент M2", "AGENT", passwordHash);
     await createOperationalIdentity(tx, tier.id, organizationB, "second", emails.second, "Сотрудник другой организации", "ADMIN", passwordHash);
   });
-  process.stdout.write(`${JSON.stringify({ status: "READY", organizations: 2, users: 5, emails })}\n`);
+  process.stdout.write(`${JSON.stringify({ status: "READY", organizations: 2, users: 6, emails })}\n`);
 }
 
 async function createOperationalIdentity(
@@ -120,7 +150,10 @@ async function cleanup() {
   const memberships = organizations.flatMap((organization) => organization.memberships);
   const userIds = memberships.map((membership) => membership.userId);
   const agentIds = memberships.flatMap((membership) => membership.agentId == null ? [] : [membership.agentId]);
-  const platformUsers = await db.user.findMany({ where: { email: emails.platform }, select: { id: true } });
+  const platformUsers = await db.user.findMany({
+    where: { email: { in: [emails.platform, emails.activation] } },
+    select: { id: true },
+  });
   const platformUserIds = platformUsers.map((user) => user.id);
   const organizationIds = organizations.map((organization) => organization.id);
   if (organizationIds.length) {
@@ -143,7 +176,7 @@ async function status() {
     db.membership.count({ where: { organizationId: { in: [organizationA, organizationB] } } }),
     db.platformAuditEvent.count({ where: { actor: { email: emails.platform } } }),
   ]);
-  return { status: organizations === 2 && users === 5 ? "READY" : "ABSENT", organizations, users, memberships, audit };
+  return { status: organizations === 2 && users === 6 ? "READY" : "ABSENT", organizations, users, memberships, audit };
 }
 
 function isLocalTarget(value: string | undefined) {

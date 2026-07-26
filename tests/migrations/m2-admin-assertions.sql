@@ -23,6 +23,23 @@ BEGIN
   IF to_regclass('public."PlatformAuditEvent"') IS NULL THEN
     RAISE EXCEPTION 'PlatformAuditEvent missing';
   END IF;
+  IF to_regclass('public."PlatformAccountActivation"') IS NULL THEN
+    RAISE EXCEPTION 'PlatformAccountActivation missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'PlatformAccountActivation_userId_fkey'
+  ) THEN
+    RAISE EXCEPTION 'PlatformAccountActivation user foreign key missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'PlatformAccountActivation'
+      AND indexname = 'PlatformAccountActivation_tokenHash_key'
+  ) THEN
+    RAISE EXCEPTION 'PlatformAccountActivation token hash unique index missing';
+  END IF;
   IF EXISTS (SELECT 1 FROM "User" WHERE "platformRole" IS NULL) THEN
     RAISE EXCEPTION 'User.platformRole contains NULL';
   END IF;

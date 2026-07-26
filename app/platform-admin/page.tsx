@@ -105,7 +105,11 @@ export function formatDate(date: Date) {
 
 export function auditLabel(action: string) {
   return {
+    PLATFORM_ADMIN_USER_PROVISIONED: "Создан владелец платформы",
     PLATFORM_ROLE_BOOTSTRAPPED: "Назначен владелец платформы",
+    PLATFORM_ACCOUNT_ACTIVATION_CREATED: "Создана ссылка активации",
+    PLATFORM_ACCOUNT_ACTIVATED: "Аккаунт владельца активирован",
+    PLATFORM_ACCOUNT_ACTIVATION_REVOKED: "Ссылка активации отозвана",
     ORGANIZATION_SUSPENDED: "Организация приостановлена",
     ORGANIZATION_REACTIVATED: "Организация возобновлена",
   }[action] ?? action;

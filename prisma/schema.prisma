@@ -41,6 +41,7 @@ model User {
   agent              Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
   memberships        Membership[]
   platformAuditEvents PlatformAuditEvent[] @relation("PlatformAuditActor")
+  platformActivations PlatformAccountActivation[]
 }
 
 model Order {
@@ -530,6 +531,22 @@ model PlatformAuditEvent {
   @@index([createdAt])
   @@index([actorUserId, createdAt])
   @@index([targetType, targetId, createdAt])
+}
+
+// One-time first-access credential activation for a trusted platform user.
+// Raw bearer tokens never enter PostgreSQL; only SHA-256 digests are stored.
+model PlatformAccountActivation {
+  id         String    @id @default(cuid())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model SavedOperationalView {

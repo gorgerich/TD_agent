@@ -4,6 +4,13 @@ import { hasCapability } from "../lib/operationalAuth";
 import { hasPlatformCapability } from "../lib/platformAuth";
 import { ADMIN_CONFIRMATION, assertAdminRoleConfirmation } from "../lib/organizationAdmin";
 import { sanitizePlatformAuditMetadata } from "../lib/platformAudit";
+import {
+  generatePlatformActivationToken,
+  hashPlatformActivationToken,
+  isPlatformActivationTokenShape,
+  PlatformActivationError,
+  validatePlatformAdminPassword,
+} from "../lib/platformActivation";
 import { isSessionPayload } from "../lib/session";
 
 test("platform capabilities belong only to SUPER_ADMIN, not organization ADMIN", () => {
@@ -43,4 +50,22 @@ test("platform audit metadata removes secret-bearing keys recursively", () => {
   }) as Record<string, unknown>;
   assert.equal("cookie" in sanitized, false);
   assert.deepEqual(sanitized.nested, { status: "ACTIVE" });
+});
+
+test("platform activation tokens are high entropy and only their SHA-256 digest is persisted", () => {
+  const token = generatePlatformActivationToken();
+  const another = generatePlatformActivationToken();
+  const digest = hashPlatformActivationToken(token);
+  assert.equal(isPlatformActivationTokenShape(token), true);
+  assert.equal(token.length, 43);
+  assert.notEqual(token, another);
+  assert.match(digest, /^[a-f0-9]{64}$/);
+  assert.equal(digest.includes(token), false);
+});
+
+test("platform activation password policy rejects mismatch, short and obvious passwords", () => {
+  assert.doesNotThrow(() => validatePlatformAdminPassword("A-long-private-passphrase-2026!", "A-long-private-passphrase-2026!"));
+  assert.throws(() => validatePlatformAdminPassword("not-the-same-123!", "different-pass-123!"), PlatformActivationError);
+  assert.throws(() => validatePlatformAdminPassword("short", "short"), PlatformActivationError);
+  assert.throws(() => validatePlatformAdminPassword("password1234", "password1234"), PlatformActivationError);
 });

@@ -48,15 +48,25 @@ does not affect unrelated B2C users.
 
 ## Bootstrap
 
-`ops:bootstrap-platform-super-admin` upgrades only an existing User selected by
-normalized `PLATFORM_SUPER_ADMIN_EMAIL`. It requires:
+`ops:bootstrap-platform-super-admin` selects a normalized
+`PLATFORM_SUPER_ADMIN_EMAIL`. It requires:
 
 - `CONFIRM_PLATFORM_ADMIN_BOOTSTRAP=YES`;
 - reviewed `EXPECTED_DATABASE_FINGERPRINT`;
 - a direct, writable database target.
 
-It is idempotent, creates one safe platform audit event on the first role
-change, and never creates a password or user.
+For an existing password-enabled User it assigns `SUPER_ADMIN` idempotently and
+never changes the password. For a missing User it creates a platform-only User
+with `passwordHash=null` and issues a 30-minute, one-time activation URL only
+when `CONFIRM_PLATFORM_ADMIN_ACTIVATION_OUTPUT=YES` is present outside CI.
+
+Activation tokens use 32 random bytes. Only a SHA-256 digest is persisted.
+The raw token is placed in the URL fragment so it is not sent in the initial
+HTTP request, removed from browser history immediately, and submitted only to
+the rate-limited activation API. Password hashing uses the existing PBKDF2
+format and completes before the atomic activation/password transaction.
+Re-running bootstrap revokes any previous unused activation. Existing
+passwords are never replaced.
 
 ## Rollout
 
@@ -65,6 +75,8 @@ Migration is additive:
 - add `PlatformRole` and `User.platformRole` defaulting to `USER`;
 - add `OrganizationStatus` and `Organization.status` defaulting to `ACTIVE`;
 - add `PlatformAuditEvent`.
+- add `PlatformAccountActivation` with token hash, expiry, consumption and
+  revocation timestamps.
 
 Validation runs only against isolated test and preview databases. Production
 migration and deployment require a separate owner-authorized release.
