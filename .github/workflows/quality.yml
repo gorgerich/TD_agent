@@ -53,6 +53,8 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260718090000_m1_operations_control_plane/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260719190000_m1_operations_integrity/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m1-operations-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260726090000_m2_platform_admin_rbac/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m2-admin-assertions.sql
       - name: Apply migrations to isolated test database
         run: npx prisma migrate deploy
       - name: Verify repeated migration deploy is a no-op
@@ -84,6 +86,22 @@ jobs:
           M1_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
           M1_UAT_PASSWORD="$password" \
           npx tsx tests/e2e/m1-fixture.ts provision
+      - name: Provision isolated M2 browser UAT fixture
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 36 | tr -d '\n')!Aa9"
+          printf '::add-mask::%s\n' "$password"
+          {
+            printf 'M2_UAT_FIXTURE=1\n'
+            printf 'M2_UAT_RUN_ID=ci-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'M2_UAT_PASSWORD=%s\n' "$password"
+          } >> "$GITHUB_ENV"
+          touch "$RUNNER_TEMP/m2-uat-ready"
+          EXPECTED_DATABASE_FINGERPRINT="$EXPECTED_DATABASE_FINGERPRINT" \
+          M2_UAT_FIXTURE=1 \
+          M2_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+          M2_UAT_PASSWORD="$password" \
+          npx tsx tests/e2e/m2-fixture.ts provision
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start production server
@@ -102,4 +120,10 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/m1-uat-ready" ]; then
             npx tsx tests/e2e/m1-fixture.ts cleanup
+          fi
+      - name: Cleanup isolated M2 browser UAT fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
+            npx tsx tests/e2e/m2-fixture.ts cleanup
           fi

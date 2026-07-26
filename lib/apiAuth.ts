@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { getSessionFromRequest, type AgentSession } from "@/lib/auth";
+import { AuthenticationError, getSessionFromRequest, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { OperationalAuthError } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
@@ -38,7 +38,7 @@ export async function requireAgent(req: Request, options: { allowAdminMutation?:
     && !options.allowAdminMutation
     && !["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())
   ) {
-    throw new ApiError(403, "Роль аудитора доступна только для чтения");
+    throw new ApiError(403, "Администратор организации не может изменять операционные данные через этот маршрут");
   }
   return session;
 }
@@ -110,6 +110,10 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
   }
 
   if (err instanceof OperationalAuthError) {
+    return jsonError(err.status, err.message);
+  }
+
+  if (err instanceof AuthenticationError) {
     return jsonError(err.status, err.message);
   }
 

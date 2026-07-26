@@ -32,11 +32,28 @@ export async function createAgentSession(params: {
   role?: Role;
   name?: string | null;
 }): Promise<string> {
+  const membership = await prisma.membership.findFirst({
+    where: { userId: params.userId, agentId: params.agentId },
+    select: { id: true },
+  });
   return signSession({
     userId: params.userId,
-    agentId: params.agentId,
-    role: params.role ?? "AGENT",
+    activeMembershipId: membership?.id,
+    version: 2,
     name: params.name ?? "Агент",
+  });
+}
+
+export async function createUserSession(params: {
+  userId: number;
+  activeMembershipId?: string;
+  name?: string | null;
+}): Promise<string> {
+  return signSession({
+    userId: params.userId,
+    activeMembershipId: params.activeMembershipId,
+    version: 2,
+    name: params.name ?? undefined,
   });
 }
 

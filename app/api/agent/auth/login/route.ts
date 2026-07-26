@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
-import { createAgentSession, normalizeEmail, setAgentSessionCookie } from "@/lib/agentAuth";
+import { createUserSession, normalizeEmail, setAgentSessionCookie } from "@/lib/agentAuth";
 import { enforceRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -24,22 +24,38 @@ export async function POST(req: NextRequest) {
   const email = normalizeEmail(parsed.data.email);
   const user = await prisma.user.findUnique({
     where: { email },
-    include: { agent: true },
+    select: {
+      id: true,
+      name: true,
+      passwordHash: true,
+      platformRole: true,
+      memberships: {
+        where: {
+          status: "ACTIVE",
+          organization: { status: "ACTIVE" },
+          agent: { status: "ACTIVE" },
+        },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, role: true },
+      },
+    },
   });
 
-  if (!user?.agent || !verifyPassword(parsed.data.password, user.passwordHash)) {
+  if (!user || !verifyPassword(parsed.data.password, user.passwordHash)) {
     return NextResponse.json({ error: "Неверный email или пароль" }, { status: 401 });
   }
 
-  if (user.agent.status !== "ACTIVE") {
-    return NextResponse.json({ error: "Профиль агента не активен" }, { status: 403 });
+  const activeMembership = user.memberships[0];
+  if (user.platformRole !== "SUPER_ADMIN" && !activeMembership) {
+    return NextResponse.json({ error: "Рабочий доступ приостановлен или не назначен" }, { status: 403 });
   }
 
-  const token = await createAgentSession({
+  const token = await createUserSession({
     userId: user.id,
-    agentId: user.agent.id,
+    activeMembershipId: activeMembership?.id,
     name: user.name,
   });
+  const redirectTo = user.platformRole === "SUPER_ADMIN" ? "/platform-admin" : "/agent/cases";
 
-  return setAgentSessionCookie(NextResponse.json({ ok: true }), token);
+  return setAgentSessionCookie(NextResponse.json({ ok: true, redirectTo }), token);
 }

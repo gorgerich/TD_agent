@@ -1,4 +1,4 @@
-import type { MembershipRole, Prisma } from "@prisma/client";
+import type { MembershipRole, PlatformRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type OperationalRole = MembershipRole;
@@ -11,6 +11,7 @@ export type OperationalContext = {
   role: OperationalRole;
   timezone: string;
   name?: string;
+  platformRole: PlatformRole;
 };
 
 export type OperationalCapability =
@@ -19,12 +20,21 @@ export type OperationalCapability =
   | "team:read"
   | "team:assign"
   | "audit:read"
-  | "membership:invite";
+  | "membership:invite"
+  | "organization:read"
+  | "membership:manage";
 
 const ROLE_CAPABILITIES: Record<OperationalRole, ReadonlySet<OperationalCapability>> = {
   AGENT: new Set(["work:read", "work:mutate-own"]),
   MANAGER: new Set(["work:read", "work:mutate-own", "team:read", "team:assign", "audit:read"]),
-  ADMIN: new Set(["work:read", "team:read", "audit:read", "membership:invite"]),
+  ADMIN: new Set([
+    "work:read",
+    "team:read",
+    "audit:read",
+    "membership:invite",
+    "organization:read",
+    "membership:manage",
+  ]),
 };
 
 export function hasCapability(role: OperationalRole, capability: OperationalCapability): boolean {
@@ -54,28 +64,51 @@ export async function resolveOperationalContext(
 ): Promise<OperationalContext | null> {
   if (userId <= 0 || agentId <= 0) return null;
 
+  return resolveOperationalContextForUser(userId, { agentId }, client);
+}
+
+export async function resolveOperationalContextForUser(
+  userId: number,
+  selector: { activeMembershipId?: string; agentId?: number } = {},
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<OperationalContext | null> {
+  if (userId <= 0) return null;
+
   const membership = await client.membership.findFirst({
-    where: { userId, agentId, status: "ACTIVE" },
+    where: {
+      userId,
+      status: "ACTIVE",
+      organization: { status: "ACTIVE" },
+      agent: { status: "ACTIVE" },
+      ...(selector.activeMembershipId
+        ? { id: selector.activeMembershipId }
+        : selector.agentId
+          ? { agentId: selector.agentId }
+          : {}),
+    },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       organizationId: true,
+      agentId: true,
       role: true,
       organization: { select: { timezone: true } },
-      user: { select: { name: true } },
+      user: { select: { name: true, platformRole: true } },
       agent: { select: { status: true } },
     },
   });
 
-  if (!membership || membership.agent?.status !== "ACTIVE") return null;
+  if (!membership?.agentId || membership.agent?.status !== "ACTIVE") return null;
 
   return {
     userId,
-    agentId,
+    agentId: membership.agentId,
     membershipId: membership.id,
     organizationId: membership.organizationId,
     role: membership.role,
     timezone: membership.organization.timezone,
     name: membership.user.name ?? undefined,
+    platformRole: membership.user.platformRole,
   };
 }
 

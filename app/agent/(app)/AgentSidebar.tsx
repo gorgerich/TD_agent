@@ -17,6 +17,7 @@ import {
   GraduationCap,
   MagnifyingGlass,
   Package,
+  ShieldStar,
   UsersThree,
   type Icon,
 } from "@phosphor-icons/react";
@@ -179,6 +180,24 @@ function UserBlock({
             <span className="block text-[11px] text-ink-3">{ROLE_LABELS[session.role] ?? session.role}</span>
           </span>
         </div>
+      )}
+      {session?.platformRole === "SUPER_ADMIN" && (
+        <Link
+          href="/platform-admin"
+          className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-semibold text-accent"
+        >
+          <ShieldStar size={16} weight="fill" />
+          Администрирование платформы
+        </Link>
+      )}
+      {session?.role === "ADMIN" && (
+        <Link
+          href="/agent/settings/team"
+          className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-2"
+        >
+          <UsersThree size={16} weight="fill" className="text-ink-3" />
+          Команда и доступы
+        </Link>
       )}
       <button
         type="button"

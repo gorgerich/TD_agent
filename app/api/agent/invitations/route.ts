@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 const Body = z.object({
   email: z.string().email(),
   role: z.enum(["AGENT", "MANAGER", "ADMIN"]),
+  confirmation: z.string().trim().max(120).optional(),
   expiresInHours: z.number().int().min(1).max(168).default(48),
 });
 
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
     assertCapability(session, "membership:invite");
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");
+    if (parsed.data.role === "ADMIN" && parsed.data.confirmation !== "НАЗНАЧИТЬ АДМИНИСТРАТОРА") {
+      return jsonError(422, "Для назначения ADMIN введите «НАЗНАЧИТЬ АДМИНИСТРАТОРА»");
+    }
     const idempotencyKey = req.headers.get("idempotency-key")?.trim();
     const correlationId = req.headers.get("x-correlation-id")?.trim();
     if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
@@ -53,7 +57,7 @@ export async function POST(req: NextRequest) {
           actorMembershipId: session.membershipId,
           entityType: "membership",
           entityId: created.id,
-          action: "membership.invited",
+          action: "MEMBER_INVITED",
           before: {},
           after: { role: created.role, expiresAt: created.expiresAt.toISOString() },
           correlationId,
@@ -80,7 +84,7 @@ export async function POST(req: NextRequest) {
 }
 
 function assertInvitationReplay(replay: { action: string; entityType: string; entityId: string }) {
-  if (replay.action !== "membership.invited" || replay.entityType !== "membership") {
+  if (replay.action !== "MEMBER_INVITED" || replay.entityType !== "membership") {
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
 }

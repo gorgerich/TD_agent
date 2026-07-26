@@ -1,16 +1,27 @@
-import type { Role } from "./auth";
-
 export const SESSION_COOKIE = "tihiydom_agent_session";
 const SESSION_TTL_SEC = 8 * 60 * 60; // 8 hours
 
 export interface SessionPayload {
   userId: number;
-  agentId: number;
-  role: Role;
+  version: 1 | 2;
+  activeMembershipId?: string;
+  // Legacy v1 selectors remain parseable until old cookies expire. Neither
+  // field is an authorization claim.
+  agentId?: number;
+  role?: string;
   name?: string;
   iat: number;
   exp: number;
 }
+
+export type SessionClaims = {
+  userId: number;
+  activeMembershipId?: string;
+  version?: 1 | 2;
+  agentId?: number;
+  role?: string;
+  name?: string;
+};
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -39,9 +50,14 @@ async function getKey(): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-export async function signSession(data: Omit<SessionPayload, "iat" | "exp">): Promise<string> {
+export async function signSession(data: SessionClaims): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const payload: SessionPayload = { ...data, iat: now, exp: now + SESSION_TTL_SEC };
+  const payload: SessionPayload = {
+    ...data,
+    version: data.version ?? 2,
+    iat: now,
+    exp: now + SESSION_TTL_SEC,
+  };
   // encode payload as UTF-8 bytes → base64url (handles non-ASCII names)
   const payloadBytes = enc.encode(JSON.stringify(payload));
   const encoded = toB64url(payloadBytes);
@@ -59,10 +75,26 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
     const key = await getKey();
     const valid = await crypto.subtle.verify("HMAC", key, fromB64url(sigB64), enc.encode(encoded));
     if (!valid) return null;
-    const payload = JSON.parse(dec.decode(fromB64url(encoded))) as SessionPayload;
+    const payload = JSON.parse(dec.decode(fromB64url(encoded))) as unknown;
+    if (!isSessionPayload(payload)) return null;
     if (payload.exp < Math.floor(Date.now() / 1000)) return null;
-    return payload;
+    return { ...payload, version: payload.version ?? 1 };
   } catch {
     return null;
   }
+}
+
+export function isSessionPayload(value: unknown): value is SessionPayload {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Record<string, unknown>;
+  const version = payload.version ?? 1;
+  return (
+    (version === 1 || version === 2)
+    && Number.isInteger(payload.userId)
+    && Number(payload.userId) > 0
+    && Number.isInteger(payload.iat)
+    && Number.isInteger(payload.exp)
+    && (payload.activeMembershipId === undefined || typeof payload.activeMembershipId === "string")
+    && (payload.agentId === undefined || (Number.isInteger(payload.agentId) && Number(payload.agentId) > 0))
+  );
 }

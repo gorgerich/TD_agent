@@ -172,6 +172,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         role: membership.role,
         timezone: "Europe/Moscow",
         name: `IT ${safeTag}`,
+        platformRole: "USER",
       },
     };
   }
@@ -254,6 +255,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         await tx.organizationInvite.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.task.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
       }
+      if (ownUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: ownUserIds } } });
       if (caseIds.length) await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
       if (meetingIds.length) await tx.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
       if (orderIds.length) {
@@ -297,7 +299,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
   }
 
   async function assertNoResidue(): Promise<void> {
-    const [organizations, memberships, agents, users, tasks, meetings, audits, receipts, views] = await Promise.all([
+    const [organizations, memberships, agents, users, tasks, meetings, audits, platformAudits, receipts, views] = await Promise.all([
       db.organization.count({ where: { id: { in: [...createdOrganizationIds] } } }),
       db.membership.count({ where: { id: { in: [...createdMembershipIds] } } }),
       db.agent.count({ where: { id: { in: [...createdAgentIds] } } }),
@@ -305,10 +307,11 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       db.task.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
       db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
     ]);
-    const total = organizations + memberships + agents + users + tasks + meetings + audits + receipts + views;
+    const total = organizations + memberships + agents + users + tasks + meetings + audits + platformAudits + receipts + views;
     if (total !== 0) {
       throw new Error(`Fixture residue detected for ${runId}: ${total} rows`);
     }

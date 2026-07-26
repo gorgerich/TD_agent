@@ -41,9 +41,22 @@ export async function POST(req: NextRequest) {
   if (inviteHash) {
     const invite = await prisma.organizationInvite.findUnique({
       where: { tokenHash: inviteHash },
-      select: { emailNormalized: true, acceptedAt: true, revokedAt: true, expiresAt: true },
+      select: {
+        emailNormalized: true,
+        acceptedAt: true,
+        revokedAt: true,
+        expiresAt: true,
+        organization: { select: { status: true } },
+      },
     });
-    if (!invite || invite.emailNormalized !== email || invite.acceptedAt || invite.revokedAt || invite.expiresAt <= new Date()) {
+    if (
+      !invite
+      || invite.organization.status !== "ACTIVE"
+      || invite.emailNormalized !== email
+      || invite.acceptedAt
+      || invite.revokedAt
+      || invite.expiresAt <= new Date()
+    ) {
       return NextResponse.json({ error: "Приглашение недействительно или истекло" }, { status: 403 });
     }
   }
@@ -59,9 +72,22 @@ export async function POST(req: NextRequest) {
       if (existing) throw new RegistrationError(409, "Агент с таким email или телефоном уже зарегистрирован");
 
       const invite = inviteHash
-        ? await tx.organizationInvite.findUnique({ where: { tokenHash: inviteHash } })
+        ? await tx.organizationInvite.findUnique({
+            where: { tokenHash: inviteHash },
+            include: { organization: { select: { status: true } } },
+          })
         : null;
-      if (inviteHash && (!invite || invite.emailNormalized !== email || invite.acceptedAt || invite.revokedAt || invite.expiresAt <= new Date())) {
+      if (
+        inviteHash
+        && (
+          !invite
+          || invite.organization.status !== "ACTIVE"
+          || invite.emailNormalized !== email
+          || invite.acceptedAt
+          || invite.revokedAt
+          || invite.expiresAt <= new Date()
+        )
+      ) {
         throw new RegistrationError(403, "Приглашение недействительно или истекло");
       }
       const tier = await tx.agentTier.findFirst({ orderBy: [{ commissionPct: "asc" }, { id: "asc" }] });
@@ -121,7 +147,7 @@ export async function POST(req: NextRequest) {
       role: created.role,
       name: created.agent.user.name,
     });
-    return setAgentSessionCookie(NextResponse.json({ ok: true }), token);
+    return setAgentSessionCookie(NextResponse.json({ ok: true, redirectTo: "/agent/cases" }), token);
   } catch (error) {
     if (error instanceof RegistrationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

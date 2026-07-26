@@ -63,7 +63,7 @@ function AgentLoginContent() {
         return;
       }
 
-      router.push("/agent/cases");
+      router.push(typeof data.redirectTo === "string" ? data.redirectTo : "/agent/cases");
       router.refresh();
     } catch {
       setError("Нет связи. Проверьте интернет и попробуйте снова.");
