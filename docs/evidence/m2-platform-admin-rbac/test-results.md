@@ -14,5 +14,9 @@ Results are refreshed at final branch head before gate closure.
 | Repeated migrate deploy | No pending migrations |
 | Build | PASS |
 | M2 browser UAT | Platform Admin, Organization Admin, Manager/Agent forbidden, cross-tenant, mobile: PASS |
+| UTC hydration regression | PASS; browser errors `0` |
+| GitHub Quality | PASS, run `30201775441`, skipped `0` |
+| Vercel protected role smoke | PASS; role redirects/403 and tenant isolation verified |
+| Preview fixture residue | `0` |
 
 Final CI and isolated Preview references are recorded in `preview.md`.
