@@ -31,4 +31,17 @@ Global actions use `PlatformAuditEvent`. Tenant actions use
 `OperationalAuditEvent`. Secret-bearing metadata keys are removed before global
 audit persistence.
 
+## First platform owner activation
+
+Trusted bootstrap may create a platform-only `User` with
+`platformRole=SUPER_ADMIN` and `passwordHash=null`. It creates a 30-minute
+`PlatformAccountActivation` whose database representation contains only a
+SHA-256 token digest. The raw 32-byte token is emitted once to a confirmed
+non-CI operator and placed in a URL fragment.
+
+`/setup/platform-admin` removes that fragment immediately, verifies the token
+through a rate-limited server route, and uses the existing PBKDF2 password
+format. Token consumption, password assignment and audit append commit in one
+transaction. The resulting ordinary v2 session redirects to `/platform-admin`.
+
 See [ADR-M2-PLATFORM-ADMIN-RBAC](../../../adr/ADR-M2-PLATFORM-ADMIN-RBAC.md).

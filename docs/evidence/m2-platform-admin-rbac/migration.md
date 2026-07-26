@@ -4,6 +4,8 @@ Migration:
 
 - `20260726090000_m2_platform_admin_rbac`
 - SHA-256: `9682dcecfdbdd9636a8119d5281d2fe84a8d8973be09955e02838925e5e09a49`
+- `20260726150000_m2_platform_admin_activation`
+- SHA-256: `be21b0965b44cc187d2a04385e5f61947d80a399a25ccc8b5f7127ddb6a21449`
 - Type: additive
 
 Changes:
@@ -13,14 +15,17 @@ Changes:
 - adds `User.platformRole` with `USER` default;
 - adds `Organization.status` with `ACTIVE` default;
 - creates `PlatformAuditEvent` and supporting indexes/FK.
+- creates `PlatformAccountActivation`, unique token-hash index, expiry/user
+  indexes and cascading User FK.
 
 Isolated Preview:
 
 - migration deploy: PASS;
-- applied migrations: 5;
+- applied migrations: 6;
 - repeated deploy: no pending migrations;
 - schema parity: PASS;
-- baseline Organization/Membership/Case/Task/PlatformAuditEvent counts: all 0.
+- baseline Organization/Membership/Case/Task/PlatformAccountActivation counts:
+  all 0.
 
 Existing approved migration files are unchanged:
 
