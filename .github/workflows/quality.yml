@@ -91,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           password="$(openssl rand -base64 36 | tr -d '\n')!Aa9"
-          activation_token="$(node -e 'process.stdout.write(require(\"node:crypto\").randomBytes(32).toString(\"base64url\"))')"
+          activation_token="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           printf '::add-mask::%s\n' "$password"
           printf '::add-mask::%s\n' "$activation_token"
           {
