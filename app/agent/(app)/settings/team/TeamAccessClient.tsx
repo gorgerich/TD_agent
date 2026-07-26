@@ -46,6 +46,11 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 const ADMIN_CONFIRMATION = "НАЗНАЧИТЬ АДМИНИСТРАТОРА";
+const INVITE_DATE_FORMATTER = new Intl.DateTimeFormat("ru-RU", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Europe/Moscow",
+});
 
 function requestHeaders() {
   return {
@@ -296,7 +301,7 @@ export function TeamAccessClient({
                   <span className={`text-[12px] font-semibold ${revoked || expired ? "text-danger" : "text-success"}`}>
                     {revoked ? "Отозвано" : expired ? "Истекло" : "Ожидает"}
                   </span>
-                  <time className="text-[11px] text-ink-3">до {new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(invite.expiresAt))}</time>
+                  <time className="text-[11px] text-ink-3">до {INVITE_DATE_FORMATTER.format(new Date(invite.expiresAt))}</time>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="ghost" size="sm" loading={isBusy} onClick={() => updateInvite(invite.id, "RESEND")}>Отправить снова</Button>
                     {!revoked && <Button type="button" variant="ghost" size="sm" disabled={isBusy} onClick={() => updateInvite(invite.id, "REVOKE")}>Отозвать</Button>}
