@@ -1,4 +1,4 @@
-# M2 first platform admin activation evidence
+# M1 RBAC Hardening first platform admin activation evidence
 
 ## Provisioning contract
 
@@ -39,7 +39,7 @@
 - E2E: mobile activation, URL cleanup, automatic session, platform redirect and
   replay rejection PASS.
 - Agent and Manager auth regressions: PASS.
-- GitHub CI: `30203838837`, skipped `0`.
+- Final pre-correction GitHub CI: `30350985936`, skipped `0`.
 - Isolated Preview migration/repeated deploy/schema parity: PASS.
 - Production DB/schema/deployment: unchanged.
 

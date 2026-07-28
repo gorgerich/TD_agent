@@ -1,4 +1,4 @@
-# M2 security review
+# M1 RBAC Hardening security review
 
 - Privilege escalation: no organization or activation endpoint accepts or
   updates `User.platformRole`; bootstrap requires explicit confirmation, direct

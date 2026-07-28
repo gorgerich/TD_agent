@@ -1,8 +1,8 @@
-# M2 architecture summary
+# M1 RBAC Hardening architecture summary
 
 ## Decision
 
-M2 adds two independent authorization dimensions:
+M1 RBAC Hardening adds two independent authorization dimensions:
 
 - `User.platformRole`: `USER | SUPER_ADMIN`
 - `Membership.role`: `AGENT | MANAGER | ADMIN`
@@ -44,4 +44,4 @@ through a rate-limited server route, and uses the existing PBKDF2 password
 format. Token consumption, password assignment and audit append commit in one
 transaction. The resulting ordinary v2 session redirects to `/platform-admin`.
 
-See [ADR-M2-PLATFORM-ADMIN-RBAC](../../../adr/ADR-M2-PLATFORM-ADMIN-RBAC.md).
+See [ADR-M1-RBAC-HARDENING](../../adr/ADR-M1-RBAC-HARDENING.md).

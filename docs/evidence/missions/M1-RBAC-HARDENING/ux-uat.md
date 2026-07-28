@@ -17,7 +17,7 @@ Verified flows:
 
 Visual evidence is stored under:
 
-`docs/evidence/m2-platform-admin-rbac/screenshots/`
+`docs/evidence/m1-rbac-hardening/screenshots/`
 
 Critical accessibility findings: `0`.
 Serious accessibility findings: `0`.

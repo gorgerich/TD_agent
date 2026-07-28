@@ -1,19 +1,25 @@
-# Platform Admin RBAC mission implementation
+# M1 RBAC Hardening implementation
 
-This record covers the out-of-band Platform Admin mission implemented before
-the Mission Runbook 2.0 naming was adopted. It is intentionally named
-`M2-PLATFORM-ADMIN-RBAC` and must not be confused with the future portfolio
-mission `M2 Commercial Trust Loop`.
+This record covers supplemental hardening of released M1 and Week 8. Its
+authoritative mission ID is `M1-RBAC-HARDENING`. It is not the portfolio
+mission `M2 Commercial Trust Loop`, which remains `NOT_STARTED`.
 
 - Base: `7e305d28d2a1c15a147a712062f30323acde98c1`
 - Runtime implementation:
   `be37d89fc1718744a9aa6896261552f0bd689c35`
-- Final evidence head: recorded in PR #24 after evidence commit.
+- Evidence head before governance correction:
+  `785d8242c7cdde9f5d8e771f074b5e391eb0f90b`
 - PR: https://github.com/gorgerich/TD_agent/pull/24
 - Runtime CI baseline: https://github.com/gorgerich/TD_agent/actions/runs/30349079932
-- Final evidence CI: recorded in PR #24 after evidence commit.
-- Preview: https://td-agent-3f4oiko7f-rics-projects-9baa2793.vercel.app
-- Preview deployment: `dpl_79EvErGKsU787Su7NAC763q6vpho`
+- Final pre-correction evidence CI:
+  https://github.com/gorgerich/TD_agent/actions/runs/30350985936
+- Authoritative pre-correction Preview:
+  https://td-agent-3rd0n1fyt-rics-projects-9baa2793.vercel.app
+- Authoritative pre-correction Preview deployment:
+  `dpl_2E2VEv2Latm69oFw6a4QzK1v8jHQ`
+- Preview deployment SHA:
+  `785d8242c7cdde9f5d8e771f074b5e391eb0f90b`
+- Validation database fingerprint: `76ecfdc12aece957`
 
 Implemented scope:
 

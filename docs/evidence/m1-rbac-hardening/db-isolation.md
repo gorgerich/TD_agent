@@ -1,9 +1,10 @@
 # Preview database isolation proof
 
 - Production canonical fingerprint: `0257665af2dd90a4`
-- Isolated M2 Preview fingerprint: `1645948702f70ded`
+- Authoritative validation database fingerprint: `76ecfdc12aece957`
+- Historical activation Preview fingerprint: `1645948702f70ded`
 - Normalized database endpoints: different
-- Preview database name: dedicated M2 database on the isolated restore resource
+- Validation database: dedicated isolated database on the restore resource
 - Initial public table count: `0`
 - Writable probe: PASS
 - Production database used for tests: NO

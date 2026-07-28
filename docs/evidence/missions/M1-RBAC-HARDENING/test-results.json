@@ -1,10 +1,14 @@
 {
-  "mission": "M2-PLATFORM-ADMIN-RBAC",
+  "mission": "M1-RBAC-HARDENING",
+  "classification": "supplemental_m1_week8_hardening",
+  "portfolioM2CommercialTrustLoop": "NOT_STARTED",
   "state": "MISSION_RELEASE_READY",
   "implementationSha": "be37d89fc1718744a9aa6896261552f0bd689c35",
-  "finalEvidenceSha": null,
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30349079932",
-  "previewDeploymentId": "dpl_79EvErGKsU787Su7NAC763q6vpho",
+  "evidenceHeadBeforeGovernanceCorrection": "785d8242c7cdde9f5d8e771f074b5e391eb0f90b",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30350985936",
+  "githubCiHead": "785d8242c7cdde9f5d8e771f074b5e391eb0f90b",
+  "previewDeploymentId": "dpl_2E2VEv2Latm69oFw6a4QzK1v8jHQ",
+  "previewDeploymentSha": "785d8242c7cdde9f5d8e771f074b5e391eb0f90b",
   "previewDatabaseFingerprint": "76ecfdc12aece957",
   "checks": {
     "lint": "PASS",

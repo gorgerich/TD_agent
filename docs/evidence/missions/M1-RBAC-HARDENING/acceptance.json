@@ -1,93 +1,93 @@
 {
-  "mission": "M2-PLATFORM-ADMIN-RBAC",
+  "mission": "M1-RBAC-HARDENING",
   "state": "MISSION_RELEASE_READY",
   "acceptance": [
     {
-      "id": "M2A-AC-01",
+      "id": "M1RH-AC-01",
       "status": "PASS",
       "requirement": "Platform SUPER_ADMIN is a separate platform role and does not require Agent, Membership or Organization.",
       "evidence": "Unit, integration and E2E tests prove platform-only authentication and platform navigation."
     },
     {
-      "id": "M2A-AC-02",
+      "id": "M1RH-AC-02",
       "status": "PASS",
       "requirement": "Organization ADMIN cannot access platform administration or mutate platformRole.",
       "evidence": "Server-side authorization and mass-assignment negative tests pass."
     },
     {
-      "id": "M2A-AC-03",
+      "id": "M1RH-AC-03",
       "status": "PASS",
       "requirement": "Organization team administration is tenant-scoped and foreign resources are not disclosed.",
       "evidence": "Cross-tenant integration tests return safe authorization responses."
     },
     {
-      "id": "M2A-AC-04",
+      "id": "M1RH-AC-04",
       "status": "PASS",
       "requirement": "The final active organization ADMIN cannot be demoted or suspended.",
       "evidence": "Last-admin invariant unit and integration tests pass."
     },
     {
-      "id": "M2A-AC-05",
+      "id": "M1RH-AC-05",
       "status": "PASS",
       "requirement": "A missing first platform owner can be provisioned without a default password.",
       "evidence": "Bootstrap creates one normalized User with null passwordHash and SUPER_ADMIN."
     },
     {
-      "id": "M2A-AC-06",
+      "id": "M1RH-AC-06",
       "status": "PASS",
       "requirement": "First-admin activation uses a short-lived, one-time, hash-only token.",
       "evidence": "Token storage, expiry, revoke, consume and replay tests pass."
     },
     {
-      "id": "M2A-AC-07",
+      "id": "M1RH-AC-07",
       "status": "PASS",
       "requirement": "Activation sets a compatible password, enrolls TOTP MFA, creates an MFA-verified session and redirects to platform administration.",
       "evidence": "Integration and mobile E2E activation and MFA flows pass."
     },
     {
-      "id": "M2A-AC-08",
+      "id": "M1RH-AC-08",
       "status": "PASS",
       "requirement": "Cookie roles are not trusted and current database roles and statuses are loaded on each request.",
       "evidence": "Session and stale-role authorization tests pass."
     },
     {
-      "id": "M2A-AC-09",
+      "id": "M1RH-AC-09",
       "status": "PASS",
       "requirement": "Platform and tenant audit records exclude credentials, raw activation tokens and sensitive case content.",
       "evidence": "Audit sanitizer and secret-scan tests pass."
     },
     {
-      "id": "M2A-AC-10",
+      "id": "M1RH-AC-10",
       "status": "PASS",
       "requirement": "Additive migrations deploy on an isolated Preview database, repeat as no-op and match Prisma schema.",
       "evidence": "Migration fixture, repeated deploy and schema parity gates pass."
     },
     {
-      "id": "M2A-AC-11",
+      "id": "M1RH-AC-11",
       "status": "PASS",
       "requirement": "Agent and Manager authentication and operational flows remain functional.",
       "evidence": "Agent and Manager regression E2E tests pass."
     },
     {
-      "id": "M2A-AC-12",
+      "id": "M1RH-AC-12",
       "status": "PASS",
       "requirement": "Platform and organization administration work on desktop and mobile without critical accessibility defects.",
       "evidence": "Exact Preview screenshots and browser tests pass with critical and serious accessibility findings equal to zero."
     },
     {
-      "id": "M2A-AC-13",
+      "id": "M1RH-AC-13",
       "status": "PASS",
       "requirement": "Role elevation invalidates old sessions and platform sessions can be explicitly revoked.",
       "evidence": "Pre-promotion cookie and session-revocation integration regressions pass."
     },
     {
-      "id": "M2A-AC-14",
+      "id": "M1RH-AC-14",
       "status": "PASS",
       "requirement": "Activation and MFA rate limits persist across application instances and fail safely on infrastructure errors.",
       "evidence": "Persistent bucket integration and route-level 503 regressions pass."
     },
     {
-      "id": "M2A-AC-15",
+      "id": "M1RH-AC-15",
       "status": "PASS",
       "requirement": "Invitation bearer values never enter query strings.",
       "evidence": "Fragment transport unit and E2E flows pass."

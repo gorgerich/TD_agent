@@ -43,7 +43,7 @@ jobs:
       - run: npm ci
       - run: npm run evidence:validate
         env:
-          REQUIRED_MISSION_EVIDENCE: M2-PLATFORM-ADMIN-RBAC
+          REQUIRED_MISSION_EVIDENCE: M1-RBAC-HARDENING
       - name: Verify Week 2 and M1 legacy backfill fixtures
         run: |
           set -euo pipefail
@@ -96,7 +96,7 @@ jobs:
           M1_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
           M1_UAT_PASSWORD="$password" \
           npx tsx tests/e2e/m1-fixture.ts provision
-      - name: Provision isolated M2 browser UAT fixture
+      - name: Provision isolated M1 RBAC Hardening browser UAT fixture
         run: |
           set -euo pipefail
           password="$(openssl rand -base64 36 | tr -d '\n')!Aa9"
@@ -153,7 +153,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/m1-uat-ready" ]; then
             npx tsx tests/e2e/m1-fixture.ts cleanup
           fi
-      - name: Cleanup isolated M2 browser UAT fixture
+      - name: Cleanup isolated M1 RBAC Hardening browser UAT fixture
         if: always()
         run: |
           if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then

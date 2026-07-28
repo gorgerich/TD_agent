@@ -1,4 +1,4 @@
-# ADR M2: Platform Admin and organization RBAC
+# ADR M1-RBAC-HARDENING: Platform Admin and organization RBAC
 
 Status: accepted for isolated implementation
 Date: 2026-07-26
