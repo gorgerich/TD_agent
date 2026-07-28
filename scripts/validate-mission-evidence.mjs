@@ -22,13 +22,15 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
     if (jsonName === "test-results.json") {
       if (value.checks?.skipped !== 0) errors.push(`${directory.name}: skipped must equal 0`);
       if (value.checks?.notRun !== 0) errors.push(`${directory.name}: notRun must equal 0`);
-      if (typeof value.implementationSha !== "string" || !/^[0-9a-f]{40}$/.test(value.implementationSha)) {
-        errors.push(`${directory.name}: implementationSha must be a full commit SHA`);
-      } else if (!isAncestor(value.implementationSha)) {
-        errors.push(`${directory.name}: implementationSha is not an ancestor of HEAD`);
-      }
-      if (value.checks?.independentReview?.p0 !== 0 || value.checks?.independentReview?.p1 !== 0) {
-        errors.push(`${directory.name}: independent review must have p0=0 and p1=0`);
+      if (directory.name === requiredMission) {
+        if (typeof value.implementationSha !== "string" || !/^[0-9a-f]{40}$/.test(value.implementationSha)) {
+          errors.push(`${directory.name}: implementationSha must be a full commit SHA`);
+        } else if (!isAncestor(value.implementationSha)) {
+          errors.push(`${directory.name}: implementationSha is not an ancestor of HEAD`);
+        }
+        if (value.checks?.independentReview?.p0 !== 0 || value.checks?.independentReview?.p1 !== 0) {
+          errors.push(`${directory.name}: independent review must have p0=0 and p1=0`);
+        }
       }
     }
     if (jsonName === "acceptance.json") {

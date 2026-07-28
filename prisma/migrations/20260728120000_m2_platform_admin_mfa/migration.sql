@@ -7,12 +7,7 @@ ALTER TABLE "PlatformAccountActivation"
   ADD COLUMN "mfaSecretEncrypted" TEXT;
 
 UPDATE "PlatformAccountActivation"
-SET
-  "mfaSecretEncrypted" = '',
-  "revokedAt" = CASE
-    WHEN "consumedAt" IS NULL AND "revokedAt" IS NULL THEN CURRENT_TIMESTAMP
-    ELSE "revokedAt"
-  END
+SET "mfaSecretEncrypted" = ''
 WHERE "mfaSecretEncrypted" IS NULL;
 
 ALTER TABLE "PlatformAccountActivation"
