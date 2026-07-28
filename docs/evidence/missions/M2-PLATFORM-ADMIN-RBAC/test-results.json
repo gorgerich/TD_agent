@@ -1,0 +1,62 @@
+{
+  "mission": "M2-PLATFORM-ADMIN-RBAC",
+  "state": "MISSION_RELEASE_READY",
+  "implementationSha": "be37d89fc1718744a9aa6896261552f0bd689c35",
+  "finalEvidenceSha": null,
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30349079932",
+  "previewDeploymentId": "dpl_79EvErGKsU787Su7NAC763q6vpho",
+  "previewDatabaseFingerprint": "76ecfdc12aece957",
+  "checks": {
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 64
+    },
+    "integration": {
+      "status": "PASS",
+      "passed": 36,
+      "residue": 0
+    },
+    "e2e": {
+      "status": "PASS",
+      "platformAdmin": "PASS",
+      "organizationAdmin": "PASS",
+      "firstAdminActivation": "PASS",
+      "agentRegression": "PASS",
+      "managerRegression": "PASS",
+      "crossTenant": "PASS",
+      "mobile": "PASS"
+    },
+    "build": "PASS",
+    "migrationRehearsal": {
+      "status": "PASS",
+      "repeatedDeploy": "NO_OP"
+    },
+    "schemaParity": "PASS",
+    "platformRbac": "PASS",
+    "tenantIsolation": "PASS",
+    "firstAdminActivation": "PASS",
+    "platformMfa": "PASS",
+    "sessionRevocation": "PASS",
+    "persistentRateLimit": "PASS",
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0
+    },
+    "previewUat": "PASS",
+    "independentReview": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0
+    },
+    "skipped": 0,
+    "notRun": 0
+  },
+  "production": {
+    "writes": "NONE",
+    "databaseChanges": "NONE",
+    "deployment": "UNCHANGED"
+  }
+}

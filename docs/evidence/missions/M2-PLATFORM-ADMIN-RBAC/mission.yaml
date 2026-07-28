@@ -1,0 +1,26 @@
+mission: M2-PLATFORM-ADMIN-RBAC
+name: Platform Admin, Organization Administration and completed RBAC
+state: MISSION_RELEASE_READY
+base_sha: 7e305d28d2a1c15a147a712062f30323acde98c1
+implementation_sha: be37d89fc1718744a9aa6896261552f0bd689c35
+review_sha: be37d89fc1718744a9aa6896261552f0bd689c35
+preview_deployment_id: dpl_79EvErGKsU787Su7NAC763q6vpho
+production_deployment_id: null
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - platform_rbac
+  - tenant_isolation
+  - first_admin_activation
+  - platform_mfa
+  - session_revocation
+  - persistent_rate_limit
+  - accessibility
+  - preview_uat
+  - independent_review
+open_blockers: []
+owner_release_authorization: false
