@@ -32,6 +32,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify patch formatting
         run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" HEAD
       - uses: actions/setup-node@v4
