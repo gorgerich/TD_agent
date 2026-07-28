@@ -152,10 +152,15 @@ export async function manageSmokeAccount(
     } else if (input.action === "enable") {
       await tx.membership.update({ where: { id: membershipId }, data: { status: "ACTIVE" } });
     }
-    const [leadCount, meetingCount] = await Promise.all([
-      tx.clientLead.count({ where: { agentId: user.agent.id } }),
-      tx.meeting.count({ where: { agentId: user.agent.id } }),
-    ]);
+    // A freshly created Agent cannot have related rows before this transaction
+    // commits. Avoid unnecessary serializable predicate locks against parallel
+    // test or application writes; replay/enable still verify contamination.
+    const [leadCount, meetingCount] = created
+      ? [0, 0]
+      : await Promise.all([
+        tx.clientLead.count({ where: { agentId: user.agent.id } }),
+        tx.meeting.count({ where: { agentId: user.agent.id } }),
+      ]);
     if ((leadCount !== 0 || meetingCount !== 0) && ["provision", "enable"].includes(input.action)) {
       throw new Error("Smoke account is not empty; refusing operation");
     }

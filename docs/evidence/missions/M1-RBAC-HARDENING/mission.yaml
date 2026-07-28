@@ -1,0 +1,32 @@
+mission: M1-RBAC-HARDENING
+name: M1 RBAC Hardening - Platform Admin, Organization Administration, MFA and completed RBAC
+classification: supplemental_m1_week8_hardening
+portfolio_m2_commercial_trust_loop: NOT_STARTED
+state: MISSION_RELEASE_READY
+base_sha: 7e305d28d2a1c15a147a712062f30323acde98c1
+implementation_sha: be37d89fc1718744a9aa6896261552f0bd689c35
+review_sha: be37d89fc1718744a9aa6896261552f0bd689c35
+evidence_head_before_governance_correction: 785d8242c7cdde9f5d8e771f074b5e391eb0f90b
+governance_correction_sha: 84ebb8b1ea277f680d8e4848d9cae7d76185420f
+preview_deployment_id: dpl_5HXCdoQJCKSqy2UxD5YUX23y2Lxy
+preview_deployment_sha: 84ebb8b1ea277f680d8e4848d9cae7d76185420f
+preview_database_fingerprint: 76ecfdc12aece957
+production_deployment_id: null
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - platform_rbac
+  - tenant_isolation
+  - first_admin_activation
+  - platform_mfa
+  - session_revocation
+  - persistent_rate_limit
+  - accessibility
+  - preview_uat
+  - independent_review
+open_blockers: []
+owner_release_authorization: true

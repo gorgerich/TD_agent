@@ -135,12 +135,20 @@ async function agentFlow(target, browserContext) {
   await target.getByRole("heading", { name: "Раздел доступен руководителю" }).waitFor();
 
   await target.goto(`${baseUrl}/agent/meetings`, { waitUntil: "networkidle" });
-  const meetingRow = target.locator("li").filter({ hasText: "Семья Кремова" }).first();
-  await meetingRow.getByRole("button").click();
+  const meetingToggle = target.getByRole("button", { name: /Семья Кремова · синтетика.*Подтверждена/ });
+  assert.equal(await meetingToggle.count(), 1, "The confirmed synthetic cremation meeting must have one calendar row");
+  const meetingRow = meetingToggle.locator("..");
+  await meetingToggle.click();
+  const meetingLink = meetingRow.getByRole("link", { name: "Встреча", exact: true });
+  assert.equal(await meetingLink.count(), 1, "The synthetic cremation row must expose one meeting link");
+  const meetingHref = await meetingLink.getAttribute("href");
+  assert.match(meetingHref ?? "", /^\/agent\/meetings\/\d+$/, "The meeting link must target one concrete meeting");
   await Promise.all([
-    target.waitForURL(/\/agent\/meetings\/\d+/),
-    meetingRow.getByRole("link", { name: /Встреча/ }).click(),
+    target.waitForURL(new RegExp(`${meetingHref}$`)),
+    meetingLink.click(),
   ]);
+  await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
+  await target.getByText("Подтверждена", { exact: true }).waitFor();
   await target.getByRole("button", { name: "Зафиксировать итог" }).click();
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
   await target.getByRole("button", { name: "Сохранить" }).click();

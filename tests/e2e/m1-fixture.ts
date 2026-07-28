@@ -229,6 +229,7 @@ function operationalContext(identity: Awaited<ReturnType<typeof createIdentity>>
     role,
     timezone: "Europe/Moscow",
     name,
+    platformRole: "USER",
   };
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Field } from "@/components/ui/Field";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { QuietShader } from "@/components/QuietShader";
@@ -21,7 +21,6 @@ type Mode = "login" | "register";
 
 function AgentLoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,17 +29,22 @@ function AgentLoginContent() {
   const [loading, setLoading] = useState<"login" | "register" | "demo" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPw, setShowPw] = useState(false);
-  const rawInviteToken = searchParams.get("invite")?.trim() ?? "";
-  const inviteToken = rawInviteToken.length >= 32 ? rawInviteToken : null;
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
   const registrationAvailable = process.env.NODE_ENV !== "production" || Boolean(inviteToken);
 
   useEffect(() => {
-    if (rawInviteToken) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("invite");
-      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const rawInviteToken = hash.get("invite")?.trim() ?? "";
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+    if (rawInviteToken.length >= 32) {
+      window.setTimeout(() => {
+        setInviteToken(rawInviteToken);
+        setMode("register");
+      }, 0);
     }
-  }, [rawInviteToken]);
+  }, []);
 
   async function submitAuth(e: React.FormEvent) {
     e.preventDefault();
@@ -53,17 +57,22 @@ function AgentLoginContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           mode === "login"
-            ? { email, password }
+            ? { email, password, mfaCode: mfaRequired ? mfaCode : undefined }
             : { name, email, phone, password, inviteToken: inviteToken ?? undefined },
         ),
       });
       const data = await res.json();
+      if (data.mfaRequired === true && !mfaRequired) {
+        setMfaRequired(true);
+        setError(data.error ?? "Введите код подтверждения");
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "Не удалось войти");
         return;
       }
 
-      router.push("/agent/cases");
+      router.push(typeof data.redirectTo === "string" ? data.redirectTo : "/agent/cases");
       router.refresh();
     } catch {
       setError("Нет связи. Проверьте интернет и попробуйте снова.");
@@ -209,6 +218,22 @@ function AgentLoginContent() {
                   autoFocus={!isRegister}
                   required
                 />
+
+                {!isRegister && mfaRequired && (
+                  <Field
+                    id="platform-mfa-code"
+                    label="Код подтверждения"
+                    icon={<ShieldCheck size={17} />}
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="000000"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    minLength={6}
+                    maxLength={6}
+                    required
+                  />
+                )}
 
                 {isRegister && (
                   <Field

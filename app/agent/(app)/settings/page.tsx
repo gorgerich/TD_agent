@@ -1,4 +1,5 @@
-import { UserCircle } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
+import { CaretRight, UserCircle, UsersThree } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SettingsClient } from "./SettingsClient";
@@ -38,6 +39,20 @@ export default async function SettingsPage() {
           <Row label="Роль" value={session?.role ?? "-"} last />
         </div>
       </section>
+
+      {session?.role === "ADMIN" && (
+        <Link
+          href="/agent/settings/team"
+          className="rise rise-2 mt-5 flex min-h-[76px] items-center gap-4 rounded-[var(--radius-card)] bg-surface px-5 py-4 shadow-[var(--shadow-xs),var(--hl-top)] transition-colors hover:bg-surface-2"
+        >
+          <UsersThree size={24} weight="fill" className="shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-ink">Команда и доступы</span>
+            <span className="mt-1 block text-[12px] text-ink-3">Сотрудники, роли и приглашения организации</span>
+          </span>
+          <CaretRight size={18} weight="bold" className="shrink-0 text-ink-3" />
+        </Link>
+      )}
 
       <SettingsClient notifyEnabled={notifyEnabled} />
     </div>

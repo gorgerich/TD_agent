@@ -1,18 +1,28 @@
 import { cookies } from "next/headers";
+import type { PlatformRole } from "@prisma/client";
 import { SESSION_COOKIE, verifySession, type SessionPayload } from "./session";
-import { resolveOperationalContext, type OperationalRole } from "./operationalAuth";
+import {
+  resolveOperationalContextForUser,
+  type OperationalContext,
+  type OperationalRole,
+} from "./operationalAuth";
+import { prisma } from "./prisma";
 
 export type Role = "AGENT" | "MANAGER" | "SENIOR_AGENT" | "COORDINATOR" | "ADMIN" | "SUPPORT";
 
-export interface AgentSession {
+export type AuthenticatedUserSession = {
   userId: number;
-  agentId: number;
-  membershipId: string;
-  organizationId: string;
-  role: OperationalRole;
-  timezone: string;
+  platformRole: PlatformRole;
+  sessionVersion: number;
+  mfaVerified: boolean;
+  platformMfaEnabled: boolean;
+  activeMembershipId?: string;
   name?: string;
-}
+  email?: string;
+  hasOperationalAccess: boolean;
+};
+
+export type AgentSession = OperationalContext;
 
 const DEV_SESSION: AgentSession = {
   userId: 0,
@@ -22,45 +32,127 @@ const DEV_SESSION: AgentSession = {
   role: "AGENT",
   timezone: "Europe/Moscow",
   name: "Агент (dev)",
+  platformRole: "USER",
 };
 
-async function hydrateSession(payload: SessionPayload): Promise<AgentSession | null> {
-  const context = await resolveOperationalContext(payload.userId, payload.agentId);
-  if (!context) return null;
-  return { ...context, name: context.name ?? payload.name };
+async function hydrateUserSession(payload: SessionPayload): Promise<AuthenticatedUserSession | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      platformRole: true,
+      sessionVersion: true,
+      platformMfaEnabledAt: true,
+      memberships: {
+        where: {
+          status: "ACTIVE",
+          organization: { status: "ACTIVE" },
+          agent: { status: "ACTIVE" },
+        },
+        orderBy: { createdAt: "asc" },
+        select: { id: true, agentId: true },
+      },
+    },
+  });
+  if (!user) return null;
+  if ((payload.sessionVersion ?? 0) !== user.sessionVersion) return null;
+
+  const selected = payload.activeMembershipId
+    ? user.memberships.find((membership) => membership.id === payload.activeMembershipId)
+    : payload.agentId
+      ? user.memberships.find((membership) => membership.agentId === payload.agentId)
+      : user.memberships[0];
+
+  return {
+    userId: user.id,
+    platformRole: user.platformRole,
+    sessionVersion: user.sessionVersion,
+    mfaVerified: payload.mfaVerified === true,
+    platformMfaEnabled: user.platformMfaEnabledAt != null,
+    activeMembershipId: selected?.id,
+    name: user.name ?? payload.name,
+    email: user.email ?? undefined,
+    hasOperationalAccess: user.memberships.length > 0,
+  };
 }
 
-export async function getAgentSession(): Promise<AgentSession | null> {
+async function payloadFromCookieHeader(cookieHeader: string): Promise<SessionPayload | null> {
+  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
+  return match?.[1] ? verifySession(match[1]) : null;
+}
+
+export async function getCurrentUserSession(): Promise<AuthenticatedUserSession | null> {
   try {
     const store = await cookies();
     const token = store.get(SESSION_COOKIE)?.value;
+    if (!token) return null;
+    const payload = await verifySession(token);
+    return payload ? hydrateUserSession(payload) : null;
+  } catch {
+    return null;
+  }
+}
 
-    if (!token) {
-      // Dev bypass: no cookie → return mock session so all pages render
-      if (process.env.NODE_ENV === "development") return DEV_SESSION;
-      return null;
-    }
+export async function getCurrentUserSessionFromRequest(req: Request): Promise<AuthenticatedUserSession | null> {
+  const payload = await payloadFromCookieHeader(req.headers.get("cookie") ?? "");
+  return payload ? hydrateUserSession(payload) : null;
+}
 
-    const payload: SessionPayload | null = await verifySession(token);
-    if (!payload) return null;
+export async function requireAuthenticatedUser(req?: Request): Promise<AuthenticatedUserSession> {
+  const session = req ? await getCurrentUserSessionFromRequest(req) : await getCurrentUserSession();
+  if (!session) throw new AuthenticationError(401, "Unauthorized");
+  return session;
+}
 
-    return hydrateSession(payload);
+async function operationalFromUser(user: AuthenticatedUserSession): Promise<AgentSession | null> {
+  if (!user.activeMembershipId) return null;
+  return resolveOperationalContextForUser(user.userId, { activeMembershipId: user.activeMembershipId });
+}
+
+export async function getOperationalContext(): Promise<AgentSession | null> {
+  const user = await getCurrentUserSession();
+  return user ? operationalFromUser(user) : null;
+}
+
+export async function getOperationalContextFromRequest(req: Request): Promise<AgentSession | null> {
+  const user = await getCurrentUserSessionFromRequest(req);
+  return user ? operationalFromUser(user) : null;
+}
+
+export async function requireOperationalContext(req?: Request): Promise<AgentSession> {
+  const session = req ? await getOperationalContextFromRequest(req) : await getOperationalContext();
+  if (!session) throw new AuthenticationError(401, "Operational access unavailable");
+  return session;
+}
+
+// Backward-compatible wrappers while existing agent routes migrate.
+export async function getAgentSession(): Promise<AgentSession | null> {
+  try {
+    const session = await getOperationalContext();
+    if (!session && process.env.NODE_ENV === "development") return DEV_SESSION;
+    return session;
   } catch {
     if (process.env.NODE_ENV === "development") return DEV_SESSION;
     return null;
   }
 }
 
-// Utility for API routes — reads cookie from request headers
 export async function getSessionFromRequest(req: Request): Promise<AgentSession | null> {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const match = cookieHeader.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
-  const token = match?.[1];
-  if (!token) {
-    if (process.env.NODE_ENV === "development") return DEV_SESSION;
-    return null;
-  }
-  const payload = await verifySession(token);
-  if (!payload) return null;
-  return hydrateSession(payload);
+  const session = await getOperationalContextFromRequest(req);
+  if (!session && process.env.NODE_ENV === "development") return DEV_SESSION;
+  return session;
 }
+
+export class AuthenticationError extends Error {
+  constructor(
+    public readonly status: 401 | 403,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
+export type { OperationalRole };
