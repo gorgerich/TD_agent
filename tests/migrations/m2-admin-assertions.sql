@@ -68,3 +68,16 @@ BEGIN
     RAISE EXCEPTION 'Organization.status contains NULL';
   END IF;
 END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM "PlatformAccountActivation"
+    WHERE "mfaSecretEncrypted" = ''
+      AND "consumedAt" IS NULL
+      AND "revokedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'legacy activation without MFA secret remains usable';
+  END IF;
+END $$;

@@ -42,6 +42,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run evidence:validate
+        env:
+          REQUIRED_MISSION_EVIDENCE: M2-PLATFORM-ADMIN-RBAC
       - name: Verify Week 2 and M1 legacy backfill fixtures
         run: |
           set -euo pipefail

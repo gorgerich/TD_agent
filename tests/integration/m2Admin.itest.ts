@@ -50,12 +50,23 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
       select: { id: true },
     });
     fixtures.trackUser(user.id);
+    const prePromotionCookie = `${SESSION_COOKIE}=${await signSession({
+      userId: user.id,
+      version: 2,
+      sessionVersion: 0,
+    })}`;
 
     const first = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, email.toUpperCase()));
     const replay = await db.$transaction((tx) => bootstrapPlatformSuperAdmin(tx, ` ${email} `));
     assert.equal(first.replayed, false);
     assert.equal(replay.replayed, true);
     assert.equal(await db.platformAuditEvent.count({ where: { actorUserId: user.id, action: "PLATFORM_ROLE_BOOTSTRAPPED" } }), 1);
+    assert.equal((await enrollPlatformMfa(makeRequest("/api/platform-admin/mfa", {
+      method: "POST",
+      cookie: prePromotionCookie,
+      headers: { "x-forwarded-for": "127.0.10.2" },
+      body: { action: "BEGIN" },
+    }))).status, 401);
 
     const mfaChallenge = await login(makeRequest("/api/agent/auth/login", {
       method: "POST",
@@ -95,6 +106,9 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
     await db.user.update({ where: { id: user.id }, data: { platformRole: "USER" } });
     assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: replacementCookie }))).status, 403);
   } finally {
+    await db.securityRateLimitBucket.deleteMany({
+      where: { keyHash: persistentRateLimitKey("platform-mfa-enrollment", "127.0.10.2") },
+    });
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
   }

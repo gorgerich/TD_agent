@@ -68,7 +68,10 @@ export async function bootstrapPlatformSuperAdmin(
   if (user.platformRole !== "SUPER_ADMIN") {
     await client.user.update({
       where: { id: user.id },
-      data: { platformRole: "SUPER_ADMIN" },
+      data: {
+        platformRole: "SUPER_ADMIN",
+        sessionVersion: { increment: 1 },
+      },
     });
     await appendPlatformAudit(client, {
       actorUserId: user.id,

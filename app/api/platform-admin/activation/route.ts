@@ -31,13 +31,20 @@ const ActivateBody = z.object({
 const Body = z.discriminatedUnion("action", [VerifyBody, ActivateBody]);
 
 export async function POST(req: NextRequest) {
+  return handlePlatformActivation(req);
+}
+
+export async function handlePlatformActivation(
+  req: NextRequest,
+  rateLimiter = enforcePersistentRateLimit,
+) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return invalidActivationResponse();
 
   if (parsed.data.action === "VERIFY") {
-    const limited = await enforcePersistentRateLimit(req, "platform-activation-verify", 10, 60_000);
-    if (limited) return limited;
     try {
+      const limited = await rateLimiter(req, "platform-activation-verify", 10, 60_000);
+      if (limited) return limited;
       const setup = await prisma.$transaction((tx) => verifyPlatformActivation(tx, parsed.data.token));
       return setup
       ? noStoreJson({ valid: true, mfaSecret: setup.secret, mfaUri: setup.uri })
@@ -48,9 +55,9 @@ export async function POST(req: NextRequest) {
   }
 
   const activationInput = parsed.data;
-  const limited = await enforcePersistentRateLimit(req, "platform-activation-consume", 5, 15 * 60_000);
-  if (limited) return limited;
   try {
+    const limited = await rateLimiter(req, "platform-activation-consume", 5, 15 * 60_000);
+    if (limited) return limited;
     validatePlatformAdminPassword(activationInput.password, activationInput.confirmation);
     // PBKDF2 completes before opening the transaction. User + activation writes
     // remain atomic while no transaction waits on CPU-bound hashing.

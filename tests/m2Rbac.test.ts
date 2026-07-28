@@ -21,7 +21,10 @@ import {
   totp,
   verifyPlatformMfaCode,
 } from "../lib/platformMfa";
-import { platformActivationFailureResponse } from "../app/api/platform-admin/activation/route";
+import {
+  handlePlatformActivation,
+  platformActivationFailureResponse,
+} from "../app/api/platform-admin/activation/route";
 
 test("platform capabilities belong only to SUPER_ADMIN, not organization ADMIN", () => {
   assert.equal(hasPlatformCapability("SUPER_ADMIN", "platform:organizations-manage"), true);
@@ -107,4 +110,19 @@ test("activation domain errors stay generic while infrastructure failures return
   assert.equal(unavailable.status, 503);
   assert.equal(unavailable.headers.get("Retry-After"), "5");
   assert.equal((await unavailable.json() as { error: string }).error, "Сервис временно недоступен. Повторите попытку.");
+});
+
+test("activation limiter infrastructure failures return retryable 503 from the route", async () => {
+  const response = await handlePlatformActivation(
+    new Request("http://localhost/api/platform-admin/activation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "VERIFY", token: "x".repeat(43) }),
+    }) as never,
+    async () => {
+      throw new Error("synthetic limiter outage");
+    },
+  );
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("Retry-After"), "5");
 });
