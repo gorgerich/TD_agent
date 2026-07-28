@@ -9,16 +9,18 @@ mission `M2 Commercial Trust Loop`, which remains `NOT_STARTED`.
   `be37d89fc1718744a9aa6896261552f0bd689c35`
 - Evidence head before governance correction:
   `785d8242c7cdde9f5d8e771f074b5e391eb0f90b`
+- Governance correction SHA:
+  `84ebb8b1ea277f680d8e4848d9cae7d76185420f`
 - PR: https://github.com/gorgerich/TD_agent/pull/24
 - Runtime CI baseline: https://github.com/gorgerich/TD_agent/actions/runs/30349079932
-- Final pre-correction evidence CI:
-  https://github.com/gorgerich/TD_agent/actions/runs/30350985936
-- Authoritative pre-correction Preview:
-  https://td-agent-3rd0n1fyt-rics-projects-9baa2793.vercel.app
-- Authoritative pre-correction Preview deployment:
-  `dpl_2E2VEv2Latm69oFw6a4QzK1v8jHQ`
+- Governance correction CI:
+  https://github.com/gorgerich/TD_agent/actions/runs/30353147176
+- Authoritative governance-corrected Preview:
+  https://td-agent-4u8zb9qz4-rics-projects-9baa2793.vercel.app
+- Authoritative governance-corrected Preview deployment:
+  `dpl_5HXCdoQJCKSqy2UxD5YUX23y2Lxy`
 - Preview deployment SHA:
-  `785d8242c7cdde9f5d8e771f074b5e391eb0f90b`
+  `84ebb8b1ea277f680d8e4848d9cae7d76185420f`
 - Validation database fingerprint: `76ecfdc12aece957`
 
 Implemented scope:

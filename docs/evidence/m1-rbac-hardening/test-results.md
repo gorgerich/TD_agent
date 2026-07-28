@@ -15,7 +15,7 @@ Results are refreshed at final branch head before gate closure.
 | Build | PASS |
 | M1 RBAC Hardening browser UAT | First-owner activation, Platform Admin, Organization Admin, Manager/Agent forbidden, cross-tenant, mobile: PASS |
 | UTC hydration regression | PASS; browser errors `0` |
-| GitHub Quality | PASS, run `30350985936`, skipped `0` |
+| GitHub Quality | PASS, run `30353147176`, skipped `0` |
 | Vercel protected role smoke | PASS; role redirects/403 and tenant isolation verified |
 | Preview fixture residue | `0` |
 

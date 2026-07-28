@@ -39,7 +39,7 @@
 - E2E: mobile activation, URL cleanup, automatic session, platform redirect and
   replay rejection PASS.
 - Agent and Manager auth regressions: PASS.
-- Final pre-correction GitHub CI: `30350985936`, skipped `0`.
+- Governance correction GitHub CI: `30353147176`, skipped `0`.
 - Isolated Preview migration/repeated deploy/schema parity: PASS.
 - Production DB/schema/deployment: unchanged.
 

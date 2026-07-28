@@ -11,9 +11,9 @@ State: `MISSION_RELEASE_READY`
 - Production DB/schema changes: none.
 - Runtime implementation:
   `be37d89fc1718744a9aa6896261552f0bd689c35`.
-- Authoritative pre-correction Preview deployment:
-  `dpl_2E2VEv2Latm69oFw6a4QzK1v8jHQ`, target Preview, READY, SHA
-  `785d8242c7cdde9f5d8e771f074b5e391eb0f90b`.
+- Authoritative governance-corrected Preview deployment:
+  `dpl_5HXCdoQJCKSqy2UxD5YUX23y2Lxy`, target Preview, READY, SHA
+  `84ebb8b1ea277f680d8e4848d9cae7d76185420f`.
 - Portfolio mission `M2 Commercial Trust Loop`: `NOT_STARTED`.
 
 Release remains conditional on governance reconciliation, full CI, independent
