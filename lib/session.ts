@@ -4,6 +4,8 @@ const SESSION_TTL_SEC = 8 * 60 * 60; // 8 hours
 export interface SessionPayload {
   userId: number;
   version: 1 | 2;
+  sessionVersion?: number;
+  mfaVerified?: boolean;
   activeMembershipId?: string;
   // Legacy v1 selectors remain parseable until old cookies expire. Neither
   // field is an authorization claim.
@@ -16,6 +18,8 @@ export interface SessionPayload {
 
 export type SessionClaims = {
   userId: number;
+  sessionVersion?: number;
+  mfaVerified?: boolean;
   activeMembershipId?: string;
   version?: 1 | 2;
   agentId?: number;
@@ -94,6 +98,8 @@ export function isSessionPayload(value: unknown): value is SessionPayload {
     && Number(payload.userId) > 0
     && Number.isInteger(payload.iat)
     && Number.isInteger(payload.exp)
+    && (payload.sessionVersion === undefined || (Number.isInteger(payload.sessionVersion) && Number(payload.sessionVersion) >= 0))
+    && (payload.mfaVerified === undefined || typeof payload.mfaVerified === "boolean")
     && (payload.activeMembershipId === undefined || typeof payload.activeMembershipId === "string")
     && (payload.agentId === undefined || (Number.isInteger(payload.agentId) && Number(payload.agentId) > 0))
   );

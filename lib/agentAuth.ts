@@ -32,12 +32,19 @@ export async function createAgentSession(params: {
   role?: Role;
   name?: string | null;
 }): Promise<string> {
-  const membership = await prisma.membership.findFirst({
-    where: { userId: params.userId, agentId: params.agentId },
-    select: { id: true },
-  });
+  const [membership, user] = await Promise.all([
+    prisma.membership.findFirst({
+      where: { userId: params.userId, agentId: params.agentId },
+      select: { id: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: params.userId },
+      select: { sessionVersion: true },
+    }),
+  ]);
   return signSession({
     userId: params.userId,
+    sessionVersion: user.sessionVersion,
     activeMembershipId: membership?.id,
     version: 2,
     name: params.name ?? "Агент",
@@ -47,10 +54,17 @@ export async function createAgentSession(params: {
 export async function createUserSession(params: {
   userId: number;
   activeMembershipId?: string;
+  mfaVerified?: boolean;
   name?: string | null;
 }): Promise<string> {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: params.userId },
+    select: { sessionVersion: true },
+  });
   return signSession({
     userId: params.userId,
+    sessionVersion: user.sessionVersion,
+    mfaVerified: params.mfaVerified,
     activeMembershipId: params.activeMembershipId,
     version: 2,
     name: params.name ?? undefined,

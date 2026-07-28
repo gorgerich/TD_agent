@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Buildings,
   ChartDonut,
   ClockCounterClockwise,
   SignOut,
+  ShieldCheck,
   SquaresFour,
   UsersThree,
   Wrench,
@@ -31,11 +33,23 @@ export function PlatformAdminShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [sessionBusy, setSessionBusy] = useState(false);
 
   async function logout() {
     await fetch("/api/agent/auth/logout", { method: "POST" });
     router.push("/agent/login");
     router.refresh();
+  }
+
+  async function revokeOtherSessions() {
+    setSessionBusy(true);
+    try {
+      const response = await fetch("/api/platform-admin/sessions/revoke", { method: "POST" });
+      if (!response.ok) throw new Error("Не удалось завершить другие сеансы");
+      router.refresh();
+    } finally {
+      setSessionBusy(false);
+    }
   }
 
   return (
@@ -78,6 +92,15 @@ export function PlatformAdminShell({
                 Рабочее пространство
               </Link>
             )}
+            <button
+              type="button"
+              onClick={revokeOtherSessions}
+              disabled={sessionBusy}
+              className="flex min-h-10 items-center gap-2 rounded-[9px] px-2 text-left text-[12px] text-white/70 hover:bg-white/8 hover:text-white disabled:opacity-50"
+            >
+              <ShieldCheck size={17} weight="fill" />
+              {sessionBusy ? "Завершаем…" : "Завершить другие сеансы"}
+            </button>
             <button type="button" onClick={logout} className="flex min-h-10 items-center gap-2 rounded-[9px] px-2 text-left text-[12px] text-white/70 hover:bg-white/8 hover:text-white">
               <SignOut size={17} weight="bold" />
               Выйти

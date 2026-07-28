@@ -40,6 +40,27 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'PlatformAccountActivation token hash unique index missing';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'User' AND column_name = 'sessionVersion'
+  ) THEN
+    RAISE EXCEPTION 'User.sessionVersion missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'User' AND column_name = 'platformMfaSecretEncrypted'
+  ) THEN
+    RAISE EXCEPTION 'User.platformMfaSecretEncrypted missing';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'PlatformAccountActivation' AND column_name = 'mfaSecretEncrypted'
+  ) THEN
+    RAISE EXCEPTION 'PlatformAccountActivation.mfaSecretEncrypted missing';
+  END IF;
+  IF to_regclass('public."SecurityRateLimitBucket"') IS NULL THEN
+    RAISE EXCEPTION 'SecurityRateLimitBucket missing';
+  END IF;
   IF EXISTS (SELECT 1 FROM "User" WHERE "platformRole" IS NULL) THEN
     RAISE EXCEPTION 'User.platformRole contains NULL';
   END IF;

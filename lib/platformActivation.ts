@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { appendPlatformAudit } from "@/lib/platformAudit";
+import {
+  decryptPlatformMfaSecret,
+  platformMfaUri,
+  verifyPlatformMfaCode,
+} from "@/lib/platformMfa";
 
 export const PLATFORM_ACTIVATION_TTL_MS = 30 * 60 * 1000;
 export const PLATFORM_ACTIVATION_INVALID_MESSAGE =
@@ -59,18 +64,19 @@ export async function verifyPlatformActivation(
   client: Prisma.TransactionClient,
   token: string,
   now = new Date(),
-): Promise<boolean> {
-  if (!isPlatformActivationTokenShape(token)) return false;
+): Promise<{ secret: string; uri: string } | null> {
+  if (!isPlatformActivationTokenShape(token)) return null;
   const activation = await client.platformAccountActivation.findUnique({
     where: { tokenHash: hashPlatformActivationToken(token) },
     select: {
       expiresAt: true,
       consumedAt: true,
       revokedAt: true,
+      mfaSecretEncrypted: true,
       user: { select: { platformRole: true, passwordHash: true } },
     },
   });
-  return Boolean(
+  const valid = Boolean(
     activation
     && activation.expiresAt > now
     && activation.consumedAt == null
@@ -78,6 +84,10 @@ export async function verifyPlatformActivation(
     && activation.user.platformRole === "SUPER_ADMIN"
     && activation.user.passwordHash == null,
   );
+  if (!valid || !activation) return null;
+  const secret = decryptPlatformMfaSecret(activation.mfaSecretEncrypted);
+  if (!secret) throw new Error("Platform activation MFA secret is unavailable");
+  return { secret, uri: platformMfaUri(secret) };
 }
 
 export async function consumePlatformActivation(
@@ -85,6 +95,7 @@ export async function consumePlatformActivation(
   input: {
     token: string;
     passwordHash: string;
+    mfaCode: string;
     now?: Date;
   },
 ): Promise<{ userId: number }> {
@@ -99,6 +110,7 @@ export async function consumePlatformActivation(
       expiresAt: true,
       consumedAt: true,
       revokedAt: true,
+      mfaSecretEncrypted: true,
       user: { select: { platformRole: true, passwordHash: true } },
     },
   });
@@ -111,6 +123,10 @@ export async function consumePlatformActivation(
     || activation.user.passwordHash != null
   ) {
     throw new PlatformActivationError();
+  }
+  const mfaSecret = decryptPlatformMfaSecret(activation.mfaSecretEncrypted);
+  if (!mfaSecret || !verifyPlatformMfaCode(mfaSecret, input.mfaCode, now.getTime())) {
+    throw new PlatformActivationError("Проверьте код из приложения-аутентификатора.", 422);
   }
 
   const consumed = await tx.platformAccountActivation.updateMany({
@@ -130,7 +146,12 @@ export async function consumePlatformActivation(
       platformRole: "SUPER_ADMIN",
       passwordHash: null,
     },
-    data: { passwordHash: input.passwordHash },
+    data: {
+      passwordHash: input.passwordHash,
+      platformMfaSecretEncrypted: activation.mfaSecretEncrypted,
+      platformMfaEnabledAt: now,
+      sessionVersion: { increment: 1 },
+    },
   });
   if (credential.count !== 1) throw new PlatformActivationError();
 

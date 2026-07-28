@@ -36,6 +36,9 @@ model User {
   phone        String?      @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
   passwordHash String? // NEW (B2B): хэш пароля агента для постоянного входа; nullable для B2C/demo пользователей
   platformRole PlatformRole @default(USER)
+  sessionVersion Int          @default(0)
+  platformMfaSecretEncrypted String?
+  platformMfaEnabledAt DateTime?
   orders       Order[]
 
   agent              Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
@@ -540,6 +543,7 @@ model PlatformAccountActivation {
   userId     Int
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash  String    @unique
+  mfaSecretEncrypted String
   expiresAt  DateTime
   consumedAt DateTime?
   revokedAt  DateTime?
@@ -547,6 +551,17 @@ model PlatformAccountActivation {
 
   @@index([userId, createdAt])
   @@index([expiresAt])
+}
+
+// Shared limiter for high-value platform authentication endpoints. Keys are
+// one-way hashes; no IP address, token or credential is stored.
+model SecurityRateLimitBucket {
+  keyHash   String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 model SavedOperationalView {

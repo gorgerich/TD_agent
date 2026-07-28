@@ -12,6 +12,16 @@ import {
   validatePlatformAdminPassword,
 } from "../lib/platformActivation";
 import { isSessionPayload } from "../lib/session";
+import { buildInvitationUrl } from "../lib/invitationLink";
+import {
+  decryptPlatformMfaSecret,
+  encryptPlatformMfaSecret,
+  generatePlatformMfaSecret,
+  platformMfaUri,
+  totp,
+  verifyPlatformMfaCode,
+} from "../lib/platformMfa";
+import { platformActivationFailureResponse } from "../app/api/platform-admin/activation/route";
 
 test("platform capabilities belong only to SUPER_ADMIN, not organization ADMIN", () => {
   assert.equal(hasPlatformCapability("SUPER_ADMIN", "platform:organizations-manage"), true);
@@ -68,4 +78,33 @@ test("platform activation password policy rejects mismatch, short and obvious pa
   assert.throws(() => validatePlatformAdminPassword("not-the-same-123!", "different-pass-123!"), PlatformActivationError);
   assert.throws(() => validatePlatformAdminPassword("short", "short"), PlatformActivationError);
   assert.throws(() => validatePlatformAdminPassword("password1234", "password1234"), PlatformActivationError);
+});
+
+test("platform MFA secret is encrypted, TOTP-compatible and time-window bounded", () => {
+  const secret = generatePlatformMfaSecret();
+  const encrypted = encryptPlatformMfaSecret(secret);
+  const now = 1_785_000_000_000;
+  assert.match(secret, /^[A-Z2-7]{32}$/);
+  assert.notEqual(encrypted, secret);
+  assert.equal(decryptPlatformMfaSecret(encrypted), secret);
+  assert.equal(verifyPlatformMfaCode(secret, totp(secret, Math.floor(now / 1000 / 30)), now), true);
+  assert.equal(verifyPlatformMfaCode(secret, "000000", now), false);
+  assert.match(platformMfaUri(secret), /^otpauth:\/\/totp\//);
+});
+
+test("organization invitation bearer is transported in URL fragment, never query", () => {
+  const token = "A".repeat(43);
+  const url = new URL(buildInvitationUrl("https://td-agent.example", token));
+  assert.equal(url.pathname, "/agent/login");
+  assert.equal(url.search, "");
+  assert.equal(new URLSearchParams(url.hash.slice(1)).get("invite"), token);
+});
+
+test("activation domain errors stay generic while infrastructure failures return retryable 503", async () => {
+  const invalid = platformActivationFailureResponse(new PlatformActivationError());
+  assert.equal(invalid.status, 400);
+  const unavailable = platformActivationFailureResponse(new Error("database unavailable"));
+  assert.equal(unavailable.status, 503);
+  assert.equal(unavailable.headers.get("Retry-After"), "5");
+  assert.equal((await unavailable.json() as { error: string }).error, "Сервис временно недоступен. Повторите попытку.");
 });

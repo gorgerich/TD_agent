@@ -10,7 +10,7 @@ import {
   verifyPlatformActivation,
 } from "@/lib/platformActivation";
 import { prisma } from "@/lib/prisma";
-import { enforceRateLimit } from "@/lib/rateLimit";
+import { enforcePersistentRateLimit } from "@/lib/persistentRateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +25,7 @@ const ActivateBody = z.object({
   token: z.string().min(1).max(256),
   password: z.string().min(1).max(128),
   confirmation: z.string().min(1).max(128),
+  mfaCode: z.string().regex(/^\d{6}$/),
 }).strict();
 
 const Body = z.discriminatedUnion("action", [VerifyBody, ActivateBody]);
@@ -34,36 +35,53 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return invalidActivationResponse();
 
   if (parsed.data.action === "VERIFY") {
-    const limited = enforceRateLimit(req, "platform-activation-verify", 10, 60_000);
+    const limited = await enforcePersistentRateLimit(req, "platform-activation-verify", 10, 60_000);
     if (limited) return limited;
-    const valid = await prisma.$transaction((tx) => verifyPlatformActivation(tx, parsed.data.token));
-    return valid
-      ? noStoreJson({ valid: true })
+    try {
+      const setup = await prisma.$transaction((tx) => verifyPlatformActivation(tx, parsed.data.token));
+      return setup
+      ? noStoreJson({ valid: true, mfaSecret: setup.secret, mfaUri: setup.uri })
       : invalidActivationResponse();
+    } catch {
+      return infrastructureFailureResponse();
+    }
   }
 
-  const limited = enforceRateLimit(req, "platform-activation-consume", 5, 15 * 60_000);
+  const activationInput = parsed.data;
+  const limited = await enforcePersistentRateLimit(req, "platform-activation-consume", 5, 15 * 60_000);
   if (limited) return limited;
   try {
-    validatePlatformAdminPassword(parsed.data.password, parsed.data.confirmation);
+    validatePlatformAdminPassword(activationInput.password, activationInput.confirmation);
     // PBKDF2 completes before opening the transaction. User + activation writes
     // remain atomic while no transaction waits on CPU-bound hashing.
-    const passwordHash = hashPassword(parsed.data.password);
+    const passwordHash = hashPassword(activationInput.password);
     const activated = await prisma.$transaction((tx) => consumePlatformActivation(tx, {
-      token: parsed.data.token,
+      token: activationInput.token,
       passwordHash,
+      mfaCode: activationInput.mfaCode,
     }));
-    const session = await createUserSession({ userId: activated.userId });
+    const session = await createUserSession({ userId: activated.userId, mfaVerified: true });
     return setAgentSessionCookie(
       noStoreJson({ ok: true, redirectTo: "/platform-admin" }),
       session,
     );
   } catch (error) {
-    if (error instanceof PlatformActivationError) {
-      return noStoreJson({ error: error.message }, { status: error.status });
-    }
-    return invalidActivationResponse();
+    return platformActivationFailureResponse(error);
   }
+}
+
+export function platformActivationFailureResponse(error: unknown) {
+  if (error instanceof PlatformActivationError) {
+    return noStoreJson({ error: error.message }, { status: error.status });
+  }
+  return infrastructureFailureResponse();
+}
+
+function infrastructureFailureResponse() {
+  return noStoreJson(
+    { error: "Сервис временно недоступен. Повторите попытку." },
+    { status: 503, headers: { "Retry-After": "5" } },
+  );
 }
 
 function invalidActivationResponse() {

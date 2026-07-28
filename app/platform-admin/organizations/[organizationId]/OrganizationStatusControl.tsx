@@ -15,20 +15,25 @@ export function OrganizationStatusControl({ organizationId, status }: { organiza
   async function submit() {
     setBusy(true);
     setError(null);
-    const response = await fetch(`/api/platform-admin/organizations/${organizationId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status: next, confirmation }),
-    });
-    const body = await response.json().catch(() => ({}));
-    setBusy(false);
-    if (!response.ok) {
-      setError(body.error ?? "Не удалось изменить статус");
-      return;
+    try {
+      const response = await fetch(`/api/platform-admin/organizations/${organizationId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status: next, confirmation }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(body.error ?? "Не удалось изменить статус");
+        return;
+      }
+      setOpen(false);
+      setConfirmation("");
+      router.refresh();
+    } catch {
+      setError("Нет связи. Проверьте интернет и попробуйте снова.");
+    } finally {
+      setBusy(false);
     }
-    setOpen(false);
-    setConfirmation("");
-    router.refresh();
   }
 
   if (!open) {

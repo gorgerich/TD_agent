@@ -6,6 +6,10 @@ import {
   hashPlatformActivationToken,
   PLATFORM_ACTIVATION_TTL_MS,
 } from "@/lib/platformActivation";
+import {
+  encryptPlatformMfaSecret,
+  generatePlatformMfaSecret,
+} from "@/lib/platformMfa";
 
 export class PlatformBootstrapError extends Error {
   constructor(message: string) {
@@ -107,6 +111,7 @@ async function createActivation(
     data: {
       userId,
       tokenHash: hashPlatformActivationToken(token),
+      mfaSecretEncrypted: encryptPlatformMfaSecret(generatePlatformMfaSecret()),
       expiresAt,
     },
     select: { id: true },

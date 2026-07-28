@@ -40,12 +40,17 @@ export function assertPlatformCapability(context: PlatformContext, capability: P
 
 export async function getPlatformContext(req?: Request): Promise<PlatformContext | null> {
   const user = req ? await getCurrentUserSessionFromRequest(req) : await getCurrentUserSession();
-  return user?.platformRole === "SUPER_ADMIN" ? { ...user, platformRole: "SUPER_ADMIN" } : null;
+  return user?.platformRole === "SUPER_ADMIN" && user.mfaVerified
+    ? { ...user, platformRole: "SUPER_ADMIN" }
+    : null;
 }
 
 export async function requirePlatformAdmin(req?: Request): Promise<PlatformContext> {
   const user = req ? await getCurrentUserSessionFromRequest(req) : await getCurrentUserSession();
   if (!user) throw new AuthenticationError(401, "Unauthorized");
   if (user.platformRole !== "SUPER_ADMIN") throw new AuthenticationError(403, "Доступ только владельцу платформы");
+  if (!user.platformMfaEnabled || !user.mfaVerified) {
+    throw new AuthenticationError(403, "Требуется двухфакторная аутентификация");
+  }
   return { ...user, platformRole: "SUPER_ADMIN" };
 }

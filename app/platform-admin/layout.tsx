@@ -10,6 +10,9 @@ export default async function PlatformAdminLayout({ children }: { children: Reac
   const user = await getCurrentUserSession();
   if (!user) redirect("/agent/login");
   const context = await getPlatformContext();
+  if (user.platformRole === "SUPER_ADMIN" && (!user.platformMfaEnabled || !user.mfaVerified)) {
+    redirect("/setup/platform-admin-mfa");
+  }
   if (!context) {
     return (
       <main id="main-content" className="grid min-h-[100dvh] place-items-center bg-canvas px-5">

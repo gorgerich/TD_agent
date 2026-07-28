@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHmac } from "node:crypto";
 import { chromium } from "playwright";
 
 const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M2_UAT_RUN_ID ?? "mission-2";
 const password = process.env.M2_UAT_PASSWORD;
 const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
+const mfaSecret = process.env.M2_UAT_MFA_SECRET;
 const evidenceDir = process.env.M2_EVIDENCE_DIR;
 const emails = {
   platform: `m2-platform-${runId}@synthetic.invalid`,
@@ -18,6 +20,7 @@ const emails = {
 };
 if (!password) throw new Error("M2_UAT_PASSWORD is required");
 if (!activationToken) throw new Error("M2_UAT_ACTIVATION_TOKEN is required");
+if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
@@ -49,6 +52,7 @@ try {
   }
   await page.getByLabel("Новый пароль").fill(password);
   await page.getByLabel("Повторите пароль").fill(password);
+  await page.getByLabel("Код подтверждения").fill(totp(mfaSecret));
   await screenshot(page, "platform-activation-mobile.png");
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/platform-admin"),
@@ -153,6 +157,10 @@ async function login(target, email, expectedPath) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
   await target.locator("#agent-email").fill(email);
   await target.locator("#agent-password").fill(password);
+  if (email === emails.platform) {
+    await target.locator('form button[type="submit"]').click();
+    await target.locator("#platform-mfa-code").fill(totp(mfaSecret));
+  }
   await Promise.all([
     target.waitForURL((url) => url.pathname === expectedPath),
     target.locator('form button[type="submit"]').click(),
@@ -176,6 +184,31 @@ async function assertNoOverflow(target, label) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.clientWidth + 1, `${label} overflow: ${JSON.stringify(dimensions)}`);
+}
+
+function totp(secret) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (const character of secret) {
+    value = (value << 5) | alphabet.indexOf(character);
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 0xff);
+      bits -= 8;
+    }
+  }
+  const counter = Math.floor(Date.now() / 1000 / 30);
+  const buffer = Buffer.alloc(8);
+  buffer.writeBigUInt64BE(BigInt(counter));
+  const digest = createHmac("sha1", Buffer.from(bytes)).update(buffer).digest();
+  const offset = digest[digest.length - 1] & 0x0f;
+  const binary = ((digest[offset] & 0x7f) << 24)
+    | ((digest[offset + 1] & 0xff) << 16)
+    | ((digest[offset + 2] & 0xff) << 8)
+    | (digest[offset + 3] & 0xff);
+  return String(binary % 1_000_000).padStart(6, "0");
 }
 
 async function screenshot(target, filename) {

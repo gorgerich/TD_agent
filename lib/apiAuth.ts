@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
-import { AuthenticationError, getSessionFromRequest, type AgentSession } from "@/lib/auth";
+import {
+  AuthenticationError,
+  getCurrentUserSessionFromRequest,
+  getSessionFromRequest,
+  type AgentSession,
+} from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { OperationalAuthError } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
@@ -29,7 +34,10 @@ export function jsonError(status: number, message: string): NextResponse {
  *  (agentId 0) допустима ТОЛЬКО в development; в проде такая сессия = 401. */
 export async function requireAgent(req: Request, options: { allowAdminMutation?: boolean } = {}): Promise<AgentSession> {
   const session = await getSessionFromRequest(req);
-  if (!session) throw new ApiError(401, "Unauthorized");
+  if (!session) {
+    const user = await getCurrentUserSessionFromRequest(req);
+    throw new ApiError(user ? 403 : 401, user ? "Operational access unavailable" : "Unauthorized");
+  }
   if (session.agentId <= 0 && process.env.NODE_ENV !== "development") {
     throw new ApiError(401, "Unauthorized");
   }

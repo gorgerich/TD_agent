@@ -30,9 +30,11 @@ export async function appendPlatformAudit(
       | "PLATFORM_ACCOUNT_ACTIVATION_CREATED"
       | "PLATFORM_ACCOUNT_ACTIVATED"
       | "PLATFORM_ACCOUNT_ACTIVATION_REVOKED"
+      | "PLATFORM_MFA_ENABLED"
+      | "PLATFORM_SESSIONS_REVOKED"
       | "ORGANIZATION_SUSPENDED"
       | "ORGANIZATION_REACTIVATED";
-    targetType: "user" | "organization" | "activation";
+    targetType: "user" | "organization" | "activation" | "session";
     targetId?: string | null;
     metadata: unknown;
   },

@@ -13,6 +13,9 @@ export type Role = "AGENT" | "MANAGER" | "SENIOR_AGENT" | "COORDINATOR" | "ADMIN
 export type AuthenticatedUserSession = {
   userId: number;
   platformRole: PlatformRole;
+  sessionVersion: number;
+  mfaVerified: boolean;
+  platformMfaEnabled: boolean;
   activeMembershipId?: string;
   name?: string;
   email?: string;
@@ -40,6 +43,8 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
       name: true,
       email: true,
       platformRole: true,
+      sessionVersion: true,
+      platformMfaEnabledAt: true,
       memberships: {
         where: {
           status: "ACTIVE",
@@ -52,6 +57,7 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
     },
   });
   if (!user) return null;
+  if ((payload.sessionVersion ?? 0) !== user.sessionVersion) return null;
 
   const selected = payload.activeMembershipId
     ? user.memberships.find((membership) => membership.id === payload.activeMembershipId)
@@ -62,6 +68,9 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
   return {
     userId: user.id,
     platformRole: user.platformRole,
+    sessionVersion: user.sessionVersion,
+    mfaVerified: payload.mfaVerified === true,
+    platformMfaEnabled: user.platformMfaEnabledAt != null,
     activeMembershipId: selected?.id,
     name: user.name ?? payload.name,
     email: user.email ?? undefined,

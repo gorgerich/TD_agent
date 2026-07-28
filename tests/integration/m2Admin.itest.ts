@@ -3,6 +3,8 @@ import { randomBytes } from "node:crypto";
 import { test } from "node:test";
 import { POST as login } from "../../app/api/agent/auth/login/route";
 import { POST as activatePlatformAccount } from "../../app/api/platform-admin/activation/route";
+import { POST as revokePlatformSessions } from "../../app/api/platform-admin/sessions/revoke/route";
+import { POST as enrollPlatformMfa } from "../../app/api/platform-admin/mfa/route";
 import { GET as platformDashboard } from "../../app/api/platform-admin/dashboard/route";
 import {
   GET as platformOrganization,
@@ -14,6 +16,13 @@ import { PATCH as updateMembership } from "../../app/api/agent/organization/memb
 import { bootstrapPlatformSuperAdmin } from "../../lib/platformBootstrap";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
+import {
+  decryptPlatformMfaSecret,
+  encryptPlatformMfaSecret,
+  generatePlatformMfaSecret,
+  totp,
+} from "../../lib/platformMfa";
+import { persistentRateLimitKey } from "../../lib/persistentRateLimit";
 import {
   createFixtureContext,
   db,
@@ -28,9 +37,16 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
   const fixtures = createFixtureContext("m2-platform");
   const password = "M2-Synthetic-Password-42!";
   const email = `m2-platform-${randomBytes(6).toString("hex")}@test.invalid`;
+  const mfaSecret = generatePlatformMfaSecret();
   try {
     const user = await db.user.create({
-      data: { email, name: "M2 Platform Owner", passwordHash: hashPassword(password) },
+      data: {
+        email,
+        name: "M2 Platform Owner",
+        passwordHash: hashPassword(password),
+        platformMfaSecretEncrypted: encryptPlatformMfaSecret(mfaSecret),
+        platformMfaEnabledAt: new Date(),
+      },
       select: { id: true },
     });
     fixtures.trackUser(user.id);
@@ -41,10 +57,19 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
     assert.equal(replay.replayed, true);
     assert.equal(await db.platformAuditEvent.count({ where: { actorUserId: user.id, action: "PLATFORM_ROLE_BOOTSTRAPPED" } }), 1);
 
-    const loginResponse = await login(makeRequest("/api/agent/auth/login", {
+    const mfaChallenge = await login(makeRequest("/api/agent/auth/login", {
       method: "POST",
       headers: { "x-forwarded-for": "127.0.10.1" },
       body: { email, password },
+    }));
+    assert.equal(mfaChallenge.status, 200);
+    assert.equal((await mfaChallenge.json()).mfaRequired, true);
+    assert.equal(mfaChallenge.headers.get("set-cookie"), null);
+
+    const loginResponse = await login(makeRequest("/api/agent/auth/login", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.10.1" },
+      body: { email, password, mfaCode: totp(mfaSecret) },
     }));
     assert.equal(loginResponse.status, 200);
     assert.equal((await loginResponse.clone().json()).redirectTo, "/platform-admin");
@@ -55,8 +80,20 @@ test("M2 platform role is separate from tenant roles and supports platform-only 
 
     const dashboard = await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie }));
     assert.equal(dashboard.status, 200);
+
+    const staleCookie = cookie;
+    const revoked = await revokePlatformSessions(makeRequest("/api/platform-admin/sessions/revoke", {
+      method: "POST",
+      cookie,
+    }));
+    assert.equal(revoked.status, 200);
+    const replacementCookie = revoked.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(replacementCookie);
+    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: staleCookie }))).status, 401);
+    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: replacementCookie }))).status, 200);
+
     await db.user.update({ where: { id: user.id }, data: { platformRole: "USER" } });
-    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie }))).status, 403);
+    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: replacementCookie }))).status, 403);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
@@ -131,6 +168,10 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
         token: replacement.activation.token,
         password,
         confirmation: password,
+        mfaCode: totp(decryptPlatformMfaSecret((await db.platformAccountActivation.findFirstOrThrow({
+          where: { userId: first.userId, revokedAt: null },
+          select: { mfaSecretEncrypted: true },
+        })).mfaSecretEncrypted)),
       },
     }));
     assert.equal(activation.status, 200);
@@ -138,9 +179,10 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
     assert.ok(activation.headers.get("set-cookie"));
     const activated = await db.user.findUniqueOrThrow({
       where: { id: first.userId },
-      select: { passwordHash: true },
+      select: { passwordHash: true, platformMfaEnabledAt: true },
     });
     assert.equal(verifyPassword(password, activated.passwordHash), true);
+    assert.equal(activated.platformMfaEnabledAt instanceof Date, true);
     assert.equal((await db.platformAccountActivation.findFirstOrThrow({
       where: { userId: first.userId, consumedAt: { not: null } },
       select: { consumedAt: true },
@@ -154,6 +196,7 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
         token: replacement.activation.token,
         password,
         confirmation: password,
+        mfaCode: "000000",
       },
     }));
     assert.equal(replay.status, 400);
@@ -162,7 +205,14 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
     const loginResponse = await login(makeRequest("/api/agent/auth/login", {
       method: "POST",
       headers: { "x-forwarded-for": "127.0.20.4" },
-      body: { email, password },
+      body: {
+        email,
+        password,
+        mfaCode: totp(decryptPlatformMfaSecret((await db.user.findUniqueOrThrow({
+          where: { id: first.userId },
+          select: { platformMfaSecretEncrypted: true },
+        })).platformMfaSecretEncrypted!)),
+      },
     }));
     assert.equal(loginResponse.status, 200);
     assert.equal((await loginResponse.json()).redirectTo, "/platform-admin");
@@ -199,6 +249,34 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
     assert.equal(await db.platformAuditEvent.count({
       where: { actorUserId: existing.id, action: "PLATFORM_ROLE_BOOTSTRAPPED" },
     }), 1);
+    const existingLogin = await login(makeRequest("/api/agent/auth/login", {
+      method: "POST",
+      headers: { "x-forwarded-for": "127.0.20.8" },
+      body: { email: existingEmail, password: existingPassword },
+    }));
+    assert.equal(existingLogin.status, 200);
+    assert.equal((await existingLogin.json()).redirectTo, "/setup/platform-admin-mfa");
+    const enrollmentCookie = existingLogin.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(enrollmentCookie);
+    const enrollment = await enrollPlatformMfa(makeRequest("/api/platform-admin/mfa", {
+      method: "POST",
+      cookie: enrollmentCookie,
+      headers: { "x-forwarded-for": "127.0.20.9" },
+      body: { action: "BEGIN" },
+    }));
+    assert.equal(enrollment.status, 200);
+    const enrollmentBody = await enrollment.json() as { secret: string };
+    const confirmation = await enrollPlatformMfa(makeRequest("/api/platform-admin/mfa", {
+      method: "POST",
+      cookie: enrollmentCookie,
+      headers: { "x-forwarded-for": "127.0.20.9" },
+      body: { action: "CONFIRM", code: totp(enrollmentBody.secret) },
+    }));
+    assert.equal(confirmation.status, 200);
+    const enabledCookie = confirmation.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(enabledCookie);
+    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: enrollmentCookie }))).status, 401);
+    assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: enabledCookie }))).status, 200);
 
     const massAssignment = await activatePlatformAccount(makeRequest("/api/platform-admin/activation", {
       method: "POST",
@@ -218,6 +296,20 @@ test("M2 first platform admin activation is hash-only, one-time and preserves ex
     }
     assert.equal(rateLimitedStatus, 429);
   } finally {
+    await db.securityRateLimitBucket.deleteMany({
+      where: {
+        keyHash: {
+          in: [
+            persistentRateLimitKey("platform-activation-verify", "127.0.20.1"),
+            persistentRateLimitKey("platform-activation-consume", "127.0.20.2"),
+            persistentRateLimitKey("platform-activation-consume", "127.0.20.3"),
+            persistentRateLimitKey("platform-activation-verify", "127.0.20.5"),
+            persistentRateLimitKey("platform-activation-verify", "127.0.20.7"),
+            persistentRateLimitKey("platform-mfa-enrollment", "127.0.20.9"),
+          ],
+        },
+      },
+    });
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
   }
@@ -241,6 +333,7 @@ test("M2 organization administration is tenant-scoped and enforces capabilities 
       activeMembershipId: adminA.membershipId,
       role: "SUPER_ADMIN",
       version: 2,
+      mfaVerified: true,
     });
     const forgedPlatformCookie = `${SESSION_COOKIE}=${forgedPlatformToken}`;
     assert.equal((await platformDashboard(makeRequest("/api/platform-admin/dashboard", { cookie: forgedPlatformCookie }))).status, 403);
@@ -307,9 +400,35 @@ test("M2 organization administration is tenant-scoped and enforces capabilities 
       { params: Promise.resolve({ membershipId: agentA.membershipId }) },
     );
     assert.equal(suspend.status, 200);
-    assert.equal((await readTeam(makeRequest("/api/agent/organization/team", { cookie: agentCookie }))).status, 401);
+    assert.equal((await readTeam(makeRequest("/api/agent/organization/team", { cookie: agentCookie }))).status, 403);
     assert.equal((await db.membership.findUniqueOrThrow({ where: { id: agentA.membershipId } })).status, "SUSPENDED");
     assert.equal((await db.agent.findUniqueOrThrow({ where: { id: agentA.agentId } })).status, "SUSPENDED");
+
+    const concurrentDemotions = await Promise.all([
+      updateMembership(
+        commandRequest(`/api/agent/organization/memberships/${adminA.membershipId}`, adminCookie, `${inviteId}:parallel-a`, {
+          role: "MANAGER",
+          reason: "Параллельная проверка защиты последнего администратора A",
+        }),
+        { params: Promise.resolve({ membershipId: adminA.membershipId }) },
+      ),
+      updateMembership(
+        commandRequest(`/api/agent/organization/memberships/${managerA.membershipId}`, adminCookie, `${inviteId}:parallel-b`, {
+          role: "MANAGER",
+          reason: "Параллельная проверка защиты последнего администратора B",
+        }),
+        { params: Promise.resolve({ membershipId: managerA.membershipId }) },
+      ),
+    ]);
+    const concurrentStatuses = concurrentDemotions.map((response) => response.status).sort();
+    assert.equal(concurrentStatuses[0], 200);
+    assert.ok(
+      concurrentStatuses[1] === 403 || concurrentStatuses[1] === 409,
+      `expected stale authorization or last-admin conflict, got ${concurrentStatuses[1]}`,
+    );
+    assert.equal(await db.membership.count({
+      where: { organizationId: organizationA, role: "ADMIN", status: "ACTIVE" },
+    }), 1);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
@@ -320,15 +439,27 @@ test("M2 organization suspension is platform-only and revokes stale operational 
   const fixtures = createFixtureContext("m2-org-suspend");
   const password = "M2-Platform-Suspend-42!";
   const email = `m2-suspend-${randomBytes(6).toString("hex")}@test.invalid`;
+  const mfaSecret = generatePlatformMfaSecret();
   try {
     const organizationId = await fixtures.makeOrganization("suspend");
     const admin = await fixtures.makeMember("admin", { organizationId, role: "ADMIN" });
     const user = await db.user.create({
-      data: { email, passwordHash: hashPassword(password), platformRole: "SUPER_ADMIN" },
-      select: { id: true },
+      data: {
+        email,
+        passwordHash: hashPassword(password),
+        platformRole: "SUPER_ADMIN",
+        platformMfaSecretEncrypted: encryptPlatformMfaSecret(mfaSecret),
+        platformMfaEnabledAt: new Date(),
+      },
+      select: { id: true, sessionVersion: true },
     });
     fixtures.trackUser(user.id);
-    const platformCookie = `${SESSION_COOKIE}=${await signSession({ userId: user.id, version: 2 })}`;
+    const platformCookie = `${SESSION_COOKIE}=${await signSession({
+      userId: user.id,
+      version: 2,
+      sessionVersion: user.sessionVersion,
+      mfaVerified: true,
+    })}`;
     const adminCookie = await sessionCookieHeader(admin.userId, admin.agentId);
 
     const suspend = await updateOrganization(
@@ -340,7 +471,7 @@ test("M2 organization suspension is platform-only and revokes stale operational 
       { params: Promise.resolve({ organizationId }) },
     );
     assert.equal(suspend.status, 200);
-    assert.equal((await readTeam(makeRequest("/api/agent/organization/team", { cookie: adminCookie }))).status, 401);
+    assert.equal((await readTeam(makeRequest("/api/agent/organization/team", { cookie: adminCookie }))).status, 403);
 
     const detail = await platformOrganization(
       makeRequest(`/api/platform-admin/organizations/${organizationId}`, { cookie: platformCookie }),

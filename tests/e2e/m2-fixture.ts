@@ -2,6 +2,8 @@ import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 import { hashPassword } from "../../lib/password";
 import { hashPlatformActivationToken, isPlatformActivationTokenShape } from "../../lib/platformActivation";
+import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
+import { persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const command = process.argv[2];
 const runId = (process.env.M2_UAT_RUN_ID ?? "mission-2").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
@@ -59,10 +61,15 @@ async function provision() {
   await cleanup();
   const password = process.env.M2_UAT_PASSWORD;
   const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
+  const mfaSecret = process.env.M2_UAT_MFA_SECRET;
   if (!password || password.length < 32) throw new Error("M2_UAT_PASSWORD must contain at least 32 characters");
   if (!activationToken || !isPlatformActivationTokenShape(activationToken)) {
     throw new Error("M2_UAT_ACTIVATION_TOKEN must be a 32-byte base64url token");
   }
+  if (!mfaSecret || !/^[A-Z2-7]{32}$/.test(mfaSecret)) {
+    throw new Error("M2_UAT_MFA_SECRET must be a 20-byte base32 secret");
+  }
+  const mfaSecretEncrypted = encryptPlatformMfaSecret(mfaSecret);
   const passwordHash = hashPassword(password);
   const tier = await db.agentTier.upsert({
     where: { name: "M2 Synthetic UAT" },
@@ -73,7 +80,14 @@ async function provision() {
     await tx.organization.create({ data: { id: organizationA, slug: `m2-uat-${runId}-a`, name: "Синтетическое агентство M2", status: "ACTIVE" } });
     await tx.organization.create({ data: { id: organizationB, slug: `m2-uat-${runId}-b`, name: "Другая синтетическая организация", status: "ACTIVE" } });
     const platform = await tx.user.create({
-      data: { email: emails.platform, name: "Владелец платформы M2", passwordHash, platformRole: "SUPER_ADMIN" },
+      data: {
+        email: emails.platform,
+        name: "Владелец платформы M2",
+        passwordHash,
+        platformRole: "SUPER_ADMIN",
+        platformMfaSecretEncrypted: mfaSecretEncrypted,
+        platformMfaEnabledAt: new Date(),
+      },
     });
     await tx.platformAuditEvent.create({
       data: {
@@ -96,6 +110,7 @@ async function provision() {
       data: {
         userId: activationUser.id,
         tokenHash: hashPlatformActivationToken(activationToken),
+        mfaSecretEncrypted,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       },
     });
@@ -143,6 +158,11 @@ async function createOperationalIdentity(
 }
 
 async function cleanup() {
+  const loopbackAddresses = ["127.0.0.1", "::1", "::ffff:127.0.0.1"];
+  const rateLimitKeys = loopbackAddresses.flatMap((ip) => [
+    persistentRateLimitKey("platform-activation-verify", ip),
+    persistentRateLimitKey("platform-activation-consume", ip),
+  ]);
   const organizations = await db.organization.findMany({
     where: { id: { in: [organizationA, organizationB] } },
     select: { id: true, memberships: { select: { id: true, userId: true, agentId: true } } },
@@ -165,6 +185,7 @@ async function cleanup() {
   if (agentIds.length) await db.agent.deleteMany({ where: { id: { in: agentIds } } });
   if (userIds.length || platformUserIds.length) await db.user.deleteMany({ where: { id: { in: [...userIds, ...platformUserIds] } } });
   if (organizationIds.length) await db.organization.deleteMany({ where: { id: { in: organizationIds } } });
+  await db.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: rateLimitKeys } } });
   await db.agentTier.deleteMany({ where: { name: "M2 Synthetic UAT", agents: { none: {} } } });
   process.stdout.write(`${JSON.stringify({ status: "CLEAN" })}\n`);
 }

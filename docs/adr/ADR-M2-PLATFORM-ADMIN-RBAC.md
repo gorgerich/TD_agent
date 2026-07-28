@@ -1,6 +1,6 @@
 # ADR M2: Platform Admin and organization RBAC
 
-Status: accepted for isolated implementation  
+Status: accepted for isolated implementation
 Date: 2026-07-26
 
 ## Context

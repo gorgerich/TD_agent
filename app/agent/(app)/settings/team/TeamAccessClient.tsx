@@ -13,6 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/Toast";
+import { buildInvitationUrl } from "@/lib/invitationLink";
 
 type Role = "AGENT" | "MANAGER" | "ADMIN";
 type MemberStatus = "INVITED" | "ACTIVE" | "SUSPENDED";
@@ -106,7 +107,7 @@ export function TeamAccessClient({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Не удалось создать приглашение");
-      if (data.token) setIssuedLink(`${window.location.origin}/agent/register?invite=${data.token}`);
+      if (data.token) setIssuedLink(buildInvitationUrl(window.location.origin, data.token));
       await refresh();
       setEmail("");
       setRole("AGENT");
@@ -157,7 +158,7 @@ export function TeamAccessClient({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Не удалось обновить приглашение");
-      if (data.token) setIssuedLink(`${window.location.origin}/agent/register?invite=${data.token}`);
+      if (data.token) setIssuedLink(buildInvitationUrl(window.location.origin, data.token));
       await refresh();
       toast({ type: "success", message: action === "RESEND" ? "Создана новая ссылка приглашения." : "Приглашение отозвано." });
     } catch (cause) {

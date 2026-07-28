@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { CheckCircle, Eye, EyeSlash, LockKey, WarningCircle } from "@phosphor-icons/react";
 
 type State = "loading" | "ready" | "error" | "submitting" | "success";
+type MfaSetup = { secret: string; uri: string };
 
 const INVALID_MESSAGE = "Ссылка недействительна, истекла или уже была использована.";
 
@@ -15,6 +16,8 @@ export function PlatformActivationClient() {
   const [token, setToken] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaSetup, setMfaSetup] = useState<MfaSetup | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,11 +29,21 @@ export function PlatformActivationClient() {
         cache: "no-store",
         body: JSON.stringify({ action: "VERIFY", token: rawToken }),
       });
-      if (!response.ok) throw new Error(INVALID_MESSAGE);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status >= 500) {
+          setError(typeof data.error === "string" ? data.error : "Сервис временно недоступен. Повторите попытку.");
+          setState("error");
+          return;
+        }
+        setToken(null);
+        throw new Error(INVALID_MESSAGE);
+      }
+      setMfaSetup({ secret: data.mfaSecret, uri: data.mfaUri });
+      setError(null);
       setState("ready");
     } catch {
-      setToken(null);
-      setError(INVALID_MESSAGE);
+      setError("Нет связи. Повторите проверку.");
       setState("error");
     }
   }, []);
@@ -68,6 +81,7 @@ export function PlatformActivationClient() {
           token,
           password,
           confirmation,
+          mfaCode,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -80,6 +94,8 @@ export function PlatformActivationClient() {
       setToken(null);
       setPassword("");
       setConfirmation("");
+      setMfaCode("");
+      setMfaSetup(null);
       setState("success");
       window.setTimeout(() => {
         router.replace(typeof data.redirectTo === "string" ? data.redirectTo : "/platform-admin");
@@ -115,12 +131,19 @@ export function PlatformActivationClient() {
           )}
 
           {state === "error" && (
-            <Status
-              icon={<WarningCircle size={23} weight="fill" />}
-              title="Не удалось активировать аккаунт"
-              text={error ?? INVALID_MESSAGE}
-              tone="error"
-            />
+            <>
+              <Status
+                icon={<WarningCircle size={23} weight="fill" />}
+                title="Не удалось активировать аккаунт"
+                text={error ?? INVALID_MESSAGE}
+                tone="error"
+              />
+              {token && (
+                <button type="button" onClick={() => void verify(token)} className="min-h-11 rounded-[10px] bg-[#0d3b34] px-4 text-[13px] font-semibold text-white">
+                  Повторить проверку
+                </button>
+              )}
+            </>
           )}
 
           {state === "success" && (
@@ -182,11 +205,37 @@ export function PlatformActivationClient() {
                 <li>Пароль должен совпадать в обоих полях</li>
               </ul>
 
+              {mfaSetup && (
+                <div className="rounded-[10px] bg-[#f3f5f4] p-4">
+                  <p className="text-[12px] font-semibold text-[#344b46]">Защита входа</p>
+                  <p className="mt-1 text-[12px] leading-5 text-[#60716d]">Добавьте ключ в приложение-аутентификатор.</p>
+                  <code className="mt-2 block break-all text-[13px] leading-6 text-[#132421]">{mfaSetup.secret}</code>
+                  <a href={mfaSetup.uri} className="mt-2 inline-flex min-h-10 items-center text-[12px] font-semibold text-[#176b5d]">
+                    Открыть приложение-аутентификатор
+                  </a>
+                </div>
+              )}
+
+              <label htmlFor="platform-admin-mfa-code">
+                <span className="block text-[12px] font-semibold text-[#344b46]">Код подтверждения</span>
+                <input
+                  id="platform-admin-mfa-code"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  minLength={6}
+                  maxLength={6}
+                  required
+                  className="mt-2 min-h-12 w-full rounded-[10px] bg-[#f3f5f4] px-4 text-[16px] text-[#132421] outline-none ring-1 ring-[#d7dedb] focus:ring-2 focus:ring-[#176b5d]"
+                />
+              </label>
+
               {error && <p role="alert" className="text-[12px] font-medium text-[#b42318]">{error}</p>}
 
               <button
                 type="submit"
-                disabled={busy || password.length < 12 || confirmation.length < 12}
+                disabled={busy || password.length < 12 || confirmation.length < 12 || mfaCode.length !== 6}
                 className="min-h-12 rounded-[10px] bg-[#0d3b34] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#154d44] disabled:cursor-not-allowed disabled:bg-[#aab7b3]"
               >
                 {state === "submitting" ? "Активируем…" : "Установить пароль"}
