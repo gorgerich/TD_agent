@@ -129,6 +129,7 @@ jobs:
           M2_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
           M2_UAT_PASSWORD="$password" \
           M2_UAT_ACTIVATION_TOKEN="$activation_token" \
+          M2_UAT_MFA_SECRET="$mfa_secret" \
           npx tsx tests/e2e/m2-fixture.ts provision
       - run: npm run build
       - run: npx playwright install --with-deps chromium
