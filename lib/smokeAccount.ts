@@ -30,6 +30,10 @@ type SmokeAccountInput = {
 
 type SmokeAccountDependencies = {
   hashPassword?: (password: string) => string | Promise<string>;
+  identity?: {
+    email: string;
+    name: string;
+  };
 };
 
 export async function manageSmokeAccount(
@@ -38,6 +42,11 @@ export async function manageSmokeAccount(
   dependencies: SmokeAccountDependencies = {},
 ): Promise<SmokeAccountAudit> {
   validateInput(input);
+  const identity = dependencies.identity ?? {
+    email: SMOKE_ACCOUNT_EMAIL,
+    name: SMOKE_ACCOUNT_NAME,
+  };
+  assertSyntheticIdentity(identity);
   const passwordHasher = dependencies.hashPassword ?? hashPassword;
   const preparedPasswordHash = input.action === "provision"
     ? await passwordHasher(input.password!)
@@ -47,7 +56,7 @@ export async function manageSmokeAccount(
 
   const execute = () => db.$transaction(async (tx) => {
     const existing = await tx.user.findUnique({
-      where: { email: SMOKE_ACCOUNT_EMAIL },
+      where: { email: identity.email },
       include: { agent: true },
     });
 
@@ -62,8 +71,8 @@ export async function manageSmokeAccount(
 
       user = await tx.user.create({
         data: {
-          email: SMOKE_ACCOUNT_EMAIL,
-          name: SMOKE_ACCOUNT_NAME,
+          email: identity.email,
+          name: identity.name,
           phone: null,
           passwordHash: preparedPasswordHash!,
           agent: {
@@ -80,7 +89,7 @@ export async function manageSmokeAccount(
       });
       created = true;
     } else {
-      assertSyntheticAccount(user);
+      assertSyntheticAccount(user, identity);
       if (!user.agent) throw new Error("Synthetic smoke user has no Agent profile");
 
       if (input.action === "provision") {
@@ -167,7 +176,7 @@ export async function manageSmokeAccount(
 
     return {
       action: input.action,
-      accountRef: createHash("sha256").update(SMOKE_ACCOUNT_EMAIL).digest("hex").slice(0, 16),
+      accountRef: createHash("sha256").update(identity.email).digest("hex").slice(0, 16),
       userId: user.id,
       agentId: user.agent.id,
       tenantId: organizationId,
@@ -207,13 +216,19 @@ function assertStrongPassword(value: string | undefined, label: string): asserts
   if (classes < 3) throw new Error(`${label} must contain at least three character classes`);
 }
 
+function assertSyntheticIdentity(identity: { email: string; name: string }): void {
+  if (!identity.email.endsWith(".invalid") || !identity.name.trim()) {
+    throw new Error("Smoke identity must use a named synthetic .invalid address");
+  }
+}
+
 function assertSyntheticAccount(user: {
   email: string | null;
   name: string | null;
   phone: string | null;
   passwordHash: string | null;
-}): void {
-  if (user.email !== SMOKE_ACCOUNT_EMAIL || user.name !== SMOKE_ACCOUNT_NAME || user.phone !== null || !user.passwordHash) {
+}, identity: { email: string; name: string }): void {
+  if (user.email !== identity.email || user.name !== identity.name || user.phone !== null || !user.passwordHash) {
     throw new Error("Reserved smoke identity does not match canonical synthetic account");
   }
 }
