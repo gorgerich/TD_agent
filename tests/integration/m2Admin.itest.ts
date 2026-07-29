@@ -31,6 +31,7 @@ import { createVersionBoundUserSession } from "../../lib/agentAuth";
 import {
   consumePlatformOwnerRecovery,
   issuePlatformOwnerRecovery,
+  PLATFORM_OWNER_RECOVERY_MFA_PENDING,
   PLATFORM_OWNER_RECOVERY_TTL_MS,
   verifyPlatformOwnerRecovery,
 } from "../../lib/platformOwnerRecovery";
@@ -348,6 +349,7 @@ test("platform owner recovery is one-time, audited, session-revoking and role-pr
   const ips = {
     revoked: "127.0.31.1",
     verify: "127.0.31.2",
+    verifyReplay: "127.0.31.9",
     consume: "127.0.31.3",
     replay: "127.0.31.4",
     login: "127.0.31.5",
@@ -373,17 +375,30 @@ test("platform owner recovery is one-time, audited, session-revoking and role-pr
       sessionVersion: user.sessionVersion,
     })}`;
 
-    const first = await db.$transaction((tx) => issuePlatformOwnerRecovery(tx, email));
+    const encryptionKey = process.env.APP_ENCRYPTION_KEY;
+    delete process.env.APP_ENCRYPTION_KEY;
+    let first: Awaited<ReturnType<typeof issuePlatformOwnerRecovery>>;
+    try {
+      first = await db.$transaction((tx) => issuePlatformOwnerRecovery(tx, email));
+    } finally {
+      if (encryptionKey === undefined) delete process.env.APP_ENCRYPTION_KEY;
+      else process.env.APP_ENCRYPTION_KEY = encryptionKey;
+    }
     const firstRecord = await db.platformAccountActivation.findUniqueOrThrow({
       where: { id: first.activationId },
     });
     assert.equal(firstRecord.purpose, "OWNER_RECOVERY");
     assert.equal(firstRecord.tokenHash.length, 64);
     assert.notEqual(firstRecord.tokenHash, first.token);
+    assert.equal(firstRecord.mfaSecretEncrypted, PLATFORM_OWNER_RECOVERY_MFA_PENDING);
     assert.equal(first.expiresAt.getTime() - Date.now() <= PLATFORM_OWNER_RECOVERY_TTL_MS, true);
     assert.equal(JSON.stringify(firstRecord).includes(first.token), false);
 
     const replacement = await db.$transaction((tx) => issuePlatformOwnerRecovery(tx, email));
+    assert.equal((await db.platformAccountActivation.findUniqueOrThrow({
+      where: { id: replacement.activationId },
+      select: { mfaSecretEncrypted: true },
+    })).mfaSecretEncrypted, PLATFORM_OWNER_RECOVERY_MFA_PENDING);
     assert.equal((await db.platformAccountActivation.findUniqueOrThrow({
       where: { id: first.activationId },
       select: { revokedAt: true },
@@ -403,14 +418,29 @@ test("platform owner recovery is one-time, audited, session-revoking and role-pr
     }));
     assert.equal(revoked.status, 400);
 
-    const valid = await recoverPlatformOwner(makeRequest("/api/platform-admin/owner-recovery", {
-      method: "POST",
-      headers: { "x-forwarded-for": ips.verify },
-      body: { action: "VERIFY", token: replacement.token },
-    }));
+    const [valid, validReplay] = await Promise.all([
+      recoverPlatformOwner(makeRequest("/api/platform-admin/owner-recovery", {
+        method: "POST",
+        headers: { "x-forwarded-for": ips.verify },
+        body: { action: "VERIFY", token: replacement.token },
+      })),
+      recoverPlatformOwner(makeRequest("/api/platform-admin/owner-recovery", {
+        method: "POST",
+        headers: { "x-forwarded-for": ips.verifyReplay },
+        body: { action: "VERIFY", token: replacement.token },
+      })),
+    ]);
     assert.equal(valid.status, 200);
+    assert.equal(validReplay.status, 200);
     const validBody = await valid.json() as { mfaSecret: string; mfaUri: string };
+    const validReplayBody = await validReplay.json() as { mfaSecret: string; mfaUri: string };
+    assert.equal(validReplayBody.mfaSecret, validBody.mfaSecret);
+    assert.equal(validReplayBody.mfaUri, validBody.mfaUri);
     assert.match(validBody.mfaUri, /^otpauth:\/\/totp\//);
+    assert.notEqual((await db.platformAccountActivation.findUniqueOrThrow({
+      where: { id: replacement.activationId },
+      select: { mfaSecretEncrypted: true },
+    })).mfaSecretEncrypted, PLATFORM_OWNER_RECOVERY_MFA_PENDING);
 
     let hashingCompleted = false;
     const recovered = await handlePlatformOwnerRecovery(

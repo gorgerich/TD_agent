@@ -15,6 +15,7 @@ export const PLATFORM_OWNER_RECOVERY_ORIGIN = "https://td-agent.vercel.app";
 export const PLATFORM_OWNER_RECOVERY_INVALID_MESSAGE =
   "Ссылка недействительна, истекла или уже была использована.";
 const PLATFORM_OWNER_RECOVERY_LOCK_NAMESPACE = 1_867_769_221;
+export const PLATFORM_OWNER_RECOVERY_MFA_PENDING = "__OWNER_RECOVERY_MFA_PENDING__";
 
 export class PlatformOwnerRecoveryError extends Error {
   constructor(
@@ -106,7 +107,10 @@ export async function issuePlatformOwnerRecovery(
       userId: user.id,
       purpose: "OWNER_RECOVERY",
       tokenHash: hashPlatformOwnerRecoveryToken(token),
-      mfaSecretEncrypted: encryptPlatformMfaSecret(generatePlatformMfaSecret()),
+      // The trusted operator does not receive the runtime encryption key.
+      // MFA material is generated and encrypted on first verified use inside
+      // the production runtime.
+      mfaSecretEncrypted: PLATFORM_OWNER_RECOVERY_MFA_PENDING,
       expiresAt,
     },
     select: { id: true },
@@ -156,6 +160,8 @@ export async function verifyPlatformOwnerRecovery(
   const activation = await tx.platformAccountActivation.findUnique({
     where: { tokenHash: hashPlatformOwnerRecoveryToken(token) },
     select: {
+      id: true,
+      userId: true,
       purpose: true,
       expiresAt: true,
       consumedAt: true,
@@ -174,7 +180,58 @@ export async function verifyPlatformOwnerRecovery(
     && activation.user.passwordHash != null,
   );
   if (!valid || !activation) return null;
-  const secret = decryptPlatformMfaSecret(activation.mfaSecretEncrypted);
+
+  await tx.$queryRaw`
+    SELECT pg_advisory_xact_lock(
+      ${PLATFORM_OWNER_RECOVERY_LOCK_NAMESPACE}::integer,
+      ${activation.userId}::integer
+    ) IS NULL AS "locked"
+  `;
+  const lockedActivation = await tx.platformAccountActivation.findUnique({
+    where: { id: activation.id },
+    select: {
+      purpose: true,
+      expiresAt: true,
+      consumedAt: true,
+      revokedAt: true,
+      mfaSecretEncrypted: true,
+      user: { select: { platformRole: true, passwordHash: true } },
+    },
+  });
+  const stillValid = Boolean(
+    lockedActivation
+    && lockedActivation.purpose === "OWNER_RECOVERY"
+    && lockedActivation.expiresAt > now
+    && lockedActivation.consumedAt == null
+    && lockedActivation.revokedAt == null
+    && lockedActivation.user.platformRole === "SUPER_ADMIN"
+    && lockedActivation.user.passwordHash != null,
+  );
+  if (!stillValid || !lockedActivation) return null;
+
+  let encryptedSecret = lockedActivation.mfaSecretEncrypted;
+  if (encryptedSecret === PLATFORM_OWNER_RECOVERY_MFA_PENDING) {
+    const initialized = await tx.platformAccountActivation.updateMany({
+      where: {
+        id: activation.id,
+        purpose: "OWNER_RECOVERY",
+        consumedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: now },
+        mfaSecretEncrypted: PLATFORM_OWNER_RECOVERY_MFA_PENDING,
+      },
+      data: {
+        mfaSecretEncrypted: encryptPlatformMfaSecret(generatePlatformMfaSecret()),
+      },
+    });
+    if (initialized.count !== 1) return null;
+    encryptedSecret = (await tx.platformAccountActivation.findUniqueOrThrow({
+      where: { id: activation.id },
+      select: { mfaSecretEncrypted: true },
+    })).mfaSecretEncrypted;
+  }
+
+  const secret = decryptPlatformMfaSecret(encryptedSecret);
   if (!secret) throw new Error("Platform owner recovery MFA secret is unavailable");
   return { secret, uri: platformMfaUri(secret) };
 }
@@ -211,6 +268,7 @@ export async function consumePlatformOwnerRecovery(
     || activation.revokedAt != null
     || activation.user.platformRole !== "SUPER_ADMIN"
     || activation.user.passwordHash == null
+    || activation.mfaSecretEncrypted === PLATFORM_OWNER_RECOVERY_MFA_PENDING
   ) {
     throw new PlatformOwnerRecoveryError();
   }
