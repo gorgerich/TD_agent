@@ -42,4 +42,13 @@ Existing approved migration files are unchanged:
 - M1 integrity:
   `f1e3d1e2201230473ef838b00f61b3e4783d8eeae396d3aec97d783c6c06cb2d`
 
-Production migration: NOT PERFORMED.
+Production migration:
+
+- status: PASS on 2026-07-29;
+- target fingerprint: `0257665af2dd90a4`;
+- duration: 15 seconds;
+- total applied migrations after release: 9;
+- failed or incomplete migrations: 0;
+- repeated deploy: no-op;
+- schema parity: PASS;
+- legacy counts, tenant integrity, duplicates, orphans and reconciliation: PASS.

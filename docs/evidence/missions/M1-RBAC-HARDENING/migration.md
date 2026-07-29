@@ -26,5 +26,12 @@ Safety:
   `743d6b48f5c750e2c227fa788e001d3779a867ebfd4f4a71356a771c214ac252`;
 - `20260728190000_m1_platform_owner_recovery` checksum is
   `352bce3b68654db2d56b5cfff48de6522319cd4f8c96d6376a5bacf6a1b79cbe`;
-- Production migration: not performed;
-- Production schema changes: none.
+- Historical Preview checkpoint: Production migration had not yet run and
+  Production schema was unchanged.
+- Final Production migration: PASS on 2026-07-29.
+- Final Production target fingerprint: `0257665af2dd90a4`.
+- Final Production migration duration: 15 seconds.
+- Total applied migrations: 9; failed or incomplete: 0.
+- Repeated deploy: no-op; schema parity: PASS.
+- Authoritative release details:
+  `docs/evidence/missions/M1-RBAC-HARDENING/post-release.md`.

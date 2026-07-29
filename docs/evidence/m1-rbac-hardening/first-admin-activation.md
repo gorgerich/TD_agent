@@ -41,7 +41,7 @@
 - Agent and Manager auth regressions: PASS.
 - Governance correction GitHub CI: `30353147176`, skipped `0`.
 - Isolated Preview migration/repeated deploy/schema parity: PASS.
-- Production DB/schema/deployment: unchanged.
+- Historical Preview checkpoint: Production DB/schema/deployment was unchanged.
 
 Production provisioning and activation remain blocked pending a separate owner
 approval and controlled release runbook.
@@ -83,7 +83,7 @@ Verification:
   `https://github.com/gorgerich/TD_agent/actions/runs/30449276195`, PASS,
   skipped `0`.
 - Independent review: P0 `0`, P1 `0`.
-- Production recovery: NOT RUN.
+- Historical pre-release checkpoint: Production recovery had not run.
 
 ## Restored-snapshot isolation repair
 
@@ -103,3 +103,29 @@ Verification:
   `https://github.com/gorgerich/TD_agent/actions/runs/30451594365`, PASS,
   skipped `0`.
 - Independent repair review: P0 `0`, P1 `0`.
+
+## Production owner recovery closure
+
+- Production target fingerprint: `0257665af2dd90a4`, MATCH.
+- PR #25 merge SHA: `16114cc9943f77412b5704774591240eb30c0244`.
+- Runtime crypto repair SHA:
+  `ee66888142a791aa5573fe7463fb004c992ceb45`.
+- PR #26 merge and final runtime SHA:
+  `d594ad21a5f2d07cea57a2d3355f7190c43e81a5`.
+- Final main CI:
+  `https://github.com/gorgerich/TD_agent/actions/runs/30454919991`, PASS,
+  skipped `0`.
+- Issuance created one hash-only `OWNER_RECOVERY` activation. No User, Agent or
+  Organization was created.
+- Runtime verification generated and encrypted the TOTP secret under the
+  production application key. Operator issuance did not require or read that
+  key.
+- Owner entered the new password and TOTP code directly in the protected UI.
+- Recovery token consumption, password update, MFA enrollment, audit and
+  session-version increment: PASS.
+- Replayable active recovery records after completion: `0`.
+- Authenticated Platform Admin smoke: PASS.
+- Mandatory MFA login: PASS.
+- Platform role preservation: PASS.
+- Raw bearer, password, TOTP secret and session cookie were not written to chat,
+  CI, GitHub or evidence.

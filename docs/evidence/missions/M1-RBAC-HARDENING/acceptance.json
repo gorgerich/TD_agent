@@ -1,6 +1,6 @@
 {
   "mission": "M1-RBAC-HARDENING",
-  "state": "MISSION_RELEASE_READY",
+  "state": "RELEASED",
   "acceptance": [
     {
       "id": "M1RH-AC-01",

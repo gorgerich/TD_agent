@@ -2,13 +2,13 @@
   "mission": "M1-RBAC-HARDENING",
   "classification": "supplemental_m1_week8_hardening",
   "portfolioM2CommercialTrustLoop": "NOT_STARTED",
-  "state": "MISSION_RELEASE_READY",
-  "implementationSha": "934e7ff7ae82925418dfce588004a11fd0b080df",
+  "state": "RELEASED",
+  "implementationSha": "ee66888142a791aa5573fe7463fb004c992ceb45",
   "rbacRuntimeBaselineSha": "be37d89fc1718744a9aa6896261552f0bd689c35",
   "evidenceHeadBeforeGovernanceCorrection": "785d8242c7cdde9f5d8e771f074b5e391eb0f90b",
   "governanceCorrectionSha": "84ebb8b1ea277f680d8e4848d9cae7d76185420f",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30451594365",
-  "githubCiHead": "934e7ff7ae82925418dfce588004a11fd0b080df",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30454919991",
+  "githubCiHead": "d594ad21a5f2d07cea57a2d3355f7190c43e81a5",
   "previewDeploymentId": "dpl_GMps7voq6UFYGLt262fsFe1YxPj3",
   "previewDeploymentSha": "934e7ff7ae82925418dfce588004a11fd0b080df",
   "previewDatabaseFingerprint": "76ecfdc12aece957",
@@ -65,8 +65,15 @@
     "notRun": 0
   },
   "production": {
-    "writes": "NONE",
-    "databaseChanges": "NONE",
-    "deployment": "UNCHANGED"
+    "writes": "AUTHORIZED_RELEASE_ONLY",
+    "databaseChanges": "FIVE_ADDITIVE_MIGRATIONS",
+    "deployment": "READY",
+    "deploymentId": "dpl_CdK4ZkoJaEMesGqdMGSCaN6uw9v5",
+    "runtimeSha": "d594ad21a5f2d07cea57a2d3355f7190c43e81a5",
+    "databaseFingerprint": "0257665af2dd90a4",
+    "freezeFinal": "disabled",
+    "ownerRecovery": "PASS",
+    "ownerMfa": "PASS",
+    "reversibleMutationRestored": true
   }
 }
