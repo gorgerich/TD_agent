@@ -84,3 +84,22 @@ Verification:
   skipped `0`.
 - Independent review: P0 `0`, P1 `0`.
 - Production recovery: NOT RUN.
+
+## Restored-snapshot isolation repair
+
+- Repair SHA: `934e7ff7ae82925418dfce588004a11fd0b080df`.
+- Root cause: smoke-account integration setup deleted the global canonical
+  release-smoke identity before every test. Empty CI databases hid the collision;
+  a restored production snapshot exposed loss of one retained synthetic
+  User/Agent/Organization/Membership.
+- Repair: each integration process uses its own random `.invalid` identity.
+  Cleanup selects only that exact identity and its exact related IDs.
+- Canonical operator CLI identity and defaults are unchanged.
+- Production snapshot counts remain exact after the full 39-test suite.
+- Targeted lifecycle repeat: 5/5 PASS with canonical baseline preserved.
+- Rehearsal: encrypted backup, real remote restore, additive migration,
+  repeated no-op, schema parity and local restored-snapshot integration PASS.
+- Repair CI:
+  `https://github.com/gorgerich/TD_agent/actions/runs/30451594365`, PASS,
+  skipped `0`.
+- Independent repair review: P0 `0`, P1 `0`.

@@ -6,11 +6,11 @@ State: `MISSION_RELEASE_READY`
 - Controlled recovery PR:
   https://github.com/gorgerich/TD_agent/pull/25
 - Recovery implementation:
-  `c735dab4f1de6d1175dc0d53bd1f525c4497c1a0`.
+  `934e7ff7ae82925418dfce588004a11fd0b080df`.
 - Recovery CI:
-  `https://github.com/gorgerich/TD_agent/actions/runs/30449276195`, PASS,
+  `https://github.com/gorgerich/TD_agent/actions/runs/30451594365`, PASS,
   skipped `0`.
-- Recovery Preview: `dpl_7LJ4w6KirckQ27c4H7AARTcBHeC3`, READY, exact
+- Recovery Preview: `dpl_GMps7voq6UFYGLt262fsFe1YxPj3`, READY, exact
   implementation SHA.
 - Owner release authorization: granted for one controlled release.
 - Production migration: not performed.

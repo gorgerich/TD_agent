@@ -17,7 +17,7 @@ by CI and recorded separately in PR #24.
 - Production behavior changes: not deployed.
 
 Independent recovery review covers
-`c735dab4f1de6d1175dc0d53bd1f525c4497c1a0`:
+`934e7ff7ae82925418dfce588004a11fd0b080df`:
 
 - P0: `0`
 - P1: `0`
@@ -28,3 +28,5 @@ Independent recovery review covers
 - transaction atomicity: preserved;
 - PBKDF2 parameters and transaction timeout: unchanged;
 - test weakening or serialization: none.
+- restored-snapshot cleanup collision: fixed with process-unique identity and
+  exact cleanup; canonical operator identity remains unchanged.

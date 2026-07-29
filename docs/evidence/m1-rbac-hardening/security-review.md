@@ -41,6 +41,9 @@
   concurrent revoke cannot be overwritten by a stale post-commit lookup.
 - Freeze scope: only the exact recovery POST endpoint is permitted; operational
   mutations, demo, OTP, webhooks and co-view writes remain blocked.
+- Integration identity: runtime CLI keeps the canonical reserved account;
+  integration injects a process-unique `.invalid` identity and cleans only exact
+  related IDs. A restored snapshot proves no existing tenant identity is removed.
 
 Independent final diff review found no weaker hashing, role mass assignment,
 non-atomic credential write, broad token disclosure or production behavior

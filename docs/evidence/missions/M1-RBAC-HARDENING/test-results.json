@@ -3,14 +3,14 @@
   "classification": "supplemental_m1_week8_hardening",
   "portfolioM2CommercialTrustLoop": "NOT_STARTED",
   "state": "MISSION_RELEASE_READY",
-  "implementationSha": "c735dab4f1de6d1175dc0d53bd1f525c4497c1a0",
+  "implementationSha": "934e7ff7ae82925418dfce588004a11fd0b080df",
   "rbacRuntimeBaselineSha": "be37d89fc1718744a9aa6896261552f0bd689c35",
   "evidenceHeadBeforeGovernanceCorrection": "785d8242c7cdde9f5d8e771f074b5e391eb0f90b",
   "governanceCorrectionSha": "84ebb8b1ea277f680d8e4848d9cae7d76185420f",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30449276195",
-  "githubCiHead": "c735dab4f1de6d1175dc0d53bd1f525c4497c1a0",
-  "previewDeploymentId": "dpl_7LJ4w6KirckQ27c4H7AARTcBHeC3",
-  "previewDeploymentSha": "c735dab4f1de6d1175dc0d53bd1f525c4497c1a0",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30451594365",
+  "githubCiHead": "934e7ff7ae82925418dfce588004a11fd0b080df",
+  "previewDeploymentId": "dpl_GMps7voq6UFYGLt262fsFe1YxPj3",
+  "previewDeploymentSha": "934e7ff7ae82925418dfce588004a11fd0b080df",
   "previewDatabaseFingerprint": "76ecfdc12aece957",
   "checks": {
     "lint": "PASS",
@@ -22,7 +22,9 @@
     "integration": {
       "status": "PASS",
       "passed": 39,
-      "residue": 0
+      "residue": 0,
+      "restoredSnapshotCountsPreserved": true,
+      "targetedSmokeIdentityRepeats": 5
     },
     "e2e": {
       "status": "PASS",
