@@ -99,4 +99,12 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'legacy activation without MFA secret remains usable';
   END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM "PlatformAccountActivation"
+    WHERE "mfaSecretEncrypted" = '__OWNER_RECOVERY_MFA_PENDING__'
+      AND purpose <> 'OWNER_RECOVERY'
+  ) THEN
+    RAISE EXCEPTION 'pending recovery MFA marker used outside owner recovery';
+  END IF;
 END $$;
