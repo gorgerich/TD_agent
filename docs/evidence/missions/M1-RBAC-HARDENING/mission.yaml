@@ -2,12 +2,13 @@ mission: M1-RBAC-HARDENING
 name: M1 RBAC Hardening - Platform Admin, Organization Administration, MFA and completed RBAC
 classification: supplemental_m1_week8_hardening
 portfolio_m2_commercial_trust_loop: NOT_STARTED
-state: MISSION_RELEASE_READY
+state: RELEASED
 base_sha: 7e305d28d2a1c15a147a712062f30323acde98c1
 implementation_sha: be37d89fc1718744a9aa6896261552f0bd689c35
 review_sha: be37d89fc1718744a9aa6896261552f0bd689c35
 owner_recovery_implementation_sha: 934e7ff7ae82925418dfce588004a11fd0b080df
 owner_recovery_review_sha: 934e7ff7ae82925418dfce588004a11fd0b080df
+owner_recovery_runtime_repair_sha: ee66888142a791aa5573fe7463fb004c992ceb45
 evidence_head_before_governance_correction: 785d8242c7cdde9f5d8e771f074b5e391eb0f90b
 governance_correction_sha: 84ebb8b1ea277f680d8e4848d9cae7d76185420f
 preview_deployment_id: dpl_5HXCdoQJCKSqy2UxD5YUX23y2Lxy
@@ -16,7 +17,13 @@ preview_database_fingerprint: 76ecfdc12aece957
 owner_recovery_preview_deployment_id: dpl_GMps7voq6UFYGLt262fsFe1YxPj3
 owner_recovery_preview_deployment_sha: 934e7ff7ae82925418dfce588004a11fd0b080df
 owner_recovery_ci: https://github.com/gorgerich/TD_agent/actions/runs/30451594365
-production_deployment_id: null
+product_merge_sha: 0fcd7e188abc34b4312ebfe5992613468911f09a
+owner_recovery_merge_sha: 16114cc9943f77412b5704774591240eb30c0244
+release_sha: d594ad21a5f2d07cea57a2d3355f7190c43e81a5
+release_ci: https://github.com/gorgerich/TD_agent/actions/runs/30454919991
+production_deployment_id: dpl_CdK4ZkoJaEMesGqdMGSCaN6uw9v5
+production_database_fingerprint: 0257665af2dd90a4
+production_freeze_final: disabled
 required_gates:
   - code_quality
   - unit

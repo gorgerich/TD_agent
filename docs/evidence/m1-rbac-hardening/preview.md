@@ -15,7 +15,9 @@
 - CI result: PASS, skipped `0`
 
 This candidate adds controlled existing-owner recovery. Production recovery,
-migration and deployment are not performed at this evidence head.
+migration and deployment had not been performed at this historical Preview
+evidence head. Final Production truth is recorded in
+`docs/evidence/missions/M1-RBAC-HARDENING/post-release.md`.
 
 ## Historical Preview records
 

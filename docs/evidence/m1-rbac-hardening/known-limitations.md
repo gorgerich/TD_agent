@@ -11,11 +11,11 @@
   registration link for an administrator to deliver through an approved channel.
 - Organization suspension is reversible; destructive organization deletion is
   intentionally absent.
-- Production migration and deployment are authorized only through the controlled
-  release gate; they remain not performed at this evidence head.
-- The existing real owner has not yet completed controlled password recovery
-  and TOTP enrollment in Production. The operation remains gated by migration,
-  deployment and protected local bearer delivery.
+- Production migration and deployment completed through the controlled release
+  gate on 2026-07-29.
+- The existing real owner completed controlled password recovery and mandatory
+  TOTP enrollment in Production. The bearer was delivered only through
+  protected local storage and consumed once.
 - Operator-created/revoked owner-recovery audit events use the target owner as
   actor because the current audit schema requires a non-null `actorUserId`.
   Metadata records `source=trusted-operator`; a distinct system/operator
