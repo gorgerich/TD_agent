@@ -61,9 +61,22 @@ export async function createUserSession(params: {
     where: { id: params.userId },
     select: { sessionVersion: true },
   });
+  return createVersionBoundUserSession({
+    ...params,
+    sessionVersion: user.sessionVersion,
+  });
+}
+
+export async function createVersionBoundUserSession(params: {
+  userId: number;
+  sessionVersion: number;
+  activeMembershipId?: string;
+  mfaVerified?: boolean;
+  name?: string | null;
+}): Promise<string> {
   return signSession({
     userId: params.userId,
-    sessionVersion: user.sessionVersion,
+    sessionVersion: params.sessionVersion,
     mfaVerified: params.mfaVerified,
     activeMembershipId: params.activeMembershipId,
     version: 2,

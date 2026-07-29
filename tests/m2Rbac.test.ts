@@ -25,6 +25,14 @@ import {
   handlePlatformActivation,
   platformActivationFailureResponse,
 } from "../app/api/platform-admin/activation/route";
+import { handlePlatformOwnerRecovery } from "../app/api/platform-admin/owner-recovery/route";
+import {
+  buildPlatformOwnerRecoveryUrl,
+  generatePlatformOwnerRecoveryToken,
+  hashPlatformOwnerRecoveryToken,
+  isPlatformOwnerRecoveryTokenShape,
+  PLATFORM_OWNER_RECOVERY_TTL_MS,
+} from "../lib/platformOwnerRecovery";
 
 test("platform capabilities belong only to SUPER_ADMIN, not organization ADMIN", () => {
   assert.equal(hasPlatformCapability("SUPER_ADMIN", "platform:organizations-manage"), true);
@@ -76,6 +84,31 @@ test("platform activation tokens are high entropy and only their SHA-256 digest 
   assert.equal(digest.includes(token), false);
 });
 
+test("platform owner recovery token is hash-only, high entropy and bounded to 15 minutes", () => {
+  const token = generatePlatformOwnerRecoveryToken();
+  const another = generatePlatformOwnerRecoveryToken();
+  const digest = hashPlatformOwnerRecoveryToken(token);
+  assert.equal(isPlatformOwnerRecoveryTokenShape(token), true);
+  assert.equal(token.length, 43);
+  assert.notEqual(token, another);
+  assert.match(digest, /^[a-f0-9]{64}$/);
+  assert.equal(digest.includes(token), false);
+  assert.equal(PLATFORM_OWNER_RECOVERY_TTL_MS, 15 * 60 * 1000);
+});
+
+test("platform owner recovery URL is fragment-only and bound to the reviewed production origin", () => {
+  const token = generatePlatformOwnerRecoveryToken();
+  const url = new URL(buildPlatformOwnerRecoveryUrl(token));
+  assert.equal(url.origin, "https://td-agent.vercel.app");
+  assert.equal(url.pathname, "/setup/platform-owner-recovery");
+  assert.equal(url.search, "");
+  assert.equal(new URLSearchParams(url.hash.slice(1)).get("token"), token);
+  assert.throws(
+    () => buildPlatformOwnerRecoveryUrl(token, "https://attacker.invalid"),
+    /must be https:\/\/td-agent\.vercel\.app/,
+  );
+});
+
 test("platform activation password policy rejects mismatch, short and obvious passwords", () => {
   assert.doesNotThrow(() => validatePlatformAdminPassword("A-long-private-passphrase-2026!", "A-long-private-passphrase-2026!"));
   assert.throws(() => validatePlatformAdminPassword("not-the-same-123!", "different-pass-123!"), PlatformActivationError);
@@ -125,4 +158,30 @@ test("activation limiter infrastructure failures return retryable 503 from the r
   );
   assert.equal(response.status, 503);
   assert.equal(response.headers.get("Retry-After"), "5");
+});
+
+test("owner recovery rejects ineligible tokens before password hashing", async () => {
+  let hashFinished = false;
+  const response = await handlePlatformOwnerRecovery(
+    new Request("http://localhost/api/platform-admin/owner-recovery", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "RECOVER",
+        token: "x".repeat(43),
+        password: "A-long-private-passphrase-2026!",
+        confirmation: "A-long-private-passphrase-2026!",
+        mfaCode: "000000",
+      }),
+    }) as never,
+    async () => null,
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      hashFinished = true;
+      return "pbkdf2$210000$synthetic$synthetic";
+    },
+    async () => false,
+  );
+  assert.equal(hashFinished, false);
+  assert.equal(response.status, 400);
 });

@@ -1,6 +1,35 @@
 # M1 RBAC Hardening Preview evidence
 
-## Authoritative governance-corrected release candidate
+## Authoritative owner-recovery release candidate
+
+- Recovery implementation SHA:
+  `934e7ff7ae82925418dfce588004a11fd0b080df`
+- Preview URL:
+  `https://td-agent-qtgtjspiv-rics-projects-9baa2793.vercel.app`
+- Deployment ID: `dpl_GMps7voq6UFYGLt262fsFe1YxPj3`
+- Deployment target/state: `preview` / `READY`
+- Deployment SHA: `934e7ff7ae82925418dfce588004a11fd0b080df`
+- Validation database fingerprint: `76ecfdc12aece957`
+- Exact-head CI:
+  `https://github.com/gorgerich/TD_agent/actions/runs/30451594365`
+- CI result: PASS, skipped `0`
+
+This candidate adds controlled existing-owner recovery. Production recovery,
+migration and deployment are not performed at this evidence head.
+
+## Historical Preview records
+
+These records remain factual but are superseded as current release-candidate
+identity.
+
+### Initial owner-recovery candidate
+
+- Implementation SHA:
+  `c735dab4f1de6d1175dc0d53bd1f525c4497c1a0`
+- Deployment ID: `dpl_7LJ4w6KirckQ27c4H7AARTcBHeC3`
+- Classification: `HISTORICAL_SUPERSEDED`
+
+### Governance-corrected M1 RBAC Hardening candidate
 
 - Runtime implementation SHA:
   `be37d89fc1718744a9aa6896261552f0bd689c35`
@@ -9,21 +38,8 @@
 - Preview URL:
   `https://td-agent-4u8zb9qz4-rics-projects-9baa2793.vercel.app`
 - Deployment ID: `dpl_5HXCdoQJCKSqy2UxD5YUX23y2Lxy`
-- Deployment target/state: `preview` / `READY`
 - Deployment SHA: `84ebb8b1ea277f680d8e4848d9cae7d76185420f`
-- Validation database fingerprint: `76ecfdc12aece957`
-- Governance correction CI:
-  `https://github.com/gorgerich/TD_agent/actions/runs/30353147176`
-- CI result: PASS, skipped `0`
-
-The governance correction changes classification, evidence paths and the CI
-required-evidence key. Product source, schema, migrations and tests do not
-change.
-
-## Historical Preview records
-
-These records remain factual but are superseded as current release-candidate
-identity.
+- Classification: `HISTORICAL_SUPERSEDED`
 
 ### Final pre-correction evidence candidate
 

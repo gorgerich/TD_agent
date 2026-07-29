@@ -15,3 +15,18 @@ by CI and recorded separately in PR #24.
 - migration weakening: none;
 - test skips: `0`;
 - Production behavior changes: not deployed.
+
+Independent recovery review covers
+`934e7ff7ae82925418dfce588004a11fd0b080df`:
+
+- P0: `0`
+- P1: `0`
+- concurrent issuance: serialized;
+- arbitrary recovery origin: rejected;
+- PBKDF2 amplification before eligibility: blocked;
+- concurrent session-version overwrite: blocked;
+- transaction atomicity: preserved;
+- PBKDF2 parameters and transaction timeout: unchanged;
+- test weakening or serialization: none.
+- restored-snapshot cleanup collision: fixed with process-unique identity and
+  exact cleanup; canonical operator identity remains unchanged.

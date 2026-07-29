@@ -25,3 +25,12 @@
 - Activation infrastructure failures return retryable `503` without consuming
   retry context.
 - Independent review result for runtime commit: P0 `0`, P1 `0`.
+- Existing-owner recovery is limited to the exact trusted owner and purpose.
+- Recovery token is hash-only, expires within 15 minutes and is single-use.
+- Raw recovery URL is written once to protected local storage and never enters
+  CI, GitHub, evidence or normal logs.
+- Password recovery, TOTP enrollment, token consumption, audit and session
+  revocation are one transaction.
+- The session cookie is signed from the exact committed session version.
+- Persistent recovery limits fail closed.
+- Production release freeze permits only the exact recovery endpoint.

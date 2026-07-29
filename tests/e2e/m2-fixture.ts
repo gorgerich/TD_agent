@@ -3,6 +3,10 @@ import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../
 import { hashPassword } from "../../lib/password";
 import { hashPlatformActivationToken, isPlatformActivationTokenShape } from "../../lib/platformActivation";
 import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
+import {
+  hashPlatformOwnerRecoveryToken,
+  isPlatformOwnerRecoveryTokenShape,
+} from "../../lib/platformOwnerRecovery";
 import { persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const command = process.argv[2];
@@ -61,16 +65,21 @@ async function provision() {
   await cleanup();
   const password = process.env.M2_UAT_PASSWORD;
   const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
+  const recoveryToken = process.env.M2_UAT_RECOVERY_TOKEN;
   const mfaSecret = process.env.M2_UAT_MFA_SECRET;
   if (!password || password.length < 32) throw new Error("M2_UAT_PASSWORD must contain at least 32 characters");
   if (!activationToken || !isPlatformActivationTokenShape(activationToken)) {
     throw new Error("M2_UAT_ACTIVATION_TOKEN must be a 32-byte base64url token");
+  }
+  if (!recoveryToken || !isPlatformOwnerRecoveryTokenShape(recoveryToken)) {
+    throw new Error("M2_UAT_RECOVERY_TOKEN must be a 32-byte base64url token");
   }
   if (!mfaSecret || !/^[A-Z2-7]{32}$/.test(mfaSecret)) {
     throw new Error("M2_UAT_MFA_SECRET must be a 20-byte base32 secret");
   }
   const mfaSecretEncrypted = encryptPlatformMfaSecret(mfaSecret);
   const passwordHash = hashPassword(password);
+  const platformPreviousPasswordHash = hashPassword(`${password}-previous`);
   const tier = await db.agentTier.upsert({
     where: { name: "M2 Synthetic UAT" },
     update: {},
@@ -83,7 +92,7 @@ async function provision() {
       data: {
         email: emails.platform,
         name: "Владелец платформы M2",
-        passwordHash,
+        passwordHash: platformPreviousPasswordHash,
         platformRole: "SUPER_ADMIN",
         platformMfaSecretEncrypted: mfaSecretEncrypted,
         platformMfaEnabledAt: new Date(),
@@ -95,6 +104,24 @@ async function provision() {
         action: "PLATFORM_ROLE_BOOTSTRAPPED",
         targetType: "user",
         targetId: String(platform.id),
+        metadata: { source: "isolated-e2e-fixture" },
+      },
+    });
+    const recovery = await tx.platformAccountActivation.create({
+      data: {
+        userId: platform.id,
+        purpose: "OWNER_RECOVERY",
+        tokenHash: hashPlatformOwnerRecoveryToken(recoveryToken),
+        mfaSecretEncrypted,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
+    });
+    await tx.platformAuditEvent.create({
+      data: {
+        actorUserId: platform.id,
+        action: "PLATFORM_OWNER_RECOVERY_CREATED",
+        targetType: "activation",
+        targetId: recovery.id,
         metadata: { source: "isolated-e2e-fixture" },
       },
     });
@@ -162,6 +189,8 @@ async function cleanup() {
   const rateLimitKeys = loopbackAddresses.flatMap((ip) => [
     persistentRateLimitKey("platform-activation-verify", ip),
     persistentRateLimitKey("platform-activation-consume", ip),
+    persistentRateLimitKey("platform-owner-recovery-verify", ip),
+    persistentRateLimitKey("platform-owner-recovery-consume", ip),
   ]);
   const organizations = await db.organization.findMany({
     where: { id: { in: [organizationA, organizationB] } },

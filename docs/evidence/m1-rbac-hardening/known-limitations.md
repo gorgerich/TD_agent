@@ -13,7 +13,11 @@
   intentionally absent.
 - Production migration and deployment are authorized only through the controlled
   release gate; they remain not performed at this evidence head.
-- The real first owner account has not yet been provisioned or activated in
-  Production. The controlled release authorization covers this operation only
-  after migration and deployment gates pass.
+- The existing real owner has not yet completed controlled password recovery
+  and TOTP enrollment in Production. The operation remains gated by migration,
+  deployment and protected local bearer delivery.
+- Operator-created/revoked owner-recovery audit events use the target owner as
+  actor because the current audit schema requires a non-null `actorUserId`.
+  Metadata records `source=trusted-operator`; a distinct system/operator
+  principal is deferred.
 - Portfolio mission `M2 Commercial Trust Loop` remains `NOT_STARTED`.

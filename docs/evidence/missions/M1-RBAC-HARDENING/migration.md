@@ -6,6 +6,7 @@ Migrations:
 - `20260726150000_m2_platform_admin_activation`
 - `20260728120000_m2_platform_admin_mfa`
 - `20260728130000_m2_platform_admin_activation_revoke`
+- `20260728190000_m1_platform_owner_recovery`
 
 Safety:
 
@@ -23,5 +24,7 @@ Safety:
   `740fb5acc9962622c73af70dc8b3ec9a8213f5932b5f2ab88959447bc70ba70c`;
 - `20260728130000_m2_platform_admin_activation_revoke` checksum is
   `743d6b48f5c750e2c227fa788e001d3779a867ebfd4f4a71356a771c214ac252`;
+- `20260728190000_m1_platform_owner_recovery` checksum is
+  `352bce3b68654db2d56b5cfff48de6522319cd4f8c96d6376a5bacf6a1b79cbe`;
 - Production migration: not performed;
 - Production schema changes: none.
