@@ -23,6 +23,10 @@ test("freeze allows password login and ordinary reads", () => {
     { active: true, blocked: false, reason: "auth-session" },
   );
   assert.equal(evaluateReleaseWriteFreeze({ method: "POST", pathname: "/api/agent/auth/logout" }, "enabled").blocked, false);
+  assert.equal(
+    evaluateReleaseWriteFreeze({ method: "POST", pathname: "/api/platform-admin/owner-recovery" }, "enabled").blocked,
+    false,
+  );
   assert.equal(evaluateReleaseWriteFreeze({ method: "GET", pathname: "/agent/cases" }, "enabled").blocked, false);
   assert.equal(evaluateReleaseWriteFreeze({ method: "GET", pathname: "/agent/login" }, "enabled").blocked, false);
   assert.equal(evaluateReleaseWriteFreeze({ method: "GET", pathname: "/api/health" }, "enabled").blocked, false);
@@ -54,6 +58,8 @@ test("freeze blocks mutations, server actions, webhooks, demo auth and write-on-
     { method: "POST", pathname: "/api/agent/onboarding" },
     { method: "POST", pathname: "/api/agent/settings/notify" },
     { method: "POST", pathname: "/api/agent/settings/password" },
+    { method: "POST", pathname: "/api/platform-admin/mfa" },
+    { method: "POST", pathname: "/api/platform-admin/activation" },
     { method: "POST", pathname: "/api/co/synthetic-code/agree" },
     { method: "PATCH", pathname: "/api/co/synthetic-code" },
     { method: "POST", pathname: "/agent/cases", label: "server action" },

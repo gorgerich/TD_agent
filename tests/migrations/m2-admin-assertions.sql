@@ -40,6 +40,25 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'PlatformAccountActivation token hash unique index missing';
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'PlatformAccountActivation'
+      AND column_name = 'purpose'
+      AND udt_name = 'PlatformAccountActivationPurpose'
+  ) THEN
+    RAISE EXCEPTION 'PlatformAccountActivation purpose missing';
+  END IF;
+  IF (
+    SELECT array_agg(enumlabel::text ORDER BY enumsortorder)
+    FROM pg_enum
+    JOIN pg_type ON pg_type.oid = pg_enum.enumtypid
+    WHERE pg_type.typname = 'PlatformAccountActivationPurpose'
+  ) IS DISTINCT FROM ARRAY['FIRST_ACCESS', 'OWNER_RECOVERY'] THEN
+    RAISE EXCEPTION 'PlatformAccountActivationPurpose values mismatch';
+  END IF;
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'User' AND column_name = 'sessionVersion'

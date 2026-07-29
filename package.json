@@ -20,6 +20,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "ops:smoke-account": "tsx scripts/ops/smoke-account.ts",
     "ops:bootstrap-platform-super-admin": "tsx scripts/ops/bootstrap-platform-super-admin.ts",
+    "ops:issue-platform-owner-recovery": "tsx scripts/ops/issue-platform-owner-recovery.ts",
     "ops:verify-migration-target": "tsx scripts/ops/verify-migration-target.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
@@ -34,6 +35,7 @@
     "postcss": "^8.5.15",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "qrcode.react": "^4.2.0",
     "tailwindcss": "^4.3.0",
     "zod": "^4.2.1"
   },

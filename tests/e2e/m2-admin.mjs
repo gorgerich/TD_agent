@@ -8,6 +8,7 @@ const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M2_UAT_RUN_ID ?? "mission-2";
 const password = process.env.M2_UAT_PASSWORD;
 const activationToken = process.env.M2_UAT_ACTIVATION_TOKEN;
+const recoveryToken = process.env.M2_UAT_RECOVERY_TOKEN;
 const mfaSecret = process.env.M2_UAT_MFA_SECRET;
 const evidenceDir = process.env.M2_EVIDENCE_DIR;
 const emails = {
@@ -20,6 +21,7 @@ const emails = {
 };
 if (!password) throw new Error("M2_UAT_PASSWORD is required");
 if (!activationToken) throw new Error("M2_UAT_ACTIVATION_TOKEN is required");
+if (!recoveryToken) throw new Error("M2_UAT_RECOVERY_TOKEN is required");
 if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
@@ -28,6 +30,7 @@ const context = await browser.newContext({ viewport: { width: 1365, height: 900 
 const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
+let expectedRecoveryRejection = 0;
 page.on("console", (message) => {
   if (
     message.type() === "error"
@@ -37,12 +40,43 @@ page.on("console", (message) => {
     expectedActivationRejection += 1;
     return;
   }
+  if (
+    message.type() === "error"
+    && message.text().includes("status of 400")
+    && message.location().url.includes("/api/platform-admin/owner-recovery")
+  ) {
+    expectedRecoveryRejection += 1;
+    return;
+  }
   if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
 try {
   await page.setViewportSize({ width: 390, height: 844 });
+  await openRecovery(page, recoveryToken);
+  await page.getByRole("heading", { name: "Восстановление доступа владельца" }).waitFor();
+  try {
+    await page.waitForFunction(() => window.location.hash === "", undefined, { timeout: 5_000 });
+  } catch {
+    throw new Error("Raw recovery token was not removed from browser URL");
+  }
+  await page.getByLabel("Новый пароль").fill(password);
+  await page.getByLabel("Повторите пароль").fill(password);
+  await page.getByRole("img", { name: "QR-код для приложения-аутентификатора" }).waitFor();
+  await assertNoOverflow(page, "platform owner recovery mobile");
+  await recoveryScreenshot(page, "platform-owner-recovery-mobile.png");
+  await page.getByLabel("Код из приложения").fill(totp(mfaSecret));
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === "/platform-admin"),
+    page.getByRole("button", { name: "Обновить пароль" }).click(),
+  ]);
+  await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
+  await context.clearCookies();
+  await openRecovery(page, recoveryToken);
+  await page.getByRole("heading", { name: "Не удалось восстановить доступ" }).waitFor();
+
+  await context.clearCookies();
   await openActivation(page, activationToken);
   await page.getByRole("heading", { name: "Первый вход владельца платформы" }).waitFor();
   try {
@@ -138,9 +172,11 @@ try {
 
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.equal(expectedActivationRejection, 1, "Consumed activation token must be rejected exactly once");
+  assert.equal(expectedRecoveryRejection, 1, "Consumed recovery token must be rejected exactly once");
   process.stdout.write(`${JSON.stringify({
     platformSuperAdmin: "PASS",
     platformActivation: "PASS",
+    platformOwnerRecovery: "PASS",
     organizationAdmin: "PASS",
     managerForbidden: "PASS",
     agentForbidden: "PASS",
@@ -175,6 +211,17 @@ async function openActivation(target, rawToken) {
     );
   } catch {
     throw new Error("Platform activation page navigation failed");
+  }
+}
+
+async function openRecovery(target, rawToken) {
+  try {
+    await target.goto(
+      `${baseUrl}/setup/platform-owner-recovery#token=${encodeURIComponent(rawToken)}`,
+      { waitUntil: "domcontentloaded", timeout: 30_000 },
+    );
+  } catch {
+    throw new Error("Platform owner recovery page navigation failed");
   }
 }
 
@@ -213,6 +260,25 @@ function totp(secret) {
 
 async function screenshot(target, filename) {
   if (!evidenceDir) return;
+  await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true });
+}
+
+async function recoveryScreenshot(target, filename) {
+  if (!evidenceDir) return;
+  await target.evaluate(() => {
+    const qr = document.querySelector('[role="img"][aria-label="QR-код для приложения-аутентификатора"]');
+    if (qr) {
+      qr.replaceChildren();
+      const label = document.createElement("span");
+      label.textContent = "QR скрыт в evidence";
+      label.style.cssText = "font: 600 12px/1.4 system-ui; color: #60716d; text-align: center;";
+      qr.append(label);
+    }
+    const fallbackKey = document.querySelector("code");
+    if (fallbackKey) fallbackKey.textContent = "Ключ скрыт в evidence";
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  });
+  await target.waitForTimeout(250);
   await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true });
 }
 

@@ -69,6 +69,7 @@ export async function verifyPlatformActivation(
   const activation = await client.platformAccountActivation.findUnique({
     where: { tokenHash: hashPlatformActivationToken(token) },
     select: {
+      purpose: true,
       expiresAt: true,
       consumedAt: true,
       revokedAt: true,
@@ -78,6 +79,7 @@ export async function verifyPlatformActivation(
   });
   const valid = Boolean(
     activation
+    && activation.purpose === "FIRST_ACCESS"
     && activation.expiresAt > now
     && activation.consumedAt == null
     && activation.revokedAt == null
@@ -107,6 +109,7 @@ export async function consumePlatformActivation(
     select: {
       id: true,
       userId: true,
+      purpose: true,
       expiresAt: true,
       consumedAt: true,
       revokedAt: true,
@@ -116,6 +119,7 @@ export async function consumePlatformActivation(
   });
   if (
     !activation
+    || activation.purpose !== "FIRST_ACCESS"
     || activation.expiresAt <= now
     || activation.consumedAt != null
     || activation.revokedAt != null
@@ -132,6 +136,7 @@ export async function consumePlatformActivation(
   const consumed = await tx.platformAccountActivation.updateMany({
     where: {
       id: activation.id,
+      purpose: "FIRST_ACCESS",
       consumedAt: null,
       revokedAt: null,
       expiresAt: { gt: now },

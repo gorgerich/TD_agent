@@ -542,6 +542,7 @@ model PlatformAccountActivation {
   id         String    @id @default(cuid())
   userId     Int
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    PlatformAccountActivationPurpose @default(FIRST_ACCESS)
   tokenHash  String    @unique
   mfaSecretEncrypted String
   expiresAt  DateTime
@@ -550,7 +551,13 @@ model PlatformAccountActivation {
   createdAt  DateTime  @default(now())
 
   @@index([userId, createdAt])
+  @@index([userId, purpose, createdAt])
   @@index([expiresAt])
+}
+
+enum PlatformAccountActivationPurpose {
+  FIRST_ACCESS
+  OWNER_RECOVERY
 }
 
 // Shared limiter for high-value platform authentication endpoints. Keys are

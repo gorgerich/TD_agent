@@ -11,7 +11,13 @@ export type ReleaseWriteFreezeDecision = {
   reason: "inactive" | "auth-session" | "read-only" | "write-frozen";
 };
 
-const AUTH_SESSION_PATHS = new Set(["/api/agent/auth/login", "/api/agent/auth/logout"]);
+const AUTH_SESSION_PATHS = new Set([
+  "/api/agent/auth/login",
+  "/api/agent/auth/logout",
+  // Narrow one-time credential recovery. Token TTL, replay protection and
+  // persistent rate limits keep business mutations frozen.
+  "/api/platform-admin/owner-recovery",
+]);
 const WRITE_ON_READ_PREFIXES = ["/api/co/", "/co/"];
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
