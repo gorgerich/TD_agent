@@ -22,6 +22,14 @@ mission `M2 Commercial Trust Loop`, which remains `NOT_STARTED`.
 - Preview deployment SHA:
   `84ebb8b1ea277f680d8e4848d9cae7d76185420f`
 - Validation database fingerprint: `76ecfdc12aece957`
+- Existing-owner recovery implementation:
+  `c735dab4f1de6d1175dc0d53bd1f525c4497c1a0`
+- Recovery PR: https://github.com/gorgerich/TD_agent/pull/25
+- Recovery CI:
+  https://github.com/gorgerich/TD_agent/actions/runs/30449276195
+- Recovery Preview:
+  https://td-agent-nh3ygez1i-rics-projects-9baa2793.vercel.app
+- Recovery Preview deployment: `dpl_7LJ4w6KirckQ27c4H7AARTcBHeC3`
 
 Implemented scope:
 
@@ -38,5 +46,8 @@ Implemented scope:
 - persistent database-backed rate limiting for activation and MFA enrollment;
 - fragment-only invitation bearer transport;
 - Agent and Manager regression coverage.
+- purpose-bound, audited existing-owner password recovery with mandatory TOTP;
+- transaction-bound session rotation and persistent recovery rate limiting;
+- exact freeze exception limited to the controlled recovery endpoint.
 
-Production remained unchanged.
+Production remained unchanged by this implementation/evidence candidate.

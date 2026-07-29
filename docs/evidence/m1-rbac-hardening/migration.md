@@ -6,6 +6,8 @@ Migration:
 - SHA-256: `9682dcecfdbdd9636a8119d5281d2fe84a8d8973be09955e02838925e5e09a49`
 - `20260726150000_m2_platform_admin_activation`
 - SHA-256: `be21b0965b44cc187d2a04385e5f61947d80a399a25ccc8b5f7127ddb6a21449`
+- `20260728190000_m1_platform_owner_recovery`
+- SHA-256: `352bce3b68654db2d56b5cfff48de6522319cd4f8c96d6376a5bacf6a1b79cbe`
 - Type: additive
 
 Changes:
@@ -17,11 +19,13 @@ Changes:
 - creates `PlatformAuditEvent` and supporting indexes/FK.
 - creates `PlatformAccountActivation`, unique token-hash index, expiry/user
   indexes and cascading User FK.
+- adds purpose-bound first-access and owner-recovery activation records and a
+  supporting purpose index.
 
 Isolated Preview:
 
 - migration deploy: PASS;
-- applied migrations: 6;
+- owner-recovery migration deploy: PASS;
 - repeated deploy: no pending migrations;
 - schema parity: PASS;
 - baseline Organization/Membership/Case/Task/PlatformAccountActivation counts:

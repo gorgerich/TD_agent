@@ -33,6 +33,14 @@
   the write transaction and plaintext is never persisted.
 - Secret scan: no credentials, DSN, session cookie, invite token, or `.env` file
   is tracked by this change.
+- Owner recovery: exact target email and direct-database fingerprint are guarded;
+  issue is serialized by advisory lock; prior unconsumed tokens are revoked.
+- Recovery CPU control: eligibility is checked before PBKDF2, then rechecked
+  atomically before the credential update.
+- Session rotation: cookie uses the transaction-returned `sessionVersion`, so a
+  concurrent revoke cannot be overwritten by a stale post-commit lookup.
+- Freeze scope: only the exact recovery POST endpoint is permitted; operational
+  mutations, demo, OTP, webhooks and co-view writes remain blocked.
 
 Independent final diff review found no weaker hashing, role mass assignment,
 non-atomic credential write, broad token disclosure or production behavior

@@ -91,6 +91,12 @@
       "status": "PASS",
       "requirement": "Invitation bearer values never enter query strings.",
       "evidence": "Fragment transport unit and E2E flows pass."
+    },
+    {
+      "id": "M1RH-AC-16",
+      "status": "PASS",
+      "requirement": "The existing first platform owner can recover credentials without operator-generated passwords or exposure of the recovery bearer.",
+      "evidence": "Purpose-bound hash-only recovery, mandatory TOTP, session revocation, persistent rate limits, exact freeze scope and mobile E2E tests pass."
     }
   ]
 }
