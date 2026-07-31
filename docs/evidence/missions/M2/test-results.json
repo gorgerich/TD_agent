@@ -1,8 +1,8 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "c901159727759325069482a61d6efa9dd3f931af",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30664480944",
+  "implementationSha": "2ea112657dd980030f49d98f90d39ef61a81af4d",
+  "githubCiUrl": null,
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -74,33 +74,35 @@
           "round": 1,
           "p0": 0,
           "p1": 5,
-          "p2": 3,
-          "outcome": "all 5 P1 and 2 of 3 P2 fixed"
+          "p2": 3
         },
         {
           "round": 2,
           "p0": 0,
           "p1": 3,
-          "p2": 6,
-          "outcome": "all 3 P1 fixed; 2 P2 corrected in evidence"
+          "p2": 6
         },
         {
           "round": 3,
           "p0": 0,
           "p1": 1,
-          "p2": 6,
-          "outcome": "the P1 and 5 of 6 P2 fixed at c901159"
+          "p2": 6
+        },
+        {
+          "round": 4,
+          "p0": 0,
+          "p1": 1,
+          "p2": 7
         }
       ],
-      "note": "Round 4 has not been run. Three rounds have each found real defects, so this gate is not recorded as passed. Round 3 changed product code, so the delta needs review."
+      "trend": "P1 count per round: 5, 3, 1, 1. Every P1 found has been fixed. Round 4 changed product code (client-link expiry replay, two money surfaces, the rate-limit key, catalog replay scoping) and the evidence validator, so that delta is unreviewed.",
+      "note": "Not passed. Four rounds have each found real defects."
     },
     "skipped": 0,
     "notRun": 0,
     "ci": {
-      "status": "PASS",
-      "runId": 30664480944,
-      "headSha": "c1226d116a88466e05686fa58ccec685b7aad6ea",
-      "note": "green on the exact PR head"
+      "status": "PENDING",
+      "note": "CI is queued for this SHA; the previous green run covered an earlier commit."
     },
     "previewStorage": {
       "status": "NOT_USED",
@@ -123,7 +125,7 @@
   "blockers": [
     {
       "gate": "independent_review",
-      "reason": "Rounds 1-3 returned 5, 3 and 1 P1 respectively; all are fixed. Round 3 changed product code (money rendering, client-link replay, registry derivation, catalog replay scoping), so that delta has not been independently reviewed."
+      "reason": "Rounds 1-4 found 5, 3, 1 and 1 P1 respectively; all are fixed. Round 4 changed product code and the evidence validator, so that delta has not been independently reviewed."
     },
     {
       "gate": "preview_uat",
