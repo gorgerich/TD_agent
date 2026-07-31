@@ -1,8 +1,8 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "72aa4cdd7aef19beeb9af7c326ece93c1c90e7d6",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30658645225",
+  "implementationSha": "382ae132d959891017ee046bdfa3a7312650e421",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30662866916",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -13,7 +13,7 @@
     "build": "PASS",
     "unit": {
       "status": "PASS",
-      "passed": 79,
+      "passed": 80,
       "skipped": 0
     },
     "integration": {
@@ -69,14 +69,30 @@
       "status": "BLOCKED",
       "p0": 0,
       "p1": null,
-      "note": "First adversarial round returned 0 P0 / 5 P1 / 3 P2. All five P1s and two of the three P2s are fixed in this branch. A second review round has not been run, so P1 cannot be recorded as 0."
+      "rounds": [
+        {
+          "round": 1,
+          "p0": 0,
+          "p1": 5,
+          "p2": 3,
+          "outcome": "all 5 P1 and 2 of 3 P2 fixed"
+        },
+        {
+          "round": 2,
+          "p0": 0,
+          "p1": 3,
+          "p2": 6,
+          "outcome": "all 3 P1 fixed; 6 P2 recorded, 2 corrected in evidence"
+        }
+      ],
+      "note": "Round 3 has not been run. Two consecutive rounds each found real P1s, so this gate cannot be recorded as passed without another independent round at this SHA."
     },
     "skipped": 0,
     "notRun": 0,
     "ci": {
       "status": "PASS",
-      "runId": 30658645225,
-      "headSha": "72aa4cdd7aef19beeb9af7c326ece93c1c90e7d6"
+      "runId": 30662866916,
+      "headSha": "382ae132d959891017ee046bdfa3a7312650e421"
     }
   },
   "blockers": [
@@ -105,5 +121,31 @@
     "state": "OPEN",
     "mergeable": "MERGEABLE",
     "mergeStateStatus": "CLEAN"
+  },
+  "previewEnvironment": {
+    "status": "PROVISIONED_ISOLATION_PROVEN_UAT_NOT_RUN",
+    "neonStore": {
+      "name": "m2-uat-commercial",
+      "id": "store_IuW6I8X2Rb3rG2d2",
+      "plan": "free_v3",
+      "region": "fra1"
+    },
+    "blobStore": {
+      "name": "m2-uat-commercial-blob",
+      "id": "store_hMggGJeIMXFwYM0R",
+      "access": "private",
+      "blobCount": 0
+    },
+    "databaseFingerprint": "c89bdda845806b40",
+    "productionFingerprint": "0257665af2dd90a4",
+    "isolationProof": [
+      "UAT fingerprint c89bdda845806b40 != production 0257665af2dd90a4",
+      "store provisioned new; row counts before fixtures were 0 for organizations, users, agents, quotes, quoteVersions, leads and cases",
+      "DATABASE_URL and DATABASE_URL_UNPOOLED are branch-scoped to mission/m2-commercial-trust-loop only; the shared 'Preview, Production' entries were not modified",
+      "no M2UAT_* or branch-scoped variable exists in the Production environment",
+      "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so a blob write errors rather than reaching the production store",
+      "the fixtures' own production-fingerprint exclusion guard was active during provisioning"
+    ],
+    "remaining": "tests/e2e/m1-fixture.ts and tests/e2e/m2-fixture.ts each refuse to run unless the remote target is an empty database, so on one shared UAT database only one of them can be provisioned. The commercial UAT needs the M1 pilots and the M2 second organization together. Resolving this means relaxing that guard to accept a database containing only the other fixture's synthetic rows — not attempted here."
   }
 }
