@@ -64,6 +64,12 @@ export type UatCensus = {
   meetingOrganizationIds: string[];
   quoteOrganizationIds: string[];
   leadOwnerEmails: string[];
+  /**
+   * Rows whose tenant key is null. They cannot be matched against a namespace, so they are
+   * reported as foreign rather than dropped — the M2 legacy backfill can leave a quote in
+   * exactly this state, and a database holding one is not empty.
+   */
+  orphanKeyedRows: string[];
 };
 
 export const EMPTY_CENSUS: UatCensus = {
@@ -74,6 +80,7 @@ export const EMPTY_CENSUS: UatCensus = {
   meetingOrganizationIds: [],
   quoteOrganizationIds: [],
   leadOwnerEmails: [],
+  orphanKeyedRows: [],
 };
 
 /**
@@ -96,6 +103,7 @@ export function findForeignRows(census: UatCensus, allowed: UatNamespace[]): str
   check("Meeting.organizationId", census.meetingOrganizationIds, organizations);
   check("Quote.organizationId", census.quoteOrganizationIds, organizations);
   check("ClientLead owner", census.leadOwnerEmails, emails);
+  for (const row of census.orphanKeyedRows) foreign.push(`Unkeyed row: ${row}`);
   return [...new Set(foreign)].sort();
 }
 
@@ -171,5 +179,11 @@ export async function censusOfTarget(client: unknown): Promise<UatCensus> {
     meetingOrganizationIds: meetings.flatMap((row: { organizationId: string | null }) => (row.organizationId ? [row.organizationId] : [])),
     quoteOrganizationIds: quotes.flatMap((row: { organizationId: string | null }) => (row.organizationId ? [row.organizationId] : [])),
     leadOwnerEmails: leads.flatMap((row: { agent: { user: { email: string } } | null }) => (row.agent?.user.email ? [row.agent.user.email] : [])),
+    orphanKeyedRows: [
+      ...cases.filter((row: { tenantId: string | null }) => !row.tenantId).map(() => "Case.tenantId is null"),
+      ...meetings.filter((row: { organizationId: string | null }) => !row.organizationId).map(() => "Meeting.organizationId is null"),
+      ...quotes.filter((row: { organizationId: string | null }) => !row.organizationId).map(() => "Quote.organizationId is null"),
+      ...leads.filter((row: { agent: { user: { email: string } } | null }) => !row.agent).map(() => "ClientLead has no agent"),
+    ],
   };
 }

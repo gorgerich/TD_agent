@@ -31,6 +31,7 @@ function censusOf(namespaces: Array<ReturnType<typeof m1UatNamespace>>): UatCens
     meetingOrganizationIds: organizationIds,
     quoteOrganizationIds: organizationIds,
     leadOwnerEmails: userEmails,
+    orphanKeyedRows: [],
   };
 }
 
@@ -106,7 +107,7 @@ test("a fingerprint that is not the reviewed UAT target is refused", () => {
   );
 });
 
-test("the census reads every business table unfiltered", async () => {
+test("the census reads the tenant-rooted business tables and reports unkeyed rows as foreign", async () => {
   const seen: string[] = [];
   const rows = <T,>(model: string, value: T[]) => ({
     findMany: async () => {
@@ -124,7 +125,17 @@ test("the census reads every business table unfiltered", async () => {
     clientLead: rows("clientLead", [{ agent: { user: { email: "a@synthetic.invalid" } } }, { agent: null }]),
   });
   assert.deepEqual(seen.sort(), ["case", "clientLead", "meeting", "membership", "organization", "quote", "user"]);
-  assert.deepEqual(census.caseTenantIds, ["m1-uat:run"], "null tenants are dropped, not counted as foreign");
+  assert.deepEqual(census.caseTenantIds, ["m1-uat:run"]);
   assert.deepEqual(census.meetingOrganizationIds, []);
   assert.deepEqual(census.leadOwnerEmails, ["a@synthetic.invalid"]);
+  // A null tenant key cannot be matched against a namespace, so it must block rather than vanish.
+  assert.deepEqual(census.orphanKeyedRows.sort(), [
+    "Case.tenantId is null",
+    "ClientLead has no agent",
+    "Meeting.organizationId is null",
+  ]);
+  assert.throws(
+    () => assertOnlyRecognisedSyntheticData(census, [m1UatNamespace("run")], "M1 UAT"),
+    /Unkeyed row/,
+  );
 });

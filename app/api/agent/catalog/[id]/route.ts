@@ -30,8 +30,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const result = await prisma.$transaction(async (tx) => {
       const replay = await findOperationalReplay(tx, context.organizationId, auditKey);
       if (replay) {
+        // Narrow the replay exactly as the fresh path narrows: an AGENT replaying a key a
+        // teammate used must not be handed that teammate's item, prices included.
         return tx.agentCatalogItem.findFirst({
-          where: { id: replay.entityId, organizationId: context.organizationId },
+          where: {
+            id: replay.entityId,
+            organizationId: context.organizationId,
+            ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
+          },
           include: { revisions: { orderBy: { version: "desc" }, take: 1 } },
         });
       }

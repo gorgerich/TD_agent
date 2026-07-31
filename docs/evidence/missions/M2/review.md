@@ -6,8 +6,8 @@ boundaries, and verify W4/W5 plus INV-01 through INV-14.
 
 Terminal criteria: P0 = 0 and P1 = 0.
 
-Implementation SHA: `60d00f67233c65eaedabadf9393f6185626d7a9a` (branch
-`recovery/m2-commercial-reconstructed`).
+Implementation SHA: `PENDING` (branch
+`mission/m2-commercial-trust-loop`).
 
 Status: BLOCKED, awaiting an independent reviewer. Every gate the implementer can
 execute is green — see `test-results.json`. This gate and `preview_uat` are the only

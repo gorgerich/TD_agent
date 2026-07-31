@@ -102,7 +102,7 @@
       "id": "M2-GATE-01",
       "status": "PASS",
       "requirement": "All deterministic gates pass with skipped=0 and NOT_RUN=0.",
-      "evidence": "lint, typecheck, git diff --check (base..HEAD), prisma validate/generate, build, unit 80/80, integration 44/44 at default parallelism, e2e 4/4, migration rehearsal and schema parity: skipped=0, notRun=0. Exact counts are recorded in test-results.json, which is the single source for gate numbers."
+      "evidence": "lint, typecheck, git diff --check (base..HEAD), prisma validate/generate, build, unit 91/91, integration 44/44 at default parallelism, e2e 4/4, migration rehearsal and schema parity: skipped=0, notRun=0. Exact counts are recorded in test-results.json, which is the single source for gate numbers."
     },
     {
       "id": "M2-GATE-02",

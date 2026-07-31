@@ -481,6 +481,12 @@ export async function createCommercialClientLink(input: {
       if (existing.quoteVersionId !== quote.latestPublishedVersion.id) {
         throw new OperationalCommandError(409, "Ключ повторной команды уже использован");
       }
+      // A replay must return a link the family can actually open. The token is derived from
+      // the idempotency key, so re-issuing after a revoke used to hand back the revoked
+      // token with replayed: true — success to the agent, "Ссылка недоступна" to the client.
+      if (existing.revokedAt !== null) {
+        throw new OperationalCommandError(409, "Ссылка по этому ключу была отозвана. Используйте новый ключ.");
+      }
       return { linkId: existing.id, quoteVersionId: existing.quoteVersionId, replayed: true };
     }
     await tx.quoteClientLink.updateMany({

@@ -475,6 +475,23 @@ test("M2 tenant boundaries and link lifecycle fail closed", opts, async () => {
       }),
       1,
     );
+    // A replay must hand back a link the family can open. Re-issuing under a key whose link
+    // was revoked used to report success with the revoked token.
+    await revokeCommercialClientLinks({
+      quoteId: Number(saved.quoteId),
+      context: owner.context,
+      meta: meta(fixtures.runId, "revoke-before-replay"),
+    });
+    await assert.rejects(
+      createCommercialClientLink({
+        quoteId: Number(saved.quoteId),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        context: owner.context,
+        meta: meta(fixtures.runId, "secure-link"),
+      }),
+      (error: unknown) => error instanceof OperationalCommandError && error.status === 409,
+    );
+
     const expiringLink = await createCommercialClientLink({
       quoteId: Number(saved.quoteId),
       expiresAt: new Date(Date.now() + 86_400_000),

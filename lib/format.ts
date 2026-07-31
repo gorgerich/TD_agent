@@ -21,8 +21,19 @@ export function money(rubles: number | null | undefined): string {
 }
 
 /** Копейки → рубли строкой. Для значений из БД (хранятся в копейках). */
+/**
+ * Render a stored minor-unit amount exactly. Going through money() rounds to whole rubles,
+ * which makes the registry disagree with the client view and the builder for the same
+ * published version. Kopecks are shown only when they exist.
+ */
 export function moneyFromKopecks(kopecks: number | null | undefined): string {
-  return money((kopecks ?? 0) / 100);
+  const minor = kopecks ?? 0;
+  const sign = minor < 0 ? "−" : "";
+  const abs = Math.abs(minor);
+  const rubles = Math.trunc(abs / 100);
+  const remainder = abs % 100;
+  const fraction = remainder === 0 ? "" : `,${String(remainder).padStart(2, "0")}`;
+  return `${sign}${groupNumber(rubles)}${fraction} ₽`;
 }
 
 type DateInput = Date | string | number | null | undefined;

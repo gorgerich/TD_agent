@@ -54,10 +54,14 @@ async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
     });
 
     return quotes.map((q) => {
-      const agreed = q.status === "ACCEPTED";
       const published = q.latestPublishedVersion;
       const draft = q.activeDraftVersion;
+      // Derive both client decisions from the durable decision row, symmetrically. Reading
+      // acceptance from Quote.status made the agreement signal the fragile one: any later
+      // lifecycle write (opening review, publishing again) moved the status and the row
+      // silently fell back to "Отправлена" while the client's decision still existed.
       const changesRequested = published?.decisions[0]?.type === "CHANGES_REQUESTED";
+      const agreed = published?.decisions[0]?.type === "ACCEPTED" || q.status === "ACCEPTED";
       const status = agreed ? "Согласована" : changesRequested ? "Нужны изменения" : published ? "Отправлена" : "Черновик";
       const source = published ?? draft;
       return {

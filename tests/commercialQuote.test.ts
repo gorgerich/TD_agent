@@ -11,7 +11,7 @@ import {
   type PublishedQuoteSnapshot,
 } from "../lib/commercialQuote";
 import { handleApiError } from "../lib/apiAuth";
-import { formatMinorUnits } from "../lib/calculationUtils";
+import { formatMinorUnits, formatMinorUnitsCurrency } from "../lib/calculationUtils";
 
 const scenarios = ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const;
 
@@ -228,4 +228,24 @@ test("a discount larger than its line never renders a negative amount", () => {
   const settled = settleCommercialLines(lines).get("over");
   assert.equal(settled?.lineTotal, 0, "per-line discount must be clamped exactly as the total clamps it");
   assert.equal(totals.total, 0);
+});
+
+/**
+ * Round 3 found the client view rendering its composition footer through the rounding
+ * formatter while its headline and lines used the exact one, so the same published document
+ * stated two different totals. Pin the exact formatter's behaviour on a non-whole-ruble
+ * amount, which is the only case where the two disagree.
+ */
+test("a non-whole-ruble total renders identically wherever it appears", () => {
+  const lines: CommercialLine[] = [
+    line({ stableKey: "a", description: "Полтора", clientUnitPrice: 150, priceState: "KNOWN" }),
+    line({ stableKey: "b", position: 1, description: "Два", clientUnitPrice: 200, priceState: "KNOWN" }),
+  ];
+  const totals = calculateCommercialTotals(lines, "CREMATION_V1");
+  assert.equal(totals.total, 350);
+  const settlement = settleCommercialLines(lines);
+  assert.deepEqual([...settlement.values()].map((e) => formatMinorUnitsCurrency(e.lineTotal!)), ["1,50 ₽", "2 ₽"]);
+  // Headline and composition footer are the same string for the same number.
+  assert.equal(formatMinorUnitsCurrency(totals.total!), "3,50 ₽");
+  assert.equal(formatMinorUnits(totals.total!), "3,50");
 });

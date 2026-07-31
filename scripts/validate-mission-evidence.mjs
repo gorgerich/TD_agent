@@ -38,6 +38,15 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
         errors.push(`${directory.name}: implementationSha must be a full commit SHA`);
       } else if (!isAncestor(value.implementationSha)) {
         errors.push(`${directory.name}: implementationSha is not an ancestor of HEAD`);
+      } else if (requiresTerminalEvidence && !hasSameSourceTreeAsHead(value.implementationSha)) {
+        // Ancestry is satisfied by every commit in history, including the mission's own base,
+        // so it cannot catch evidence that certifies an older commit. Requiring exact HEAD
+        // would be circular, because recording the SHA is itself a commit. Require instead
+        // that the certified commit and HEAD have an identical source tree — differing only
+        // under docs/evidence.
+        errors.push(
+          `${directory.name}: implementationSha ${value.implementationSha} has source changes relative to HEAD`,
+        );
       }
       // Only the terminal gates stay scoped to the mission under release.
       if (requiresTerminalEvidence) {
@@ -69,6 +78,16 @@ function statusValues(node) {
   };
   walk(node);
   return found;
+}
+
+/** True when `sha` and HEAD differ only under docs/evidence. */
+function hasSameSourceTreeAsHead(sha) {
+  try {
+    execFileSync("git", ["diff", "--quiet", sha, "HEAD", "--", ".", ":(exclude)docs/evidence"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isAncestor(sha) {

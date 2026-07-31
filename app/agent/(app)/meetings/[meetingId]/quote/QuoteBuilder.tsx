@@ -32,6 +32,7 @@ import {
   createExternalExpense,
   createEstimateSnapshot,
   formatCurrency,
+  formatMinorUnitsCurrency,
   PRICES,
   PACKAGES,
   ADDITIONAL_SERVICES,
@@ -304,12 +305,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
    * stale value there. Gate the headline on the canonical state instead, and render the
    * blockers rather than a confident figure.
    */
-  const visibleGrandTotal =
+  const visibleGrandTotalMinor =
     commercialTotals.totalState === "KNOWN" && commercialTotals.total !== null
-      ? (canonicalTotalMinor !== null && !hasLocalChanges ? canonicalTotalMinor : commercialTotals.total) / 100
+      ? (canonicalTotalMinor !== null && !hasLocalChanges ? canonicalTotalMinor : commercialTotals.total)
       : null;
-  const headlineTotal = visibleGrandTotal !== null
-    ? formatCurrency(visibleGrandTotal)
+  // Render from minor units, never from a rounded ruble figure: the client view states the
+  // same number and the two must not disagree by a rounding step.
+  const headlineTotal = visibleGrandTotalMinor !== null
+    ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
     : "Цена требует уточнения";
   const hasUnknownCosts = commercialTotals.costTotal === null;
   const budgetStatus = useMemo(

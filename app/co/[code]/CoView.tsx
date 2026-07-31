@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle, Phone, Printer } from "@phosphor-icons/react";
-import { formatCurrency, formatMinorUnitsCurrency } from "@/lib/calculationUtils";
+import { formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 import s from "./CoView.module.css";
 
 type PublicLine = {
@@ -198,7 +198,7 @@ export default function CoView({ code }: { code: string }) {
           ))}
           <div className={s.compositionTotal}>
             <span>Итого по версии {version.versionNumber}</span>
-            <strong className="tnum">{formatCurrency(version.total / 100)}</strong>
+            <strong className="tnum">{formatMinorUnitsCurrency(version.total)}</strong>
           </div>
         </div>
       </section>
