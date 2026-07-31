@@ -2,7 +2,7 @@
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
   "implementationSha": "2ea112657dd980030f49d98f90d39ef61a81af4d",
-  "githubCiUrl": null,
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30669479877",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -101,8 +101,10 @@
     "skipped": 0,
     "notRun": 0,
     "ci": {
-      "status": "PENDING",
-      "note": "CI is queued for this SHA; the previous green run covered an earlier commit."
+      "status": "PASS",
+      "runId": 30669479877,
+      "headSha": "487dde202fd460b052ae9701b32c68f7fb871e44",
+      "note": "Green on the PR head. That commit differs from the certified implementationSha 2ea1126 only under docs/evidence, which the validator enforces."
     },
     "previewStorage": {
       "status": "NOT_USED",
