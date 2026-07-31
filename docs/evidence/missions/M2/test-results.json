@@ -1,8 +1,8 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "3807e57ff10c910f1bfdfb1986bddf651a1f4cde",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30669479877",
+  "implementationSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
+  "githubCiUrl": null,
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -100,18 +100,22 @@
           "p1": 0,
           "p2": 7,
           "verdict": "PASS"
+        },
+        {
+          "round": 6,
+          "p0": 0,
+          "p1": 1,
+          "p2": 3
         }
       ],
-      "trend": "P1 per round: 5, 3, 1, 1, 0. P0 was 0 in every round. Round 5 returned PASS. Its P2s were then fixed, so a confirming round on that delta is pending.",
-      "note": "Not passed. Four rounds have each found real defects."
+      "trend": "P1 per round: 5, 3, 1, 1, 0, 1. P0 was 0 in every round. Every P1 found has been fixed.",
+      "note": "Not passed. Round 6 found a regression introduced by the round-5 cleanup, now fixed; that fix is unreviewed."
     },
     "skipped": 0,
     "notRun": 0,
     "ci": {
-      "status": "PASS",
-      "runId": 30669479877,
-      "headSha": "487dde202fd460b052ae9701b32c68f7fb871e44",
-      "note": "Green on the PR head. That commit differs from the certified implementationSha 2ea1126 only under docs/evidence, which the validator enforces."
+      "status": "PENDING",
+      "note": "queued for this SHA"
     },
     "previewStorage": {
       "status": "NOT_USED",
@@ -134,7 +138,7 @@
   "blockers": [
     {
       "gate": "independent_review",
-      "reason": "Rounds 1-4 found 5, 3, 1 and 1 P1 respectively; all are fixed. Round 4 changed product code and the evidence validator, so that delta has not been independently reviewed."
+      "reason": "Six rounds: 5, 3, 1, 1, 0 and 1 P1, zero P0 throughout; all fixed. Round 5 returned PASS but round 6 found a regression its own cleanup introduced, so a confirming round on the round-6 fixes is required before this gate closes."
     },
     {
       "gate": "preview_uat",
