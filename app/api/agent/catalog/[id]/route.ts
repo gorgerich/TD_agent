@@ -49,7 +49,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const update = parsed.data;
       const priceState = update.action === "CONFIRM_PRICE" ? "KNOWN" : "REQUESTED";
       const clientPrice = update.action === "CONFIRM_PRICE" ? update.clientPrice : null;
-      const costPrice = update.action === "CONFIRM_PRICE" ? update.costPrice ?? null : null;
+      // Confirming a price says nothing about the cost. Carry a previously confirmed cost
+      // forward instead of discarding it: the only UI path sends clientPrice alone, so
+      // treating an omitted cost as UNKNOWN silently destroyed the item's margin fact with
+      // no way for the agent to restore it.
+      const previousCost = latest.costState === "KNOWN" && latest.unitCost !== null ? latest.unitCost / 100 : null;
+      const costPrice = update.action === "CONFIRM_PRICE" ? (update.costPrice ?? previousCost) : null;
       const costState = costPrice === null ? "UNKNOWN" : "KNOWN";
       const revision = await tx.catalogItemRevision.create({
         data: {
@@ -76,7 +81,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         where: { id: item.id },
         data: {
           priceState,
-          clientPrice: clientPrice ?? item.clientPrice,
+          // A REQUESTED price must not keep the old figure on the item: the builder reads
+          // clientPrice for its editor arithmetic, and a stale value there is how an
+          // unconfirmed line ended up contributing a confident number to the headline.
+          clientPrice: clientPrice ?? 0,
           costState,
           costPrice: costPrice ?? 0,
           currentVersion: nextVersion,

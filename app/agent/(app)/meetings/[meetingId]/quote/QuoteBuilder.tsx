@@ -297,10 +297,20 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     [attributes, cemeteryCategory, estimateItems, externalExpenses, form, memorialData],
   );
   const hasLocalChanges = quoteHydrated && editorStateJson !== lastAutosavedState;
+  /**
+   * The headline the agent reads aloud to a family must never be a number the domain
+   * refuses to total. `grandTotal` is legacy editor arithmetic that sums clientPrice with
+   * no regard for priceState, so an item whose price was only REQUESTED still carries its
+   * stale value there. Gate the headline on the canonical state instead, and render the
+   * blockers rather than a confident figure.
+   */
   const visibleGrandTotal =
-    canonicalTotalMinor !== null && !hasLocalChanges
-      ? canonicalTotalMinor / 100
-      : grandTotal;
+    commercialTotals.totalState === "KNOWN" && commercialTotals.total !== null
+      ? (canonicalTotalMinor !== null && !hasLocalChanges ? canonicalTotalMinor : commercialTotals.total) / 100
+      : null;
+  const headlineTotal = visibleGrandTotal !== null
+    ? formatCurrency(visibleGrandTotal)
+    : "Цена требует уточнения";
   const hasUnknownCosts = commercialTotals.costTotal === null;
   const budgetStatus = useMemo(
     () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
@@ -401,7 +411,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         setQuoteId(data.quote.quoteId);
         setCommercialStatus(data.quote.status);
         setPublishedVersion(data.quote.published?.versionNumber ?? null);
-        setCanonicalTotalMinor(data.quote.draft?.total ?? data.quote.published?.total ?? null);
+        // An unpriced draft has total === null. Falling through to the published total
+        // would show the family the previous version's figure for the draft in front of us.
+        setCanonicalTotalMinor(data.quote.draft ? data.quote.draft.total : (data.quote.published?.total ?? null));
         const editor = data.quote.draft?.editorState ?? data.quote.published?.editorState;
         if (!editor || typeof editor !== "object" || Array.isArray(editor)) {
           setForm(canonicalEditorState.form);
@@ -936,7 +948,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           {(planMode === "package" || baseline) && (
             <div className={s.planTotal}>
               <span>Итого</span>
-              <strong>{formatCurrency(visibleGrandTotal)}</strong>
+              <strong>{headlineTotal}</strong>
               {planMode === "custom" && baseline && baselineDelta !== 0 && (
                 <em className={baselineDelta > 0 ? s.deltaUp : s.deltaDown}>
                   {formatDelta(baselineDelta)} к тарифу
@@ -1440,7 +1452,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             )}
             <button type="button" className={s.stepTotal} onClick={() => setCalculatorOpen(true)}>
               <span>Шаг {stepIndex + 1} из {STEPS.length}</span>
-              <strong>{formatCurrency(visibleGrandTotal)}</strong>
+              <strong>{headlineTotal}</strong>
             </button>
             {nextStep ? (
               <button type="button" className={s.stepForward} onClick={() => goToStep(nextStep.id)}>
@@ -1469,7 +1481,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             aria-label="Открыть детали сметы"
           >
             <span className={s.mobileBarLabel}>Предварительно</span>
-            <span className={s.mobileBarAmount} data-testid="quote-visible-total">{formatCurrency(visibleGrandTotal)}</span>
+            <span className={s.mobileBarAmount} data-testid="quote-visible-total">{headlineTotal}</span>
             <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
             <span className={`${s.mobileBarStatus} ${s[`mobileBarStatus_${calculatorStatus.tone}`]}`}>
               {calculatorStatus.text}
@@ -1497,7 +1509,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
               <div className={s.panelHero}>
                 <div>
                   <span className={s.panelHeroLabel}>Предварительно</span>
-                  <span className={s.panelHeroAmount}>{formatCurrency(visibleGrandTotal)}</span>
+                  <span className={s.panelHeroAmount}>{headlineTotal}</span>
                   <span className={s.panelHeroMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
                 </div>
                 <button type="button" className={s.sheetClose} onClick={() => setCalculatorOpen(false)} aria-label="Свернуть калькулятор">
@@ -1680,6 +1692,17 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   </button>
                 )}
 
+                {/*
+                  Blockers used to appear only once the quote reached IN_REVIEW, so while
+                  editing the agent saw an unconfirmed total with no explanation of what was
+                  missing. Surface the live blockers next to the headline instead.
+                */}
+                {commercialStatus !== "IN_REVIEW" && commercialTotals.blockers.length > 0 && (
+                  <div className={s.commercialBlockers} aria-live="polite">
+                    <strong>Итог не подтверждён</strong>
+                    {commercialTotals.blockers.map((message) => <p key={message}>{message}</p>)}
+                  </div>
+                )}
                 {commercialStatus === "IN_REVIEW" && reviewResult && (
                   <section className={s.commercialReview} aria-live="polite">
                     <div className={s.commercialReviewHead}>
@@ -1750,7 +1773,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 aria-label="Открыть состав сметы"
               >
                 <span>Итого</span>
-                <strong>{formatCurrency(visibleGrandTotal)}</strong>
+                <strong>{headlineTotal}</strong>
               </button>
               <button type="button" className={s.sheetFooterSave} onClick={() => void saveVersion()} disabled={saving}>
                 {saving ? "Сохраняю..." : "Сохранить"}

@@ -7,7 +7,9 @@ import {
   canonicalSnapshotJson,
   diffCommercialLines,
   quoteSnapshotChecksum,
+  settleCommercialLines,
   type CommercialLine,
+  type CommercialLineSettlement,
   type CommercialScenario,
   type PublishedQuoteSnapshot,
 } from "@/lib/commercialQuote";
@@ -556,7 +558,10 @@ export async function startCommercialPresentation(input: {
         state: json({
           schemaVersion: 1,
           draftVersionId: quote.activeDraftVersion.id,
-          lines: lines.map(clientSafeLine),
+          lines: (() => {
+            const settlement = settleCommercialLines(lines);
+            return lines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
+          })(),
           totals: {
             total: totals.total,
             totalState: totals.totalState,
@@ -1017,7 +1022,12 @@ function publicVersion(version: VersionWithLines & {
   total: number;
   snapshotChecksum: string | null;
 }) {
-  const lines = version.lineItems.map(lineFromRecord).map(clientSafeLine);
+  const domainLines = version.lineItems.map(lineFromRecord);
+  // The client-facing amounts come from the domain, not from a second calculation in the
+  // view. A replacement target or a package child must never render a price it does not
+  // contribute to the total.
+  const settlement = settleCommercialLines(domainLines);
+  const lines = domainLines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
   return {
     id: version.id,
     versionNumber: version.versionNumber,
@@ -1030,8 +1040,10 @@ function publicVersion(version: VersionWithLines & {
   };
 }
 
-function clientSafeLine(line: CommercialLine) {
+function clientSafeLine(line: CommercialLine, settlement?: CommercialLineSettlement) {
   return {
+    settlement: settlement?.settlement ?? "COUNTED",
+    lineTotal: settlement?.lineTotal ?? null,
     stableKey: line.stableKey,
     position: line.position,
     type: line.type,

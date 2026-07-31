@@ -6,6 +6,7 @@ import {
   calculateCommercialTotals,
   quoteSnapshotChecksum,
   diffCommercialLines,
+  settleCommercialLines,
   type CommercialLine,
   type PublishedQuoteSnapshot,
 } from "../lib/commercialQuote";
@@ -163,4 +164,40 @@ test("review diff reports added, removed and changed lines without mutating eith
   assert.deepEqual(diff.changed.map((item) => item.stableKey), ["changed"]);
   assert.equal(before[1].clientUnitPrice, 10_000);
   assert.equal(after[0].clientUnitPrice, 12_000);
+});
+
+/**
+ * The invariant that keeps the client-facing document honest: whatever the client view and
+ * the print output render per line must add up to the total the same document states. This
+ * is asserted against the settlement the server actually ships, not against a second
+ * calculation written here.
+ */
+test("settled line amounts always reconcile to the stated total", () => {
+  const lines: CommercialLine[] = [
+    line({ stableKey: "pkg", type: "PACKAGE", description: "Пакет", clientUnitPrice: 5_000_00, priceState: "KNOWN" }),
+    line({ stableKey: "pkg:child", description: "В пакете", relationKind: "INCLUDED", relationKey: "pkg", included: true, clientUnitPrice: null, priceState: "UNKNOWN" }),
+    line({ stableKey: "coffin:base", description: "Гроб базовый", clientUnitPrice: 20_000_00, priceState: "KNOWN" }),
+    line({ stableKey: "coffin:oak", description: "Гроб дубовый", clientUnitPrice: 35_000_00, priceState: "KNOWN", relationKind: "REPLACEMENT", relationKey: "coffin:base" }),
+    line({ stableKey: "transport", description: "Транспорт", clientUnitPrice: 3_000_00, quantity: 2, discountAmount: 1_000_00, priceState: "KNOWN" }),
+  ];
+  const totals = calculateCommercialTotals(lines, "CREMATION_V1");
+  const settlement = settleCommercialLines(lines);
+
+  assert.equal(settlement.get("pkg:child")?.settlement, "INCLUDED");
+  assert.equal(settlement.get("pkg:child")?.lineTotal, null);
+  assert.equal(settlement.get("coffin:base")?.settlement, "REPLACED", "a replaced item must not be billed");
+  assert.equal(settlement.get("coffin:base")?.lineTotal, null, "a replaced item must not render a price");
+
+  const rendered = [...settlement.values()].reduce((sum, entry) => sum + (entry.lineTotal ?? 0), 0);
+  assert.equal(rendered, totals.total, "sum of rendered line amounts must equal the stated total");
+});
+
+test("a discount larger than its line never renders a negative amount", () => {
+  const lines: CommercialLine[] = [
+    line({ stableKey: "over", description: "Скидка больше позиции", clientUnitPrice: 1_000_00, discountAmount: 9_999_00, priceState: "KNOWN" }),
+  ];
+  const totals = calculateCommercialTotals(lines, "CREMATION_V1");
+  const settled = settleCommercialLines(lines).get("over");
+  assert.equal(settled?.lineTotal, 0, "per-line discount must be clamped exactly as the total clamps it");
+  assert.equal(totals.total, 0);
 });

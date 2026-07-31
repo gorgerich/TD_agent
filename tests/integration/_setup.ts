@@ -234,9 +234,14 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     if (!ownOrganizationIds.length && !ownAgentIds.length && !ownUserIds.length) return;
 
     await db.$transaction(async (tx) => {
-      // This process has already proved that it targets an approved local
-      // throwaway DB. Disable immutable production triggers only while deleting
-      // the exact IDs registered by this fixture context.
+      // This process has already proved that it targets an approved local throwaway DB.
+      // Disable the immutability triggers only while deleting the exact IDs registered by
+      // this fixture context — a published QuoteVersion cannot otherwise be removed.
+      //
+      // NOTE: session_replication_role = replica also disables SYSTEM triggers, which
+      // includes ON DELETE CASCADE. Nothing below may rely on a cascade; every child row is
+      // deleted explicitly, parent-last, and assertNoResidue counts the commercial tables
+      // so that a missed child fails the gate instead of accumulating as a silent orphan.
       await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
       const cases = ownOrganizationIds.length
         ? await tx.case.findMany({ where: { tenantId: { in: ownOrganizationIds } }, select: { id: true, leadId: true } })
@@ -298,9 +303,28 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
           where: { id: { in: quoteIds } },
           data: { activeDraftVersionId: null, latestPublishedVersionId: null },
         });
+        // Delete the commercial children explicitly, parent-last. `session_replication_role
+        // = replica` disables system triggers, which includes ON DELETE CASCADE, so relying
+        // on the cascade here left every line item, client link and client decision behind
+        // as an orphan with a dangling foreign key — and assertNoResidue could not see it,
+        // because it never counted these tables.
+        const versionIds = (await tx.quoteVersion.findMany({
+          where: { quoteId: { in: quoteIds } },
+          select: { id: true },
+        })).map((version) => version.id);
+        if (versionIds.length) {
+          await tx.quoteClientDecision.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+          await tx.quoteClientLink.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+          await tx.quoteLineItem.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+        }
+        await tx.quotePresentationSession.deleteMany({ where: { quoteId: { in: quoteIds } } });
         await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
       }
       if (quoteIds.length) await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
+      if (ownOrganizationIds.length) {
+        await tx.catalogItemRevision.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
+        await tx.agentCatalogItem.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
+      }
       if (orderIds.length) await tx.order.deleteMany({ where: { id: { in: orderIds } } });
       if (meetingIds.length) await tx.meeting.deleteMany({ where: { id: { in: meetingIds } } });
       if (caseIds.length) await tx.case.deleteMany({ where: { id: { in: caseIds } } });
@@ -339,6 +363,16 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
       () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      // The mission's own tables. Without these the residue gate was structurally unable to
+      // observe commercial leftovers, so "residue: 0" said nothing about M2.
+      () => db.quote.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.agentCatalogItem.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.catalogItemRevision.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.quoteVersion.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
+      () => db.quoteLineItem.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quoteClientLink.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quoteClientDecision.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quotePresentationSession.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
     ];
     let total = 0;
     for (const count of counts) total += await count();

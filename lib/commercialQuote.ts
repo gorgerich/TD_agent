@@ -47,6 +47,59 @@ export type CommercialTotals = {
   countedLineKeys: string[];
 };
 
+/** How a line relates to the total the client is asked to pay. */
+export type LineSettlement = "COUNTED" | "INCLUDED" | "REPLACED";
+
+export type CommercialLineSettlement = {
+  settlement: LineSettlement;
+  /**
+   * Exactly what this line contributes to the total, in minor units, or null when it
+   * contributes nothing (included in a package, replaced by another line, or priced
+   * UNKNOWN). Never a bare unit price: the discount is clamped here the same way the
+   * total clamps it.
+   */
+  lineTotal: number | null;
+};
+
+/**
+ * Single source of truth for which lines are billed and for how much.
+ *
+ * calculateCommercialTotals sums exactly these amounts, and the client view and print
+ * output render exactly these amounts. Deriving the two separately is how a composition
+ * ends up not adding up to its own total — a replacement target rendered at full price
+ * while the total correctly excludes it, or a per-line discount larger than the line
+ * showing as a negative row against a floored total.
+ */
+export function settleCommercialLines(
+  lines: CommercialLine[],
+  replacementTargets?: ReadonlySet<string>,
+): Map<string, CommercialLineSettlement> {
+  const targets = replacementTargets ?? new Set(
+    lines.filter((line) => line.relationKind === "REPLACEMENT" && line.relationKey).map((line) => line.relationKey!),
+  );
+  const result = new Map<string, CommercialLineSettlement>();
+  for (const line of lines) {
+    if (line.included || line.relationKind === "INCLUDED") {
+      result.set(line.stableKey, { settlement: "INCLUDED", lineTotal: null });
+      continue;
+    }
+    if (targets.has(line.stableKey)) {
+      result.set(line.stableKey, { settlement: "REPLACED", lineTotal: null });
+      continue;
+    }
+    if (line.priceState !== "KNOWN" || line.clientUnitPrice === null) {
+      result.set(line.stableKey, { settlement: "COUNTED", lineTotal: null });
+      continue;
+    }
+    const lineSubtotal = line.clientUnitPrice * line.quantity;
+    result.set(line.stableKey, {
+      settlement: "COUNTED",
+      lineTotal: lineSubtotal - Math.min(line.discountAmount, lineSubtotal),
+    });
+  }
+  return result;
+}
+
 export type PublishedQuoteSnapshot = {
   schemaVersion: 1;
   quoteId: number;
@@ -131,7 +184,8 @@ export function calculateCommercialTotals(
     }
   }
 
-  const counted = lines.filter((line) => !line.included && line.relationKind !== "INCLUDED" && !replacementTargets.has(line.stableKey));
+  const settlement = settleCommercialLines(lines, replacementTargets);
+  const counted = lines.filter((line) => settlement.get(line.stableKey)?.settlement === "COUNTED");
   if (counted.length === 0) {
     blockers.push("Добавьте хотя бы одну оплачиваемую позицию");
   }

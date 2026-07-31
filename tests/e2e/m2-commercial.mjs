@@ -109,14 +109,40 @@ try {
   await browser.close();
 }
 
+/**
+ * `npm run test:e2e` runs four suites back to back against one server, and the login route
+ * allows 10 attempts per minute per client IP — every suite shares that bucket. Crossing it
+ * is the rate limiter working correctly, not a product defect, so the test cooperates with
+ * it: honour Retry-After and try again, exactly as a real client would.
+ *
+ * The backoff is deliberately narrow. Only 429 is retried; any other non-2xx login response
+ * fails immediately with its status, so a genuinely broken login can never be mistaken for
+ * throttling and silently waited out.
+ */
+const LOGIN_RATE_LIMIT_ATTEMPTS = 3;
+
 async function login(target, identity, identityPassword) {
-  await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
-  await target.locator("#agent-email").fill(identity);
-  await target.locator("#agent-password").fill(identityPassword);
-  await Promise.all([
-    target.waitForURL(/\/agent\/cases(?:\?|$)/),
-    target.locator('form button[type="submit"]').click(),
-  ]);
+  for (let attempt = 1; ; attempt += 1) {
+    await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
+    await target.locator("#agent-email").fill(identity);
+    await target.locator("#agent-password").fill(identityPassword);
+    const [response] = await Promise.all([
+      target.waitForResponse((res) => res.url().includes("/api/agent/auth/login") && res.request().method() === "POST"),
+      target.locator('form button[type="submit"]').click(),
+    ]);
+    if (response.status() === 429) {
+      assert.ok(
+        attempt < LOGIN_RATE_LIMIT_ATTEMPTS,
+        `login for ${identity} stayed rate limited after ${attempt} attempts`,
+      );
+      const retryAfter = Number(response.headers()["retry-after"] ?? 60);
+      await target.waitForTimeout((Number.isFinite(retryAfter) ? retryAfter : 60) * 1000 + 1_000);
+      continue;
+    }
+    assert.equal(response.status(), 200, `login for ${identity} failed with ${response.status()}`);
+    await target.waitForURL(/\/agent\/cases(?:\?|$)/);
+    return;
+  }
 }
 
 async function commercialJourney(target, clientName, scenario, requireSecondVersion) {

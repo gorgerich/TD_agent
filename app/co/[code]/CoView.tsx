@@ -6,6 +6,10 @@ import { formatCurrency } from "@/lib/calculationUtils";
 import s from "./CoView.module.css";
 
 type PublicLine = {
+  /** Server-settled: how this line relates to the stated total. */
+  settlement: "COUNTED" | "INCLUDED" | "REPLACED";
+  /** Server-settled amount this line contributes, in minor units; null when it contributes nothing. */
+  lineTotal: number | null;
   stableKey: string;
   description: string;
   quantity: number;
@@ -176,11 +180,19 @@ export default function CoView({ code }: { code: string }) {
                 {line.quantity > 1 ? ` × ${line.quantity} ${line.unit}` : ""}
               </span>
               <strong className="tnum">
-                {line.included
+                {/*
+                  Amounts come from the server's settlement of the version, never from a
+                  second calculation here. A line that does not contribute to the total —
+                  a package child, or an item replaced by another line — must say so
+                  instead of showing a price the total does not include.
+                */}
+                {line.settlement === "INCLUDED"
                   ? <em>включено</em>
-                  : line.priceState === "KNOWN" && line.clientUnitPrice !== null
-                    ? formatCurrency((line.clientUnitPrice * line.quantity - line.discountAmount) / 100)
-                    : "цена не подтверждена"}
+                  : line.settlement === "REPLACED"
+                    ? <em>заменено</em>
+                    : line.lineTotal !== null
+                      ? formatCurrency(line.lineTotal / 100)
+                      : "цена не подтверждена"}
               </strong>
             </div>
           ))}

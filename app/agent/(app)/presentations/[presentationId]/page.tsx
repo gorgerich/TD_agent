@@ -5,6 +5,8 @@ import { PresentationControls } from "./PresentationControls";
 
 type PresentationState = {
   lines?: Array<{
+    settlement: "COUNTED" | "INCLUDED" | "REPLACED";
+    lineTotal: number | null;
     stableKey: string;
     description: string;
     quantity: number;
@@ -57,10 +59,19 @@ export default async function PresentationPage({ params }: { params: Promise<{ p
                 <p className="text-[14px] font-semibold">{line.description}</p>
                 <p className="mt-1 text-[12px] text-ink-3">{line.quantity} {line.unit}{line.included ? " · включено" : ""}</p>
               </div>
+              {/*
+                Same rule as the client view: render the settled amount the server
+                computed, so a replaced or included line never shows a price that the
+                stated total does not contain.
+              */}
               <p className="text-[14px] font-semibold">
-                {line.included ? "В составе" : line.priceState === "KNOWN" && line.clientUnitPrice !== null
-                  ? money(line.clientUnitPrice * line.quantity)
-                  : "Цена уточняется"}
+                {line.settlement === "INCLUDED"
+                  ? "В составе"
+                  : line.settlement === "REPLACED"
+                    ? "Заменено"
+                    : line.lineTotal !== null
+                      ? money(line.lineTotal)
+                      : "Цена уточняется"}
               </p>
             </div>
           ))}
