@@ -20,6 +20,9 @@ const foreignPassword = process.env.M2_UAT_PASSWORD;
  */
 const normalizeText = (value) => (value ?? "").replace(/\s+/g, " ").trim();
 
+/** Bounded retries for a login the rate limiter throttled. See login(). */
+const LOGIN_RATE_LIMIT_ATTEMPTS = 3;
+
 if (!password) throw new Error("M1_UAT_PASSWORD is required for M2 commercial E2E");
 if (!foreignEmail || !foreignPassword) {
   throw new Error("M2_UAT_RUN_ID and M2_UAT_PASSWORD are required for commercial cross-tenant E2E");
@@ -119,8 +122,6 @@ try {
  * fails immediately with its status, so a genuinely broken login can never be mistaken for
  * throttling and silently waited out.
  */
-const LOGIN_RATE_LIMIT_ATTEMPTS = 3;
-
 async function login(target, identity, identityPassword) {
   for (let attempt = 1; ; attempt += 1) {
     await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
