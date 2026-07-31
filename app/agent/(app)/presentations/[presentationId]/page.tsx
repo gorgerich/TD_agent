@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { requireOperationalContext } from "@/lib/auth";
+import { AuthenticationError, requireOperationalContext } from "@/lib/auth";
+import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { getCommercialPresentation } from "@/lib/commercialQuoteService";
 import { PresentationControls } from "./PresentationControls";
 
@@ -23,9 +24,20 @@ function money(value: number) {
 }
 
 export default async function PresentationPage({ params }: { params: Promise<{ presentationId: string }> }) {
-  const context = await requireOperationalContext().catch(() => null);
+  // Catch only "not authenticated" and "not found". A blanket catch turned a database
+  // outage or a genuine conflict into a login bounce or a phantom deleted presentation —
+  // an infrastructure failure presented to the agent as success, mid-meeting. Anything
+  // else propagates to the error boundary, which reports honestly.
+  const context = await requireOperationalContext().catch((error: unknown) => {
+    if (error instanceof AuthenticationError) return null;
+    throw error;
+  });
   if (!context) redirect("/agent/login");
-  const presentation = await getCommercialPresentation((await params).presentationId, context).catch(() => null);
+  const presentation = await getCommercialPresentation((await params).presentationId, context)
+    .catch((error: unknown) => {
+      if (error instanceof OperationalCommandError && error.status === 404) return null;
+      throw error;
+    });
   if (!presentation) notFound();
   const state = presentation.state as PresentationState;
   const lines = Array.isArray(state.lines) ? state.lines : [];

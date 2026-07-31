@@ -1,6 +1,7 @@
 {
   "mission": "M0",
   "state": "MISSION_RELEASE_READY",
+  "implementationSha": "4c3128c891b57c1a78bbe138b965f712c0b2f197",
   "baseSha": "d8c2f47611b6ebda939718a8ae81afc8f61c1452",
   "checks": {
     "productionMetadata": "PASS",
