@@ -17,6 +17,20 @@ import type { OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Commercial writes are the widest serializable transactions in the product: a single
+ * command can touch Quote, QuoteVersion, QuoteLineItem, QuoteClientLink, Case, Task and
+ * the shared operational audit log. That footprint makes P2034 serialization conflicts
+ * measurably more likely here than for the narrower M1 commands, so these commands get a
+ * higher bounded retry budget than the shared default.
+ *
+ * Retrying is safe by construction for every command below: each one runs entirely inside
+ * the transaction, is fully rolled back before a retry, and is keyed by an idempotency
+ * key that it re-checks on each attempt. Only P2034 is retried — see
+ * runOperationalTransaction; every other error still surfaces on the first attempt.
+ */
+const COMMERCIAL_COMMAND_ATTEMPTS = 5;
+
 type CommandMeta = {
   idempotencyKey: string;
   correlationId: string;
@@ -238,7 +252,7 @@ export async function saveCommercialDraft(input: DraftInput): Promise<DraftComma
       result: json(result),
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function markCommercialQuoteInReview(input: {
@@ -289,7 +303,7 @@ export async function markCommercialQuoteInReview(input: {
       result: json(result),
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function publishCommercialQuote(input: PublishInput): Promise<PublishCommandResult> {
@@ -427,7 +441,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
       result: json(result),
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function createCommercialClientLink(input: {
@@ -486,7 +500,7 @@ export async function createCommercialClientLink(input: {
       result: { linkId: created.id, quoteVersionId: created.quoteVersionId },
     });
     return { linkId: created.id, quoteVersionId: created.quoteVersionId, replayed: false };
-  }, 5);
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
   return { ...result, token: rawToken };
 }
 
@@ -518,7 +532,7 @@ export async function revokeCommercialClientLinks(input: {
       result,
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function startCommercialPresentation(input: {
@@ -564,7 +578,7 @@ export async function startCommercialPresentation(input: {
       result,
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function getCommercialPresentation(id: string, context: OperationalContext) {
@@ -632,7 +646,7 @@ export async function endCommercialPresentation(input: {
       result,
     });
     return result;
-  });
+  }, COMMERCIAL_COMMAND_ATTEMPTS);
 }
 
 export async function resolveCommercialClientView(token: string) {
@@ -792,7 +806,7 @@ export async function recordCommercialClientDecision(input: {
       actorType: "client-link",
     });
       return { decisionId: decision.id, type: decision.type, replayed: false };
-    });
+    }, COMMERCIAL_COMMAND_ATTEMPTS);
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
       throw error;

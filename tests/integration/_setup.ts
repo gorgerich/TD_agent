@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type { MembershipRole } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "../../lib/prisma";
@@ -64,15 +65,25 @@ export function makeRequest(
 let tierPromise: Promise<number> | null = null;
 async function ensureTier(): Promise<number> {
   if (!tierPromise) {
-    tierPromise = db.agentTier.upsert({
-      where: { name: "TestTier" },
-      update: {},
-      create: { name: "TestTier", commissionPct: "10.00" },
-      select: { id: true },
-    }).then((tier) => tier.id).catch((error) => {
-      tierPromise = null;
-      throw error;
-    });
+    // The memo is per process; `node --test` runs each integration file in its own
+    // process, so two runners can race on the same unique tier name. Losing that race
+    // is expected, never fatal: re-read the row the winner committed.
+    tierPromise = db.agentTier
+      .upsert({
+        where: { name: "TestTier" },
+        update: {},
+        create: { name: "TestTier", commissionPct: "10.00" },
+        select: { id: true },
+      })
+      .then((tier) => tier.id)
+      .catch(async (error) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const existing = await db.agentTier.findUnique({ where: { name: "TestTier" }, select: { id: true } });
+          if (existing) return existing.id;
+        }
+        tierPromise = null;
+        throw error;
+      });
   }
   return tierPromise;
 }
@@ -309,19 +320,24 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
   }
 
   async function assertNoResidue(): Promise<void> {
-    const [organizations, memberships, agents, users, tasks, meetings, audits, platformAudits, receipts, views] = await Promise.all([
-      db.organization.count({ where: { id: { in: [...createdOrganizationIds] } } }),
-      db.membership.count({ where: { id: { in: [...createdMembershipIds] } } }),
-      db.agent.count({ where: { id: { in: [...createdAgentIds] } } }),
-      db.user.count({ where: { id: { in: [...createdUserIds] } } }),
-      db.task.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
-      db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-    ]);
-    const total = organizations + memberships + agents + users + tasks + meetings + audits + platformAudits + receipts + views;
+    // Run the residue counts one at a time. Prisma sizes its pool at cpus*2+1, which is
+    // 5 on a two-core CI runner, so fanning ten counts out with Promise.all can block on
+    // pool acquisition while sibling test files hold connections in long serializable
+    // transactions. Sequential counts cost milliseconds and cannot starve the pool.
+    const counts = [
+      () => db.organization.count({ where: { id: { in: [...createdOrganizationIds] } } }),
+      () => db.membership.count({ where: { id: { in: [...createdMembershipIds] } } }),
+      () => db.agent.count({ where: { id: { in: [...createdAgentIds] } } }),
+      () => db.user.count({ where: { id: { in: [...createdUserIds] } } }),
+      () => db.task.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
+      () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+    ];
+    let total = 0;
+    for (const count of counts) total += await count();
     if (total !== 0) {
       throw new Error(`Fixture residue detected for ${runId}: ${total} rows`);
     }

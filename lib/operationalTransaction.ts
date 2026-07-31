@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { backoffBeforeRetry } from "@/lib/serializationBackoff";
 
 export async function runOperationalTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -17,6 +18,7 @@ export async function runOperationalTransaction<T>(
       if (attempt === maxAttempts) {
         throw new OperationalCommandError(409, "Конфликт параллельных изменений. Обновите данные и повторите действие.");
       }
+      await backoffBeforeRetry(attempt);
     }
   }
   throw new OperationalCommandError(409, "Команда не была выполнена после повторных попыток.");

@@ -118,7 +118,11 @@ test("smoke provisioning retries a serializable write conflict without losing at
     { action: "provision", password: firstPassword },
     testDependencies,
   );
-  assert.equal(attempts, 2);
+  // The synthetic conflict must cost exactly one extra attempt. Real serialization
+  // conflicts from sibling test files can add further attempts, so assert the retry
+  // happened and stayed inside the bound rather than pinning an exact count.
+  assert.ok(attempts >= 2, `expected the synthetic conflict to be retried, saw ${attempts} attempt(s)`);
+  assert.ok(attempts <= 5, `expected retries to stay bounded, saw ${attempts} attempts`);
   assert.equal(provisioned.created, true);
   assert.equal(await db.user.count({ where: { email: testIdentity.email } }), 1);
   assert.equal(await db.agent.count({ where: { user: { email: testIdentity.email } } }), 1);

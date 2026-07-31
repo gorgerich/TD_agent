@@ -407,6 +407,23 @@ test("M2 tenant boundaries and link lifecycle fail closed", opts, async () => {
     });
     assert.equal(await db.quoteClientLink.count({ where: { tokenHash: link.token } }), 0);
     assert.equal((await resolveCommercialClientView("not-a-valid-token")).state, "UNAVAILABLE");
+    assert.equal(link.replayed, false);
+    // Reissuing under the same idempotency key must replay the existing link rather than
+    // revoke it and mint a second one.
+    const replayedLink = await createCommercialClientLink({
+      quoteId: Number(saved.quoteId),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      context: owner.context,
+      meta: meta(fixtures.runId, "secure-link"),
+    });
+    assert.equal(replayedLink.replayed, true);
+    assert.equal(replayedLink.linkId, link.linkId);
+    assert.equal(replayedLink.token, link.token);
+    assert.equal(replayedLink.quoteVersionId, link.quoteVersionId);
+    assert.equal(
+      await db.quoteClientLink.count({ where: { quoteVersionId: link.quoteVersionId, revokedAt: null } }),
+      1,
+    );
     const [concurrentLinkA, concurrentLinkB] = await Promise.all([
       createCommercialClientLink({
         quoteId: Number(saved.quoteId),

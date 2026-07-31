@@ -46,10 +46,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const latest = item?.revisions[0];
       if (!item || !latest) return null;
       const nextVersion = latest.version + 1;
-      const confirmed = parsed.data.action === "CONFIRM_PRICE";
-      const priceState = confirmed ? "KNOWN" : "REQUESTED";
-      const clientPrice = confirmed ? parsed.data.clientPrice : null;
-      const costPrice = confirmed ? parsed.data.costPrice ?? null : null;
+      const update = parsed.data;
+      const priceState = update.action === "CONFIRM_PRICE" ? "KNOWN" : "REQUESTED";
+      const clientPrice = update.action === "CONFIRM_PRICE" ? update.clientPrice : null;
+      const costPrice = update.action === "CONFIRM_PRICE" ? update.costPrice ?? null : null;
       const costState = costPrice === null ? "UNKNOWN" : "KNOWN";
       const revision = await tx.catalogItemRevision.create({
         data: {
@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       await appendOperationalAudit(tx, context, {
         entityType: "catalog_item",
         entityId: item.id,
-        action: confirmed ? "catalog.price_confirmed" : "catalog.price_requested",
+        action: update.action === "CONFIRM_PRICE" ? "catalog.price_confirmed" : "catalog.price_requested",
         before: { version: latest.version, priceState: latest.priceState, costState: latest.costState },
         after: { version: nextVersion, priceState, costState },
         correlationId,
