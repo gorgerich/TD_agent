@@ -1,5 +1,12 @@
 import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
+import {
+  assertIsolatedUatFingerprint,
+  assertOnlyRecognisedSyntheticData,
+  censusOfTarget,
+  m1UatNamespace,
+  m2UatNamespace,
+} from "./uatFixtureGuard";
 import { hashPassword } from "../../lib/password";
 import { hashPlatformActivationToken, isPlatformActivationTokenShape } from "../../lib/platformActivation";
 import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
@@ -56,8 +63,15 @@ async function verifyTarget() {
     throw new Error("M2 UAT target identity mismatch");
   }
   if (!isLocalTarget(directUrl)) {
-    const foreign = await db.organization.count({ where: { id: { notIn: [organizationA, organizationB] } } });
-    if (foreign > 0) throw new Error("Remote M2 UAT database is not empty and isolated");
+    assertIsolatedUatFingerprint(target.fingerprint, {
+      expected: process.env.EXPECTED_DATABASE_FINGERPRINT,
+      production: productionFingerprint,
+      label: "M2 UAT",
+    });
+    const allowed = [m2UatNamespace(runId)];
+    const siblingRunId = process.env.M1_UAT_RUN_ID;
+    if (siblingRunId) allowed.push(m1UatNamespace(siblingRunId));
+    assertOnlyRecognisedSyntheticData(await censusOfTarget(db), allowed, "M2 UAT");
   }
 }
 

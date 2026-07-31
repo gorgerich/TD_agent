@@ -1,4 +1,11 @@
 import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
+import {
+  assertIsolatedUatFingerprint,
+  assertOnlyRecognisedSyntheticData,
+  censusOfTarget,
+  m1UatNamespace,
+  m2UatNamespace,
+} from "./uatFixtureGuard";
 import { inspectDirectMigrationUrl, assertExpectedMigrationTarget } from "../../lib/migrationTarget";
 import { hashPassword } from "../../lib/password";
 import { transitionCase } from "../../lib/caseService";
@@ -60,15 +67,19 @@ async function verifyTargetIdentity() {
   if (identity.length !== 1 || identity[0].database !== target.database || identity[0].readOnly !== "off") {
     throw new Error("M1 UAT target identity is not writable or does not match its reviewed endpoint");
   }
-  const [foreignOrganizations, users, agents, leads, cases] = await Promise.all([
-    db.organization.count({ where: { id: { not: organizationId } } }),
-    db.user.count({ where: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } }),
-    db.agent.count({ where: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } }),
-    db.clientLead.count({ where: { agent: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } } }),
-    db.case.count({ where: { tenantId: { not: organizationId } } }),
-  ]);
-  if (!isLocalTarget(directUrl) && foreignOrganizations + users + agents + leads + cases > 0) {
-    throw new Error("Remote M1 UAT target is not an empty isolated database");
+  if (!isLocalTarget(directUrl)) {
+    assertIsolatedUatFingerprint(target.fingerprint, {
+      expected: process.env.EXPECTED_DATABASE_FINGERPRINT,
+      production: productionFingerprint,
+      label: "M1 UAT",
+    });
+    // Empty, or holding only this mission's own synthetic rows — nothing else. The M2
+    // sibling fixture is admissible so both can share one isolated UAT database; any row
+    // outside those exact namespaces refuses the run.
+    const allowed = [m1UatNamespace(runId)];
+    const siblingRunId = process.env.M2_UAT_RUN_ID;
+    if (siblingRunId) allowed.push(m2UatNamespace(siblingRunId));
+    assertOnlyRecognisedSyntheticData(await censusOfTarget(db), allowed, "M1 UAT");
   }
 }
 
