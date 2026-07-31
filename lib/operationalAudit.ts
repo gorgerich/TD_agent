@@ -1,10 +1,19 @@
 import type { Prisma } from "@prisma/client";
 import type { OperationalContext } from "@/lib/operationalAuth";
 
-type AuditActor = Pick<OperationalContext, "organizationId" | "membershipId">;
+type AuditActor = Pick<OperationalContext, "organizationId"> & { membershipId?: string | null };
 
 type AuditInput = {
-  entityType: "task" | "meeting" | "case" | "membership" | "saved_view";
+  entityType:
+    | "task"
+    | "meeting"
+    | "case"
+    | "membership"
+    | "saved_view"
+    | "catalog_item"
+    | "quote"
+    | "quote_version"
+    | "quote_client_decision";
   entityId: string;
   action: string;
   before: Prisma.InputJsonValue;
@@ -14,6 +23,7 @@ type AuditInput = {
   causationId?: string | null;
   idempotencyKey: string;
   result: Prisma.InputJsonValue;
+  actorType?: string;
 };
 
 export async function appendOperationalAudit(
@@ -24,7 +34,8 @@ export async function appendOperationalAudit(
   return tx.operationalAuditEvent.create({
     data: {
       organizationId: context.organizationId,
-      actorMembershipId: context.membershipId,
+      actorMembershipId: context.membershipId ?? null,
+      actorType: input.actorType ?? "member",
       entityType: input.entityType,
       entityId: input.entityId,
       action: input.action,

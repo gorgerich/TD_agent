@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Briefcase, FileText } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession } from "@/lib/auth";
+import type { AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { dateShort, moneyFromKopecks } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
@@ -14,8 +15,10 @@ type EstimateRow = {
   caseId: number;
   meetingId: number;
   clientName: string;
-  total: number;
-  status: "Черновик" | "Отправлена" | "Согласована";
+  total: number | null;
+  version: number | null;
+  priceBlocked: boolean;
+  status: "Черновик" | "Отправлена" | "Нужны изменения" | "Согласована";
   filter: Exclude<EstimateFilter, "all">;
   createdAt: Date | null;
 };
@@ -27,38 +30,49 @@ const FILTERS: Array<{ id: EstimateFilter; label: string }> = [
   { id: "agreed", label: "Согласованы" },
 ];
 
-async function getEstimates(agentId: number): Promise<EstimateRow[]> {
-  if (!agentId) return [];
-  try {
-    const quotes = await prisma.quote.findMany({
-      where: { meeting: { agentId } },
+async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
+  const quotes = await prisma.quote.findMany({
+      where: {
+        organizationId: session.organizationId,
+        ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+      },
       orderBy: { id: "desc" },
       include: {
         meeting: { select: { id: true, lead: { select: { id: true, name: true } } } },
-        order: { select: { status: true } },
-        versions: { orderBy: { createdAt: "desc" }, take: 1, select: { total: true, createdAt: true } },
+        activeDraftVersion: { select: { total: true, totalState: true, updatedAt: true } },
+        latestPublishedVersion: {
+          select: {
+            total: true,
+            totalState: true,
+            versionNumber: true,
+            publishedAt: true,
+            decisions: { orderBy: { createdAt: "desc" }, take: 1, select: { type: true } },
+          },
+        },
       },
       take: 100,
     });
 
     return quotes.map((q) => {
-      const latest = q.versions[0];
-      const agreed = Boolean(q.order && !["PENDING", "CANCELED"].includes(q.order.status.toUpperCase()));
-      const status = agreed ? "Согласована" : latest ? "Отправлена" : "Черновик";
+      const agreed = q.status === "ACCEPTED";
+      const published = q.latestPublishedVersion;
+      const draft = q.activeDraftVersion;
+      const changesRequested = published?.decisions[0]?.type === "CHANGES_REQUESTED";
+      const status = agreed ? "Согласована" : changesRequested ? "Нужны изменения" : published ? "Отправлена" : "Черновик";
+      const source = published ?? draft;
       return {
         id: q.id,
         caseId: q.meeting.lead.id,
         meetingId: q.meeting.id,
         clientName: q.meeting.lead.name,
-        total: latest?.total ?? 0,
+        total: source?.totalState === "KNOWN" ? source.total : null,
+        version: published?.versionNumber ?? null,
+        priceBlocked: draft ? draft.totalState !== "KNOWN" : source?.totalState !== "KNOWN",
         status,
         filter: status === "Черновик" ? "drafts" : status === "Согласована" ? "agreed" : "sent",
-        createdAt: latest?.createdAt ?? null,
+        createdAt: published?.publishedAt ?? draft?.updatedAt ?? null,
       };
     });
-  } catch {
-    return [];
-  }
 }
 
 export default async function EstimatesPage({
@@ -71,7 +85,8 @@ export default async function EstimatesPage({
     ? (params?.status as EstimateFilter)
     : "all";
   const session = await getAgentSession();
-  const estimates = await getEstimates(session?.agentId ?? 0);
+  if (!session) return null;
+  const estimates = await getEstimates(session);
   const visible = activeFilter === "all" ? estimates : estimates.filter((row) => row.filter === activeFilter);
   const counts = {
     all: estimates.length,
@@ -79,7 +94,8 @@ export default async function EstimatesPage({
     sent: estimates.filter((row) => row.filter === "sent").length,
     agreed: estimates.filter((row) => row.filter === "agreed").length,
   };
-  const liveTotal = estimates.reduce((sum, row) => sum + row.total, 0);
+  const knownTotal = estimates.reduce((sum, row) => row.total === null ? sum : sum + row.total, 0);
+  const blockedPrices = estimates.filter((row) => row.priceBlocked).length;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -97,8 +113,8 @@ export default async function EstimatesPage({
         <div className="rise mb-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="Всего смет" value={String(counts.all)} />
           <Stat label="Черновики" value={String(counts.drafts)} />
-          <Stat label="Согласованы" value={String(counts.agreed)} />
-          <Stat label="Сумма в работе" value={moneyFromKopecks(liveTotal)} />
+          <Stat label="Требуют цены" value={String(blockedPrices)} />
+          <Stat label="Известная сумма" value={moneyFromKopecks(knownTotal)} />
         </div>
       )}
 
@@ -131,17 +147,22 @@ export default async function EstimatesPage({
           ) : (
             <ul className="min-w-0">
               {visible.map((estimate) => {
-                const bar = estimate.filter === "agreed" ? "before:bg-success" : estimate.filter === "sent" ? "before:bg-info" : "before:bg-ink-3";
                 return (
                   <li key={estimate.id} className="border-b border-line last:border-0">
-                    <div className={`td-entity-row group relative grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 py-3.5 pl-5 pr-4 before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center ${bar}`}>
+                    <div className="td-entity-row group grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                       <Link href={`/agent/cases/${estimate.caseId}`} className="min-w-0 flex-1">
                         <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="truncate text-[14px] font-semibold text-ink">{estimate.clientName}</span>
                           <StatusBadge status={estimate.status} />
                         </span>
                         <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-2">
-                          <span className="tnum font-semibold text-gold">{moneyFromKopecks(estimate.total)}</span>
+                          <span className="tnum font-semibold text-gold">
+                            {estimate.total === null ? "Цена требует уточнения" : moneyFromKopecks(estimate.total)}
+                          </span>
+                          {estimate.version && <span className="text-ink-3">v{estimate.version}</span>}
+                          {estimate.priceBlocked && (
+                            <span className="font-medium text-danger">Черновик: нужна цена</span>
+                          )}
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>
                           <span className="text-ink-3">·</span>
@@ -173,10 +194,5 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function StatusBadge({ status }: { status: EstimateRow["status"] }) {
-  const cls = status === "Согласована"
-    ? "border-success/20 bg-success-soft text-success"
-    : status === "Отправлена"
-      ? "border-accent/20 bg-accent-soft text-accent"
-      : "border-line bg-surface text-ink-2";
-  return <span className={`w-fit rounded-full border px-2.5 py-1 text-[12px] font-medium ${cls}`}>{status}</span>;
+  return <span className="text-[12px] font-semibold text-ink-2">{status}</span>;
 }

@@ -6,7 +6,6 @@ import {
   Check,
   CalendarDots,
   FileText,
-  ShareNetwork,
   Warning,
   Phone,
 } from "@phosphor-icons/react/dist/ssr";
@@ -56,7 +55,7 @@ async function getFullCase(caseId: number, session: AgentSession) {
       meetings: {
         orderBy: { id: "asc" },
         select: {
-          id: true, status: true, scheduledAt: true, cobrowseCode: true, coViewedAt: true, coAgreedAt: true,
+          id: true, status: true, scheduledAt: true, coViewedAt: true, coAgreedAt: true,
           quotes: { select: { versions: { select: { createdAt: true, total: true }, orderBy: { createdAt: "desc" } } } },
           orders: { select: { status: true, createdAt: true } },
         },
@@ -139,7 +138,6 @@ export default async function CasePage({
   const curIdx = Math.max(0, STAGE_ORDER.indexOf(canonicalCase.legacyStage));
 
   const firstMeeting = meetings[0] ?? null;
-  const cobrowse = meetings.find((m) => m.cobrowseCode)?.cobrowseCode ?? null;
   const context = decryptField(lead.context);
   const intake = {
     ceremonyType: lead.ceremonyType ?? "",
@@ -256,7 +254,6 @@ export default async function CasePage({
         meta={routeMeta}
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
-        cobrowse={cobrowse}
         controls={[
           { label: "Открытые задачи", value: String(openTasksCount), tone: openTasksCount > 0 ? "warning" : "neutral" },
           { label: "Документы", value: canonicalCase.documents.required ? `${canonicalCase.documents.verified}/${canonicalCase.documents.required}` : "—", tone: canonicalCase.documents.ready ? "success" : "warning" },
@@ -401,7 +398,6 @@ function RouteActionPanel({
   meta,
   firstMeetingId,
   caseId,
-  cobrowse,
   controls,
   lastActivity,
   canMutateCase,
@@ -413,7 +409,6 @@ function RouteActionPanel({
   meta: string[];
   firstMeetingId: number | null;
   caseId: number;
-  cobrowse: string | null;
   controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
   lastActivity: string;
   canMutateCase: boolean;
@@ -436,11 +431,6 @@ function RouteActionPanel({
             ) : (
               <Action href={`/agent/meetings/new?leadId=${caseId}`} icon={<CalendarDots size={16} />} primary compact>
                 Назначить встречу
-              </Action>
-            )}
-            {cobrowse && (
-              <Action href={`/co/${cobrowse}`} icon={<ShareNetwork size={16} />} external compact>
-                Клиентский вид
               </Action>
             )}
           </div> : (

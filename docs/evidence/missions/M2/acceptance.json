@@ -1,0 +1,25 @@
+{
+  "mission": "M2-COMMERCIAL-TRUST-LOOP",
+  "state": "CONTRACT_LOCKED",
+  "acceptance": [
+    { "id": "M2-W4-01", "status": "PENDING", "requirement": "One tenant- and Case-owned canonical Quote aggregate." },
+    { "id": "M2-W4-02", "status": "PENDING", "requirement": "Unknown price and cost are explicit states and never silently become zero." },
+    { "id": "M2-W4-03", "status": "PENDING", "requirement": "Money-safe server totals are identical across registry, builder, client and print." },
+    { "id": "M2-W4-04", "status": "PENDING", "requirement": "Package, add-on, replacement and scenario compatibility rules prevent double counting." },
+    { "id": "M2-W4-05", "status": "PENDING", "requirement": "Catalog and vendor source versions are reproducible." },
+    { "id": "M2-W4-06", "status": "PENDING", "requirement": "Legacy commercial data migrates without invented price facts or tenant loss." },
+    { "id": "M2-W5-01", "status": "PENDING", "requirement": "Draft, review, publish and client decision use guarded canonical transitions." },
+    { "id": "M2-W5-02", "status": "PENDING", "requirement": "Published QuoteVersion is immutable and remains reproducible after later versions." },
+    { "id": "M2-W5-03", "status": "PENDING", "requirement": "Autosave and presentation never mutate or leak a published version." },
+    { "id": "M2-W5-04", "status": "PENDING", "requirement": "Opaque client links are hash-only, expiring, revocable, rate-limited and version-scoped." },
+    { "id": "M2-W5-05", "status": "PENDING", "requirement": "Accept and request-changes decisions are idempotent and audited." },
+    { "id": "M2-W5-06", "status": "PENDING", "requirement": "Expired, revoked and superseded access returns safe honest states." },
+    { "id": "M2-W5-07", "status": "PENDING", "requirement": "Version-bound print/PDF output is stable and accessible." },
+    { "id": "M2-SEC-01", "status": "PENDING", "requirement": "Tenant, role and client-link boundaries prevent cross-tenant access." },
+    { "id": "M2-QUAL-01", "status": "PENDING", "requirement": "Failure UX never turns an API error into empty success." },
+    { "id": "M2-QUAL-02", "status": "PENDING", "requirement": "Desktop, mobile, keyboard and 200 percent zoom gates pass." },
+    { "id": "M2-GATE-01", "status": "PENDING", "requirement": "All deterministic gates pass with skipped=0 and NOT_RUN=0." },
+    { "id": "M2-GATE-02", "status": "PENDING", "requirement": "Independent review reports P0=0 and P1=0." },
+    { "id": "M2-UAT-01", "status": "PENDING", "requirement": "Cremation and relative-burial journeys pass on exact isolated Preview SHA." }
+  ]
+}

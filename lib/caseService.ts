@@ -232,7 +232,7 @@ export async function saveCaseIntake(input: {
   }
 }
 
-async function transitionCaseInTransaction(
+export async function transitionCaseInTransaction(
   tx: Prisma.TransactionClient,
   input: {
     leadId: number;

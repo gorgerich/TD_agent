@@ -22,19 +22,17 @@ export default async function QuoteBuilderPage({
 
   type MeetingRow = {
     id: number;
-    cobrowseCode: string | null;
     lead: { id: number; name: string } | null;
   };
-  let meeting: MeetingRow | null = null;
-
-  try {
-    meeting = await prisma.meeting.findUnique({
-      where: { id: meetingId },
-      select: { id: true, cobrowseCode: true, lead: { select: { id: true, name: true } } },
-    });
-  } catch {
-    // DB not configured in local dev - proceed with nulls
-  }
+  const meeting: MeetingRow | null = await prisma.meeting.findFirst({
+    where: {
+      id: meetingId,
+      organizationId: session?.organizationId ?? "development",
+      ...(session?.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+    },
+    select: { id: true, lead: { select: { id: true, name: true } } },
+  });
+  if (!meeting) redirect("/agent/meetings");
 
   const clientName = meeting?.lead?.name ?? "Клиент";
   const caseId = meeting?.lead?.id;
@@ -59,7 +57,6 @@ export default async function QuoteBuilderPage({
 
       <QuoteBuilder
         meetingId={meetingId}
-        cobrowseCode={meeting?.cobrowseCode ?? null}
         clientName={clientName}
         caseId={caseId}
       />

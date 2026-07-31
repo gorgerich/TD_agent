@@ -1560,7 +1560,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 28px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--color-ink);
 }
 .panelHeroMeta {
@@ -2208,6 +2208,27 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-size: 13px; font-weight: 600; color: var(--color-ink);
 }
+
+.optPriceRequest {
+  margin: 0 12px 12px;
+  min-height: 36px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.optPriceRequest:hover {
+  color: var(--accent-hover);
+}
+
+.optPriceRequest:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .optBadge {
   justify-self: start; margin-top: 2px;
   padding: 1px 7px; border-radius: 999px;
@@ -2331,7 +2352,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.tariffName { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.02em; color: var(--color-ink); }
+.tariffName { margin: 0; font-size: 16px; font-weight: 650; color: var(--color-ink); }
 .tariffDesc { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--color-ink-2); }
 .tariffPrice {
   margin: 10px 0 0;
@@ -2452,7 +2473,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 
 .planHero { gap: 12px; }
 .planEyebrow { margin-bottom: 7px; }
-.planTitle { font-size: 28px; font-weight: 680; letter-spacing: -0.025em; }
+.planTitle { font-size: 28px; font-weight: 680; }
 .planSubtitle { margin-top: 5px; font-size: 13px; }
 .planTotal {
   border: 0;
@@ -2512,7 +2533,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 .b2cStageChipActive span { background: var(--color-accent); color: var(--color-on-accent); }
 .b2cStageChipDone:not(.b2cStageChipActive) { background: var(--color-surface-2); color: var(--color-ink-2); }
 .b2cStageHead { border-top: 0; padding-top: 2px; }
-.b2cStageHead h2 { font-size: 20px; font-weight: 680; letter-spacing: -0.015em; }
+.b2cStageHead h2 { font-size: 20px; font-weight: 680; }
 .b2cStageHead p { margin-top: 4px; font-size: 13px; }
 
 .b2cWizardShell {
@@ -2699,4 +2720,104 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 
 @media (max-width: 640px) {
   .mobileBar { background: var(--color-surface); }
+}
+
+.commercialReview {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-2);
+}
+
+.commercialReviewHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.commercialReviewHead strong {
+  color: var(--color-ink);
+  font-size: 14px;
+}
+
+.commercialReviewHead span,
+.commercialReady,
+.commercialWarning,
+.commercialBlockers p {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.commercialBlockers {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border-left: 3px solid var(--color-danger);
+  border-radius: 0 6px 6px 0;
+  background: var(--color-danger-soft);
+}
+
+.commercialBlockers strong {
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
+.commercialWarning {
+  color: var(--color-warning);
+}
+
+.publishBtn {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+  transition: background-color 160ms var(--ease-out);
+}
+
+.publishBtn:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.publishBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+/* API failures remain visible; they are never represented as an empty catalog. */
+.inlineError {
+  margin: 12px 0;
+  border-radius: var(--radius-control);
+  background: var(--danger-soft);
+  padding: 10px 12px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reviewDiff {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.reviewDiff strong {
+  grid-column: 1 / -1;
+  color: var(--ink);
+}
+
+@media (max-width: 520px) {
+  .reviewDiff {
+    grid-template-columns: 1fr;
+  }
+
+  .reviewDiff strong {
+    grid-column: auto;
+  }
 }

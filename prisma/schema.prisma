@@ -30,20 +30,20 @@ datasource db {
 // ============================================================
 
 model User {
-  id           Int          @id @default(autoincrement())
-  email        String?      @unique // B2C DB allows null emails; keep nullable so db push can apply B2B tables.
-  name         String?
-  phone        String?      @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
-  passwordHash String? // NEW (B2B): хэш пароля агента для постоянного входа; nullable для B2C/demo пользователей
-  platformRole PlatformRole @default(USER)
-  sessionVersion Int          @default(0)
+  id                         Int          @id @default(autoincrement())
+  email                      String?      @unique // B2C DB allows null emails; keep nullable so db push can apply B2B tables.
+  name                       String?
+  phone                      String?      @unique // NEW (B2B): для SMS-аутентификации агента; nullable — B2C-пользователи без телефона
+  passwordHash               String? // NEW (B2B): хэш пароля агента для постоянного входа; nullable для B2C/demo пользователей
+  platformRole               PlatformRole @default(USER)
+  sessionVersion             Int          @default(0)
   platformMfaSecretEncrypted String?
-  platformMfaEnabledAt DateTime?
-  orders       Order[]
+  platformMfaEnabledAt       DateTime?
+  orders                     Order[]
 
-  agent              Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
-  memberships        Membership[]
-  platformAuditEvents PlatformAuditEvent[] @relation("PlatformAuditActor")
+  agent               Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+  memberships         Membership[]
+  platformAuditEvents PlatformAuditEvent[]        @relation("PlatformAuditActor")
   platformActivations PlatformAccountActivation[]
 }
 
@@ -178,6 +178,9 @@ model Organization {
   auditEvents        OperationalAuditEvent[]
   savedViews         SavedOperationalView[]
   projectionReceipts ProjectionReceipt[]
+  quotes             Quote[]
+  catalogItems       AgentCatalogItem[]
+  catalogRevisions   CatalogItemRevision[]
 
   @@index([status, createdAt])
 }
@@ -195,12 +198,16 @@ model Membership {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  assignedTasks      Task[]                  @relation("TaskAssignee")
-  createdTasks       Task[]                  @relation("TaskCreator")
-  ownedMeetings      Meeting[]               @relation("MeetingOwner")
-  auditEvents        OperationalAuditEvent[] @relation("AuditActor")
-  savedViews         SavedOperationalView[]  @relation("SavedViewOwner")
-  invitationsCreated OrganizationInvite[]    @relation("InvitationCreator")
+  assignedTasks          Task[]                     @relation("TaskAssignee")
+  createdTasks           Task[]                     @relation("TaskCreator")
+  ownedMeetings          Meeting[]                  @relation("MeetingOwner")
+  auditEvents            OperationalAuditEvent[]    @relation("AuditActor")
+  savedViews             SavedOperationalView[]     @relation("SavedViewOwner")
+  invitationsCreated     OrganizationInvite[]       @relation("InvitationCreator")
+  ownedQuotes            Quote[]                    @relation("QuoteOwner")
+  publishedQuoteVersions QuoteVersion[]             @relation("QuotePublisher")
+  createdQuoteLinks      QuoteClientLink[]          @relation("QuoteLinkCreator")
+  presentationSessions   QuotePresentationSession[] @relation("QuotePresentationOwner")
 
   @@unique([organizationId, userId])
   @@index([organizationId, role, status])
@@ -227,18 +234,55 @@ model OrganizationInvite {
 // Собственный каталог агента: агент загружает фото товара, платформа вырезает фон
 // (клиентский matte), агент задаёт название/категорию/цену и использует в смете.
 model AgentCatalogItem {
-  id          String   @id @default(cuid())
-  agentId     Int
-  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  name        String
-  category    String // одна из CatalogCategory (строкой, чтобы не тянуть enum в БД)
-  clientPrice Int // цена для клиента, ₽
-  costPrice   Int      @default(0) // закупочная, ₽ (для маржи)
-  description String   @default("")
-  imageData   String   @db.Text // data URL вырезанного товара на белом фоне (webp/png base64)
-  createdAt   DateTime @default(now())
+  id                    String                @id @default(cuid())
+  agentId               Int
+  agent                 Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  name                  String
+  category              String // одна из CatalogCategory (строкой, чтобы не тянуть enum в БД)
+  clientPrice           Int // цена для клиента, ₽
+  costPrice             Int                   @default(0) // закупочная, ₽ (для маржи)
+  description           String                @default("")
+  imageData             String                @db.Text // data URL вырезанного товара на белом фоне (webp/png base64)
+  organizationId        String?
+  organization          Organization?         @relation(fields: [organizationId], references: [id])
+  priceState            CommercialPriceState  @default(UNKNOWN)
+  costState             CommercialCostState   @default(UNKNOWN)
+  availability          CatalogAvailability   @default(AVAILABLE)
+  scenarioCompatibility Json                  @default("[\"CREMATION_V1\",\"FAMILY_PLOT_BURIAL_V1\"]")
+  currentVersion        Int                   @default(1)
+  revisions             CatalogItemRevision[]
+  quoteLineItems        QuoteLineItem[]       @relation("QuoteLineCatalogItem")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @default(now()) @updatedAt
 
   @@index([agentId])
+  @@index([organizationId, availability])
+}
+
+model CatalogItemRevision {
+  id                    String               @id @default(cuid())
+  catalogItemId         String
+  catalogItem           AgentCatalogItem     @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  organizationId        String
+  organization          Organization         @relation(fields: [organizationId], references: [id])
+  version               Int
+  name                  String
+  description           String
+  unit                  String               @default("шт.")
+  priceState            CommercialPriceState
+  clientUnitPrice       Int?
+  costState             CommercialCostState
+  unitCost              Int?
+  currency              String               @default("RUB")
+  availability          CatalogAvailability
+  scenarioCompatibility Json
+  vendorSource          String?
+  vendorSourceVersion   String?
+  quoteLineItems        QuoteLineItem[]      @relation("QuoteLineCatalogRevision")
+  createdAt             DateTime             @default(now())
+
+  @@unique([catalogItemId, version])
+  @@index([organizationId, availability])
 }
 
 model AgentTier {
@@ -325,26 +369,151 @@ model Meeting {
 }
 
 model Quote {
-  id        Int            @id @default(autoincrement())
-  meetingId Int
-  meeting   Meeting        @relation(fields: [meetingId], references: [id])
-  versions  QuoteVersion[]
-  orderId   Int?           @unique
-  order     Order?         @relation(fields: [orderId], references: [id])
+  id                       Int                        @id @default(autoincrement())
+  meetingId                Int
+  meeting                  Meeting                    @relation(fields: [meetingId], references: [id])
+  organizationId           String?
+  organization             Organization?              @relation(fields: [organizationId], references: [id])
+  caseId                   String?
+  case                     Case?                      @relation("CommercialQuoteCase", fields: [caseId], references: [id])
+  ownerMembershipId        String?
+  ownerMembership          Membership?                @relation("QuoteOwner", fields: [ownerMembershipId], references: [id])
+  scenario                 CaseScenario?
+  status                   QuoteLifecycleStatus       @default(LEGACY_INCOMPLETE)
+  currency                 String                     @default("RUB")
+  activeDraftVersionId     Int?                       @unique
+  activeDraftVersion       QuoteVersion?              @relation("ActiveQuoteDraft", fields: [activeDraftVersionId], references: [id])
+  latestPublishedVersionId Int?                       @unique
+  latestPublishedVersion   QuoteVersion?              @relation("LatestPublishedQuoteVersion", fields: [latestPublishedVersionId], references: [id])
+  versions                 QuoteVersion[]             @relation("QuoteVersions")
+  presentationSessions     QuotePresentationSession[]
+  orderId                  Int?                       @unique
+  order                    Order?                     @relation(fields: [orderId], references: [id])
+  version                  Int                        @default(1)
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @default(now()) @updatedAt
 
   @@index([meetingId])
+  @@index([organizationId, status, updatedAt])
+  @@index([caseId])
+  @@index([ownerMembershipId, status])
 }
 
 model QuoteVersion {
-  id                Int      @id @default(autoincrement())
-  quoteId           Int
-  quote             Quote    @relation(fields: [quoteId], references: [id])
-  payload           String // снимок сметы (JSON-строкой — единообразно с Order.meta)
-  total             Int // копейки
-  createdAt         DateTime @default(now())
-  publishedForCases Case[]
+  id                      Int                   @id @default(autoincrement())
+  quoteId                 Int
+  quote                   Quote                 @relation("QuoteVersions", fields: [quoteId], references: [id])
+  versionNumber           Int?
+  state                   QuoteVersionState     @default(LEGACY_INCOMPLETE)
+  payload                 String // canonical reproducible JSON snapshot
+  subtotal                Int?
+  discountTotal           Int?
+  total                   Int // minor units (kopecks)
+  totalState              CommercialPriceState @default(UNKNOWN)
+  currency                String                @default("RUB")
+  snapshotChecksum        String?
+  catalogSourceVersion    String?
+  publishedByMembershipId String?
+  publishedBy             Membership?           @relation("QuotePublisher", fields: [publishedByMembershipId], references: [id])
+  publishedAt             DateTime?
+  publishReason           String?
+  publishChannel          String?
+  validUntil              DateTime?
+  idempotencyKey          String?
+  correlationId           String?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @default(now()) @updatedAt
+  lineItems               QuoteLineItem[]
+  clientLinks             QuoteClientLink[]
+  decisions               QuoteClientDecision[]
+  activeDraftFor          Quote?                @relation("ActiveQuoteDraft")
+  latestPublishedFor      Quote?                @relation("LatestPublishedQuoteVersion")
+  publishedForCases       Case[]                @relation("PublishedQuoteForCase")
 
+  @@unique([quoteId, versionNumber])
+  @@unique([quoteId, idempotencyKey])
   @@index([quoteId])
+  @@index([state, publishedAt])
+  @@index([publishedByMembershipId])
+}
+
+model QuoteLineItem {
+  id                    String               @id @default(cuid())
+  quoteVersionId        Int
+  quoteVersion          QuoteVersion         @relation(fields: [quoteVersionId], references: [id], onDelete: Cascade)
+  stableKey             String
+  position              Int
+  type                  QuoteLineItemType
+  catalogItemId         String?
+  catalogItem           AgentCatalogItem?    @relation("QuoteLineCatalogItem", fields: [catalogItemId], references: [id])
+  catalogRevisionId     String?
+  catalogRevision       CatalogItemRevision? @relation("QuoteLineCatalogRevision", fields: [catalogRevisionId], references: [id])
+  serviceCode           String?
+  description           String
+  quantity              Int                  @default(1)
+  unit                  String               @default("шт.")
+  priceState            CommercialPriceState
+  clientUnitPrice       Int?
+  costState             CommercialCostState
+  unitCost              Int?
+  discountAmount        Int                  @default(0)
+  included              Boolean              @default(false)
+  optional              Boolean              @default(false)
+  relationKind          QuoteLineRelation    @default(STANDALONE)
+  relationKey           String?
+  source                String
+  sourceVersion         String
+  scenarioCompatibility Json
+  createdAt             DateTime             @default(now())
+
+  @@unique([quoteVersionId, stableKey])
+  @@index([quoteVersionId, position])
+  @@index([catalogItemId, catalogRevisionId])
+}
+
+model QuoteClientLink {
+  id                    String       @id @default(cuid())
+  quoteVersionId        Int
+  quoteVersion          QuoteVersion @relation(fields: [quoteVersionId], references: [id], onDelete: Cascade)
+  tokenHash             String       @unique
+  expiresAt             DateTime
+  revokedAt             DateTime?
+  createdByMembershipId String
+  createdBy             Membership   @relation("QuoteLinkCreator", fields: [createdByMembershipId], references: [id])
+  createdAt             DateTime     @default(now())
+  lastViewedAt          DateTime?
+
+  @@index([quoteVersionId, expiresAt])
+}
+
+model QuoteClientDecision {
+  id             String                  @id @default(cuid())
+  quoteVersionId Int
+  quoteVersion   QuoteVersion            @relation(fields: [quoteVersionId], references: [id])
+  type           QuoteClientDecisionType
+  comment        String?
+  source         String
+  actorType      String                  @default("client-link")
+  idempotencyKey String
+  correlationId  String
+  createdAt      DateTime                @default(now())
+
+  @@unique([quoteVersionId])
+  @@index([quoteVersionId, idempotencyKey])
+}
+
+model QuotePresentationSession {
+  id                String     @id @default(cuid())
+  quoteId           Int
+  quote             Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  ownerMembershipId String
+  owner             Membership @relation("QuotePresentationOwner", fields: [ownerMembershipId], references: [id])
+  state             Json
+  startedAt         DateTime   @default(now())
+  endedAt           DateTime?
+  expiresAt         DateTime
+
+  @@index([quoteId, expiresAt])
 }
 
 // Canonical Week 2 aggregate. ClientLead remains contact/intake storage; Case owns
@@ -363,7 +532,8 @@ model Case {
   version                 Int           @default(1)
   guardState              Json          @default("{}")
   publishedQuoteVersionId Int?
-  publishedQuoteVersion   QuoteVersion? @relation(fields: [publishedQuoteVersionId], references: [id])
+  publishedQuoteVersion   QuoteVersion? @relation("PublishedQuoteForCase", fields: [publishedQuoteVersionId], references: [id])
+  commercialQuotes        Quote[]       @relation("CommercialQuoteCase")
   closedAt                DateTime?
   events                  CaseEvent[]
   tasks                   Task[]
@@ -539,16 +709,16 @@ model PlatformAuditEvent {
 // One-time first-access credential activation for a trusted platform user.
 // Raw bearer tokens never enter PostgreSQL; only SHA-256 digests are stored.
 model PlatformAccountActivation {
-  id         String    @id @default(cuid())
-  userId     Int
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  purpose    PlatformAccountActivationPurpose @default(FIRST_ACCESS)
-  tokenHash  String    @unique
+  id                 String                           @id @default(cuid())
+  userId             Int
+  user               User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose            PlatformAccountActivationPurpose @default(FIRST_ACCESS)
+  tokenHash          String                           @unique
   mfaSecretEncrypted String
-  expiresAt  DateTime
-  consumedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  expiresAt          DateTime
+  consumedAt         DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime                         @default(now())
 
   @@index([userId, createdAt])
   @@index([userId, purpose, createdAt])
@@ -782,6 +952,67 @@ enum CaseScenario {
   UNSELECTED
   CREMATION_V1
   FAMILY_PLOT_BURIAL_V1
+}
+
+enum QuoteLifecycleStatus {
+  LEGACY_INCOMPLETE
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum QuoteVersionState {
+  LEGACY_INCOMPLETE
+  DRAFT
+  PUBLISHED
+  SUPERSEDED
+  EXPIRED
+}
+
+enum CommercialPriceState {
+  KNOWN
+  UNKNOWN
+  REQUESTED
+  EXPIRED
+}
+
+enum CommercialCostState {
+  KNOWN
+  UNKNOWN
+  REQUESTED
+  EXPIRED
+}
+
+enum CatalogAvailability {
+  AVAILABLE
+  UNAVAILABLE
+  REQUESTED
+  EXPIRED
+}
+
+enum QuoteLineItemType {
+  SERVICE
+  PRODUCT
+  PACKAGE
+  ADD_ON
+  EXTERNAL_EXPENSE
+  MEMORIAL
+}
+
+enum QuoteLineRelation {
+  STANDALONE
+  INCLUDED
+  ADD_ON
+  REPLACEMENT
+}
+
+enum QuoteClientDecisionType {
+  ACCEPTED
+  CHANGES_REQUESTED
 }
 
 // NEW (B2B): хранит хэш одноразового кода для SMS-аутентификации агента.

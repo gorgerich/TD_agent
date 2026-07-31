@@ -1,23 +1,27 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { enforcePersistentRateLimit } from "@/lib/persistentRateLimit";
+import { handleApiError, jsonError } from "@/lib/apiAuth";
+import { recordCommercialClientDecision } from "@/lib/commercialQuoteService";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Клиент нажал «Согласовать смету» в /co. Доступ по cobrowseCode (capability).
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
-  const { code } = await params;
-  if (code.startsWith("DEV-")) return NextResponse.json({ ok: true }); // dev — не пишем
-
+export async function POST(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
+  const limited = await enforcePersistentRateLimit(req, "commercial-client-decision", 12, 15 * 60_000);
+  if (limited) return limited;
   try {
-    const meeting = await prisma.meeting.findUnique({ where: { cobrowseCode: code }, select: { id: true, coAgreedAt: true } });
-    if (!meeting) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-    if (!meeting.coAgreedAt) {
-      await prisma.meeting.update({ where: { id: meeting.id }, data: { coAgreedAt: new Date() } });
-    }
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Не удалось сохранить" }, { status: 503 });
+    const { code } = await params;
+    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
+    if (!idempotencyKey) return jsonError(400, "Отсутствует ключ подтверждения");
+    const result = await recordCommercialClientDecision({
+      token: code,
+      type: "ACCEPTED",
+      idempotencyKey,
+      correlationId: req.headers.get("x-correlation-id")?.trim() || randomUUID(),
+    });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (error) {
+    return handleApiError(error, "quote/client-accept");
   }
 }

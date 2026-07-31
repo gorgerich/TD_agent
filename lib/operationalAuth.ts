@@ -22,11 +22,14 @@ export type OperationalCapability =
   | "audit:read"
   | "membership:invite"
   | "organization:read"
-  | "membership:manage";
+  | "membership:manage"
+  | "commercial:read"
+  | "commercial:edit"
+  | "commercial:publish";
 
 const ROLE_CAPABILITIES: Record<OperationalRole, ReadonlySet<OperationalCapability>> = {
-  AGENT: new Set(["work:read", "work:mutate-own"]),
-  MANAGER: new Set(["work:read", "work:mutate-own", "team:read", "team:assign", "audit:read"]),
+  AGENT: new Set(["work:read", "work:mutate-own", "commercial:read", "commercial:edit", "commercial:publish"]),
+  MANAGER: new Set(["work:read", "work:mutate-own", "team:read", "team:assign", "audit:read", "commercial:read", "commercial:edit", "commercial:publish"]),
   ADMIN: new Set([
     "work:read",
     "team:read",
@@ -34,6 +37,9 @@ const ROLE_CAPABILITIES: Record<OperationalRole, ReadonlySet<OperationalCapabili
     "membership:invite",
     "organization:read",
     "membership:manage",
+    "commercial:read",
+    "commercial:edit",
+    "commercial:publish",
   ]),
 };
 

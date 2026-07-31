@@ -1,0 +1,14 @@
+{
+  "mission": "M2-COMMERCIAL-TRUST-LOOP",
+  "state": "CONTRACT_LOCKED",
+  "implementationSha": null,
+  "checks": {
+    "status": "PENDING",
+    "skipped": null,
+    "notRun": null,
+    "independentReview": {
+      "p0": null,
+      "p1": null
+    }
+  }
+}

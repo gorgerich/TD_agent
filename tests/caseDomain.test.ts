@@ -34,7 +34,9 @@ test("Week 2: every allowed Case transition has executable guard coverage", () =
       eventType: rule.eventType,
       payload: rule.eventType === "scenario.selected.v1"
         ? { scenarioId: "CREMATION_V1" }
-        : rule.eventType === "quote.published.v1" || rule.eventType === "quote.accepted.v1"
+        : rule.eventType === "quote.published.v1"
+            || rule.eventType === "quote.republished.v1"
+            || rule.eventType === "quote.accepted.v1"
           ? { quoteVersionId: 17 }
           : {},
       facts,

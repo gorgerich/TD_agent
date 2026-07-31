@@ -1,0 +1,28 @@
+mission: M2-COMMERCIAL-TRUST-LOOP
+name: Commercial Trust Loop
+state: CONTRACT_LOCKED
+base_sha: a7b085106ab732722509e22671d36c3d697ddd53
+implementation_sha: null
+review_sha: null
+preview_deployment_id: null
+production_deployment_id: null
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e_agent_commercial
+  - e2e_client_view
+  - migration_rehearsal
+  - schema_parity
+  - price_total_integrity
+  - draft_published_isolation
+  - permissions
+  - idempotency
+  - client_link_security
+  - reconciliation
+  - accessibility
+  - preview_uat
+  - independent_review
+open_blockers: []
+owner_release_authorization: false
+production_release: NOT_AUTHORIZED

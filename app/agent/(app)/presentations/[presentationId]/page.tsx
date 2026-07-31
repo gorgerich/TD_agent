@@ -1,0 +1,71 @@
+import { notFound, redirect } from "next/navigation";
+import { requireOperationalContext } from "@/lib/auth";
+import { getCommercialPresentation } from "@/lib/commercialQuoteService";
+import { PresentationControls } from "./PresentationControls";
+
+type PresentationState = {
+  lines?: Array<{
+    stableKey: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    priceState: string;
+    clientUnitPrice: number | null;
+    included: boolean;
+  }>;
+  totals?: { total: number | null; totalState: string; blockers?: string[] };
+};
+
+function money(value: number) {
+  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value / 100);
+}
+
+export default async function PresentationPage({ params }: { params: Promise<{ presentationId: string }> }) {
+  const context = await requireOperationalContext().catch(() => null);
+  if (!context) redirect("/agent/login");
+  const presentation = await getCommercialPresentation((await params).presentationId, context).catch(() => null);
+  if (!presentation) notFound();
+  const state = presentation.state as PresentationState;
+  const lines = Array.isArray(state.lines) ? state.lines : [];
+
+  return (
+    <main className="min-h-screen bg-app px-4 py-5 text-ink sm:px-8 sm:py-8">
+      <header className="mx-auto flex max-w-[1080px] items-start justify-between gap-5">
+        <div>
+          <p className="text-[13px] font-semibold text-accent">Режим презентации</p>
+          <h1 className="td-display mt-1 text-[30px] leading-tight sm:text-[42px]">{presentation.clientName}</h1>
+          <p className="mt-2 max-w-[58ch] text-[13px] leading-relaxed text-ink-2">
+            Это отдельный показ сохранённого черновика. Завершение показа не публикует и не изменяет смету.
+          </p>
+        </div>
+        <PresentationControls presentationId={presentation.id} quoteId={presentation.quoteId} />
+      </header>
+
+      <section className="mx-auto mt-8 max-w-[1080px] bg-surface px-5 py-5 sm:px-7 sm:py-7">
+        <div className="flex items-end justify-between gap-4">
+          <h2 className="text-[18px] font-semibold">Состав</h2>
+          <strong className="text-[24px]">
+            {state.totals?.totalState === "KNOWN" && state.totals.total !== null
+              ? money(state.totals.total)
+              : "Итог не подтверждён"}
+          </strong>
+        </div>
+        <div className="mt-5 divide-y divide-line">
+          {lines.map((line) => (
+            <div key={line.stableKey} className="grid gap-2 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div>
+                <p className="text-[14px] font-semibold">{line.description}</p>
+                <p className="mt-1 text-[12px] text-ink-3">{line.quantity} {line.unit}{line.included ? " · включено" : ""}</p>
+              </div>
+              <p className="text-[14px] font-semibold">
+                {line.included ? "В составе" : line.priceState === "KNOWN" && line.clientUnitPrice !== null
+                  ? money(line.clientUnitPrice * line.quantity)
+                  : "Цена уточняется"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  );
+}

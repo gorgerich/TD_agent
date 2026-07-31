@@ -24,6 +24,7 @@ export const CASE_TRANSITION_EVENTS = [
   "intake.completed.v1",
   "scenario.selected.v1",
   "quote.published.v1",
+  "quote.republished.v1",
   "quote.accepted.v1",
   "contract.signed.v1",
   "payment.requirement_satisfied.v1",
@@ -59,6 +60,7 @@ export const CASE_TRANSITION_MATRIX: readonly TransitionRule[] = [
   { from: "INTAKE", eventType: "intake.completed.v1", to: "PLANNING" },
   { from: "PLANNING", eventType: "scenario.selected.v1", to: "QUOTING" },
   { from: "QUOTING", eventType: "quote.published.v1", to: "AGREEMENT" },
+  { from: "AGREEMENT", eventType: "quote.republished.v1", to: "AGREEMENT" },
   { from: "AGREEMENT", eventType: "quote.accepted.v1", to: "CONTRACTING" },
   { from: "CONTRACTING", eventType: "contract.signed.v1", to: "PAYMENT" },
   { from: "PAYMENT", eventType: "payment.requirement_satisfied.v1", to: "EXECUTION" },
@@ -133,7 +135,8 @@ export function evaluateCaseTransition(input: {
       }
       return { toStage: rule.to, scenarioId };
     }
-    case "quote.published.v1": {
+    case "quote.published.v1":
+    case "quote.republished.v1": {
       const quoteVersionId = input.payload.quoteVersionId;
       requireGuard(
         Number.isInteger(quoteVersionId) && input.facts.availableQuoteVersionIds.includes(quoteVersionId as number),

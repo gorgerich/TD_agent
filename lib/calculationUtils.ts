@@ -1046,6 +1046,10 @@ export type CatalogItem = {
   imagePlaceholder: string;
   clientPrice: number;
   costPrice: number;
+  priceState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  costState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  catalogRevisionId?: string | null;
+  sourceVersion?: string;
   quantityDefault: number;
   availableColors?: string[];
   selectedColor?: string;
@@ -1063,6 +1067,10 @@ export type EstimateItem = {
   imagePlaceholder: string;
   clientPrice: number;
   costPrice: number;
+  priceState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  costState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  catalogRevisionId?: string | null;
+  sourceVersion?: string;
   quantity: number;
   selectedColor?: string;
   isRequired?: boolean;
@@ -1770,6 +1778,10 @@ export function normalizeCatalogItemToEstimateItem(
     imagePlaceholder: item.imagePlaceholder,
     clientPrice: Math.max(0, toSafeNumber(item.clientPrice)),
     costPrice: Math.max(0, toSafeNumber(item.costPrice)),
+    priceState: item.priceState,
+    costState: item.costState,
+    catalogRevisionId: item.catalogRevisionId,
+    sourceVersion: item.sourceVersion,
     quantity: Math.max(1, toSafeNumber(item.quantityDefault || 1)),
     selectedColor: color,
     isRequired: item.isRequired,
@@ -1812,7 +1824,11 @@ export function updateEstimateItemClientPrice(
   clientPrice: number,
 ): EstimateItem[] {
   const safePrice = Math.max(0, toSafeNumber(clientPrice));
-  return items.map((item) => (item.id === id ? { ...item, clientPrice: safePrice } : item));
+  return items.map((item) => (
+    item.id === id
+      ? { ...item, clientPrice: safePrice, priceState: safePrice > 0 ? "KNOWN" : "UNKNOWN" }
+      : item
+  ));
 }
 
 export function estimateItemsToMarginInputs(items: EstimateItem[]): MarginItemInput[] {

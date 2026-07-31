@@ -37,7 +37,6 @@ export type CanonicalCaseReadModel = {
   ceremonyAt: Date | null;
   nextMeetingAt: Date | null;
   firstMeetingId: number | null;
-  cobrowseCode: string | null;
   publishedQuote: {
     versionId: number;
     totalKopecks: number;
@@ -99,7 +98,6 @@ const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
           scheduledAt: true,
           startedAt: true,
           endedAt: true,
-          cobrowseCode: true,
           quotes: { select: { versions: { select: { id: true } } } },
           orders: { select: { status: true, totalAmount: true } },
         },
@@ -182,7 +180,6 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     ceremonyAt: record.lead.ceremonyAt,
     nextMeetingAt: futureMeetings[0] ?? null,
     firstMeetingId: record.lead.meetings.at(-1)?.id ?? null,
-    cobrowseCode: record.lead.meetings.find((meeting) => meeting.cobrowseCode)?.cobrowseCode ?? null,
     publishedQuote: record.publishedQuoteVersion
       ? { versionId: record.publishedQuoteVersion.id, totalKopecks: record.publishedQuoteVersion.total }
       : null,

@@ -19,7 +19,6 @@ type CaseRow = {
   statusTone: StatusTone;
   waiting: WaitingOn;
   bucket: Bucket;
-  cobrowse: string | null;
   firstMeetingId: number | null;
   progress: number;
   nextAction: string;
@@ -87,7 +86,6 @@ async function getCases(session: AgentSession): Promise<CasesData> {
         statusTone: record.statusTone,
         waiting: record.waiting,
         bucket,
-        cobrowse: record.cobrowseCode,
         firstMeetingId: record.firstMeetingId,
         progress: Math.min(6, Math.max(1, ["Лид", "Документы", "Смета", "Договор", "Оплата", "Завершено"].indexOf(stage) + 1)),
         nextAction: record.nextAction.label,
@@ -206,7 +204,6 @@ export default async function CasesPage() {
                 name: c.name,
                 phone: c.phone,
                 bucket: c.bucket,
-                cobrowse: c.cobrowse,
                 firstMeetingId: c.firstMeetingId,
                 nextAction: c.nextAction,
                 statusLabel: c.statusLabel,

@@ -219,6 +219,10 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     if (!ownOrganizationIds.length && !ownAgentIds.length && !ownUserIds.length) return;
 
     await db.$transaction(async (tx) => {
+      // This process has already proved that it targets an approved local
+      // throwaway DB. Disable immutable production triggers only while deleting
+      // the exact IDs registered by this fixture context.
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
       const cases = ownOrganizationIds.length
         ? await tx.case.findMany({ where: { tenantId: { in: ownOrganizationIds } }, select: { id: true, leadId: true } })
         : [];
@@ -274,7 +278,13 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
           ],
         },
       });
-      if (quoteIds.length) await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      if (quoteIds.length) {
+        await tx.quote.updateMany({
+          where: { id: { in: quoteIds } },
+          data: { activeDraftVersionId: null, latestPublishedVersionId: null },
+        });
+        await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      }
       if (quoteIds.length) await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
       if (orderIds.length) await tx.order.deleteMany({ where: { id: { in: orderIds } } });
       if (meetingIds.length) await tx.meeting.deleteMany({ where: { id: { in: meetingIds } } });

@@ -9,6 +9,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { OperationalAuthError } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { CommercialQuoteError } from "@/lib/commercialQuote";
 
 /**
  * Единые помощники для API-роутов агента: авторизация, проверка владения
@@ -127,6 +128,16 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
 
   if (err instanceof OperationalCommandError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+  }
+
+  if (err instanceof CommercialQuoteError) {
+    if (err.code === "CLIENT_LINK_SECRET_MISSING") {
+      return NextResponse.json(
+        { error: "Сервис защищённых ссылок временно недоступен", code: err.code },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 422 });
   }
 
   if (
