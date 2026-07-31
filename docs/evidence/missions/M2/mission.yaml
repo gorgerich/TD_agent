@@ -2,7 +2,7 @@ mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
 state: IMPLEMENTATION_VERIFIED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
-implementation_sha: 60d00f67233c65eaedabadf9393f6185626d7a9a
+implementation_sha: a40fbff950f7fbeb2a5ef0c3da3e2d5074e574ec
 review_sha: null
 preview_deployment_id: null
 production_deployment_id: null
@@ -39,17 +39,26 @@ passed_gates:
   - reconciliation
   - accessibility
 open_blockers:
+  - gate: independent_review
+    severity: OPEN
+    reason: >-
+      Round 1 of adversarial review returned 0 P0, 5 P1 and 3 P2. All five P1s and two of
+      the three P2s are fixed on this branch. A second round has not been run, so this
+      gate cannot be recorded as passed.
   - gate: preview_uat
     severity: TERMINAL_FOR_THIS_SESSION
     reason: >-
-      Requires a Preview deployment of an exact SHA. Creating an outward-facing
-      deployment was not authorized for this session, so the gate could not be
-      executed. Needs the repository owner to deploy 60d00f6 to Preview and run
-      the cremation and relative-burial UAT journeys against it.
-  - gate: independent_review
-    severity: TERMINAL_FOR_THIS_SESSION
+      The Vercel project resolves DATABASE_URL and BLOB_READ_WRITE_TOKEN from a single
+      "Preview, Production" scope; a branch-scoped override exists only for
+      feat/m2-platform-admin-rbac. Running the UAT against the auto-created Preview for
+      this branch would write synthetic organizations, quotes and client decisions into
+      the production database and blob store, which the authority envelope forbids.
+      Needs an isolated Preview database bound to this branch.
+  - gate: production_predicate_lock_setting
+    severity: OPEN
     reason: >-
-      Requires an independent reviewer to report P0=0 and P1=0. The implementing
-      agent cannot self-certify this gate.
+      max_pred_locks_per_page = 64 is configured in CI and asserted by the integration
+      suite, but has not been verified on the production Neon instance. At the default of
+      2 the product returns spurious 409s under concurrency. See release.md.
 owner_release_authorization: false
 production_release: NOT_AUTHORIZED

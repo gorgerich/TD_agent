@@ -1,7 +1,7 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "60d00f67233c65eaedabadf9393f6185626d7a9a",
+  "implementationSha": "a40fbff950f7fbeb2a5ef0c3da3e2d5074e574ec",
   "githubCiUrl": null,
   "previewDeploymentId": null,
   "checks": {
@@ -13,17 +13,18 @@
     "build": "PASS",
     "unit": {
       "status": "PASS",
-      "passed": 76,
+      "passed": 79,
       "skipped": 0
     },
     "integration": {
       "status": "PASS",
-      "passed": 43,
+      "passed": 44,
       "skipped": 0,
-      "consecutiveGreenFullSuiteRuns": 13,
+      "consecutiveGreenFullSuiteRuns": 5,
       "targetedCommercialConcurrencyRepeats": 5,
       "parallelism": "default node --test file concurrency, not serialized",
-      "residue": 0
+      "residue": 0,
+      "residueScope": "all eight commercial tables plus the ten pre-existing ones"
     },
     "e2e": {
       "status": "PASS",
@@ -66,20 +67,25 @@
     "previewUat": "BLOCKED",
     "independentReview": {
       "status": "BLOCKED",
-      "p0": null,
-      "p1": null
+      "p0": 0,
+      "p1": null,
+      "note": "First adversarial round returned 0 P0 / 5 P1 / 3 P2. All five P1s and two of the three P2s are fixed in this branch. A second review round has not been run, so P1 cannot be recorded as 0."
     },
     "skipped": 0,
     "notRun": 0
   },
   "blockers": [
     {
-      "gate": "preview_uat",
-      "reason": "Requires a Preview deployment of an exact SHA. Creating an outward-facing deployment was not authorized for this session, so the gate could not be executed."
+      "gate": "independent_review",
+      "reason": "Round 1 returned 0 P0 / 5 P1 / 3 P2; the P1s are fixed but a second round has not been run. The implementer cannot self-certify this gate."
     },
     {
-      "gate": "independent_review",
-      "reason": "Requires an independent reviewer to report P0=0 and P1=0. The implementing agent cannot self-certify this gate."
+      "gate": "preview_uat",
+      "reason": "The Vercel project resolves DATABASE_URL and BLOB_READ_WRITE_TOKEN from a single 'Preview, Production' scope, and no branch-scoped override exists for mission/m2-commercial-trust-loop. Running UAT against the auto-created Preview would write synthetic tenants into the production database and blob store. Blocked pending an isolated Preview database."
+    },
+    {
+      "gate": "production_predicate_lock_setting",
+      "reason": "max_pred_locks_per_page = 64 is configured in CI and asserted by the suite, but has not been verified on the production Neon instance. See release.md."
     }
   ],
   "environment": {
