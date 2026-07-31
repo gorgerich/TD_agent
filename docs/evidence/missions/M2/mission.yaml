@@ -2,7 +2,7 @@ mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
 state: IMPLEMENTATION_VERIFIED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
-implementation_sha: 382ae132d959891017ee046bdfa3a7312650e421
+implementation_sha: c1226d116a88466e05686fa58ccec685b7aad6ea
 review_sha: null
 preview_deployment_id: null
 production_deployment_id: null
@@ -42,23 +42,17 @@ open_blockers:
   - gate: independent_review
     severity: OPEN
     reason: >-
-      Round 1 of adversarial review returned 0 P0, 5 P1 and 3 P2. All five P1s and two of
-      the three P2s are fixed on this branch. A second round has not been run, so this
-      gate cannot be recorded as passed.
+      Round 1 returned 0 P0 / 5 P1 / 3 P2 and round 2 returned 0 P0 / 3 P1 / 6 P2; every P1
+      from both rounds is fixed on this branch. Round 3 is running against
+      c1226d116a88466e05686fa58ccec685b7aad6ea and has not reported, so this gate is not
+      passed. Two consecutive rounds each found real P1s, so it must not be assumed clean.
   - gate: preview_uat
-    severity: TERMINAL_FOR_THIS_SESSION
-    reason: >-
-      The Vercel project resolves DATABASE_URL and BLOB_READ_WRITE_TOKEN from a single
-      "Preview, Production" scope; a branch-scoped override exists only for
-      feat/m2-platform-admin-rbac. Running the UAT against the auto-created Preview for
-      this branch would write synthetic organizations, quotes and client decisions into
-      the production database and blob store, which the authority envelope forbids.
-      Needs an isolated Preview database bound to this branch.
-  - gate: production_predicate_lock_setting
     severity: OPEN
     reason: >-
-      max_pred_locks_per_page = 64 is configured in CI and asserted by the integration
-      suite, but has not been verified on the production Neon instance. At the default of
-      2 the product returns spurious 409s under concurrency. See release.md.
+      Infrastructure is ready and isolation is proven: a dedicated Neon store
+      (m2-uat-commercial, fingerprint c89bdda845806b40, distinct from production
+      0257665af2dd90a4) bound to this branch only, verified empty before fixtures, with both
+      synthetic fixtures now provisioned into it and zero foreign rows. Remaining: create the
+      Preview deployment on the exact implementation SHA and run the two journeys against it.
 owner_release_authorization: false
 production_release: NOT_AUTHORIZED

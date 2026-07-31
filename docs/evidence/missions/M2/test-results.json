@@ -1,8 +1,8 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "382ae132d959891017ee046bdfa3a7312650e421",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30662866916",
+  "implementationSha": "c1226d116a88466e05686fa58ccec685b7aad6ea",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30664480944",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -13,7 +13,7 @@
     "build": "PASS",
     "unit": {
       "status": "PASS",
-      "passed": 80,
+      "passed": 90,
       "skipped": 0
     },
     "integration": {
@@ -91,8 +91,26 @@
     "notRun": 0,
     "ci": {
       "status": "PASS",
-      "runId": 30662866916,
-      "headSha": "382ae132d959891017ee046bdfa3a7312650e421"
+      "runId": 30664480944,
+      "headSha": "c1226d116a88466e05686fa58ccec685b7aad6ea",
+      "note": "green on the exact PR head"
+    },
+    "previewStorage": {
+      "status": "NOT_USED",
+      "isolatedStore": {
+        "name": "m2-uat-commercial-blob",
+        "id": "store_hMggGJeIMXFwYM0R",
+        "access": "private",
+        "blobCount": 0
+      },
+      "productionStore": "PRODUCTION_INACCESSIBLE",
+      "evidence": [
+        "@vercel/blob is imported in exactly one module, lib/documentStorage.ts",
+        "its only callers are app/api/agent/cases/[caseId]/documents/route.ts and .../[docId]/route.ts",
+        "neither commercial UAT journey reaches a document route; tests/e2e/m2-commercial.mjs references `document` only as the DOM global (zoom, axe, clientWidth)",
+        "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so any unexpected blob call errors instead of reaching the production store"
+      ],
+      "honestly": "The isolated blob store was created but is NOT wired to the Preview deployment — the CLI cannot emit its token without a project-wide link, which would alter Production env. The M2 journeys perform no blob operation, so this is recorded as NOT_USED rather than claimed as connected. Any M2 scope that later requires a blob operation invalidates this and needs option A."
     }
   },
   "blockers": [
@@ -103,10 +121,6 @@
     {
       "gate": "preview_uat",
       "reason": "The Vercel project resolves DATABASE_URL and BLOB_READ_WRITE_TOKEN from a single 'Preview, Production' scope, and no branch-scoped override exists for mission/m2-commercial-trust-loop. Running UAT against the auto-created Preview would write synthetic tenants into the production database and blob store. Blocked pending an isolated Preview database."
-    },
-    {
-      "gate": "production_predicate_lock_setting",
-      "reason": "max_pred_locks_per_page = 64 is configured in CI and asserted by the suite, but has not been verified on the production Neon instance. See release.md."
     }
   ],
   "environment": {
@@ -147,5 +161,14 @@
       "the fixtures' own production-fingerprint exclusion guard was active during provisioning"
     ],
     "remaining": "tests/e2e/m1-fixture.ts and tests/e2e/m2-fixture.ts each refuse to run unless the remote target is an empty database, so on one shared UAT database only one of them can be provisioned. The commercial UAT needs the M1 pilots and the M2 second organization together. Resolving this means relaxing that guard to accept a database containing only the other fixture's synthetic rows — not attempted here."
-  }
+  },
+  "releasePrerequisites": [
+    {
+      "item": "max_pred_locks_per_page = 64",
+      "status": "RECOMMENDED_NOT_A_BLOCKER",
+      "rationale": "Measured on the integration suite only, where 11 test files drive concurrent serializable transactions against one database — a density no single tenant produces in production. At the Postgres default of 2, page-level SSI predicate-lock escalation makes unrelated tenants conflict; the code stays CORRECT either way because runOperationalTransaction retries only P2034, is bounded, and rolls back fully before each attempt, surfacing an honest 409 if the budget is exhausted. So this is an availability tuning item, not a correctness defect, and it is NOT claimed as a production blocker on the strength of fixture density.",
+      "appliedTo": "CI and the local/UAT databases only. Production was not modified.",
+      "ownerAction": "Apply on the production instance if commercial concurrency ever produces spurious 409s: ALTER SYSTEM SET max_pred_locks_per_page = 64; SELECT pg_reload_conf();  (SIGHUP, no restart)"
+    }
+  ]
 }
