@@ -91,10 +91,11 @@ export function settleCommercialLines(
       result.set(line.stableKey, { settlement: "COUNTED", lineTotal: null });
       continue;
     }
-    const lineSubtotal = line.clientUnitPrice * line.quantity;
+    const lineSubtotal = assertMinorUnit(line.clientUnitPrice, `Цена «${line.description}»`) * line.quantity;
+    const discount = assertMinorUnit(line.discountAmount, `Скидка «${line.description}»`);
     result.set(line.stableKey, {
       settlement: "COUNTED",
-      lineTotal: lineSubtotal - Math.min(line.discountAmount, lineSubtotal),
+      lineTotal: lineSubtotal - Math.min(discount, lineSubtotal),
     });
   }
   return result;

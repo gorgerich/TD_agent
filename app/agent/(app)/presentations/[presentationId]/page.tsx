@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { AuthenticationError, requireOperationalContext } from "@/lib/auth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { getCommercialPresentation } from "@/lib/commercialQuoteService";
+import { formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 import { PresentationControls } from "./PresentationControls";
 
 type PresentationState = {
@@ -19,9 +20,9 @@ type PresentationState = {
   totals?: { total: number | null; totalState: string; blockers?: string[] };
 };
 
-function money(value: number) {
-  return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(value / 100);
-}
+// Exact minor-unit rendering: rounding each line and the total independently is how a
+// presented composition stops adding up. See formatMinorUnitsCurrency.
+const money = (minor: number) => formatMinorUnitsCurrency(minor);
 
 export default async function PresentationPage({ params }: { params: Promise<{ presentationId: string }> }) {
   // Catch only "not authenticated" and "not found". A blanket catch turned a database

@@ -376,6 +376,27 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     ];
     let total = 0;
     for (const count of counts) total += await count();
+    // The counts above all join through the parent row. Once a QuoteVersion is deleted, a
+    // line item it left behind has no path back to the organization, so an org-scoped count
+    // is structurally incapable of seeing it — precisely the orphan class that disabling
+    // ON DELETE CASCADE during cleanup can create. Count danglers directly.
+    const [orphans] = await db.$queryRaw<{ count: bigint }[]>`
+      SELECT
+        (SELECT count(*) FROM "QuoteLineItem" li
+           LEFT JOIN "QuoteVersion" v ON v.id = li."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuoteClientLink" l
+           LEFT JOIN "QuoteVersion" v ON v.id = l."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuoteClientDecision" d
+           LEFT JOIN "QuoteVersion" v ON v.id = d."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuotePresentationSession" s
+           LEFT JOIN "Quote" q ON q.id = s."quoteId" WHERE q.id IS NULL)
+      + (SELECT count(*) FROM "QuoteVersion" v
+           LEFT JOIN "Quote" q ON q.id = v."quoteId" WHERE q.id IS NULL)
+      AS count
+    `;
+    if (Number(orphans.count) !== 0) {
+      throw new Error(`Dangling commercial rows detected after ${runId}: ${orphans.count}`);
+    }
     if (total !== 0) {
       throw new Error(`Fixture residue detected for ${runId}: ${total} rows`);
     }

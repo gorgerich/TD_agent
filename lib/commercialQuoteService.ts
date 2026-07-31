@@ -231,7 +231,11 @@ export async function saveCommercialDraft(input: DraftInput): Promise<DraftComma
         caseId: meeting.caseId,
         ownerMembershipId: meeting.ownerMembershipId,
         scenario: input.scenario,
-        status: "DRAFT",
+        // An accepted quote is a terminal commercial fact. The builder autosaves 900ms
+        // after any editor change, so writing "DRAFT" unconditionally let an agent merely
+        // touching a field erase a client's recorded acceptance from the read model — the
+        // decision row survived, but the registry derives its state from Quote.status.
+        status: quote.status === "ACCEPTED" ? quote.status : "DRAFT",
         version: { increment: 1 },
       },
     });

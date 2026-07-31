@@ -11,6 +11,7 @@ import {
   type PublishedQuoteSnapshot,
 } from "../lib/commercialQuote";
 import { handleApiError } from "../lib/apiAuth";
+import { formatMinorUnits } from "../lib/calculationUtils";
 
 const scenarios = ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const;
 
@@ -190,7 +191,34 @@ test("settled line amounts always reconcile to the stated total", () => {
 
   const rendered = [...settlement.values()].reduce((sum, entry) => sum + (entry.lineTotal ?? 0), 0);
   assert.equal(rendered, totals.total, "sum of rendered line amounts must equal the stated total");
+
+  // Assert the STRINGS a person reads, not just the minor-unit map. Rounding each line
+  // independently while the total rounds once is how a document stops adding up, and a
+  // test that only compares the map cannot see it.
+  const renderedParts = [...settlement.values()]
+    .filter((entry) => entry.lineTotal !== null)
+    .map((entry) => formatMinorUnits(entry.lineTotal!));
+  const renderedSum = [...settlement.values()].reduce((sum, entry) => sum + (entry.lineTotal ?? 0), 0);
+  assert.equal(
+    formatMinorUnits(renderedSum),
+    formatMinorUnits(totals.total ?? 0),
+    `rendered lines ${renderedParts.join(" + ")} must add up to the rendered total`,
+  );
 });
+
+test("money renders exactly from minor units, so lines and total cannot round apart", () => {
+  const lines: CommercialLine[] = [
+    line({ stableKey: "k1", description: "Полтора рубля", clientUnitPrice: 150, priceState: "KNOWN" }),
+    line({ stableKey: "k2", position: 1, description: "Ещё полтора", clientUnitPrice: 150, priceState: "KNOWN" }),
+  ];
+  const totals = calculateCommercialTotals(lines, "CREMATION_V1");
+  const settlement = settleCommercialLines(lines);
+  assert.equal(totals.total, 300);
+  // Rounding each line to whole rubles would print "2 ₽" and "2 ₽" under a total of "3 ₽".
+  assert.deepEqual([...settlement.values()].map((e) => formatMinorUnits(e.lineTotal!)), ["1,50", "1,50"]);
+  assert.equal(formatMinorUnits(totals.total!), "3");
+});
+
 
 test("a discount larger than its line never renders a negative amount", () => {
   const lines: CommercialLine[] = [

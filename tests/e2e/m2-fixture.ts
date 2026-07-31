@@ -154,7 +154,12 @@ async function provision() {
     await createOperationalIdentity(tx, tier.id, organizationA, "manager", emails.manager, "Руководитель M2", "MANAGER", passwordHash);
     await createOperationalIdentity(tx, tier.id, organizationA, "agent", emails.agent, "Агент M2", "AGENT", passwordHash);
     await createOperationalIdentity(tx, tier.id, organizationB, "second", emails.second, "Сотрудник другой организации", "ADMIN", passwordHash);
-  });
+    // This fixture explicitly supports a remote, isolated UAT target (see the production
+    // fingerprint exclusion above). Prisma's 5s default interactive-transaction timeout is
+    // a local-latency assumption: provisioning two organizations and six identities over a
+    // remote Postgres exceeds it and aborts mid-way. The work is unchanged; only the
+    // allowance for round-trip latency is.
+  }, { timeout: 120_000, maxWait: 30_000 });
   process.stdout.write(`${JSON.stringify({ status: "READY", organizations: 2, users: 6, emails })}\n`);
 }
 

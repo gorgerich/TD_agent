@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle, Phone, Printer } from "@phosphor-icons/react";
-import { formatCurrency } from "@/lib/calculationUtils";
+import { formatCurrency, formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 import s from "./CoView.module.css";
 
 type PublicLine = {
@@ -149,7 +149,7 @@ export default function CoView({ code }: { code: string }) {
 
       <section className={s.totalCard} aria-label="Итог по опубликованной смете">
         <span className="td-eyebrow">Итоговая сумма</span>
-        <p className={`${s.totalValue} tnum`}>{formatCurrency(version.total / 100)}</p>
+        <p className={`${s.totalValue} tnum`}>{formatMinorUnitsCurrency(version.total)}</p>
         <p className={s.totalTrust}>Состав и сумма зафиксированы в версии {version.versionNumber}.</p>
       </section>
 
@@ -191,7 +191,7 @@ export default function CoView({ code }: { code: string }) {
                   : line.settlement === "REPLACED"
                     ? <em>заменено</em>
                     : line.lineTotal !== null
-                      ? formatCurrency(line.lineTotal / 100)
+                      ? formatMinorUnitsCurrency(line.lineTotal)
                       : "цена не подтверждена"}
               </strong>
             </div>
