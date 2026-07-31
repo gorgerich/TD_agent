@@ -6,7 +6,7 @@
 - Only a one-way token digest is stored.
 - Links are scoped to one immutable published version, expire, can be revoked,
   and are protected by persistent rate limits.
-- Invalid, expired, revoked and unknown links return equivalent safe responses.
+- Unknown and revoked links are indistinguishable (404 / UNAVAILABLE). Expired and superseded links report an honest state (410 / 409) so the family can ask for a current link; neither discloses draft data, tenant identity or organization status. Acceptance M2-W5-06 requires exactly this distinction, so equivalence would be a defect, not a hardening.
 - A superseded link may disclose only that a newer version exists and how to
   contact the agent; it never reveals draft data.
 - The first release uses possession of the high-entropy link as the client

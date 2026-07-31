@@ -503,6 +503,24 @@ test("M2 tenant boundaries and link lifecycle fail closed", opts, async () => {
       data: { expiresAt: new Date(Date.now() - 1) },
     });
     assert.equal((await resolveCommercialClientView(expiringLink.token)).state, "EXPIRED");
+    // Replaying the expired key must refuse rather than hand back a token the family cannot
+    // open — the same contract as the revoked case.
+    await assert.rejects(
+      createCommercialClientLink({
+        quoteId: Number(saved.quoteId),
+        expiresAt: new Date(Date.now() + 86_400_000),
+        context: owner.context,
+        meta: meta(fixtures.runId, "expiring-link"),
+      }),
+      (error: unknown) => error instanceof OperationalCommandError && error.status === 409,
+    );
+    const afterExpiry = await createCommercialClientLink({
+      quoteId: Number(saved.quoteId),
+      expiresAt: new Date(Date.now() + 86_400_000),
+      context: owner.context,
+      meta: meta(fixtures.runId, "link-after-expiry"),
+    });
+    assert.equal((await resolveCommercialClientView(afterExpiry.token)).state, "PUBLISHED");
     await revokeCommercialClientLinks({
       quoteId: Number(saved.quoteId),
       context: owner.context,

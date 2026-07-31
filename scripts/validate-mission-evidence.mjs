@@ -17,6 +17,14 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
   const missionState = fs.existsSync(missionYamlPath)
     ? (/^state:\s*(\S+)\s*$/m.exec(fs.readFileSync(missionYamlPath, "utf8"))?.[1] ?? "")
     : "";
+  const KNOWN_STATES = new Set([
+    "PLANNED", "CONTRACT_LOCKED", "IMPLEMENTATION_VERIFIED", "MISSION_RELEASE_READY", "RELEASED",
+  ]);
+  if (!KNOWN_STATES.has(missionState)) {
+    // Fail closed: an absent, misspelled or comment-suffixed state used to silently disable
+    // the SHA-integrity check below with no diagnostic.
+    errors.push(`${directory.name}: mission.yaml state is missing or unrecognised (${missionState || "none"})`);
+  }
   const released = missionState === "RELEASED";
   // A mission still being built must certify the code under review. Missions already at
   // MISSION_RELEASE_READY or RELEASED are frozen history whose SHAs legitimately differ
@@ -88,10 +96,20 @@ function statusValues(node) {
   return found;
 }
 
-/** True when `sha` and HEAD differ only under docs/evidence. */
+/**
+ * The commit the evidence must describe. On a pull_request, actions/checkout leaves HEAD at
+ * refs/pull/N/merge — base merged into the branch — so comparing against HEAD would fail the
+ * moment any unrelated commit lands on main, reading as an evidence violation caused by this
+ * mission. Prefer the PR head when CI provides it.
+ */
+function reviewedSha() {
+  return process.env.GITHUB_HEAD_SHA?.trim() || process.env.PR_HEAD_SHA?.trim() || "HEAD";
+}
+
+/** True when `sha` and the reviewed commit differ only under docs/evidence. */
 function hasSameSourceTreeAsHead(sha) {
   try {
-    execFileSync("git", ["diff", "--quiet", sha, "HEAD", "--", ".", ":(exclude)docs/evidence"], { stdio: "ignore" });
+    execFileSync("git", ["diff", "--quiet", sha, reviewedSha(), "--", ".", ":(exclude)docs/evidence"], { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -100,7 +118,7 @@ function hasSameSourceTreeAsHead(sha) {
 
 function isAncestor(sha) {
   try {
-    execFileSync("git", ["merge-base", "--is-ancestor", sha, "HEAD"], { stdio: "ignore" });
+    execFileSync("git", ["merge-base", "--is-ancestor", sha, reviewedSha()], { stdio: "ignore" });
     return true;
   } catch {
     return false;

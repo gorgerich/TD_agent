@@ -93,9 +93,16 @@
           "p0": 0,
           "p1": 1,
           "p2": 7
+        },
+        {
+          "round": 5,
+          "p0": 0,
+          "p1": 0,
+          "p2": 7,
+          "verdict": "PASS"
         }
       ],
-      "trend": "P1 count per round: 5, 3, 1, 1. Every P1 found has been fixed. Round 4 changed product code (client-link expiry replay, two money surfaces, the rate-limit key, catalog replay scoping) and the evidence validator, so that delta is unreviewed.",
+      "trend": "P1 per round: 5, 3, 1, 1, 0. P0 was 0 in every round. Round 5 returned PASS. Its P2s were then fixed, so a confirming round on that delta is pending.",
       "note": "Not passed. Four rounds have each found real defects."
     },
     "skipped": 0,
@@ -180,6 +187,16 @@
       "rationale": "Measured on the integration suite only, where 11 test files drive concurrent serializable transactions against one database — a density no single tenant produces in production. At the Postgres default of 2, page-level SSI predicate-lock escalation makes unrelated tenants conflict; the code stays CORRECT either way because runOperationalTransaction retries only P2034, is bounded, and rolls back fully before each attempt, surfacing an honest 409 if the budget is exhausted. So this is an availability tuning item, not a correctness defect, and it is NOT claimed as a production blocker on the strength of fixture density.",
       "appliedTo": "CI and the local/UAT databases only. Production was not modified.",
       "ownerAction": "Apply on the production instance if commercial concurrency ever produces spurious 409s: ALTER SYSTEM SET max_pred_locks_per_page = 64; SELECT pg_reload_conf();  (SIGHUP, no restart)"
+    }
+  ],
+  "acceptedP2": [
+    {
+      "item": "Public client-link rate-limit bucket derives from caller-visible hop headers",
+      "file": "lib/rateLimit.ts clientIp()",
+      "status": "ACCEPTED",
+      "reason": "Pre-existing shared helper; M2 put it in front of a public route but did not author it. It now prefers x-real-ip and otherwise the RIGHTMOST forwarded hop, removing the leftmost-XFF forgery. The remaining exposure needs an edge that does not overwrite x-real-ip. Collapsing to a single shared bucket when the edge cannot be proven was implemented and then reverted: it throttled unrelated tenants against each other and broke a platform-recovery test. Token entropy (HMAC-SHA256, 43-char base64url) keeps this to abuse of an already-known link, not discovery.",
+      "ownerDecisionRequired": "Set TRUSTED_PROXY handling at the edge, or accept as-is.",
+      "date": "2026-08-01"
     }
   ]
 }

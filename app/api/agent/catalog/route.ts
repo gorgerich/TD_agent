@@ -93,7 +93,9 @@ export async function POST(req: NextRequest) {
             ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
           },
         });
-        if (!existing) throw new Error("Catalog replay target is missing");
+        // A replay whose entity belongs to another agent is a permanent ownership refusal,
+        // not an infrastructure failure. Returning null yields 404, matching PATCH and
+        // DELETE; throwing here produced a 503 that an automated retry would chase forever.
         return existing;
       }
       const created = await tx.agentCatalogItem.create({

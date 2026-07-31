@@ -42,10 +42,10 @@ open_blockers:
   - gate: independent_review
     severity: OPEN
     reason: >-
-      Round 1 returned 0 P0 / 5 P1 / 3 P2 and round 2 returned 0 P0 / 3 P1 / 6 P2; every P1
-      from both rounds is fixed on this branch. Round 3 is running against
-      c1226d116a88466e05686fa58ccec685b7aad6ea and has not reported, so this gate is not
-      passed. Two consecutive rounds each found real P1s, so it must not be assumed clean.
+      Rounds 1-5 returned 5, 3, 1, 1 and 0 P1 respectively, with 0 P0 throughout; every P1
+      was fixed. Round 5 returned PASS. Round 5's own P2s were then fixed, which changed the
+      evidence validator, the rate-limit key and one catalog status code, so that delta is
+      pending a confirming round before this gate is recorded as passed.
   - gate: preview_uat
     severity: OPEN
     reason: >-

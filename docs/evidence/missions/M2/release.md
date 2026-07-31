@@ -48,5 +48,5 @@ Enforcement status:
   (`lib/serializationBackoff.ts`) limits the blast radius if the setting is not applied,
   but the setting remains recommended: at the default, the retry budget was measured as
   insufficient under integration-suite density. Note that density is a test artifact, not a
-  tenant workload, so this is not claimed as a production blocker. Measured at the
+  tenant workload, so this is not claimed as a production blocker. Measured at the default under integration-suite density, the
   default under load.
