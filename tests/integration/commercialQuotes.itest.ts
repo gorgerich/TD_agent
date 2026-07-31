@@ -512,7 +512,9 @@ test("M2 tenant boundaries and link lifecycle fail closed", opts, async () => {
         context: owner.context,
         meta: meta(fixtures.runId, "expiring-link"),
       }),
-      (error: unknown) => error instanceof OperationalCommandError && error.status === 409,
+      (error: unknown) => error instanceof OperationalCommandError
+        && error.status === 409
+        && /истёк/.test(error.message),
     );
     const afterExpiry = await createCommercialClientLink({
       quoteId: Number(saved.quoteId),

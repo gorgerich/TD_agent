@@ -144,6 +144,10 @@ export async function POST(req: NextRequest) {
       });
       return created;
     });
+    // A replay whose entity belongs to another agent, or whose item was since deleted,
+    // resolves to null. Without this the handler answered 201 with {"item": null} — an
+    // empty-success response, which the mission's own security contract forbids.
+    if (!item) return NextResponse.json({ error: "Не найдено" }, { status: 404 });
     return NextResponse.json({ item }, { status: 201 });
   } catch (error) {
     const status = error instanceof Error && "status" in error ? Number(error.status) : 503;

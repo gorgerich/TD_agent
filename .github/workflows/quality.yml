@@ -44,6 +44,10 @@ jobs:
       - run: npm run evidence:validate
         env:
           REQUIRED_MISSION_EVIDENCE: M1-RBAC-HARDENING
+          # On a pull_request the checkout leaves HEAD at the merge ref, so the evidence
+          # gate would compare the certified SHA against base-merged-into-branch and fail
+          # the moment an unrelated commit lands on main. Give it the real PR head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Verify Week 2 and M1 legacy backfill fixtures
         run: |
           set -euo pipefail

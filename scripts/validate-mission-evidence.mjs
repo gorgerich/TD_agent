@@ -100,10 +100,11 @@ function statusValues(node) {
  * The commit the evidence must describe. On a pull_request, actions/checkout leaves HEAD at
  * refs/pull/N/merge — base merged into the branch — so comparing against HEAD would fail the
  * moment any unrelated commit lands on main, reading as an evidence violation caused by this
- * mission. Prefer the PR head when CI provides it.
+ * mission. The workflow passes the PR head as PR_HEAD_SHA;
+ * GITHUB_* is a reserved prefix, so it cannot be used for this.
  */
 function reviewedSha() {
-  return process.env.GITHUB_HEAD_SHA?.trim() || process.env.PR_HEAD_SHA?.trim() || "HEAD";
+  return process.env.PR_HEAD_SHA?.trim() || "HEAD";
 }
 
 /** True when `sha` and the reviewed commit differ only under docs/evidence. */
