@@ -424,6 +424,28 @@ test("M2 tenant boundaries and link lifecycle fail closed", opts, async () => {
       await db.quoteClientLink.count({ where: { quoteVersionId: link.quoteVersionId, revokedAt: null } }),
       1,
     );
+
+    // Suspending the organization must close the client-facing surface as well, not only
+    // staff sessions. The public state stays UNAVAILABLE so the tenant's administrative
+    // status is never disclosed to a link holder.
+    assert.equal((await resolveCommercialClientView(link.token)).state, "PUBLISHED");
+    await db.organization.update({ where: { id: owner.organizationId }, data: { status: "SUSPENDED" } });
+    assert.equal((await resolveCommercialClientView(link.token)).state, "UNAVAILABLE");
+    await assert.rejects(
+      recordCommercialClientDecision({
+        token: link.token,
+        type: "ACCEPTED",
+        ...meta(fixtures.runId, "suspended-accept"),
+      }),
+      (error: unknown) => error instanceof OperationalCommandError && error.status === 404,
+    );
+    assert.equal(
+      await db.quoteClientDecision.count({ where: { quoteVersionId: link.quoteVersionId } }),
+      0,
+      "A suspended organization must not collect a client decision",
+    );
+    await db.organization.update({ where: { id: owner.organizationId }, data: { status: "ACTIVE" } });
+    assert.equal((await resolveCommercialClientView(link.token)).state, "PUBLISHED");
     const [concurrentLinkA, concurrentLinkB] = await Promise.all([
       createCommercialClientLink({
         quoteId: Number(saved.quoteId),

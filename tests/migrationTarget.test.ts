@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import {
   assertApprovedMigrationChecksums,
@@ -27,6 +30,38 @@ test("migration target requires exact reviewed fingerprint", () => {
   assert.doesNotThrow(() => assertExpectedMigrationTarget(target, target.fingerprint));
   assert.throws(() => assertExpectedMigrationTarget(target, "0000000000000000"), /mismatch/);
   assert.throws(() => assertExpectedMigrationTarget(target, undefined), /reviewed/);
+});
+
+// Drift guard: hash the real migration.sql files on disk instead of echoing the approved
+// constant back at itself. Without this, the approval registry could silently diverge from
+// the migrations it claims to approve — a new migration could ship entirely unlisted — and
+// every other test here would still pass, because both sides of the comparison came from
+// one source. This detects drift; it is not a control against a malicious author, who can
+// edit the registry and the migration in the same commit.
+test("approved checksums match the migration files actually on disk", () => {
+  const root = path.join(process.cwd(), "prisma", "migrations");
+  const onDisk = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .map((migration) => ({
+      migration,
+      sha256: createHash("sha256").update(readFileSync(path.join(root, migration, "migration.sql"))).digest("hex"),
+    }));
+
+  assert.deepEqual(
+    onDisk.map((item) => item.migration),
+    Object.keys(RELEASE_GATE_A_MIGRATION_CHECKSUMS).sort(),
+    "every migration directory must be listed in RELEASE_GATE_A_MIGRATION_CHECKSUMS (and vice versa)",
+  );
+  for (const item of onDisk) {
+    assert.equal(
+      RELEASE_GATE_A_MIGRATION_CHECKSUMS[item.migration],
+      item.sha256,
+      `approved checksum for ${item.migration} does not match its migration.sql on disk`,
+    );
+  }
+  assert.doesNotThrow(() => assertApprovedMigrationChecksums(onDisk));
 });
 
 test("migration checksum guard rejects missing, extra and modified files", () => {

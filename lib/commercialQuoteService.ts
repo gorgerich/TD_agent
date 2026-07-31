@@ -658,13 +658,22 @@ export async function resolveCommercialClientView(token: string) {
         include: {
           lineItems: { orderBy: { position: "asc" } },
           publishedBy: { select: { user: { select: { name: true, phone: true } } } },
-          quote: { select: { latestPublishedVersionId: true, organization: { select: { name: true } } } },
+          quote: {
+            select: {
+              latestPublishedVersionId: true,
+              organization: { select: { name: true, status: true } },
+            },
+          },
           decisions: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       },
     },
   });
   if (!link) return { state: "UNAVAILABLE" as const };
+  // Suspending an organization must close its client-facing surface too, not only staff
+  // sessions. Report UNAVAILABLE rather than a distinct state: the tenant's administrative
+  // status is not a fact a public link holder is entitled to learn.
+  if (link.quoteVersion.quote.organization?.status !== "ACTIVE") return { state: "UNAVAILABLE" as const };
   const now = Date.now();
   if (link.revokedAt) return { state: "REVOKED" as const };
   if (link.expiresAt.getTime() <= now || link.quoteVersion.validUntil && link.quoteVersion.validUntil.getTime() <= now) {
@@ -701,12 +710,18 @@ export async function recordCommercialClientDecision(input: {
       include: {
         quoteVersion: {
           include: {
-            quote: { include: { case: true } },
+            quote: { include: { case: true, organization: { select: { status: true } } } },
           },
         },
       },
     });
     if (!link || link.revokedAt || link.expiresAt <= new Date()) {
+      throw new OperationalCommandError(404, "Ссылка недоступна");
+    }
+    // A suspended organization must not be able to collect new client decisions through a
+    // link that was issued while it was still active. Same 404 as an unknown link: the
+    // public surface never discloses the tenant's administrative status.
+    if (link.quoteVersion.quote.organization?.status !== "ACTIVE") {
       throw new OperationalCommandError(404, "Ссылка недоступна");
     }
     const version = link.quoteVersion;

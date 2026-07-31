@@ -80,11 +80,22 @@ BEGIN
   IF to_regclass('public."SecurityRateLimitBucket"') IS NULL THEN
     RAISE EXCEPTION 'SecurityRateLimitBucket missing';
   END IF;
-  IF EXISTS (SELECT 1 FROM "User" WHERE "platformRole" IS NULL) THEN
-    RAISE EXCEPTION 'User.platformRole contains NULL';
+  -- Value assertions, not NULL assertions. Both columns are NOT NULL, so an "IS NULL"
+  -- check can never fire and proves nothing. What must actually hold after the backfill is
+  -- that pre-existing rows received the unprivileged defaults: a regression that flipped
+  -- DEFAULT 'USER' to 'SUPER_ADMIN' would silently grant platform ownership to every
+  -- legacy account and the old check would still pass.
+  IF (SELECT count(*) FROM "User") = 0 THEN
+    RAISE EXCEPTION 'Backfill assertion is vacuous: no legacy User rows present';
   END IF;
-  IF EXISTS (SELECT 1 FROM "Organization" WHERE status IS NULL) THEN
-    RAISE EXCEPTION 'Organization.status contains NULL';
+  IF EXISTS (SELECT 1 FROM "User" WHERE "platformRole" <> 'USER') THEN
+    RAISE EXCEPTION 'Legacy User.platformRole must backfill to USER, found privileged row';
+  END IF;
+  IF (SELECT count(*) FROM "Organization") = 0 THEN
+    RAISE EXCEPTION 'Backfill assertion is vacuous: no legacy Organization rows present';
+  END IF;
+  IF EXISTS (SELECT 1 FROM "Organization" WHERE status <> 'ACTIVE') THEN
+    RAISE EXCEPTION 'Legacy Organization.status must backfill to ACTIVE';
   END IF;
 END $$;
 

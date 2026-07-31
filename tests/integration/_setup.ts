@@ -77,11 +77,15 @@ async function ensureTier(): Promise<number> {
       })
       .then((tier) => tier.id)
       .catch(async (error) => {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-          const existing = await db.agentTier.findUnique({ where: { name: "TestTier" }, select: { id: true } });
-          if (existing) return existing.id;
-        }
+        // Clear the memo BEFORE any further await. If the recovery read below throws
+        // (pool contention, disconnect), a reset placed after it would never run and this
+        // module-level promise would stay a poisoned rejection for the rest of the
+        // process, breaking every later fixture in the file.
         tierPromise = null;
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const winner = await db.agentTier.findUnique({ where: { name: "TestTier" }, select: { id: true } });
+          if (winner) return winner.id;
+        }
         throw error;
       });
   }
