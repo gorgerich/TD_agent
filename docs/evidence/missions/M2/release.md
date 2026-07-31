@@ -7,7 +7,7 @@ Production release is outside this mission authority envelope.
 - Production deployment: unchanged.
 - Owner release authorization: required after `MISSION_RELEASE_READY`.
 
-Status: `IMPLEMENTATION_VERIFIED` at `2ea112657dd980030f49d98f90d39ef61a81af4d`.
+Status: `IMPLEMENTATION_VERIFIED` at `3807e57ff10c910f1bfdfb1986bddf651a1f4cde`.
 
 `MISSION_RELEASE_READY` is not reachable from an implementation session: it needs
 `preview_uat` (a Preview deployment of the exact SHA) and `independent_review`

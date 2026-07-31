@@ -6,7 +6,7 @@ boundaries, and verify W4/W5 plus INV-01 through INV-14.
 
 Terminal criteria: P0 = 0 and P1 = 0.
 
-Implementation SHA: `2ea112657dd980030f49d98f90d39ef61a81af4d` (branch
+Implementation SHA: `3807e57ff10c910f1bfdfb1986bddf651a1f4cde` (branch
 `mission/m2-commercial-trust-loop`).
 
 Status: BLOCKED, awaiting an independent reviewer. Every gate the implementer can
