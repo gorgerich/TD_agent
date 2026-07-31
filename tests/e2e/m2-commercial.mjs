@@ -42,6 +42,7 @@ const browserErrors = [];
 // the behaviour, so account for that noise here instead of treating it as a page defect.
 let expectedPublishBlocks = 0;
 let expectedCrossTenantMisses = 0;
+let throttledLogins = 0;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const location = message.location().url;
@@ -51,6 +52,14 @@ page.on("console", (message) => {
   }
   if (message.text().includes("status of 404") && location.includes("/api/agent/meeting/")) {
     expectedCrossTenantMisses += 1;
+    return;
+  }
+  // login() handles a throttled login by honouring Retry-After and trying again. The
+  // browser still logs the 429 it received. Whether it happens at all depends on how many
+  // logins the earlier suites spent from the shared bucket, so this is accounted for but
+  // never required.
+  if (message.text().includes("status of 429") && location.includes("/api/agent/auth/login")) {
+    throttledLogins += 1;
     return;
   }
   browserErrors.push(`console: ${message.text()}`);
@@ -105,6 +114,7 @@ try {
     zoom200: "PASS",
     managerContext: "PASS",
     crossTenant: "PASS",
+    throttledLoginsRetried: throttledLogins,
     skipped: 0,
   })}\n`);
 } finally {
