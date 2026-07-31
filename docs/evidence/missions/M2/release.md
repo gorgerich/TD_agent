@@ -43,8 +43,10 @@ Enforcement status:
 - CI configures it before the integration gate (`.github/workflows/quality.yml`).
 - `tests/integration/fixtureIsolation.itest.ts` asserts it, so a misconfigured test
   database fails loudly and once rather than flaking elsewhere.
-- **Not yet verified on the production Neon instance.** This is an open item for the owner
-  and is listed as a blocker in `mission.yaml`. Bounded jittered retry
+- **Not yet verified on the production Neon instance.** This is recorded as a RECOMMENDED release prerequisite in `test-results.json`, not as a
+  blocker in `mission.yaml`: it was measured only under integration-suite density. Bounded jittered retry
   (`lib/serializationBackoff.ts`) limits the blast radius if the setting is not applied,
-  but does not remove it: the retry budget is what was already proven insufficient at the
+  but the setting remains recommended: at the default, the retry budget was measured as
+  insufficient under integration-suite density. Note that density is a test artifact, not a
+  tenant workload, so this is not claimed as a production blocker. Measured at the
   default under load.

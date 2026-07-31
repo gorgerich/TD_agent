@@ -14,8 +14,16 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
   // A mission already marked RELEASED is a historical record. Re-validating it would make
   // an unrelated change to today's mission fail on a frozen artifact that nobody may edit.
   const missionYamlPath = path.join(missionDir, "mission.yaml");
-  const released = fs.existsSync(missionYamlPath)
-    && /^state:\s*RELEASED\s*$/m.test(fs.readFileSync(missionYamlPath, "utf8"));
+  const missionState = fs.existsSync(missionYamlPath)
+    ? (/^state:\s*(\S+)\s*$/m.exec(fs.readFileSync(missionYamlPath, "utf8"))?.[1] ?? "")
+    : "";
+  const released = missionState === "RELEASED";
+  // A mission still being built must certify the code under review. Missions already at
+  // MISSION_RELEASE_READY or RELEASED are frozen history whose SHAs legitimately differ
+  // from HEAD, so re-validating them would fail on artifacts nobody may edit.
+  // Deliberately NOT keyed on REQUIRED_MISSION_EVIDENCE: CI points that at a released
+  // mission, which left this check dead for the mission actually under review.
+  const underDevelopment = missionState !== "" && !released && missionState !== "MISSION_RELEASE_READY";
   for (const required of ["mission.yaml", "implementation.md", "test-results.json", "acceptance.json", "migration.md", "security.md", "ux-uat.md", "review.md", "release.md"]) {
     if (!fs.existsSync(path.join(missionDir, required))) errors.push(`${directory.name}: missing ${required}`);
   }
@@ -38,7 +46,7 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
         errors.push(`${directory.name}: implementationSha must be a full commit SHA`);
       } else if (!isAncestor(value.implementationSha)) {
         errors.push(`${directory.name}: implementationSha is not an ancestor of HEAD`);
-      } else if (requiresTerminalEvidence && !hasSameSourceTreeAsHead(value.implementationSha)) {
+      } else if (underDevelopment && !hasSameSourceTreeAsHead(value.implementationSha)) {
         // Ancestry is satisfied by every commit in history, including the mission's own base,
         // so it cannot catch evidence that certifies an older commit. Requiring exact HEAD
         // would be circular, because recording the SHA is itself a commit. Require instead

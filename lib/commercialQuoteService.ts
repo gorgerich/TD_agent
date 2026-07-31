@@ -487,6 +487,9 @@ export async function createCommercialClientLink(input: {
       if (existing.revokedAt !== null) {
         throw new OperationalCommandError(409, "Ссылка по этому ключу была отозвана. Используйте новый ключ.");
       }
+      if (existing.expiresAt <= new Date()) {
+        throw new OperationalCommandError(409, "Срок ссылки по этому ключу истёк. Используйте новый ключ.");
+      }
       return { linkId: existing.id, quoteVersionId: existing.quoteVersionId, replayed: true };
     }
     await tx.quoteClientLink.updateMany({

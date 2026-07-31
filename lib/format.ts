@@ -1,3 +1,4 @@
+import { formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 // Единые форматтеры для всей платформы. Один источник правды —
 // деньги/даты/телефон выглядят одинаково на агенте и у клиента.
 
@@ -27,13 +28,10 @@ export function money(rubles: number | null | undefined): string {
  * published version. Kopecks are shown only when they exist.
  */
 export function moneyFromKopecks(kopecks: number | null | undefined): string {
-  const minor = kopecks ?? 0;
-  const sign = minor < 0 ? "−" : "";
-  const abs = Math.abs(minor);
-  const rubles = Math.trunc(abs / 100);
-  const remainder = abs % 100;
-  const fraction = remainder === 0 ? "" : `,${String(remainder).padStart(2, "0")}`;
-  return `${sign}${groupNumber(rubles)}${fraction} ₽`;
+  // Delegate, do not reimplement. Two hand-rolled formatters drifted on the group separator
+  // (U+00A0 vs U+0020) and the minus sign, so the registry and the client view rendered the
+  // same amount as different strings.
+  return formatMinorUnitsCurrency(kopecks ?? 0);
 }
 
 type DateInput = Date | string | number | null | undefined;

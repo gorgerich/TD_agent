@@ -87,7 +87,11 @@ export async function POST(req: NextRequest) {
       const replay = await findOperationalReplay(tx, context.organizationId, auditKey);
       if (replay) {
         const existing = await tx.agentCatalogItem.findFirst({
-          where: { id: replay.entityId, organizationId: context.organizationId },
+          where: {
+            id: replay.entityId,
+            organizationId: context.organizationId,
+            ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
+          },
         });
         if (!existing) throw new Error("Catalog replay target is missing");
         return existing;

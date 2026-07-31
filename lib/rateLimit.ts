@@ -39,9 +39,19 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateRes
 
 /** Клиентский IP из заголовков прокси (Vercel ставит x-forwarded-for). */
 export function clientIp(req: Request): string {
+  // Prefer x-real-ip: the platform sets it and a caller cannot forge it past the edge.
+  // x-forwarded-for is a caller-appendable list, and taking its LEFTMOST entry let any
+  // client choose its own rate-limit bucket — which matters now that the public
+  // client-link routes sit behind this limiter. Fall back to the RIGHTMOST forwarded hop,
+  // which is the one the closest trusted proxy appended.
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
+  if (xff) {
+    const hops = xff.split(",").map((hop) => hop.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+  return "unknown";
 }
 
 /**

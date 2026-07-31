@@ -139,7 +139,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       const replay = await findOperationalReplay(tx, context.organizationId, auditKey);
       if (replay) {
         return tx.agentCatalogItem.findFirst({
-          where: { id: replay.entityId, organizationId: context.organizationId },
+          where: {
+            id: replay.entityId,
+            organizationId: context.organizationId,
+            ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
+          },
         });
       }
       const item = await tx.agentCatalogItem.findFirst({

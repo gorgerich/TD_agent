@@ -1,3 +1,4 @@
+import { moneyFromKopecks } from "@/lib/format";
 import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
 import { CasesList, type Bucket } from "./CasesList";
@@ -50,7 +51,9 @@ type CasesData = {
 
 const DAY = 86_400_000;
 
-const fmtMoney = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 });
+// Render the stored minor-unit balance exactly: it derives from the published quote total,
+// which the client view and the case detail page both render without rounding.
+const fmtMoney = { format: (rubles: number) => moneyFromKopecks(Math.round(rubles * 100)) };
 
 async function getCases(session: AgentSession): Promise<CasesData> {
     const fmtTime = new Intl.DateTimeFormat("ru-RU", { timeZone: session.timezone, hour: "2-digit", minute: "2-digit" });

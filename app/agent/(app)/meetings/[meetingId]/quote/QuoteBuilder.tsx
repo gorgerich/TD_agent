@@ -1710,14 +1710,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   <section className={s.commercialReview} aria-live="polite">
                     <div className={s.commercialReviewHead}>
                       <strong>Проверка публикации</strong>
-                      <span>{reviewResult.total == null ? "Итог не подтверждён" : formatCurrency(reviewResult.total / 100)}</span>
+                      <span>{reviewResult.total == null ? "Итог не подтверждён" : formatMinorUnitsCurrency(reviewResult.total)}</span>
                     </div>
                     <div className={s.reviewDiff} aria-label="Изменения относительно опубликованной версии">
                       <span>Добавлено: {reviewResult.added}</span>
                       <span>Убрано: {reviewResult.removed}</span>
                       <span>Изменено: {reviewResult.changed}</span>
                       {reviewResult.totalDelta !== null && (
-                        <strong>Итог: {reviewResult.totalDelta >= 0 ? "+" : ""}{formatCurrency(reviewResult.totalDelta / 100)}</strong>
+                        <strong>Итог: {reviewResult.totalDelta >= 0 ? "+" : ""}{formatMinorUnitsCurrency(reviewResult.totalDelta)}</strong>
                       )}
                     </div>
                     {reviewResult.blockers.length > 0 ? (

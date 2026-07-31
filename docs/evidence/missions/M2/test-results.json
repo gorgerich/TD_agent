@@ -167,7 +167,7 @@
       "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so a blob write errors rather than reaching the production store",
       "the fixtures' own production-fingerprint exclusion guard was active during provisioning"
     ],
-    "remaining": "tests/e2e/m1-fixture.ts and tests/e2e/m2-fixture.ts each refuse to run unless the remote target is an empty database, so on one shared UAT database only one of them can be provisioned. The commercial UAT needs the M1 pilots and the M2 second organization together. Resolving this means relaxing that guard to accept a database containing only the other fixture's synthetic rows — not attempted here."
+    "remaining": "Both fixtures are now provisioned into the one isolated store (3 organizations, 9 users, 7 memberships, 2 cases, 2 meetings, zero foreign rows) via the fail-closed sibling-aware guard in tests/e2e/uatFixtureGuard.ts. Remaining: the Preview URLs are SSO-protected, so running the journeys needs a Protection Bypass for Automation secret."
   },
   "releasePrerequisites": [
     {
