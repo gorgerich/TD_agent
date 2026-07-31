@@ -1,8 +1,8 @@
 mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
-state: CONTRACT_LOCKED
+state: IMPLEMENTATION_VERIFIED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
-implementation_sha: null
+implementation_sha: 60d00f67233c65eaedabadf9393f6185626d7a9a
 review_sha: null
 preview_deployment_id: null
 production_deployment_id: null
@@ -23,6 +23,33 @@ required_gates:
   - accessibility
   - preview_uat
   - independent_review
-open_blockers: []
+passed_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e_agent_commercial
+  - e2e_client_view
+  - migration_rehearsal
+  - schema_parity
+  - price_total_integrity
+  - draft_published_isolation
+  - permissions
+  - idempotency
+  - client_link_security
+  - reconciliation
+  - accessibility
+open_blockers:
+  - gate: preview_uat
+    severity: TERMINAL_FOR_THIS_SESSION
+    reason: >-
+      Requires a Preview deployment of an exact SHA. Creating an outward-facing
+      deployment was not authorized for this session, so the gate could not be
+      executed. Needs the repository owner to deploy 60d00f6 to Preview and run
+      the cremation and relative-burial UAT journeys against it.
+  - gate: independent_review
+    severity: TERMINAL_FOR_THIS_SESSION
+    reason: >-
+      Requires an independent reviewer to report P0=0 and P1=0. The implementing
+      agent cannot self-certify this gate.
 owner_release_authorization: false
 production_release: NOT_AUTHORIZED

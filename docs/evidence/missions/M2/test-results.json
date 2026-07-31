@@ -1,14 +1,91 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
-  "state": "CONTRACT_LOCKED",
-  "implementationSha": null,
+  "state": "IMPLEMENTATION_VERIFIED",
+  "implementationSha": "60d00f67233c65eaedabadf9393f6185626d7a9a",
+  "githubCiUrl": null,
+  "previewDeploymentId": null,
   "checks": {
-    "status": "PENDING",
-    "skipped": null,
-    "notRun": null,
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "gitDiffCheck": "PASS",
+    "prismaValidate": "PASS",
+    "prismaGenerate": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 76,
+      "skipped": 0
+    },
+    "integration": {
+      "status": "PASS",
+      "passed": 43,
+      "skipped": 0,
+      "consecutiveGreenFullSuiteRuns": 13,
+      "targetedCommercialConcurrencyRepeats": 5,
+      "parallelism": "default node --test file concurrency, not serialized",
+      "residue": 0
+    },
+    "e2e": {
+      "status": "PASS",
+      "smoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "agentCommercial": "PASS",
+      "clientView": "PASS",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "draftPublishedIsolation": "PASS",
+      "clientDecision": "PASS",
+      "print": "PASS",
+      "managerContext": "PASS",
+      "crossTenant": "PASS",
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "skipped": 0
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "legacyCommercialFixtures": "PASS",
+      "repeatedDeploy": "NO_OP"
+    },
+    "schemaParity": "PASS",
+    "priceTotalIntegrity": "PASS",
+    "draftPublishedIsolation": "PASS",
+    "permissions": "PASS",
+    "idempotency": "PASS",
+    "clientLinkSecurity": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0
+    },
+    "previewUat": "BLOCKED",
     "independentReview": {
+      "status": "BLOCKED",
       "p0": null,
       "p1": null
+    },
+    "skipped": 0,
+    "notRun": 0
+  },
+  "blockers": [
+    {
+      "gate": "preview_uat",
+      "reason": "Requires a Preview deployment of an exact SHA. Creating an outward-facing deployment was not authorized for this session, so the gate could not be executed."
+    },
+    {
+      "gate": "independent_review",
+      "reason": "Requires an independent reviewer to report P0=0 and P1=0. The implementing agent cannot self-certify this gate."
     }
+  ],
+  "environment": {
+    "postgres": "17.10, local isolated throwaway database td_agent_m2_test",
+    "node": "24.12.0",
+    "prisma": "5.22.0",
+    "note": "All commands were local and non-production: no deployment, no production database, no real secrets."
   }
 }
