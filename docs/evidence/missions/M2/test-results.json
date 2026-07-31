@@ -1,8 +1,8 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "a40fbff950f7fbeb2a5ef0c3da3e2d5074e574ec",
-  "githubCiUrl": null,
+  "implementationSha": "72aa4cdd7aef19beeb9af7c326ece93c1c90e7d6",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30658645225",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -72,7 +72,12 @@
       "note": "First adversarial round returned 0 P0 / 5 P1 / 3 P2. All five P1s and two of the three P2s are fixed in this branch. A second review round has not been run, so P1 cannot be recorded as 0."
     },
     "skipped": 0,
-    "notRun": 0
+    "notRun": 0,
+    "ci": {
+      "status": "PASS",
+      "runId": 30658645225,
+      "headSha": "72aa4cdd7aef19beeb9af7c326ece93c1c90e7d6"
+    }
   },
   "blockers": [
     {
@@ -93,5 +98,12 @@
     "node": "24.12.0",
     "prisma": "5.22.0",
     "note": "All commands were local and non-production: no deployment, no production database, no real secrets."
+  },
+  "pullRequest": {
+    "number": 28,
+    "url": "https://github.com/gorgerich/TD_agent/pull/28",
+    "state": "OPEN",
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
   }
 }

@@ -2,7 +2,7 @@ mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
 state: IMPLEMENTATION_VERIFIED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
-implementation_sha: a40fbff950f7fbeb2a5ef0c3da3e2d5074e574ec
+implementation_sha: 72aa4cdd7aef19beeb9af7c326ece93c1c90e7d6
 review_sha: null
 preview_deployment_id: null
 production_deployment_id: null
