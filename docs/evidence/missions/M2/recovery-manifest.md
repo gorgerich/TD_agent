@@ -197,8 +197,8 @@ Recovered state audit of that edit:
 
 | Requirement | Finding |
 | --- | --- |
-| Retry limited to the idempotent client-link command | `lib/commercialQuoteService.ts:489` is the only `maxAttempts` override in the repository; the other eight `runOperationalTransaction` call sites keep the default | 
-| Retry bounded | `maxAttempts = 5`, finite `for` loop in `lib/operationalTransaction.ts:8` |
+| Retry limited to the idempotent client-link command | True **as recovered**: `lib/commercialQuoteService.ts:489` was the only `maxAttempts` override in the repository. Superseded later in the mission — all eight commercial write commands now share `COMMERCIAL_COMMAND_ATTEMPTS`, and every one of them is idempotency-keyed and fully rolled back before a retry. M1 commands still use the shared default |
+| Retry bounded | `maxAttempts = 5`, finite `for` loop in `lib/operationalTransaction.ts` |
 | Only `P2034` retried | `lib/operationalTransaction.ts:14` rethrows anything that is not a `PrismaClientKnownRequestError` with code `P2034` |
 | Other errors not masked | Unchanged `throw error`; `OperationalCommandError` raised inside the callback propagates on the first attempt |
 | Row lock preserved | `SELECT "id" FROM "QuoteVersion" … FOR UPDATE` retained at `lib/commercialQuoteService.ts:452` |

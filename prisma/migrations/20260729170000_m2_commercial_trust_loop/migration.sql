@@ -460,4 +460,3 @@ FOR EACH ROW EXECUTE FUNCTION "m2_append_only_commercial_receipt"();
 
 -- AddForeignKey
 ALTER TABLE "QuotePresentationSession" ADD CONSTRAINT "QuotePresentationSession_ownerMembershipId_fkey" FOREIGN KEY ("ownerMembershipId") REFERENCES "Membership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
