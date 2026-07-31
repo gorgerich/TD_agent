@@ -12,6 +12,14 @@ const password = process.env.M1_UAT_PASSWORD;
 const rbacRunId = process.env.M2_UAT_RUN_ID;
 const foreignEmail = rbacRunId ? `m2-second-${rbacRunId}@synthetic.invalid` : null;
 const foreignPassword = process.env.M2_UAT_PASSWORD;
+/**
+ * Intl.NumberFormat("ru-RU") groups thousands with U+00A0, and newer ICU builds use
+ * U+202F, so a raw textContent() comparison against a plain-space literal fails on money
+ * that renders identically. Playwright's own text matchers normalize whitespace; do the
+ * same wherever we compare textContent() by hand.
+ */
+const normalizeText = (value) => (value ?? "").replace(/\s+/g, " ").trim();
+
 if (!password) throw new Error("M1_UAT_PASSWORD is required for M2 commercial E2E");
 if (!foreignEmail || !foreignPassword) {
   throw new Error("M2_UAT_RUN_ID and M2_UAT_PASSWORD are required for commercial cross-tenant E2E");
@@ -25,8 +33,24 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 const browserErrors = [];
+// Two probes deliberately drive a non-2xx response through an in-page fetch: the
+// unknown-price publish block (422) and the cross-tenant quote read (404). Chromium logs
+// a resource-load console error for each. The explicit status assertions are what prove
+// the behaviour, so account for that noise here instead of treating it as a page defect.
+let expectedPublishBlocks = 0;
+let expectedCrossTenantMisses = 0;
 page.on("console", (message) => {
-  if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
+  if (message.type() !== "error") return;
+  const location = message.location().url;
+  if (message.text().includes("status of 422") && location.includes("/api/agent/quotes/")) {
+    expectedPublishBlocks += 1;
+    return;
+  }
+  if (message.text().includes("status of 404") && location.includes("/api/agent/meeting/")) {
+    expectedCrossTenantMisses += 1;
+    return;
+  }
+  browserErrors.push(`console: ${message.text()}`);
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
@@ -55,15 +79,18 @@ try {
   await page.goto(`${baseUrl}/agent/estimates`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Сметы", exact: true }).waitFor();
   await page.getByText(/v2/).first().waitFor();
-  const managerQuote = await page.request.get(`${baseUrl}/api/agent/meeting/${cremation.meetingId}/quote`);
-  assert.equal(managerQuote.status(), 200, "Manager must read the tenant commercial aggregate");
+  const managerQuote = await readQuoteStatus(page, cremation.meetingId);
+  assert.equal(managerQuote, 200, "Manager must read the tenant commercial aggregate");
 
   await context.clearCookies();
   await login(page, foreignEmail, foreignPassword);
-  const foreignQuote = await page.request.get(`${baseUrl}/api/agent/meeting/${cremation.meetingId}/quote`);
-  assert.equal(foreignQuote.status(), 404, "Another organization must not discover the quote");
+  await page.goto(`${baseUrl}/agent/estimates`, { waitUntil: "domcontentloaded" });
+  const foreignQuote = await readQuoteStatus(page, cremation.meetingId);
+  assert.equal(foreignQuote, 404, "Another organization must not discover the quote");
 
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
+  assert.ok(expectedPublishBlocks >= 1, "Unknown-price publish must be observed as blocked in the browser");
+  assert.ok(expectedCrossTenantMisses >= 1, "Cross-tenant quote read must be observed as not found in the browser");
   process.stdout.write(`${JSON.stringify({
     cremation: cremation.status,
     relativeBurial: burial.status,
@@ -138,7 +165,7 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
   await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
   await target.getByTestId("quote-visible-total").waitFor();
   assert.equal(
-    await target.getByTestId("quote-visible-total").textContent(),
+    normalizeText(await target.getByTestId("quote-visible-total").textContent()),
     `${requireSecondVersion ? "1 400" : "1 250"} ₽`,
     "Builder total must equal the latest immutable Published version",
   );
@@ -241,28 +268,48 @@ async function saveDraftOnly(target, meetingId, scenario, price, suffix, priceSt
   }, { meetingId, scenario, price, suffix, priceState });
 }
 
+/**
+ * Playwright's APIRequestContext (`page.request`) does not attach the SameSite=Lax session
+ * cookie, so every authenticated call in this journey goes through an in-page fetch, which
+ * carries the cookie exactly as the real browser does.
+ */
+function readQuoteStatus(target, meetingId) {
+  return target.evaluate(
+    async (id) => (await fetch(`/api/agent/meeting/${id}/quote`)).status,
+    meetingId,
+  );
+}
+
 async function assertUnknownPriceBlocksPublish(target, meetingId, scenario) {
   const saved = await saveDraftOnly(target, meetingId, scenario, 0, "unknown-price", "UNKNOWN");
-  const reviewKey = `e2e-m2:${saved.quoteId}:unknown-review`;
-  const review = await target.request.post(`${baseUrl}/api/agent/quotes/${saved.quoteId}/review`, {
-    headers: { "Idempotency-Key": reviewKey, "X-Correlation-Id": reviewKey },
-  });
-  assert.equal(review.status(), 200, "Unknown-price review must remain inspectable");
-  const publishKey = `e2e-m2:${saved.quoteId}:unknown-publish`;
-  const publish = await target.request.post(`${baseUrl}/api/agent/quotes/${saved.quoteId}/publish`, {
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": publishKey,
-      "X-Correlation-Id": publishKey,
-    },
-    data: {
-      validUntil: new Date(Date.now() + 86_400_000).toISOString(),
-      channel: "link",
-      reason: "Must remain blocked",
-    },
-  });
-  assert.equal(publish.status(), 422);
-  assert.match((await publish.json()).error ?? "", /не подтверждена/);
+  const review = await target.evaluate(async (quoteId) => {
+    const key = `e2e-m2:${quoteId}:unknown-review`;
+    const res = await fetch(`/api/agent/quotes/${quoteId}/review`, {
+      method: "POST",
+      headers: { "Idempotency-Key": key, "X-Correlation-Id": key },
+    });
+    return { status: res.status };
+  }, saved.quoteId);
+  assert.equal(review.status, 200, "Unknown-price review must remain inspectable");
+  const publish = await target.evaluate(async (quoteId) => {
+    const key = `e2e-m2:${quoteId}:unknown-publish`;
+    const res = await fetch(`/api/agent/quotes/${quoteId}/publish`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": key,
+        "X-Correlation-Id": key,
+      },
+      body: JSON.stringify({
+        validUntil: new Date(Date.now() + 86_400_000).toISOString(),
+        channel: "link",
+        reason: "Must remain blocked",
+      }),
+    });
+    return { status: res.status, body: await res.json().catch(() => ({})) };
+  }, saved.quoteId);
+  assert.equal(publish.status, 422);
+  assert.match(publish.body.error ?? "", /не подтверждена/);
 }
 
 async function createLink(target, quoteId, suffix) {
