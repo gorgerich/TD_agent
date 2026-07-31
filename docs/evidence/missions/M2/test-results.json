@@ -2,7 +2,7 @@
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
   "implementationSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
-  "githubCiUrl": null,
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30672907160",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -114,8 +114,11 @@
     "skipped": 0,
     "notRun": 0,
     "ci": {
-      "status": "PENDING",
-      "note": "queued for this SHA"
+      "status": "PASS",
+      "runId": 30672907160,
+      "headSha": "3a75f82f2a32c9d783171a4fb748e2c0e7db0fbe",
+      "certifiedSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
+      "note": "The CI commit and the certified implementationSha differ only under docs/evidence — the condition scripts/validate-mission-evidence.mjs enforces for a mission under development."
     },
     "previewStorage": {
       "status": "NOT_USED",
