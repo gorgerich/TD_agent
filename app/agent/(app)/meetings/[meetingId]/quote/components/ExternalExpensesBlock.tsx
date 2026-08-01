@@ -105,12 +105,15 @@ function ExternalExpenseRow({
   onRemove: () => void;
   onUpdate: (patch: Partial<ExternalExpense>) => void;
 }) {
-  const margin = calculateOrderEconomics([{
-    name: expense.name,
-    clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
-    costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
-    quantity: 1,
-  }]).items[0];
+  const costKnown = expense.includeInMarginCalculation && expense.costPrice > 0;
+  const margin = costKnown
+    ? calculateOrderEconomics([{
+        name: expense.name,
+        clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+        costPrice: expense.costPrice,
+        quantity: 1,
+      }]).items[0]
+    : null;
 
   return (
     <div className={s.externalRow}>
@@ -131,7 +134,9 @@ function ExternalExpenseRow({
           <span>Себестоимость</span>
           <input inputMode="numeric" value={expense.costPrice} onChange={(event) => onUpdate({ costPrice: Number(event.target.value.replace(/[^\d]/g, "")) || 0 })} />
         </label>
-        <div className={s.externalMargin}>Маржа {formatCurrency(margin?.marginRub ?? 0)}</div>
+        <div className={s.externalMargin}>
+          {costKnown && margin ? `Маржа ${formatCurrency(margin.marginRub)}` : "Себестоимость не подтверждена"}
+        </div>
       </div>
     </div>
   );

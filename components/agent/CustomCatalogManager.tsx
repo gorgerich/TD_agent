@@ -14,6 +14,10 @@ export type AgentCatalogItemDTO = {
   category: string;
   clientPrice: number;
   costPrice: number;
+  priceState: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  costState: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  currentRevisionId: string | null;
+  sourceVersion: string;
   description: string;
   imageData: string;
   createdAt?: string;
@@ -50,16 +54,20 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
   const [clientPrice, setClientPrice] = useState<string>("");
   const [costPrice, setCostPrice] = useState<string>("");
   const [description, setDescription] = useState("");
+  const [priceEdits, setPriceEdits] = useState<Record<string, string>>({});
+  const [updatingPriceId, setUpdatingPriceId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = useCallback(async () => {
     try {
       const r = await fetch("/api/agent/catalog");
       const d = await r.json();
+      if (!r.ok) throw new Error(d.error ?? "Каталог временно недоступен");
       setItems(d.items ?? []);
       onChange?.(d.items ?? []);
-    } catch {
-      setItems([]);
+      setError(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Каталог временно недоступен");
     } finally {
       setLoading(false);
     }
@@ -70,14 +78,19 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
   useEffect(() => {
     let active = true;
     fetch("/api/agent/catalog")
-      .then((r) => r.json())
-      .then((d: { items?: AgentCatalogItemDTO[] }) => {
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error ?? "Каталог временно недоступен");
+        return body as { items?: AgentCatalogItemDTO[] };
+      })
+      .then((d) => {
         if (!active) return;
         setItems(d.items ?? []);
         onChange?.(d.items ?? []);
+        setError(null);
       })
-      .catch(() => {
-        if (active) setItems([]);
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Каталог временно недоступен");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -114,14 +127,19 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
     if (!Number.isFinite(price) || price < 0) return setError("Укажите цену");
     setBusy("saving");
     try {
+      const requestId = crypto.randomUUID();
       const r = await fetch("/api/agent/catalog", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
         body: JSON.stringify({
           name: name.trim(),
           category,
           clientPrice: price,
-          costPrice: Math.max(0, Math.round(Number(costPrice) || 0)),
+          costPrice: costPrice === "" ? null : Math.round(Number(costPrice)),
           description: description.trim(),
           imageData: preview,
         }),
@@ -145,12 +163,48 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
 
   const remove = useCallback(async (id: string) => {
     try {
-      await fetch(`/api/agent/catalog/${id}`, { method: "DELETE" });
+      const requestId = crypto.randomUUID();
+      const response = await fetch(`/api/agent/catalog/${id}`, {
+        method: "DELETE",
+        headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Не удалось убрать товар");
       await refresh();
-    } catch {
-      /* no-op */
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось убрать товар");
     }
   }, [refresh]);
+
+  const confirmPrice = useCallback(async (item: AgentCatalogItemDTO) => {
+    const clientPriceValue = Math.round(Number(priceEdits[item.id]));
+    if (!Number.isFinite(clientPriceValue) || clientPriceValue <= 0) {
+      setError("Укажите подтверждённую цену");
+      return;
+    }
+    setUpdatingPriceId(item.id);
+    setError(null);
+    try {
+      const requestId = crypto.randomUUID();
+      const response = await fetch(`/api/agent/catalog/${item.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
+        body: JSON.stringify({ action: "CONFIRM_PRICE", clientPrice: clientPriceValue }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Не удалось подтвердить цену");
+      setPriceEdits((current) => ({ ...current, [item.id]: "" }));
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось подтвердить цену");
+    } finally {
+      setUpdatingPriceId(null);
+    }
+  }, [priceEdits, refresh]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,380px)_1fr]">
@@ -213,7 +267,7 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
               value={costPrice}
               onChange={(e) => setCostPrice(e.target.value.replace(/[^\d]/g, ""))}
               inputMode="numeric"
-              placeholder="Закупка, ₽"
+              placeholder="Себестоимость, если известна"
               className="rounded-[var(--radius-control)] border border-line bg-surface px-3 py-2 text-[13px] text-ink outline-none focus:border-ink-3"
             />
           </div>
@@ -258,7 +312,41 @@ export default function CustomCatalogManager({ onChange }: { onChange?: (items: 
                 <div className="p-2.5">
                   <p className="truncate text-[12px] font-semibold text-ink">{it.name}</p>
                   <p className="text-[11px] text-ink-3">{it.category}</p>
-                  <p className="mt-0.5 text-[12px] font-medium text-ink-2">{it.clientPrice.toLocaleString("ru-RU")} ₽</p>
+                  <p className="mt-0.5 text-[12px] font-medium text-ink-2">
+                    {it.priceState === "KNOWN"
+                      ? `${it.clientPrice.toLocaleString("ru-RU")} ₽`
+                      : it.priceState === "REQUESTED"
+                        ? "Цена запрошена"
+                        : "Цена не подтверждена"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-ink-3">
+                    {it.costState === "KNOWN" ? `Себестоимость ${it.costPrice.toLocaleString("ru-RU")} ₽` : "Себестоимость не подтверждена"}
+                  </p>
+                  {it.priceState !== "KNOWN" && (
+                    <div className="mt-2 flex gap-1.5">
+                      <input
+                        value={priceEdits[it.id] ?? ""}
+                        onChange={(event) =>
+                          setPriceEdits((current) => ({
+                            ...current,
+                            [it.id]: event.target.value.replace(/[^\d]/g, ""),
+                          }))
+                        }
+                        inputMode="numeric"
+                        aria-label={`Подтверждённая цена для ${it.name}`}
+                        placeholder="Цена, ₽"
+                        className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-line bg-surface px-2 py-1.5 text-[12px] text-ink"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void confirmPrice(it)}
+                        disabled={updatingPriceId === it.id}
+                        className="rounded-[var(--radius-control)] bg-accent px-2.5 py-1.5 text-[11px] font-semibold text-on-accent disabled:opacity-40"
+                      >
+                        {updatingPriceId === it.id ? "..." : "Подтвердить"}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

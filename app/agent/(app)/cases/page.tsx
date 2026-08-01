@@ -1,3 +1,4 @@
+import { moneyFromKopecks } from "@/lib/format";
 import { Link } from "next-view-transitions";
 import NewCaseSheet from "./NewCaseSheet";
 import { CasesList, type Bucket } from "./CasesList";
@@ -19,7 +20,6 @@ type CaseRow = {
   statusTone: StatusTone;
   waiting: WaitingOn;
   bucket: Bucket;
-  cobrowse: string | null;
   firstMeetingId: number | null;
   progress: number;
   nextAction: string;
@@ -51,7 +51,9 @@ type CasesData = {
 
 const DAY = 86_400_000;
 
-const fmtMoney = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 });
+// Render the stored minor-unit balance exactly: it derives from the published quote total,
+// which the client view and the case detail page both render without rounding.
+const fmtMoney = { format: (rubles: number) => moneyFromKopecks(Math.round(rubles * 100)) };
 
 async function getCases(session: AgentSession): Promise<CasesData> {
     const fmtTime = new Intl.DateTimeFormat("ru-RU", { timeZone: session.timezone, hour: "2-digit", minute: "2-digit" });
@@ -87,7 +89,6 @@ async function getCases(session: AgentSession): Promise<CasesData> {
         statusTone: record.statusTone,
         waiting: record.waiting,
         bucket,
-        cobrowse: record.cobrowseCode,
         firstMeetingId: record.firstMeetingId,
         progress: Math.min(6, Math.max(1, ["Лид", "Документы", "Смета", "Договор", "Оплата", "Завершено"].indexOf(stage) + 1)),
         nextAction: record.nextAction.label,
@@ -206,7 +207,6 @@ export default async function CasesPage() {
                 name: c.name,
                 phone: c.phone,
                 bucket: c.bucket,
-                cobrowse: c.cobrowse,
                 firstMeetingId: c.firstMeetingId,
                 nextAction: c.nextAction,
                 statusLabel: c.statusLabel,

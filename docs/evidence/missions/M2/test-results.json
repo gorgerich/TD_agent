@@ -1,0 +1,257 @@
+{
+  "mission": "M2-COMMERCIAL-TRUST-LOOP",
+  "state": "IMPLEMENTATION_VERIFIED",
+  "implementationSha": "d75ba6e0d3df671ba52a4107c412aff092345dc1",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30691860303",
+  "previewDeploymentId": null,
+  "checks": {
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "gitDiffCheck": "PASS",
+    "prismaValidate": "PASS",
+    "prismaGenerate": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 91,
+      "skipped": 0
+    },
+    "integration": {
+      "status": "PASS",
+      "passed": 44,
+      "skipped": 0,
+      "consecutiveGreenFullSuiteRuns": 5,
+      "targetedCommercialConcurrencyRepeats": 5,
+      "parallelism": "default node --test file concurrency, not serialized",
+      "residue": 0,
+      "residueScope": "all eight commercial tables plus the ten pre-existing ones"
+    },
+    "e2e": {
+      "status": "PASS",
+      "smoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "agentCommercial": "PASS",
+      "clientView": "PASS",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "draftPublishedIsolation": "PASS",
+      "clientDecision": "PASS",
+      "print": "PASS",
+      "managerContext": "PASS",
+      "crossTenant": "PASS",
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "skipped": 0
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "legacyCommercialFixtures": "PASS",
+      "repeatedDeploy": "NO_OP"
+    },
+    "schemaParity": "PASS",
+    "priceTotalIntegrity": "PASS",
+    "draftPublishedIsolation": "PASS",
+    "permissions": "PASS",
+    "idempotency": "PASS",
+    "clientLinkSecurity": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0
+    },
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_3axb1aDPUAEVevmE7ejaysV49UKc",
+      "previewUrl": "https://td-agent-hroabwz6t-rics-projects-9baa2793.vercel.app",
+      "branchAlias": "td-agent-git-mission-m2-commercia-e5c6f2-rics-projects-9baa2793.vercel.app",
+      "target": "preview",
+      "gitSha": "e8851357047c44547bc1d2fa7352be69940c747d",
+      "databaseFingerprint": "c89bdda845806b40",
+      "results": {
+        "cremation": "PASS",
+        "relativeBurial": "PASS",
+        "draftPublishedIsolation": "PASS",
+        "clientDecision": "PASS",
+        "print": "PASS",
+        "accessibilityCriticalSerious": 0,
+        "mobile": "PASS",
+        "zoom200": "PASS",
+        "managerContext": "PASS",
+        "crossTenant": "PASS",
+        "unexpectedConsoleErrors": 0,
+        "skipped": 0
+      },
+      "bindingProof": "POST /api/agent/auth/login on the Preview with m1-agent-m2uat-e885135@synthetic.invalid returned 200. That account exists only in the isolated Neon store, so the branch-scoped DATABASE_URL is demonstrably what the deployment uses. The production URL was never contacted.",
+      "postUat": {
+        "reconciliationDiscrepancies": 0,
+        "orphanCommercialRows": 0,
+        "foreignFixtureRows": 0,
+        "retainedSyntheticData": "2 published quote versions and 3 client decisions retained in the isolated UAT store; that store holds synthetic data only and is not production."
+      },
+      "protectionBypass": "Could not be created: POST /v1/projects/{id}/protection-bypass and /v1/security/protection-bypass both return 404 and PATCH /v9/projects/{id} rejects the field, so this API version cannot mint one. The project already carried an automation-bypass entry, which was reused read-only. It was therefore NOT revoked at cleanup — it predates this mission and revoking an owner secret could break other automation. No bypass was created, project protection config is unchanged, and the Preview returns 302 to Vercel SSO again with the header removed.",
+      "hazardAvoided": "Two Preview deployments exist for this SHA because recovery/m2-commercial-reconstructed mirrors the same commit. The recovery-branch deployment has no branch-scoped env and would resolve DATABASE_URL to production. Aliases were checked before use and only the mission-branch deployment was driven."
+    },
+    "independentReview": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0,
+      "rounds": [
+        {
+          "round": 1,
+          "p0": 0,
+          "p1": 5,
+          "p2": 3
+        },
+        {
+          "round": 2,
+          "p0": 0,
+          "p1": 3,
+          "p2": 6
+        },
+        {
+          "round": 3,
+          "p0": 0,
+          "p1": 1,
+          "p2": 6
+        },
+        {
+          "round": 4,
+          "p0": 0,
+          "p1": 1,
+          "p2": 7
+        },
+        {
+          "round": 5,
+          "p0": 0,
+          "p1": 0,
+          "p2": 7,
+          "verdict": "PASS"
+        },
+        {
+          "round": 6,
+          "p0": 0,
+          "p1": 1,
+          "p2": 3
+        },
+        {
+          "round": 7,
+          "p0": 0,
+          "p1": 0,
+          "p2": 7,
+          "verdict": "PASS",
+          "scope": "exact unreviewed delta c3b69a2..e885135 plus a full re-verification of the mission's guarantees"
+        }
+      ],
+      "trend": "P1 per round: 5, 3, 1, 1, 0, 1, 0. P0 was 0 in every round. Every P1 found was fixed.",
+      "note": "Closed at round 7 with 0 P0 and 0 P1 on the certified source tree. Round 7's seven P2s are recorded below rather than fixed, per the owner instruction to stop making optional changes once the gate closes."
+    },
+    "skipped": 0,
+    "notRun": 0,
+    "ci": {
+      "status": "PASS",
+      "runId": 30691860303,
+      "headSha": "d75ba6e0d3df671ba52a4107c412aff092345dc1",
+      "note": "Green on the exact PR head. Stated plainly: the first attempt of this run failed in tests/e2e/m1-operations.mjs with a 30s locator timeout waiting for a case heading — a file this mission does not modify — and the re-run passed. Treated as a CI timing flake, not a clean first pass. Related and already recorded: round 7 measured 1 spurious 409 in 17 local integration runs, so the e2e and integration gates are not bit-for-bit deterministic."
+    },
+    "previewStorage": {
+      "status": "NOT_USED",
+      "isolatedStore": {
+        "name": "m2-uat-commercial-blob",
+        "id": "store_hMggGJeIMXFwYM0R",
+        "access": "private",
+        "blobCount": 0
+      },
+      "productionStore": "PRODUCTION_INACCESSIBLE",
+      "evidence": [
+        "@vercel/blob is imported in exactly one module, lib/documentStorage.ts",
+        "its only callers are app/api/agent/cases/[caseId]/documents/route.ts and .../[docId]/route.ts",
+        "neither commercial UAT journey reaches a document route; tests/e2e/m2-commercial.mjs references `document` only as the DOM global (zoom, axe, clientWidth)",
+        "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so any unexpected blob call errors instead of reaching the production store"
+      ],
+      "honestly": "The isolated blob store was created but is NOT wired to the Preview deployment — the CLI cannot emit its token without a project-wide link, which would alter Production env. The M2 journeys perform no blob operation, so this is recorded as NOT_USED rather than claimed as connected. Any M2 scope that later requires a blob operation invalidates this and needs option A."
+    },
+    "shaIntegrity": "Certified against d75ba6e, the commit carrying the final source change (E2E_PROTECTION_BYPASS support). Verified with git diff --quiet that it is source-identical to the final head outside docs/evidence. Noted honestly: the validator's source-tree check is skipped once a mission reaches MISSION_RELEASE_READY, so this was checked by hand rather than relied on — see round7AcceptedP2 item 1."
+  },
+  "blockers": [
+    {
+      "gate": "independent_review",
+      "reason": "Six rounds: 5, 3, 1, 1, 0 and 1 P1, zero P0 throughout; all fixed. Round 5 returned PASS; round 6 found a regression its own cleanup introduced, fixed at fc1ef5e. The confirming round 7 could not complete — the reviewer agent hit an account session limit — so this gate is not recorded as passed."
+    },
+    {
+      "gate": "preview_uat",
+      "reason": "Isolation is solved and proven: a dedicated Neon store (m2-uat-commercial, fingerprint c89bdda845806b40) is bound to this branch only via branch-scoped DATABASE_URL/DATABASE_URL_UNPOOLED, the shared 'Preview, Production' entries were not modified, and both synthetic fixtures are provisioned into it with zero foreign rows. Remaining: the Preview deployments are SSO-protected, so driving the two journeys needs a Protection Bypass for Automation secret — a project-level Deployment Protection change."
+    }
+  ],
+  "environment": {
+    "postgres": "17.10, local isolated throwaway database td_agent_m2_test",
+    "node": "24.12.0",
+    "prisma": "5.22.0",
+    "note": "All commands were local and non-production: no deployment, no production database, no real secrets."
+  },
+  "pullRequest": {
+    "number": 28,
+    "url": "https://github.com/gorgerich/TD_agent/pull/28",
+    "state": "OPEN",
+    "mergeable": "MERGEABLE",
+    "mergeStateStatus": "CLEAN"
+  },
+  "previewEnvironment": {
+    "status": "PROVISIONED_ISOLATION_PROVEN_UAT_NOT_RUN",
+    "neonStore": {
+      "name": "m2-uat-commercial",
+      "id": "store_IuW6I8X2Rb3rG2d2",
+      "plan": "free_v3",
+      "region": "fra1"
+    },
+    "blobStore": {
+      "name": "m2-uat-commercial-blob",
+      "id": "store_hMggGJeIMXFwYM0R",
+      "access": "private",
+      "blobCount": 0
+    },
+    "databaseFingerprint": "c89bdda845806b40",
+    "productionFingerprint": "0257665af2dd90a4",
+    "isolationProof": [
+      "UAT fingerprint c89bdda845806b40 != production 0257665af2dd90a4",
+      "store provisioned new; row counts before fixtures were 0 for organizations, users, agents, quotes, quoteVersions, leads and cases",
+      "DATABASE_URL and DATABASE_URL_UNPOOLED are branch-scoped to mission/m2-commercial-trust-loop only; the shared 'Preview, Production' entries were not modified",
+      "no M2UAT_* or branch-scoped variable exists in the Production environment",
+      "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so a blob write errors rather than reaching the production store",
+      "the fixtures' own production-fingerprint exclusion guard was active during provisioning"
+    ],
+    "remaining": "Both fixtures are now provisioned into the one isolated store (3 organizations, 9 users, 7 memberships, 2 cases, 2 meetings, zero foreign rows) via the fail-closed sibling-aware guard in tests/e2e/uatFixtureGuard.ts. Remaining: the Preview URLs are SSO-protected, so running the journeys needs a Protection Bypass for Automation secret."
+  },
+  "releasePrerequisites": [
+    {
+      "item": "max_pred_locks_per_page = 64",
+      "status": "RECOMMENDED_NOT_A_BLOCKER",
+      "rationale": "Measured on the integration suite only, where 11 test files drive concurrent serializable transactions against one database — a density no single tenant produces in production. At the Postgres default of 2, page-level SSI predicate-lock escalation makes unrelated tenants conflict; the code stays CORRECT either way because runOperationalTransaction retries only P2034, is bounded, and rolls back fully before each attempt, surfacing an honest 409 if the budget is exhausted. So this is an availability tuning item, not a correctness defect, and it is NOT claimed as a production blocker on the strength of fixture density.",
+      "appliedTo": "CI and the local/UAT databases only. Production was not modified.",
+      "ownerAction": "Apply on the production instance if commercial concurrency ever produces spurious 409s: ALTER SYSTEM SET max_pred_locks_per_page = 64; SELECT pg_reload_conf();  (SIGHUP, no restart)"
+    }
+  ],
+  "acceptedP2": [
+    {
+      "item": "Public client-link rate-limit bucket derives from caller-visible hop headers",
+      "file": "lib/rateLimit.ts clientIp()",
+      "status": "ACCEPTED",
+      "reason": "Pre-existing shared helper; M2 put it in front of a public route but did not author it. It now prefers x-real-ip and otherwise the RIGHTMOST forwarded hop, removing the leftmost-XFF forgery. The remaining exposure needs an edge that does not overwrite x-real-ip. Collapsing to a single shared bucket when the edge cannot be proven was implemented and then reverted: it throttled unrelated tenants against each other and broke a platform-recovery test. Token entropy (HMAC-SHA256, 43-char base64url) keeps this to abuse of an already-known link, not discovery.",
+      "ownerDecisionRequired": "Set TRUSTED_PROXY handling at the edge, or accept as-is.",
+      "date": "2026-08-01"
+    }
+  ],
+  "round7AcceptedP2": [
+    "Evidence gate is skippable by editing the mission's own mission.yaml state (hardening gap; the check binds today).",
+    "Revoked-replay assertion still matches any 409, unlike the pinned expired-replay assertion.",
+    "security.md bullet retains a contradictory closing sentence and a dangling clause.",
+    "Quote-service idempotency replay is org-scoped, not agent-scoped; needs a UUID collision to reach.",
+    "The new catalog POST 404 branch has no test.",
+    "The integration gate is retry-bounded and can surface a spurious 409 (1 failure in 17 local runs).",
+    "review.md references INV-01..INV-14, which are defined nowhere."
+  ]
+}

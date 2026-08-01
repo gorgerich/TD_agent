@@ -80,6 +80,23 @@ export const formatDelta = (delta: number) => {
 
 export const formatCurrency = (value: number) => `${formatRubLocal(value)} ₽`;
 
+/**
+ * Render a commercial amount exactly from minor units.
+ *
+ * formatCurrency rounds to whole rubles. Applying it per line and again to the total means
+ * a document whose lines carry kopecks visibly fails to add up: two lines of 150 kopecks
+ * print as "2 ₽" and "2 ₽" beneath a total of "3 ₽". Commercial surfaces — the client view,
+ * the print output and the presentation — must use this instead, which shows kopecks only
+ * when they exist and therefore always reconciles with the total.
+ */
+export const formatMinorUnits = (minor: number) =>
+  (minor / 100).toLocaleString("ru-RU", {
+    minimumFractionDigits: minor % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+
+export const formatMinorUnitsCurrency = (minor: number) => `${formatMinorUnits(minor)} ₽`;
+
 export const calcPlanTotal = (plan: PlanState) => {
   return (
     BASE_START_PRICE +
@@ -1046,6 +1063,10 @@ export type CatalogItem = {
   imagePlaceholder: string;
   clientPrice: number;
   costPrice: number;
+  priceState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  costState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  catalogRevisionId?: string | null;
+  sourceVersion?: string;
   quantityDefault: number;
   availableColors?: string[];
   selectedColor?: string;
@@ -1063,6 +1084,10 @@ export type EstimateItem = {
   imagePlaceholder: string;
   clientPrice: number;
   costPrice: number;
+  priceState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  costState?: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  catalogRevisionId?: string | null;
+  sourceVersion?: string;
   quantity: number;
   selectedColor?: string;
   isRequired?: boolean;
@@ -1770,6 +1795,10 @@ export function normalizeCatalogItemToEstimateItem(
     imagePlaceholder: item.imagePlaceholder,
     clientPrice: Math.max(0, toSafeNumber(item.clientPrice)),
     costPrice: Math.max(0, toSafeNumber(item.costPrice)),
+    priceState: item.priceState,
+    costState: item.costState,
+    catalogRevisionId: item.catalogRevisionId,
+    sourceVersion: item.sourceVersion,
     quantity: Math.max(1, toSafeNumber(item.quantityDefault || 1)),
     selectedColor: color,
     isRequired: item.isRequired,
@@ -1812,7 +1841,11 @@ export function updateEstimateItemClientPrice(
   clientPrice: number,
 ): EstimateItem[] {
   const safePrice = Math.max(0, toSafeNumber(clientPrice));
-  return items.map((item) => (item.id === id ? { ...item, clientPrice: safePrice } : item));
+  return items.map((item) => (
+    item.id === id
+      ? { ...item, clientPrice: safePrice, priceState: safePrice > 0 ? "KNOWN" : "UNKNOWN" }
+      : item
+  ));
 }
 
 export function estimateItemsToMarginInputs(items: EstimateItem[]): MarginItemInput[] {

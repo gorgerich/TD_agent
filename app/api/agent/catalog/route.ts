@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/auth";
+import { requireOperationalContext } from "@/lib/auth";
+import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
+import { assertCapability } from "@/lib/operationalAuth";
 import { prisma } from "@/lib/prisma";
 
 // Лимит на размер картинки (data URL). ~2.7МБ base64 ≈ 2МБ бинарь.
@@ -18,26 +21,37 @@ const ALLOWED_CATEGORIES = new Set([
 
 // GET — список товаров текущего агента.
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
+    const context = await requireOperationalContext(req);
+    assertCapability(context, "commercial:read");
     const items = await prisma.agentCatalogItem.findMany({
-      where: { agentId: session.agentId },
+      where: {
+        organizationId: context.organizationId,
+        availability: "AVAILABLE",
+        ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: 500,
+      include: { revisions: { orderBy: { version: "desc" }, take: 1 } },
     });
-    return NextResponse.json({ items });
-  } catch {
-    // таблицы ещё нет / БД недоступна — не роняем UI, отдаём пустой каталог
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({
+      items: items.map(({ revisions, ...item }) => ({
+        ...item,
+        currentRevisionId: revisions[0]?.id ?? null,
+        sourceVersion: String(revisions[0]?.version ?? item.currentVersion),
+      })),
+    });
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? Number(error.status) : 503;
+    return NextResponse.json(
+      { error: status === 503 ? "Каталог временно недоступен. Повторите попытку." : "Недостаточно прав" },
+      { status },
+    );
   }
 }
 
 // POST — создать товар: { name, category, clientPrice, costPrice?, description?, imageData }.
 export async function POST(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -48,22 +62,98 @@ export async function POST(req: NextRequest) {
   const name = String(body.name ?? "").trim();
   const category = String(body.category ?? "").trim();
   const clientPrice = Math.round(Number(body.clientPrice));
-  const costPrice = Math.max(0, Math.round(Number(body.costPrice ?? 0)));
+  const hasCost = body.costPrice !== null && body.costPrice !== undefined && String(body.costPrice).trim() !== "";
+  const costPrice = hasCost ? Math.round(Number(body.costPrice)) : null;
   const description = String(body.description ?? "").trim().slice(0, 500);
   const imageData = String(body.imageData ?? "");
 
   if (name.length < 2) return NextResponse.json({ error: "Укажите название товара" }, { status: 400 });
   if (!ALLOWED_CATEGORIES.has(category)) return NextResponse.json({ error: "Неизвестная категория" }, { status: 400 });
-  if (!Number.isFinite(clientPrice) || clientPrice < 0) return NextResponse.json({ error: "Укажите корректную цену" }, { status: 400 });
+  if (!Number.isFinite(clientPrice) || clientPrice <= 0) return NextResponse.json({ error: "Укажите подтверждённую цену" }, { status: 400 });
+  if (costPrice !== null && (!Number.isFinite(costPrice) || costPrice <= 0)) {
+    return NextResponse.json({ error: "Себестоимость должна быть положительной или оставаться пустой" }, { status: 400 });
+  }
   if (!imageData.startsWith("data:image/")) return NextResponse.json({ error: "Нет изображения товара" }, { status: 400 });
   if (imageData.length > MAX_IMAGE_CHARS) return NextResponse.json({ error: "Изображение слишком большое" }, { status: 413 });
 
   try {
-    const item = await prisma.agentCatalogItem.create({
-      data: { agentId: session.agentId, name, category, clientPrice, costPrice, description, imageData },
+    const context = await requireOperationalContext(req);
+    assertCapability(context, "commercial:edit");
+    const requestKey = req.headers.get("idempotency-key")?.trim();
+    if (!requestKey) return NextResponse.json({ error: "Отсутствует ключ сохранения" }, { status: 400 });
+    const correlationId = req.headers.get("x-correlation-id")?.trim() || randomUUID();
+    const auditKey = `catalog:create:${requestKey}`;
+    const item = await prisma.$transaction(async (tx) => {
+      const replay = await findOperationalReplay(tx, context.organizationId, auditKey);
+      if (replay) {
+        const existing = await tx.agentCatalogItem.findFirst({
+          where: {
+            id: replay.entityId,
+            organizationId: context.organizationId,
+            ...(context.role === "AGENT" ? { agentId: context.agentId } : {}),
+          },
+        });
+        // A replay whose entity belongs to another agent is a permanent ownership refusal,
+        // not an infrastructure failure. Returning null yields 404, matching PATCH and
+        // DELETE; throwing here produced a 503 that an automated retry would chase forever.
+        return existing;
+      }
+      const created = await tx.agentCatalogItem.create({
+        data: {
+          agentId: context.agentId,
+          organizationId: context.organizationId,
+          name,
+          category,
+          clientPrice,
+          costPrice: costPrice ?? 0,
+          description,
+          imageData,
+          priceState: "KNOWN",
+          costState: costPrice === null ? "UNKNOWN" : "KNOWN",
+        },
+      });
+      await tx.catalogItemRevision.create({
+        data: {
+          catalogItemId: created.id,
+          organizationId: context.organizationId,
+          version: 1,
+          name,
+          description,
+          priceState: "KNOWN",
+          clientUnitPrice: clientPrice * 100,
+          costState: costPrice === null ? "UNKNOWN" : "KNOWN",
+          unitCost: costPrice === null ? null : costPrice * 100,
+          availability: "AVAILABLE",
+          scenarioCompatibility: ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"],
+        },
+      });
+      await appendOperationalAudit(tx, context, {
+        entityType: "catalog_item",
+        entityId: created.id,
+        action: "catalog.item_created",
+        before: {},
+        after: {
+          version: 1,
+          priceState: "KNOWN",
+          costState: costPrice === null ? "UNKNOWN" : "KNOWN",
+          availability: "AVAILABLE",
+        },
+        correlationId,
+        idempotencyKey: auditKey,
+        result: { itemId: created.id, version: 1 },
+      });
+      return created;
     });
+    // A replay whose entity belongs to another agent, or whose item was since deleted,
+    // resolves to null. Without this the handler answered 201 with {"item": null} — an
+    // empty-success response, which the mission's own security contract forbids.
+    if (!item) return NextResponse.json({ error: "Не найдено" }, { status: 404 });
     return NextResponse.json({ item }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "БД недоступна (выполните prisma db push)" }, { status: 503 });
+  } catch (error) {
+    const status = error instanceof Error && "status" in error ? Number(error.status) : 503;
+    return NextResponse.json(
+      { error: status === 503 ? "Не удалось сохранить товар. Данные не изменены." : "Недостаточно прав" },
+      { status },
+    );
   }
 }

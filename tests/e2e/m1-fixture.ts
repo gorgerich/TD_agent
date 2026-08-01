@@ -1,4 +1,11 @@
 import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
+import {
+  assertIsolatedUatFingerprint,
+  assertOnlyRecognisedSyntheticData,
+  censusOfTarget,
+  m1UatNamespace,
+  m2UatNamespace,
+} from "./uatFixtureGuard";
 import { inspectDirectMigrationUrl, assertExpectedMigrationTarget } from "../../lib/migrationTarget";
 import { hashPassword } from "../../lib/password";
 import { transitionCase } from "../../lib/caseService";
@@ -7,6 +14,7 @@ import { assignTask, createTask, waitTask } from "../../lib/taskService";
 import { ensurePastMeetingEscalations } from "../../lib/operationsProjection";
 import { reconcileOperations } from "../../lib/operationsReconciliation";
 import type { OperationalContext } from "../../lib/operationalAuth";
+import { persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const command = process.argv[2];
 const runId = (process.env.M1_UAT_RUN_ID ?? "mission-1").replace(/[^a-z0-9-]/gi, "-").toLowerCase();
@@ -59,15 +67,19 @@ async function verifyTargetIdentity() {
   if (identity.length !== 1 || identity[0].database !== target.database || identity[0].readOnly !== "off") {
     throw new Error("M1 UAT target identity is not writable or does not match its reviewed endpoint");
   }
-  const [foreignOrganizations, users, agents, leads, cases] = await Promise.all([
-    db.organization.count({ where: { id: { not: organizationId } } }),
-    db.user.count({ where: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } }),
-    db.agent.count({ where: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } }),
-    db.clientLead.count({ where: { agent: { user: { email: { notIn: [agentEmail, assignedAgentEmail, managerEmail] } } } } }),
-    db.case.count({ where: { tenantId: { not: organizationId } } }),
-  ]);
-  if (!isLocalTarget(directUrl) && foreignOrganizations + users + agents + leads + cases > 0) {
-    throw new Error("Remote M1 UAT target is not an empty isolated database");
+  if (!isLocalTarget(directUrl)) {
+    assertIsolatedUatFingerprint(target.fingerprint, {
+      expected: process.env.EXPECTED_DATABASE_FINGERPRINT,
+      production: productionFingerprint,
+      label: "M1 UAT",
+    });
+    // Empty, or holding only this mission's own synthetic rows — nothing else. The M2
+    // sibling fixture is admissible so both can share one isolated UAT database; any row
+    // outside those exact namespaces refuses the run.
+    const allowed = [m1UatNamespace(runId)];
+    const siblingRunId = process.env.M2_UAT_RUN_ID;
+    if (siblingRunId) allowed.push(m2UatNamespace(siblingRunId));
+    assertOnlyRecognisedSyntheticData(await censusOfTarget(db), allowed, "M1 UAT");
   }
 }
 
@@ -274,6 +286,10 @@ async function cleanup() {
     const leadIds = cases.map((row) => row.leadId);
     const meetings = await db.meeting.findMany({ where: { organizationId }, select: { id: true } });
     const meetingIds = meetings.map((row) => row.id);
+    const quotes = meetingIds.length
+      ? await db.quote.findMany({ where: { meetingId: { in: meetingIds } }, select: { id: true } })
+      : [];
+    const quoteIds = quotes.map((row) => row.id);
 
     if (caseIds.length) await db.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
     await db.operationalAuditEvent.deleteMany({ where: { organizationId } });
@@ -281,8 +297,39 @@ async function cleanup() {
     await db.savedOperationalView.deleteMany({ where: { organizationId } });
     await db.organizationInvite.deleteMany({ where: { organizationId } });
     await db.task.deleteMany({ where: { organizationId } });
+    if (isLocalTarget(directUrl)) {
+      const localIps = ["unknown", "127.0.0.1", "::1"];
+      const commercialBuckets = ["commercial-client-view", "commercial-client-decision"];
+      await db.securityRateLimitBucket.deleteMany({
+        where: {
+          keyHash: {
+            in: commercialBuckets.flatMap((bucket) =>
+              localIps.map((ip) => persistentRateLimitKey(bucket, ip))),
+          },
+        },
+      });
+    }
+    if (membershipIds.length) {
+      await db.quoteClientLink.deleteMany({ where: { createdByMembershipId: { in: membershipIds } } });
+      await db.quotePresentationSession.deleteMany({ where: { ownerMembershipId: { in: membershipIds } } });
+    }
     if (caseIds.length) await db.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
     if (meetingIds.length) await db.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
+    if (quoteIds.length) {
+      await db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+        await tx.quote.updateMany({
+          where: { id: { in: quoteIds } },
+          data: { activeDraftVersionId: null, latestPublishedVersionId: null },
+        });
+        await tx.quotePresentationSession.deleteMany({ where: { quoteId: { in: quoteIds } } });
+        await tx.quoteClientDecision.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+        await tx.quoteClientLink.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+        await tx.quoteLineItem.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+        await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+        await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
+      });
+    }
     if (meetingIds.length) await db.meeting.deleteMany({ where: { id: { in: meetingIds } } });
     if (caseIds.length) await db.case.deleteMany({ where: { id: { in: caseIds } } });
     if (leadIds.length) {

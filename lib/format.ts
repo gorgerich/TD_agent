@@ -1,3 +1,4 @@
+import { formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 // Единые форматтеры для всей платформы. Один источник правды —
 // деньги/даты/телефон выглядят одинаково на агенте и у клиента.
 
@@ -21,8 +22,16 @@ export function money(rubles: number | null | undefined): string {
 }
 
 /** Копейки → рубли строкой. Для значений из БД (хранятся в копейках). */
+/**
+ * Render a stored minor-unit amount exactly. Going through money() rounds to whole rubles,
+ * which makes the registry disagree with the client view and the builder for the same
+ * published version. Kopecks are shown only when they exist.
+ */
 export function moneyFromKopecks(kopecks: number | null | undefined): string {
-  return money((kopecks ?? 0) / 100);
+  // Delegate, do not reimplement. Two hand-rolled formatters drifted on the group separator
+  // (U+00A0 vs U+0020) and the minus sign, so the registry and the client view rendered the
+  // same amount as different strings.
+  return formatMinorUnitsCurrency(kopecks ?? 0);
 }
 
 type DateInput = Date | string | number | null | undefined;

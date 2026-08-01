@@ -89,7 +89,35 @@ test("quote: save requires auth (401) and ownership (404)", opts, async () => {
     }),
   );
   const meeting = (await mRes.json()) as { id: number };
+  const meetingRow = await db.meeting.findUniqueOrThrow({ where: { id: meeting.id }, select: { caseId: true } });
+  await db.case.update({
+    where: { id: meetingRow.caseId },
+    data: { stage: "QUOTING", scenarioId: "CREMATION_V1" },
+  });
   const params = { params: Promise.resolve({ meetingId: String(meeting.id) }) };
+  const canonicalBody = {
+    scenario: "CREMATION_V1",
+    lines: [{
+      stableKey: "legacy-auth-test",
+      position: 0,
+      type: "SERVICE",
+      serviceCode: "legacy-auth-test",
+      description: "Тестовая услуга",
+      quantity: 1,
+      unit: "услуга",
+      priceState: "KNOWN",
+      clientUnitPrice: 2500,
+      costState: "UNKNOWN",
+      unitCost: null,
+      discountAmount: 0,
+      included: false,
+      optional: false,
+      relationKind: "STANDALONE",
+      source: "integration",
+      sourceVersion: "1",
+      scenarioCompatibility: ["CREMATION_V1"],
+    }],
+  };
 
   // no cookie → 401
   const noAuth = await quotePost(makeRequest(`/api/agent/meeting/${meeting.id}/quote`, { method: "POST", body: { payload: {}, total: 1000 } }), params);
@@ -111,7 +139,8 @@ test("quote: save requires auth (401) and ownership (404)", opts, async () => {
     makeRequest(`/api/agent/meeting/${meeting.id}/quote`, {
       method: "POST",
       cookie: await sessionCookieHeader(a.userId, a.agentId),
-      body: { payload: { x: 1 }, total: 2500 },
+      headers: { "idempotency-key": "it:quote:save", "x-correlation-id": "it:quote:save" },
+      body: canonicalBody,
     }),
     params,
   );

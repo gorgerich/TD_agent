@@ -46,7 +46,7 @@ export async function projectCaseEventInTransaction(
     affectedTaskIds.push(...tasks.map((task) => task.id));
   }
 
-  if (input.eventType === "quote.published.v1") {
+  if (input.eventType === "quote.published.v1" || input.eventType === "quote.republished.v1") {
     const task = await tx.task.findFirst({
       where: {
         organizationId: context.organizationId,

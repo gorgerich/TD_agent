@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowSquareOut, Briefcase, CalendarBlank, FileText } from "@phosphor-icons/react/dist/ssr";
+import { ArrowLeft, Briefcase, CalendarBlank, FileText } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses } from "@/components/ui/Button";
 import MeetingActions from "./MeetingActions";
-import CopyCodeButton from "./CopyCodeButton";
 
 async function getMeeting(meetingId: number, session: AgentSession) {
   return prisma.meeting.findFirst({
@@ -69,7 +68,6 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
   const meeting = await getMeeting(parsedMeetingId, session);
   if (!meeting) notFound();
 
-  const cobrowseCode = meeting.cobrowseCode ?? `DEV-${meeting.id}`;
   const lastVersion = meeting.quotes[0]?.versions[0];
   const statusLabel = STATUS_LABELS[meeting.operationalStatus] ?? meeting.operationalStatus;
   const terminal = ["COMPLETED", "NO_SHOW", "CANCELLED"].includes(meeting.operationalStatus);
@@ -126,10 +124,9 @@ export default async function MeetingDetailPage({ params }: { params: Promise<{ 
           <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses({ variant: "secondary", size: "sm" })}>
             <FileText size={15} weight="bold" /> Смета{lastVersion ? " · есть версия" : ""}
           </Link>
-          <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={buttonClasses({ variant: "ghost", size: "sm" })}>
-            <ArrowSquareOut size={15} weight="bold" /> Показ клиенту
-          </a>
-          <CopyCodeButton code={cobrowseCode} />
+          <Link href={`/agent/meetings/${meeting.id}/quote`} className={buttonClasses({ variant: "ghost", size: "sm" })}>
+            Подготовить публикацию
+          </Link>
         </div>
       </section>
 

@@ -39,9 +39,24 @@ export function rateLimit(key: string, limit: number, windowMs: number): RateRes
 
 /** Клиентский IP из заголовков прокси (Vercel ставит x-forwarded-for). */
 export function clientIp(req: Request): string {
+  // Hop headers are only trustworthy behind a proxy that overwrites them — true on the
+  // Vercel deployment, false for a bare `next start`. Collapsing to one shared bucket when
+  // that cannot be proven was tried and rejected: it throttles unrelated tenants against
+  // each other. The residual exposure is recorded as an accepted P2 in the M2 evidence —
+  // it predates this mission, and token entropy keeps it to abuse of an already-known link
+  // rather than discovery.
+  // x-forwarded-for is a caller-appendable list, and taking its LEFTMOST entry let any
+  // client choose its own rate-limit bucket — which matters now that the public
+  // client-link routes sit behind this limiter. Fall back to the RIGHTMOST forwarded hop,
+  // which is the one the closest trusted proxy appended.
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
   const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0].trim();
-  return req.headers.get("x-real-ip") ?? "unknown";
+  if (xff) {
+    const hops = xff.split(",").map((hop) => hop.trim()).filter(Boolean);
+    if (hops.length > 0) return hops[hops.length - 1];
+  }
+  return "unknown";
 }
 
 /**

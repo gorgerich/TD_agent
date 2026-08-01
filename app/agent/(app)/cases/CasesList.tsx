@@ -12,7 +12,6 @@ export type CaseRowView = {
   name: string;
   phone: string;
   bucket: Bucket;
-  cobrowse: string | null;
   firstMeetingId: number | null;
   nextAction: string;
   statusLabel: string;
@@ -132,7 +131,7 @@ function CaseRowItem({ c }: { c: CaseRowView }) {
             {c.ceremonyLabel && !c.ceremonySoon ? `церемония ${c.ceremonyLabel}` : c.statusLabel}
           </span>
         </Link>
-        <CaseRowActions caseId={c.id} phone={c.phone} cobrowse={c.cobrowse} firstMeetingId={c.firstMeetingId} />
+        <CaseRowActions caseId={c.id} phone={c.phone} firstMeetingId={c.firstMeetingId} />
       </div>
     </li>
   );

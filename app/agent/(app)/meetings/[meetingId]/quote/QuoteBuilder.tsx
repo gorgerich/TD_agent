@@ -29,11 +29,10 @@ import {
   updateEstimateItemClientPrice,
   estimateItemsToMarginInputs,
   externalExpensesToMarginInputs,
-  toPublicEstimateItems,
-  toPublicExternalExpenses,
   createExternalExpense,
   createEstimateSnapshot,
   formatCurrency,
+  formatMinorUnitsCurrency,
   PRICES,
   PACKAGES,
   ADDITIONAL_SERVICES,
@@ -47,6 +46,8 @@ import {
   DEFAULT_CALCULATOR_CONFIG,
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
+import { buildCommercialDraftLines, commercialScenarioFromForm } from "@/lib/commercialDraftAdapter";
+import { calculateCommercialTotals } from "@/lib/commercialQuote";
 import { hydratePackage, withoutPackageItems, PACKAGE_ITEM_SOURCE } from "@/lib/packagePresets";
 import { formatDelta } from "@/lib/calculationUtils";
 import AttributeRender from "@/components/AttributeRender";
@@ -62,7 +63,6 @@ import { SnapshotBlock } from "./components/SnapshotBlock";
 
 interface Props {
   meetingId: number;
-  cobrowseCode: string | null;
   clientName: string;
   caseId?: number;
 }
@@ -105,12 +105,11 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
 
 /* ─── Main component ─────────────────────────────────────────────────── */
 
-export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, caseId }: Props) {
+export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   const [form, setForm] = useState<FormData>(DEFAULT_FORM);
   const [cemeteryCategory, setCemeteryCategory] = useState("standard");
   const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
   const [saving, setSaving] = useState(false);
-  const [savedCount, setSavedCount] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -137,6 +136,24 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const [baseline, setBaseline] = useState<{ id: string; name: string; price: number } | null>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [calculatorTab, setCalculatorTab] = useState<CalculatorTab>("composition");
+  const [quoteId, setQuoteId] = useState<number | null>(null);
+  const [commercialStatus, setCommercialStatus] = useState("DRAFT");
+  const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
+  const [reviewResult, setReviewResult] = useState<{
+    blockers: string[];
+    warnings: string[];
+    total: number | null;
+    added: number;
+    removed: number;
+    changed: number;
+    totalDelta: number | null;
+  } | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [clientLink, setClientLink] = useState<string | null>(null);
+  const [quoteHydrated, setQuoteHydrated] = useState(false);
+  const [canonicalTotalMinor, setCanonicalTotalMinor] = useState<number | null>(null);
+  const [lastAutosavedState, setLastAutosavedState] = useState<string | null>(null);
+  const autosaveHandler = useRef<(options?: { quiet?: boolean }) => Promise<number | null>>(async () => null);
 
   const stepIndex = STEPS.findIndex((item) => item.id === step);
   const activeStep = STEPS[stepIndex] ?? STEPS[0];
@@ -168,7 +185,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     [result.sections],
   );
   const calculatorLineCount = baseLineCount + estimateItems.length + externalExpenses.length;
-  const calculatorVersionLabel = savedCount > 0 ? `v${savedCount}` : "черновик";
+  const calculatorVersionLabel = publishedVersion ? `после v${publishedVersion}` : "черновик";
   const isCremation = form.serviceType === "cremation";
   // «Урны» — только при кремации.
   const visibleCategories = useMemo(
@@ -179,14 +196,31 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
   const activeCategory: CatalogCategory = visibleCategories.includes(catalogCategory) ? catalogCategory : "Гробы";
   // Собственные товары агента (свой каталог, авто-вырез фона) — как CatalogItem.
   const [customCatalog, setCustomCatalog] = useState<CatalogItem[]>([]);
+  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     fetch("/api/agent/catalog")
-      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) throw new Error(body.error ?? "Каталог временно недоступен");
+        return body;
+      })
       .then((d) => {
         if (!active) return;
         const mapped: CatalogItem[] = (d.items ?? []).map(
-          (it: { id: string; name: string; category: string; description?: string; imageData: string; clientPrice: number; costPrice: number }) => ({
+          (it: {
+            id: string;
+            name: string;
+            category: string;
+            description?: string;
+            imageData: string;
+            clientPrice: number;
+            costPrice: number;
+            priceState: CatalogItem["priceState"];
+            costState: CatalogItem["costState"];
+            currentRevisionId: string | null;
+            sourceVersion: string;
+          }) => ({
             id: `custom-${it.id}`,
             name: it.name,
             category: it.category as CatalogCategory,
@@ -194,14 +228,21 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             imageUrl: it.imageData,
             imagePlaceholder: "🕊️",
             clientPrice: it.clientPrice,
-            costPrice: it.costPrice ?? 0,
+            costPrice: it.costPrice,
+            priceState: it.priceState,
+            costState: it.costState,
+            catalogRevisionId: it.currentRevisionId,
+            sourceVersion: it.sourceVersion,
             quantityDefault: 1,
             tags: ["Мой товар"],
           }),
         );
         setCustomCatalog(mapped);
+        setCatalogLoadError(null);
       })
-      .catch(() => setCustomCatalog([]));
+      .catch((cause: unknown) => {
+        if (active) setCatalogLoadError(cause instanceof Error ? cause.message : "Каталог временно недоступен");
+      });
     return () => {
       active = false;
     };
@@ -247,6 +288,33 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     ];
   }, [result.sections, estimateItems, externalExpenses]);
   const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
+  const commercialTotals = useMemo(() => {
+    const scenario = commercialScenarioFromForm(form);
+    const lines = buildCommercialDraftLines({ result, estimateItems, externalExpenses, scenario });
+    return calculateCommercialTotals(lines, scenario);
+  }, [externalExpenses, form, estimateItems, result]);
+  const editorStateJson = useMemo(
+    () => JSON.stringify({ form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData }),
+    [attributes, cemeteryCategory, estimateItems, externalExpenses, form, memorialData],
+  );
+  const hasLocalChanges = quoteHydrated && editorStateJson !== lastAutosavedState;
+  /**
+   * The headline the agent reads aloud to a family must never be a number the domain
+   * refuses to total. `grandTotal` is legacy editor arithmetic that sums clientPrice with
+   * no regard for priceState, so an item whose price was only REQUESTED still carries its
+   * stale value there. Gate the headline on the canonical state instead, and render the
+   * blockers rather than a confident figure.
+   */
+  const visibleGrandTotalMinor =
+    commercialTotals.totalState === "KNOWN" && commercialTotals.total !== null
+      ? (canonicalTotalMinor !== null && !hasLocalChanges ? canonicalTotalMinor : commercialTotals.total)
+      : null;
+  // Render from minor units, never from a rounded ruble figure: the client view states the
+  // same number and the two must not disagree by a rounding step.
+  const headlineTotal = visibleGrandTotalMinor !== null
+    ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
+    : "Цена требует уточнения";
+  const hasUnknownCosts = commercialTotals.costTotal === null;
   const budgetStatus = useMemo(
     () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
     [economics.orderClientTotal, form.clientBudget],
@@ -259,7 +327,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     return null;
   }, [economics.items]);
   const marginWarning =
-    economics.orderMarginRub < 0 || itemMarginAlert === "negative"
+    hasUnknownCosts
+      ? "Себестоимость не подтверждена. Маржа не рассчитывается."
+      : economics.orderMarginRub < 0 || itemMarginAlert === "negative"
       ? "Внимание: цена ниже себестоимости"
       : economics.orderMarginPercent < 5 || itemMarginAlert === "critical"
         ? "Критически низкая маржа: сделка почти без прибыли"
@@ -313,9 +383,83 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           ...MO_CEMETERIES,
         ];
 
-  // Co-work sync: атрибутика теперь ведётся через сметные позиции, старый
-  // attributes payload сохраняем только для совместимости с ранними сессиями.
-  const attrJson = JSON.stringify(attributes);
+  useEffect(() => {
+    let active = true;
+    const emptyEditorState = {
+      form: DEFAULT_FORM,
+      cemeteryCategory: "standard",
+      attributes: DEFAULT_ATTRIBUTES,
+      estimateItems: [] as EstimateItem[],
+      externalExpenses: [] as ExternalExpense[],
+      memorialData: DEFAULT_MEMORIAL_DATA,
+    };
+    fetch(`/api/agent/meeting/${meetingId}/quote`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("quote-load-failed");
+        return response.json();
+      })
+      .then((data) => {
+        if (!active) return;
+        if (!data.quote) {
+          setLastAutosavedState(JSON.stringify(emptyEditorState));
+          return;
+        }
+        const canonicalEditorState = {
+          ...emptyEditorState,
+          form: {
+            ...emptyEditorState.form,
+            serviceType: data.quote.scenario === "CREMATION_V1" ? "cremation" : "burial",
+          } satisfies FormData,
+        };
+        setQuoteId(data.quote.quoteId);
+        setCommercialStatus(data.quote.status);
+        setPublishedVersion(data.quote.published?.versionNumber ?? null);
+        // An unpriced draft has total === null. Falling through to the published total
+        // would show the family the previous version's figure for the draft in front of us.
+        setCanonicalTotalMinor(data.quote.draft ? data.quote.draft.total : (data.quote.published?.total ?? null));
+        const editor = data.quote.draft?.editorState ?? data.quote.published?.editorState;
+        if (!editor || typeof editor !== "object" || Array.isArray(editor)) {
+          setForm(canonicalEditorState.form);
+          setLastAutosavedState(JSON.stringify(canonicalEditorState));
+          return;
+        }
+        const state = editor as {
+          form?: FormData;
+          cemeteryCategory?: string;
+          attributes?: AttrSelection;
+          estimateItems?: EstimateItem[];
+          externalExpenses?: ExternalExpense[];
+          memorialData?: MemorialData;
+        };
+        const hydrated = {
+          form: state.form ?? canonicalEditorState.form,
+          cemeteryCategory: state.cemeteryCategory ?? canonicalEditorState.cemeteryCategory,
+          attributes: state.attributes ?? canonicalEditorState.attributes,
+          estimateItems: Array.isArray(state.estimateItems) ? state.estimateItems : canonicalEditorState.estimateItems,
+          externalExpenses: Array.isArray(state.externalExpenses) ? state.externalExpenses : canonicalEditorState.externalExpenses,
+          memorialData: state.memorialData ?? canonicalEditorState.memorialData,
+        };
+        setForm(hydrated.form);
+        setCemeteryCategory(hydrated.cemeteryCategory);
+        setAttributes(hydrated.attributes);
+        setEstimateItems(hydrated.estimateItems);
+        setExternalExpenses(hydrated.externalExpenses);
+        setMemorialData(hydrated.memorialData);
+        setLastAutosavedState(JSON.stringify(hydrated));
+      })
+      .catch(() => {
+        if (active) {
+          setLastAutosavedState(JSON.stringify(emptyEditorState));
+          setSaveError("Не удалось загрузить сохранённый черновик. Обновите страницу или повторите попытку.");
+        }
+      })
+      .finally(() => {
+        if (active) setQuoteHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [meetingId]);
 
   useEffect(() => {
     if (!calculatorOpen) return;
@@ -325,43 +469,6 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [calculatorOpen]);
-
-  // Push: общее состояние (форма + атрибутика) через 400мс после изменения.
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetch(`/api/agent/meeting/${meetingId}/session`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          form,
-          cemeteryCategory,
-          attributes,
-          estimateItems: toPublicEstimateItems(estimateItems),
-          externalExpenses: toPublicExternalExpenses(externalExpenses),
-        }),
-      }).catch(() => {});
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [form, cemeteryCategory, attributes, estimateItems, externalExpenses, meetingId]);
-
-  // Poll: оставлен только для совместимости со старыми co-view сессиями.
-  useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/agent/meeting/${meetingId}/session`, { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        const remote = data?.state?.attributes;
-        if (!remote) return;
-        if (JSON.stringify(remote) !== attrJson) {
-          setAttributes(remote);
-        }
-      } catch { /* ignore */ }
-    }, 2500);
-    return () => clearInterval(id);
-  }, [meetingId, attrJson]);
 
   function setField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -428,6 +535,34 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
         ? current.map((e) => (e.catalogItemId === item.id ? { ...e, selectedColor: color } : e))
         : current,
     );
+  }
+
+  async function requestCatalogPrice(item: CatalogItem) {
+    if (!item.id.startsWith("custom-") || item.priceState === "REQUESTED") return;
+    const requestId = crypto.randomUUID();
+    try {
+      const response = await fetch(`/api/agent/catalog/${item.id.slice("custom-".length)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
+        body: JSON.stringify({ action: "REQUEST_PRICE" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Не удалось запросить цену");
+      setCustomCatalog((current) =>
+        current.map((entry) =>
+          entry.id === item.id
+            ? { ...entry, priceState: "REQUESTED", sourceVersion: body.item?.sourceVersion ?? entry.sourceVersion }
+            : entry,
+        ),
+      );
+      toast({ type: "success", message: "Запрос цены зафиксирован" });
+    } catch (cause) {
+      toast({ type: "error", message: cause instanceof Error ? cause.message : "Не удалось запросить цену" });
+    }
   }
 
   // Синхронизация подборки из маркетплейса (другая вкладка / эта вкладка).
@@ -567,47 +702,190 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
     setOpenSnapshotId((current) => (current === id ? null : current));
   }
 
-  function copyCode() {
-    if (!cobrowseCode) return;
-    navigator.clipboard.writeText(cobrowseCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
   function copyClientLink() {
-    if (!cobrowseCode || typeof window === "undefined") return;
-    navigator.clipboard.writeText(`${window.location.origin}/co/${cobrowseCode}`).then(() => {
+    if (!clientLink || typeof window === "undefined") return;
+    navigator.clipboard.writeText(clientLink).then(() => {
       setCopied(true);
       toast({ type: "success", message: "Ссылка скопирована" });
       setTimeout(() => setCopied(false), 2000);
     });
   }
 
-  async function saveVersion() {
+  async function saveVersion(options: { quiet?: boolean } = {}): Promise<number | null> {
     setSaving(true);
     setSaveError(null);
     try {
+      const requestId = crypto.randomUUID();
+      const scenario = commercialScenarioFromForm(form);
+      const lines = buildCommercialDraftLines({ result, estimateItems, externalExpenses, scenario });
       const res = await fetch(`/api/agent/meeting/${meetingId}/quote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payload: { form, attributes, estimateItems }, total: grandTotal }),
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
+        body: JSON.stringify({
+          scenario,
+          lines,
+          editorState: { form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData },
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const msg = data.error ?? "Не удалось сохранить смету. Попробуйте ещё раз.";
         setSaveError(msg);
         toast({ type: "error", message: msg });
+        return null;
       } else {
+        const data = await res.json();
+        setQuoteId(data.quoteId);
+        setCommercialStatus(data.status);
+        setReviewResult({
+          blockers: data.totals?.blockers ?? [],
+          warnings: data.totals?.warnings ?? [],
+          total: data.totals?.total ?? null,
+          added: 0,
+          removed: 0,
+          changed: 0,
+          totalDelta: null,
+        });
+        setCanonicalTotalMinor(data.totals?.total ?? null);
         setSavedAt(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
-        setSavedCount((n) => n + 1);
-        toast({ type: "success", message: "Смета сохранена" });
+        setLastAutosavedState(editorStateJson);
+        if (!options.quiet) toast({ type: "success", message: "Черновик сохранён" });
+        return data.quoteId as number;
       }
     } catch {
       setSaveError("Нет связи. Проверьте интернет и попробуйте снова.");
       toast({ type: "error", message: "Нет связи — смета не сохранена. Проверьте интернет." });
+      return null;
     } finally {
       setSaving(false);
+    }
+  }
+  useEffect(() => {
+    autosaveHandler.current = saveVersion;
+  });
+
+  useEffect(() => {
+    if (!quoteHydrated || editorStateJson === lastAutosavedState) return;
+    const timer = window.setTimeout(() => {
+      void autosaveHandler.current({ quiet: true });
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [editorStateJson, lastAutosavedState, quoteHydrated]);
+
+  async function startReview() {
+    const activeQuoteId = await saveVersion();
+    if (!activeQuoteId) return;
+    setPublishing(true);
+    const requestId = crypto.randomUUID();
+    try {
+      const response = await fetch(`/api/agent/quotes/${activeQuoteId}/review`, {
+        method: "POST",
+        headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Не удалось подготовить проверку");
+      setCommercialStatus(data.status);
+      setReviewResult({
+        blockers: data.totals?.blockers ?? [],
+        warnings: data.totals?.warnings ?? [],
+        total: data.totals?.total ?? null,
+        added: data.diff?.added?.length ?? 0,
+        removed: data.diff?.removed?.length ?? 0,
+        changed: data.diff?.changed?.length ?? 0,
+        totalDelta: data.totalDelta ?? null,
+      });
+      setCalculatorOpen(true);
+      setCalculatorTab("actions");
+    } catch (error) {
+      toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось подготовить проверку" });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function publishQuote() {
+    if (!quoteId) return;
+    setPublishing(true);
+    const requestId = crypto.randomUUID();
+    try {
+      const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const response = await fetch(`/api/agent/quotes/${quoteId}/publish`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
+        body: JSON.stringify({
+          validUntil: validUntil.toISOString(),
+          channel: "link",
+          reason: "Передача семье после проверки состава и цен",
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Публикация не выполнена");
+      setCommercialStatus(data.status);
+      setPublishedVersion(data.versionNumber);
+      setCanonicalTotalMinor(data.total);
+      setReviewResult(null);
+      toast({ type: "success", message: `Опубликована версия ${data.versionNumber}` });
+    } catch (error) {
+      toast({ type: "error", message: error instanceof Error ? error.message : "Публикация не выполнена" });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function createClientLink() {
+    if (!quoteId) return;
+    setPublishing(true);
+    const requestId = crypto.randomUUID();
+    try {
+      const response = await fetch(`/api/agent/quotes/${quoteId}/link`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestId,
+          "X-Correlation-Id": requestId,
+        },
+        body: JSON.stringify({ expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Ссылка не создана");
+      const url = `${window.location.origin}/co/${data.token}`;
+      setClientLink(url);
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast({ type: "success", message: "Защищённая ссылка скопирована" });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({ type: "error", message: error instanceof Error ? error.message : "Ссылка не создана" });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  async function startPresentation() {
+    const activeQuoteId = await saveVersion();
+    if (!activeQuoteId) return;
+    setPublishing(true);
+    const requestId = crypto.randomUUID();
+    try {
+      const response = await fetch(`/api/agent/quotes/${activeQuoteId}/presentation`, {
+        method: "POST",
+        headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Не удалось начать показ");
+      window.open(`/agent/presentations/${data.presentationId}`, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось начать показ" });
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -650,20 +928,16 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           </div>
         </div>
         <div className={s.headerRight}>
-          {cobrowseCode && (
-            <button type="button" onClick={copyCode} className={s.headerCode} aria-label="Скопировать код клиента">
-              <span className={s.headerCodeLabel}>Код</span>
-              <span className={s.headerCodeValue}>
-                {cobrowseCode}
-                {copied && <span className={s.copiedBadge}>скопировано</span>}
-              </span>
-            </button>
-          )}
-          {cobrowseCode && (
-            <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={s.showClientBtn}>
-              Показать клиенту
-            </a>
-          )}
+          <span className={s.headerCode} aria-live="polite">
+            <span className={s.headerCodeLabel}>Статус</span>
+            <span className={s.headerCodeValue}>
+              {commercialStatus === "PUBLISHED" || commercialStatus === "ACCEPTED"
+                ? `Опубликована v${publishedVersion ?? 1}`
+                : commercialStatus === "IN_REVIEW"
+                  ? "На проверке"
+                  : "Черновик"}
+            </span>
+          </span>
         </div>
       </div>
 
@@ -677,7 +951,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
           {(planMode === "package" || baseline) && (
             <div className={s.planTotal}>
               <span>Итого</span>
-              <strong>{formatCurrency(grandTotal)}</strong>
+              <strong>{headlineTotal}</strong>
               {planMode === "custom" && baseline && baselineDelta !== 0 && (
                 <em className={baselineDelta > 0 ? s.deltaUp : s.deltaDown}>
                   {formatDelta(baselineDelta)} к тарифу
@@ -754,7 +1028,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             </div>
 
             <div className={s.planActions}>
-              <button type="button" className={s.planPrimary} onClick={saveVersion} disabled={saving}>
+              <button type="button" className={s.planPrimary} onClick={() => void saveVersion()} disabled={saving}>
                 {saving ? "Сохраняю…" : "Сохранить план"}
               </button>
               <button type="button" className={s.planSecondary} onClick={editPackageDetails}>
@@ -1107,6 +1381,11 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 </button>
               ))}
             </div>
+            {catalogLoadError && (
+              <div role="alert" className={s.inlineError}>
+                {catalogLoadError} Базовый каталог доступен, собственные позиции можно повторно загрузить позже.
+              </div>
+            )}
 
             {visibleCategories.map((cat) => {
               const items = filteredCatalogItems.filter((i) => i.category === cat);
@@ -1126,6 +1405,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                         selectedColor={getSelectedCatalogColor(item)}
                         onToggle={() => toggleCatalogItem(item)}
                         onColorChange={(color) => changeCatalogColor(item, color)}
+                        onRequestPrice={item.id.startsWith("custom-") ? () => void requestCatalogPrice(item) : undefined}
                       />
                     ))}
                   </div>
@@ -1175,7 +1455,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             )}
             <button type="button" className={s.stepTotal} onClick={() => setCalculatorOpen(true)}>
               <span>Шаг {stepIndex + 1} из {STEPS.length}</span>
-              <strong>{formatCurrency(grandTotal)}</strong>
+              <strong>{headlineTotal}</strong>
             </button>
             {nextStep ? (
               <button type="button" className={s.stepForward} onClick={() => goToStep(nextStep.id)}>
@@ -1185,7 +1465,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               <button
                 type="button"
                 className={`${s.stepForward} ${s.stepForwardDone}`}
-                onClick={saveVersion}
+                onClick={() => void saveVersion()}
                 disabled={saving}
               >
                 {saving ? "Сохраняю…" : "Готово - сохранить смету"}
@@ -1204,14 +1484,14 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
             aria-label="Открыть детали сметы"
           >
             <span className={s.mobileBarLabel}>Предварительно</span>
-            <span className={s.mobileBarAmount}>{formatCurrency(grandTotal)}</span>
+            <span className={s.mobileBarAmount} data-testid="quote-visible-total">{headlineTotal}</span>
             <span className={s.mobileBarMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
             <span className={`${s.mobileBarStatus} ${s[`mobileBarStatus_${calculatorStatus.tone}`]}`}>
               {calculatorStatus.text}
             </span>
             <span className={s.mobileBarMore}>Подробнее</span>
           </button>
-          <button type="button" className={s.mobileBarBtn} onClick={saveVersion} disabled={saving}>
+          <button type="button" className={s.mobileBarBtn} onClick={() => void saveVersion()} disabled={saving}>
             {saving ? "Сохраняю..." : "Сохранить"}
           </button>
         </div>
@@ -1232,7 +1512,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
               <div className={s.panelHero}>
                 <div>
                   <span className={s.panelHeroLabel}>Предварительно</span>
-                  <span className={s.panelHeroAmount}>{formatCurrency(grandTotal)}</span>
+                  <span className={s.panelHeroAmount}>{headlineTotal}</span>
                   <span className={s.panelHeroMeta}>{calculatorLineCount} услуг · {calculatorVersionLabel}</span>
                 </div>
                 <button type="button" className={s.sheetClose} onClick={() => setCalculatorOpen(false)} aria-label="Свернуть калькулятор">
@@ -1245,8 +1525,8 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 <span className={`${s.panelStatus} ${s[`panelStatus_${calculatorStatus.tone}`]}`}>
                   {calculatorStatus.text}
                 </span>
-                {savedCount > 0 && (
-                  <span className={s.panelVersions}>сохранено v{savedCount}</span>
+                {savedAt && (
+                  <span className={s.panelVersions}>сохранено в {savedAt}</span>
                 )}
               </div>
 
@@ -1326,15 +1606,18 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                     </div>
                     <div className={s.externalSummaryList}>
                       {externalExpenses.map((expense) => {
-                        const expenseMargin = calculateOrderEconomics([
-                          {
-                            name: expense.name,
-                            category: expense.category,
-                            clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
-                            costPrice: expense.includeInMarginCalculation ? expense.costPrice : 0,
-                            quantity: 1,
-                          },
-                        ]).items[0];
+                        const costKnown = expense.includeInMarginCalculation && expense.costPrice > 0;
+                        const expenseMargin = costKnown
+                          ? calculateOrderEconomics([
+                              {
+                                name: expense.name,
+                                category: expense.category,
+                                clientPrice: expense.includeInClientTotal ? expense.clientPrice : 0,
+                                costPrice: expense.costPrice,
+                                quantity: 1,
+                              },
+                            ]).items[0]
+                          : null;
                         return (
                           <div key={expense.id} className={s.externalSummaryItem}>
                             <div>
@@ -1347,7 +1630,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                                 {formatCurrency(expense.includeInClientTotal ? expense.clientPrice : 0)}
                               </span>
                               <span className={s.externalSummaryMeta}>
-                                с/с {formatCurrency(expense.includeInMarginCalculation ? expense.costPrice : 0)} · маржа {formatCurrency(expenseMargin?.marginRub ?? 0)}
+                                {costKnown && expenseMargin
+                                  ? `с/с ${formatCurrency(expense.costPrice)} · маржа ${formatCurrency(expenseMargin.marginRub)}`
+                                  : "Себестоимость не подтверждена"}
                               </span>
                             </div>
                           </div>
@@ -1368,6 +1653,7 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                   economics={economics}
                   marginItems={economics.items}
                   marginWarning={marginWarning}
+                  hasUnknownCosts={hasUnknownCosts}
                 />
               </div>
             )}
@@ -1392,41 +1678,93 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
 
             {calculatorTab === "actions" && (
               <div className={s.panelActions} data-tour="quote-summary">
-              <button
-                className={s.saveBtn}
-                onClick={saveVersion}
-                disabled={saving}
-              >
+                <button
+                  className={s.saveBtn}
+                  onClick={() => void saveVersion()}
+                  disabled={saving || publishing}
+                >
                   {saving ? "Сохраняю..." : "Сохранить черновик"}
-              </button>
-
-                <button type="button" className={s.secondaryActionBtn} onClick={fixSnapshot}>
-                  <Check size={15} weight="bold" /> Сохранить версию
+                </button>
+                <button type="button" className={s.secondaryActionBtn} onClick={startPresentation} disabled={saving || publishing}>
+                  <Eye size={15} weight="fill" /> Открыть режим презентации
                 </button>
 
-                {cobrowseCode && (
+                {(commercialStatus === "DRAFT" || commercialStatus === "REJECTED") && (
+                  <button type="button" className={s.secondaryActionBtn} onClick={startReview} disabled={saving || publishing}>
+                    <Eye size={15} weight="fill" /> Проверить перед публикацией
+                  </button>
+                )}
+
+                {/*
+                  Blockers used to appear only once the quote reached IN_REVIEW, so while
+                  editing the agent saw an unconfirmed total with no explanation of what was
+                  missing. Surface the live blockers next to the headline instead.
+                */}
+                {commercialStatus !== "IN_REVIEW" && commercialTotals.blockers.length > 0 && (
+                  <div className={s.commercialBlockers} aria-live="polite">
+                    <strong>Итог не подтверждён</strong>
+                    {commercialTotals.blockers.map((message) => <p key={message}>{message}</p>)}
+                  </div>
+                )}
+                {commercialStatus === "IN_REVIEW" && reviewResult && (
+                  <section className={s.commercialReview} aria-live="polite">
+                    <div className={s.commercialReviewHead}>
+                      <strong>Проверка публикации</strong>
+                      <span>{reviewResult.total == null ? "Итог не подтверждён" : formatMinorUnitsCurrency(reviewResult.total)}</span>
+                    </div>
+                    <div className={s.reviewDiff} aria-label="Изменения относительно опубликованной версии">
+                      <span>Добавлено: {reviewResult.added}</span>
+                      <span>Убрано: {reviewResult.removed}</span>
+                      <span>Изменено: {reviewResult.changed}</span>
+                      {reviewResult.totalDelta !== null && (
+                        <strong>Итог: {reviewResult.totalDelta >= 0 ? "+" : ""}{formatMinorUnitsCurrency(reviewResult.totalDelta)}</strong>
+                      )}
+                    </div>
+                    {reviewResult.blockers.length > 0 ? (
+                      <div className={s.commercialBlockers}>
+                        <strong>Публикация заблокирована</strong>
+                        {reviewResult.blockers.map((message) => <p key={message}>{message}</p>)}
+                      </div>
+                    ) : (
+                      <p className={s.commercialReady}>Состав и цены подтверждены. После публикации версия станет неизменяемой.</p>
+                    )}
+                    {reviewResult.warnings.map((message) => <p key={message} className={s.commercialWarning}>{message}</p>)}
+                    <button
+                      type="button"
+                      className={s.publishBtn}
+                      onClick={publishQuote}
+                      disabled={publishing || reviewResult.blockers.length > 0}
+                    >
+                      {publishing ? "Публикую..." : "Опубликовать версию"}
+                    </button>
+                  </section>
+                )}
+
+                {(commercialStatus === "PUBLISHED" || commercialStatus === "ACCEPTED") && (
                   <>
-                    <button type="button" className={s.secondaryActionBtn} onClick={copyClientLink}>
-                      <PaperPlaneTilt size={15} weight="duotone" /> Отправить клиенту
+                    <button type="button" className={s.secondaryActionBtn} onClick={createClientLink} disabled={publishing}>
+                      <PaperPlaneTilt size={15} weight="fill" /> Создать ссылку для семьи
                     </button>
-                    <button type="button" className={s.secondaryActionBtn} onClick={copyClientLink}>
-                      <Copy size={15} weight="duotone" /> Скопировать ссылку
-                    </button>
-                    <a href={`/co/${cobrowseCode}`} target="_blank" rel="noreferrer" className={s.secondaryActionLink}>
-                      <Eye size={15} weight="duotone" /> Показать клиенту
-                    </a>
+                    {clientLink && (
+                      <>
+                        <button type="button" className={s.secondaryActionBtn} onClick={copyClientLink}>
+                          <Copy size={15} weight="fill" /> {copied ? "Ссылка скопирована" : "Скопировать ссылку"}
+                        </button>
+                        <a href={clientLink} target="_blank" rel="noreferrer" className={s.secondaryActionLink}>
+                          <Eye size={15} weight="fill" /> Открыть клиентскую версию
+                        </a>
+                      </>
+                    )}
                   </>
                 )}
 
-              {savedAt && !saveError && (
-                <div className={s.savedMsg}>
-                  <Check size={14} weight="bold" />
-                  Сохранено в {savedAt}
-                </div>
-              )}
-              {saveError && (
-                <div className={s.errorMsg}>{saveError}</div>
-              )}
+                {savedAt && !saveError && (
+                  <div className={s.savedMsg}>
+                    <Check size={14} weight="bold" />
+                    Черновик сохранён в {savedAt}
+                  </div>
+                )}
+                {saveError && <div className={s.errorMsg}>{saveError}</div>}
               </div>
             )}
 
@@ -1438,9 +1776,9 @@ export default function QuoteBuilder({ meetingId, cobrowseCode, clientName, case
                 aria-label="Открыть состав сметы"
               >
                 <span>Итого</span>
-                <strong>{formatCurrency(grandTotal)}</strong>
+                <strong>{headlineTotal}</strong>
               </button>
-              <button type="button" className={s.sheetFooterSave} onClick={saveVersion} disabled={saving}>
+              <button type="button" className={s.sheetFooterSave} onClick={() => void saveVersion()} disabled={saving}>
                 {saving ? "Сохраняю..." : "Сохранить"}
               </button>
             </div>

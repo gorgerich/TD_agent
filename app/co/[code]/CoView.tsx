@@ -1,315 +1,243 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { CheckCircle, Phone } from "@phosphor-icons/react";
-import { useCountUp } from "@/lib/useCountUp";
-import {
-  calculateOrder,
-  calculateEstimateItemsTotal,
-  DEFAULT_CALCULATOR_CONFIG,
-  formatCurrency,
-  type FormData,
-  type CalculationResult,
-  type PublicEstimateItem,
-  type PublicExternalExpense,
-} from "@/lib/calculationUtils";
-import { DEFAULT_ATTRIBUTES, normalizeSelection, type AttrSelection } from "@/lib/attributes";
-import AttributeRender from "@/components/AttributeRender";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle, Phone, Printer } from "@phosphor-icons/react";
+import { formatMinorUnitsCurrency } from "@/lib/calculationUtils";
 import s from "./CoView.module.css";
 
-function formatTime(timestamp: number) {
-  return new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
-}
-
-function formatDate(timestamp: number) {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(timestamp));
-}
-
-type ApiResponse = {
-  state: {
-    form?: unknown;
-    cemeteryCategory?: string;
-    attributes?: unknown;
-    estimateItems?: PublicEstimateItem[];
-    externalExpenses?: PublicExternalExpense[];
-    _ts?: number;
-  } | null;
-  updatedAt: number | null;
-  isSnapshot?: boolean;
-  agentName?: string | null;
-  agentPhone?: string | null;
+type PublicLine = {
+  /** Server-settled: how this line relates to the stated total. */
+  settlement: "COUNTED" | "INCLUDED" | "REPLACED";
+  /** Server-settled amount this line contributes, in minor units; null when it contributes nothing. */
+  lineTotal: number | null;
+  stableKey: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  priceState: "KNOWN" | "UNKNOWN" | "REQUESTED" | "EXPIRED";
+  clientUnitPrice: number | null;
+  discountAmount: number;
+  included: boolean;
 };
 
-export default function CoView({ code }: { code: string }) {
-  const [attributes, setAttributes] = useState<AttrSelection>(DEFAULT_ATTRIBUTES);
-  const [estimateItems, setEstimateItems] = useState<PublicEstimateItem[]>([]);
-  const [externalExpenses, setExternalExpenses] = useState<PublicExternalExpense[]>([]);
-  const [result, setResult] = useState<CalculationResult | null>(null);
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const [started, setStarted] = useState(false);
-  const [checkedOnce, setCheckedOnce] = useState(false);
-  const [unavailable, setUnavailable] = useState(false);
-  const [isSnapshot, setIsSnapshot] = useState(false);
-  const [agentName, setAgentName] = useState<string | null>(null);
-  const [agentPhone, setAgentPhone] = useState<string | null>(null);
-  const [agreed, setAgreed] = useState(false);
-  const [agreeBusy, setAgreeBusy] = useState(false);
+type PublishedResponse = {
+  state: "PUBLISHED";
+  organizationName: string;
+  agentName: string | null;
+  agentPhone: string | null;
+  decision: "ACCEPTED" | "CHANGES_REQUESTED" | null;
+  version: {
+    id: number;
+    versionNumber: number;
+    publishedAt: string;
+    validUntil: string;
+    total: number;
+    currency: string;
+    snapshotChecksum: string;
+    lines: PublicLine[];
+  };
+};
 
-  async function agree() {
-    setAgreeBusy(true);
+type ViewState =
+  | { kind: "loading" }
+  | { kind: "published"; data: PublishedResponse }
+  | { kind: "expired" | "superseded" | "unavailable" | "error" };
+
+export default function CoView({ code }: { code: string }) {
+  const [view, setView] = useState<ViewState>({ kind: "loading" });
+  const [decision, setDecision] = useState<"ACCEPTED" | "CHANGES_REQUESTED" | null>(null);
+  const [comment, setComment] = useState("");
+  const [showChanges, setShowChanges] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const acceptKey = useRef(crypto.randomUUID());
+  const changesKey = useRef(crypto.randomUUID());
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/co/${code}`, { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 410) return { state: "EXPIRED" };
+        if (response.status === 409) return { state: "SUPERSEDED" };
+        if (response.status === 404) return { state: "UNAVAILABLE" };
+        if (!response.ok) throw new Error("load-failed");
+        return response.json();
+      })
+      .then((data) => {
+        if (!active) return;
+        if (data.state === "PUBLISHED") {
+          setView({ kind: "published", data });
+          setDecision(data.decision ?? null);
+        } else if (data.state === "EXPIRED") {
+          setView({ kind: "expired" });
+        } else if (data.state === "SUPERSEDED") {
+          setView({ kind: "superseded" });
+        } else {
+          setView({ kind: "unavailable" });
+        }
+      })
+      .catch(() => active && setView({ kind: "error" }));
+    return () => {
+      active = false;
+    };
+  }, [code]);
+
+  async function submitDecision(type: "ACCEPTED" | "CHANGES_REQUESTED") {
+    setBusy(true);
+    setActionError(null);
+    const idempotencyKey = type === "ACCEPTED" ? acceptKey.current : changesKey.current;
     try {
-      const response = await fetch(`/api/co/${code}/agree`, { method: "POST" });
-      if (response.ok) setAgreed(true);
-    } catch {
-      // Client can retry without losing context.
+      const response = await fetch(
+        type === "ACCEPTED" ? `/api/co/${code}/agree` : `/api/co/${code}/request-changes`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey,
+            "X-Correlation-Id": idempotencyKey,
+          },
+          body: type === "CHANGES_REQUESTED" ? JSON.stringify({ comment }) : undefined,
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Не удалось сохранить решение");
+      setDecision(type);
+      setShowChanges(false);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Не удалось сохранить решение");
     } finally {
-      setAgreeBusy(false);
+      setBusy(false);
     }
   }
 
-  const attrJson = JSON.stringify(attributes);
-
-  useEffect(() => {
-    let alive = true;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-    let inFlight = false;
-
-    async function poll() {
-      if (inFlight) return;
-      inFlight = true;
-      try {
-        const response = await fetch(`/api/co/${code}`, { cache: "no-store" });
-        if (!alive) return;
-        setCheckedOnce(true);
-        if (!response.ok) {
-          if (response.status === 404) {
-            setUnavailable(true);
-            if (intervalId) {
-              clearInterval(intervalId);
-              intervalId = null;
-            }
-          }
-          return;
-        }
-        const data: ApiResponse = await response.json();
-        const state = data.state;
-        if (!state) return;
-
-        setStarted(true);
-        if (data.updatedAt) setUpdatedAt(data.updatedAt);
-        setAgentName(data.agentName ?? null);
-        setAgentPhone(data.agentPhone ?? null);
-        if (data.isSnapshot) {
-          setIsSnapshot(true);
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-        }
-
-        if (state.form) {
-          setResult(calculateOrder(state.form as FormData, DEFAULT_CALCULATOR_CONFIG, state.cemeteryCategory ?? "standard"));
-        }
-        if (Array.isArray(state.estimateItems)) setEstimateItems(state.estimateItems);
-        if (Array.isArray(state.externalExpenses)) setExternalExpenses(state.externalExpenses);
-        if (state.attributes) {
-          const normalized = normalizeSelection(state.attributes);
-          setAttributes((current) => (JSON.stringify(current) === JSON.stringify(normalized) ? current : normalized));
-        }
-      } catch {
-        // Polling resumes on next interval.
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    poll();
-    intervalId = setInterval(poll, 700);
-    return () => {
-      alive = false;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [code, attrJson]);
-
-  const estimateTotal = calculateEstimateItemsTotal(estimateItems);
-  const externalTotal = externalExpenses.reduce((sum, expense) => sum + expense.clientPrice, 0);
-  const grandTotal = (result?.total ?? 0) + estimateTotal + externalTotal;
-  const animatedTotal = useCountUp(grandTotal);
-  const sections = result?.sections.filter((section) => section.total > 0) ?? [];
-  const hasItems = sections.length > 0 || estimateItems.length > 0 || externalExpenses.length > 0;
-
-  if (!started) {
+  if (view.kind === "loading") {
     return (
       <div className={s.loading} aria-live="polite">
-        <span className={s.loadingMark} aria-hidden="true"><span /></span>
-        <h2>{unavailable ? "Ссылка недоступна" : checkedOnce ? "Смета ещё не отправлена" : "Готовим смету"}</h2>
-        <p>
-          {unavailable
-            ? "Попросите агента прислать актуальную ссылку на смету."
-            : checkedOnce
-            ? "Агент откроет или сохранит смету, и она появится здесь автоматически."
-            : "Страница обновится сама, когда агент начнёт собирать вариант."}
-        </p>
+        <h2>Открываем опубликованную смету</h2>
+        <p>Проверяем версию и срок действия ссылки.</p>
       </div>
     );
   }
 
+  if (view.kind !== "published") {
+    const copy = {
+      expired: ["Срок ссылки истёк", "Попросите агента прислать новую ссылку на актуальную смету."],
+      superseded: ["Есть более новая версия", "Эта смета сохранена в истории, но решение нужно принять по новой версии."],
+      unavailable: ["Ссылка недоступна", "Ссылка могла быть отозвана. Свяжитесь с агентом, чтобы получить актуальную."],
+      error: ["Не удалось открыть смету", "Проверьте интернет и обновите страницу. Ничего не было изменено."],
+    }[view.kind];
+    return (
+      <div className={s.loading} role="status">
+        <h2>{copy[0]}</h2>
+        <p>{copy[1]}</p>
+        {view.kind === "error" && <button type="button" onClick={() => window.location.reload()}>Повторить</button>}
+      </div>
+    );
+  }
+
+  const { data } = view;
+  const version = data.version;
+  const publishedAt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(version.publishedAt));
+  const validUntil = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date(version.validUntil));
+
   return (
-    <div className={s.view}>
+    <article className={s.view}>
       <div className={s.statusRow}>
-        <span className={`${s.statusBadge} ${isSnapshot ? s.statusSnapshot : s.statusLive}`}>
-          <span aria-hidden="true" />
-          {isSnapshot ? "Смета сформирована" : "Обновляется"}
+        <span className={`${s.statusBadge} ${s.statusSnapshot}`}>Опубликована версия {version.versionNumber}</span>
+        <span className={s.updatedAt}>от {publishedAt} · действует до {validUntil}</span>
+      </div>
+
+      <section className={s.totalCard} aria-label="Итог по опубликованной смете">
+        <span className="td-eyebrow">Итоговая сумма</span>
+        <p className={`${s.totalValue} tnum`}>{formatMinorUnitsCurrency(version.total)}</p>
+        <p className={s.totalTrust}>Состав и сумма зафиксированы в версии {version.versionNumber}.</p>
+      </section>
+
+      <aside className={s.agentCard}>
+        <span className={s.agentMeta}>
+          <small>{data.organizationName}</small>
+          <strong>{data.agentName ?? "Ваш агент"}</strong>
         </span>
-        {updatedAt && (
-          <span className={s.updatedAt}>
-            {isSnapshot ? `Сохранена ${formatDate(updatedAt)}` : `обновлено в ${formatTime(updatedAt)}`}
-          </span>
+        {data.agentPhone && (
+          <a href={`tel:${data.agentPhone}`} className={s.agentCall}>
+            <Phone size={16} weight="fill" /> Позвонить
+          </a>
+        )}
+      </aside>
+
+      <section className={s.composition}>
+        <header className={s.compositionHead}>
+          <h2>Состав сметы</h2>
+          <button type="button" className={s.printButton} onClick={() => window.print()}>
+            <Printer size={16} weight="fill" /> Печать / PDF
+          </button>
+        </header>
+        <div className={s.compositionCard}>
+          {version.lines.map((line) => (
+            <div key={line.stableKey} className={s.compositionRow}>
+              <span>
+                {line.description}
+                {line.quantity > 1 ? ` × ${line.quantity} ${line.unit}` : ""}
+              </span>
+              <strong className="tnum">
+                {/*
+                  Amounts come from the server's settlement of the version, never from a
+                  second calculation here. A line that does not contribute to the total —
+                  a package child, or an item replaced by another line — must say so
+                  instead of showing a price the total does not include.
+                */}
+                {line.settlement === "INCLUDED"
+                  ? <em>включено</em>
+                  : line.settlement === "REPLACED"
+                    ? <em>заменено</em>
+                    : line.lineTotal !== null
+                      ? formatMinorUnitsCurrency(line.lineTotal)
+                      : "цена не подтверждена"}
+              </strong>
+            </div>
+          ))}
+          <div className={s.compositionTotal}>
+            <span>Итого по версии {version.versionNumber}</span>
+            <strong className="tnum">{formatMinorUnitsCurrency(version.total)}</strong>
+          </div>
+        </div>
+      </section>
+
+      <div className={s.actionDock}>
+        {decision === "ACCEPTED" ? (
+          <div className={s.agreed}><CheckCircle size={18} weight="fill" /> Смета принята</div>
+        ) : decision === "CHANGES_REQUESTED" ? (
+          <div className={s.agreed}><CheckCircle size={18} weight="fill" /> Изменения переданы агенту</div>
+        ) : (
+          <>
+            <button type="button" onClick={() => submitDecision("ACCEPTED")} disabled={busy} className={s.agreeButton}>
+              {busy ? "Сохраняем..." : "Принять смету"}
+            </button>
+            <button type="button" onClick={() => setShowChanges((current) => !current)} disabled={busy} className={s.contactButton}>
+              Запросить изменения
+            </button>
+          </>
         )}
       </div>
 
-      <section className={s.totalCard} aria-label="Итог по смете">
-        <span className="td-eyebrow">{isSnapshot ? "Итоговая сумма" : "Предварительная сумма"}</span>
-        <p className={`${s.totalValue} tnum`}>{formatCurrency(Math.round(animatedTotal))}</p>
-        <p className={s.totalTrust}>
-          {isSnapshot
-            ? "Цена зафиксирована в этой версии сметы."
-            : "Состав и сумма меняются только после обсуждения с вами."}
-        </p>
-      </section>
-
-      {!isSnapshot && agentName && (
-        <aside className={s.agentCard}>
-          <span className={s.agentInitials} aria-hidden="true">
-            {agentName.split(" ").map((part) => part[0]).slice(0, 2).join("")}
-          </span>
-          <span className={s.agentMeta}>
-            <small>Ваш агент</small>
-            <strong>{agentName}</strong>
-          </span>
-          {agentPhone && (
-            <a href={`tel:${agentPhone}`} className={s.agentCall}>
-              <Phone size={16} weight="fill" /> Позвонить
-            </a>
-          )}
-        </aside>
-      )}
-
-      {!isSnapshot && (
-        <section className={s.preview}>
-          <header className={s.previewHead}>
-            <span>
-              <h2>Предпросмотр комплекта</h2>
-              <p>Меняется при выборе атрибутики.</p>
-            </span>
-          </header>
-          <AttributeRender selection={attributes} selectedItems={estimateItems} className="block h-auto w-full" />
+      {showChanges && decision === null && (
+        <section className={s.changeRequest}>
+          <label htmlFor="quote-change-comment">Что нужно изменить</label>
+          <textarea
+            id="quote-change-comment"
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            maxLength={2000}
+            placeholder="Например: заменить транспорт или уточнить стоимость позиции"
+          />
+          <button type="button" onClick={() => submitDecision("CHANGES_REQUESTED")} disabled={busy || comment.trim().length < 3}>
+            {busy ? "Отправляем..." : "Передать агенту"}
+          </button>
         </section>
       )}
 
-      {hasItems && (
-        <section className={s.composition}>
-          <header className={s.compositionHead}>
-            <h2>Состав сметы</h2>
-            <span className="tnum">{formatCurrency(grandTotal)}</span>
-          </header>
-          <div className={s.compositionCard}>
-            {sections.map((section, sectionIndex) => (
-              <div key={`${section.title}-${sectionIndex}`} className={s.compositionSection}>
-                <div className={s.compositionGroupHead}>
-                  <span>{section.title}</span>
-                  <strong className="tnum">{formatCurrency(section.total)}</strong>
-                </div>
-                {section.items?.map((item, itemIndex) => (
-                  <div key={`${item.label}-${itemIndex}`} className={s.compositionRow}>
-                    <span>{item.label}</span>
-                    <strong className="tnum">
-                      {item.included ? <em>включено</em> : item.price != null ? formatCurrency(item.price) : ""}
-                    </strong>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {estimateItems.length > 0 && (
-              <div className={s.compositionSection}>
-                <div className={s.compositionGroupHead}>
-                  <span>Услуги и атрибутика</span>
-                  <strong className="tnum">{formatCurrency(estimateTotal)}</strong>
-                </div>
-                {estimateItems.map((item) => (
-                  <div key={item.id} className={s.compositionRow}>
-                    <span>
-                      {item.name}
-                      {item.selectedColor ? `, ${item.selectedColor}` : ""}
-                      {item.quantity > 1 ? ` ×${item.quantity}` : ""}
-                    </span>
-                    <strong className="tnum">{formatCurrency(item.clientPrice * item.quantity)}</strong>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {externalExpenses.length > 0 && (
-              <div className={s.compositionSection}>
-                <div className={s.compositionGroupHead}>
-                  <span>Внешние расходы</span>
-                  <strong className="tnum">{formatCurrency(externalTotal)}</strong>
-                </div>
-                {externalExpenses.map((expense) => (
-                  <div key={expense.id} className={s.compositionRow}>
-                    <span>{expense.category}: {expense.name}</span>
-                    <strong className="tnum">{formatCurrency(expense.clientPrice)}</strong>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {isSnapshot && (
-        <div className={s.actionDock}>
-          {agreed ? (
-            <div className={s.agreed}>
-              <CheckCircle size={18} weight="fill" /> Смета согласована
-            </div>
-          ) : (
-            <button type="button" onClick={agree} disabled={agreeBusy} className={s.agreeButton}>
-              {agreeBusy ? "Сохраняем…" : "Согласовать смету"}
-            </button>
-          )}
-          {agentPhone && (
-            <a href={`tel:${agentPhone}`} className={s.contactButton}>
-              <Phone size={16} weight="fill" />
-              Связаться{agentName ? ` с ${agentName.split(" ")[0]}` : " с агентом"}
-            </a>
-          )}
-        </div>
-      )}
-
-      <section className={s.nextSteps}>
-        <h2>Что дальше</h2>
-        <ol>
-          {[
-            ["Посмотрите состав", "Изучите смету в удобном темпе. Ничего не списывается автоматически."],
-            ["Обсудите детали", "Любой пункт можно изменить или убрать. Агент поможет с выбором."],
-            ["Подтвердите решение", "После согласования цена фиксируется в договоре, организацией занимается команда."],
-          ].map(([title, description], index) => (
-            <li key={title}>
-              <span className={s.stepNumber}>{index + 1}</span>
-              <span>
-                <strong>{title}</strong>
-                <small>{description}</small>
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <p className={s.footer}>
-        {isSnapshot ? "Тихий дом · ритуальные услуги" : `Обновляется автоматически · код ${code}`}
-      </p>
-    </div>
+      {actionError && <p className={s.actionError} role="alert">{actionError}</p>}
+      <p className={s.footer}>Тихий дом · версия {version.versionNumber} · {version.snapshotChecksum.slice(0, 8)}</p>
+    </article>
   );
 }

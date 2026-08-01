@@ -15,6 +15,7 @@ export function AgentEconomicsBlock({
   economics,
   marginItems,
   marginWarning,
+  hasUnknownCosts,
 }: {
   budgetMessage: string;
   budgetStatus: "not_set" | "within" | "near_limit" | "exceeded";
@@ -22,6 +23,7 @@ export function AgentEconomicsBlock({
   economics: ReturnType<typeof calculateOrderEconomics>;
   marginItems: ItemMargin[];
   marginWarning: string | null;
+  hasUnknownCosts: boolean;
 }) {
   const [open, setOpen] = useState(!!marginWarning);
 
@@ -55,8 +57,8 @@ export function AgentEconomicsBlock({
               label={budgetStatus === "exceeded" ? "Превышение" : "Остаток"}
               value={budgetStatus === "not_set" ? "-" : formatCurrency(Math.abs(economics.orderClientTotal - (clientBudget ?? 0)))}
             />
-            <Metric label="Себестоимость" value={formatCurrency(economics.orderCostTotal)} />
-            <Metric label="Экономия агента" value={formatCurrency(economics.orderMarginRub)} />
+            <Metric label="Себестоимость" value={hasUnknownCosts ? "Не подтверждена" : formatCurrency(economics.orderCostTotal)} />
+            <Metric label="Экономия агента" value={hasUnknownCosts ? "Не рассчитывается" : formatCurrency(economics.orderMarginRub)} />
             <Metric label="Позиции в расчёте" value={String(marginItems.length)} />
           </div>
 
@@ -68,7 +70,7 @@ export function AgentEconomicsBlock({
           )}
           {marginWarning && <div className={s.marginWarning}>{marginWarning}</div>}
 
-          {marginItems.length > 0 && (
+          {marginItems.length > 0 && !hasUnknownCosts && (
             <details className={s.marginDetails}>
               <summary>Внутренние позиции ({marginItems.length})</summary>
               <div className={s.marginList}>

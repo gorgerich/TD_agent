@@ -1,9 +1,18 @@
 import { createHash } from "node:crypto";
 import { Prisma, type AgentStatus, type PrismaClient } from "@prisma/client";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { backoffBeforeRetry } from "@/lib/serializationBackoff";
 
 export const SMOKE_ACCOUNT_EMAIL = "release-smoke@synthetic.invalid";
 export const SMOKE_ACCOUNT_NAME = "Release Smoke Agent";
+
+/**
+ * Provisioning creates an Organization, User, Agent and Membership in one serializable
+ * transaction, so it competes with every other tenant-creating command. Only P2034 is
+ * retried, and the transaction is fully rolled back before each attempt, so the retry is
+ * side-effect free; the bound only has to be large enough for realistic contention.
+ */
+const SMOKE_ACCOUNT_ATTEMPTS = 5;
 
 export type SmokeAccountAction = "provision" | "rotate" | "disable" | "enable" | "status";
 
@@ -189,12 +198,13 @@ export async function manageSmokeAccount(
     };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= SMOKE_ACCOUNT_ATTEMPTS; attempt += 1) {
     try {
       return await execute();
     } catch (error) {
       const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
-      if (!retryable || attempt === 3) throw error;
+      if (!retryable || attempt === SMOKE_ACCOUNT_ATTEMPTS) throw error;
+      await backoffBeforeRetry(attempt);
     }
   }
   throw new Error("Smoke account transaction retry exhausted");

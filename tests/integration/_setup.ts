@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type { MembershipRole } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { prisma } from "../../lib/prisma";
@@ -64,15 +65,29 @@ export function makeRequest(
 let tierPromise: Promise<number> | null = null;
 async function ensureTier(): Promise<number> {
   if (!tierPromise) {
-    tierPromise = db.agentTier.upsert({
-      where: { name: "TestTier" },
-      update: {},
-      create: { name: "TestTier", commissionPct: "10.00" },
-      select: { id: true },
-    }).then((tier) => tier.id).catch((error) => {
-      tierPromise = null;
-      throw error;
-    });
+    // The memo is per process; `node --test` runs each integration file in its own
+    // process, so two runners can race on the same unique tier name. Losing that race
+    // is expected, never fatal: re-read the row the winner committed.
+    tierPromise = db.agentTier
+      .upsert({
+        where: { name: "TestTier" },
+        update: {},
+        create: { name: "TestTier", commissionPct: "10.00" },
+        select: { id: true },
+      })
+      .then((tier) => tier.id)
+      .catch(async (error) => {
+        // Clear the memo BEFORE any further await. If the recovery read below throws
+        // (pool contention, disconnect), a reset placed after it would never run and this
+        // module-level promise would stay a poisoned rejection for the rest of the
+        // process, breaking every later fixture in the file.
+        tierPromise = null;
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+          const winner = await db.agentTier.findUnique({ where: { name: "TestTier" }, select: { id: true } });
+          if (winner) return winner.id;
+        }
+        throw error;
+      });
   }
   return tierPromise;
 }
@@ -219,6 +234,15 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     if (!ownOrganizationIds.length && !ownAgentIds.length && !ownUserIds.length) return;
 
     await db.$transaction(async (tx) => {
+      // This process has already proved that it targets an approved local throwaway DB.
+      // Disable the immutability triggers only while deleting the exact IDs registered by
+      // this fixture context — a published QuoteVersion cannot otherwise be removed.
+      //
+      // NOTE: session_replication_role = replica also disables SYSTEM triggers, which
+      // includes ON DELETE CASCADE. Nothing below may rely on a cascade; every child row is
+      // deleted explicitly, parent-last, and assertNoResidue counts the commercial tables
+      // so that a missed child fails the gate instead of accumulating as a silent orphan.
+      await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
       const cases = ownOrganizationIds.length
         ? await tx.case.findMany({ where: { tenantId: { in: ownOrganizationIds } }, select: { id: true, leadId: true } })
         : [];
@@ -274,8 +298,33 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
           ],
         },
       });
-      if (quoteIds.length) await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      if (quoteIds.length) {
+        await tx.quote.updateMany({
+          where: { id: { in: quoteIds } },
+          data: { activeDraftVersionId: null, latestPublishedVersionId: null },
+        });
+        // Delete the commercial children explicitly, parent-last. `session_replication_role
+        // = replica` disables system triggers, which includes ON DELETE CASCADE, so relying
+        // on the cascade here left every line item, client link and client decision behind
+        // as an orphan with a dangling foreign key — and assertNoResidue could not see it,
+        // because it never counted these tables.
+        const versionIds = (await tx.quoteVersion.findMany({
+          where: { quoteId: { in: quoteIds } },
+          select: { id: true },
+        })).map((version) => version.id);
+        if (versionIds.length) {
+          await tx.quoteClientDecision.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+          await tx.quoteClientLink.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+          await tx.quoteLineItem.deleteMany({ where: { quoteVersionId: { in: versionIds } } });
+        }
+        await tx.quotePresentationSession.deleteMany({ where: { quoteId: { in: quoteIds } } });
+        await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      }
       if (quoteIds.length) await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
+      if (ownOrganizationIds.length) {
+        await tx.catalogItemRevision.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
+        await tx.agentCatalogItem.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
+      }
       if (orderIds.length) await tx.order.deleteMany({ where: { id: { in: orderIds } } });
       if (meetingIds.length) await tx.meeting.deleteMany({ where: { id: { in: meetingIds } } });
       if (caseIds.length) await tx.case.deleteMany({ where: { id: { in: caseIds } } });
@@ -299,19 +348,55 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
   }
 
   async function assertNoResidue(): Promise<void> {
-    const [organizations, memberships, agents, users, tasks, meetings, audits, platformAudits, receipts, views] = await Promise.all([
-      db.organization.count({ where: { id: { in: [...createdOrganizationIds] } } }),
-      db.membership.count({ where: { id: { in: [...createdMembershipIds] } } }),
-      db.agent.count({ where: { id: { in: [...createdAgentIds] } } }),
-      db.user.count({ where: { id: { in: [...createdUserIds] } } }),
-      db.task.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
-      db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-      db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
-    ]);
-    const total = organizations + memberships + agents + users + tasks + meetings + audits + platformAudits + receipts + views;
+    // Run the residue counts one at a time. Prisma sizes its pool at cpus*2+1, which is
+    // 5 on a two-core CI runner, so fanning ten counts out with Promise.all can block on
+    // pool acquisition while sibling test files hold connections in long serializable
+    // transactions. Sequential counts cost milliseconds and cannot starve the pool.
+    const counts = [
+      () => db.organization.count({ where: { id: { in: [...createdOrganizationIds] } } }),
+      () => db.membership.count({ where: { id: { in: [...createdMembershipIds] } } }),
+      () => db.agent.count({ where: { id: { in: [...createdAgentIds] } } }),
+      () => db.user.count({ where: { id: { in: [...createdUserIds] } } }),
+      () => db.task.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
+      () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      // The mission's own tables. Without these the residue gate was structurally unable to
+      // observe commercial leftovers, so "residue: 0" said nothing about M2.
+      () => db.quote.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.agentCatalogItem.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.catalogItemRevision.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.quoteVersion.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
+      () => db.quoteLineItem.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quoteClientLink.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quoteClientDecision.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
+      () => db.quotePresentationSession.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
+    ];
+    let total = 0;
+    for (const count of counts) total += await count();
+    // The counts above all join through the parent row. Once a QuoteVersion is deleted, a
+    // line item it left behind has no path back to the organization, so an org-scoped count
+    // is structurally incapable of seeing it — precisely the orphan class that disabling
+    // ON DELETE CASCADE during cleanup can create. Count danglers directly.
+    const [orphans] = await db.$queryRaw<{ count: bigint }[]>`
+      SELECT
+        (SELECT count(*) FROM "QuoteLineItem" li
+           LEFT JOIN "QuoteVersion" v ON v.id = li."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuoteClientLink" l
+           LEFT JOIN "QuoteVersion" v ON v.id = l."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuoteClientDecision" d
+           LEFT JOIN "QuoteVersion" v ON v.id = d."quoteVersionId" WHERE v.id IS NULL)
+      + (SELECT count(*) FROM "QuotePresentationSession" s
+           LEFT JOIN "Quote" q ON q.id = s."quoteId" WHERE q.id IS NULL)
+      + (SELECT count(*) FROM "QuoteVersion" v
+           LEFT JOIN "Quote" q ON q.id = v."quoteId" WHERE q.id IS NULL)
+      AS count
+    `;
+    if (Number(orphans.count) !== 0) {
+      throw new Error(`Dangling commercial rows detected after ${runId}: ${orphans.count}`);
+    }
     if (total !== 0) {
       throw new Error(`Fixture residue detected for ${runId}: ${total} rows`);
     }

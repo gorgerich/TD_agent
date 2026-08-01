@@ -1,0 +1,120 @@
+{
+  "mission": "M2-COMMERCIAL-TRUST-LOOP",
+  "state": "MISSION_RELEASE_READY",
+  "acceptance": [
+    {
+      "id": "M2-W4-01",
+      "status": "PASS",
+      "requirement": "One tenant- and Case-owned canonical Quote aggregate.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts: canonical draft/review/publish keeps one tenant- and Case-owned Quote aggregate."
+    },
+    {
+      "id": "M2-W4-02",
+      "status": "PASS",
+      "requirement": "Unknown price and cost are explicit states and never silently become zero.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts: unknown price blocks publication; unknown cost never becomes a margin. tests/e2e/m2-commercial.mjs asserts a 422 publish block."
+    },
+    {
+      "id": "M2-W4-03",
+      "status": "PASS",
+      "requirement": "Money-safe server totals are identical across registry, builder, client and print.",
+      "evidence": "tests/commercialQuote.test.ts money-safe totals; tests/e2e/m2-commercial.mjs asserts builder total equals the latest immutable Published version."
+    },
+    {
+      "id": "M2-W4-04",
+      "status": "PASS",
+      "requirement": "Package, add-on, replacement and scenario compatibility rules prevent double counting.",
+      "evidence": "tests/commercialQuote.test.ts covers package, add-on, replacement and scenario compatibility."
+    },
+    {
+      "id": "M2-W4-05",
+      "status": "PASS",
+      "requirement": "Catalog and vendor source versions are reproducible.",
+      "evidence": "tests/integration/commercialCatalog.itest.ts: catalog revisions are tenant-scoped, immutable and idempotent."
+    },
+    {
+      "id": "M2-W4-06",
+      "status": "PASS",
+      "requirement": "Legacy commercial data migrates without invented price facts or tenant loss.",
+      "evidence": "Migration rehearsal replays tests/migrations/m2-commercial-fixtures.sql through the M2 migration and passes m2-commercial-assertions.sql."
+    },
+    {
+      "id": "M2-W5-01",
+      "status": "PASS",
+      "requirement": "Draft, review, publish and client decision use guarded canonical transitions.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts drives draft, review, publish and client decision through guarded canonical transitions."
+    },
+    {
+      "id": "M2-W5-02",
+      "status": "PASS",
+      "requirement": "Published QuoteVersion is immutable and remains reproducible after later versions.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts re-reads payload, total and checksum of v1 after publishing v2 and asserts they are unchanged."
+    },
+    {
+      "id": "M2-W5-03",
+      "status": "PASS",
+      "requirement": "Autosave and presentation never mutate or leak a published version.",
+      "evidence": "tests/e2e/m2-commercial.mjs autosaves a v2 draft and asserts the published v1 client link still serves version 1."
+    },
+    {
+      "id": "M2-W5-04",
+      "status": "PASS",
+      "requirement": "Opaque client links are hash-only, expiring, revocable, rate-limited and version-scoped.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts: links are hash-only (raw token never stored), expiring, revocable and version-scoped; concurrent distinct keys leave exactly one active link; the same key replays."
+    },
+    {
+      "id": "M2-W5-05",
+      "status": "PASS",
+      "requirement": "Accept and request-changes decisions are idempotent and audited.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts and tests/e2e/m2-commercial.mjs: accept and request-changes are idempotent and audited."
+    },
+    {
+      "id": "M2-W5-06",
+      "status": "PASS",
+      "requirement": "Expired, revoked and superseded access returns safe honest states.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts asserts EXPIRED, REVOKED and UNAVAILABLE client-view states. A link invalidated by a newer version currently reports REVOKED, because publish revokes the previous version's links before the supersede check runs; the distinct SUPERSEDED client-view state is recorded as an open P2."
+    },
+    {
+      "id": "M2-W5-07",
+      "status": "PASS",
+      "requirement": "Version-bound print/PDF output is stable and accessible.",
+      "evidence": "tests/e2e/m2-commercial.mjs asserts the print action is wired and runs axe on the client view with 0 critical/serious violations."
+    },
+    {
+      "id": "M2-SEC-01",
+      "status": "PASS",
+      "requirement": "Tenant, role and client-link boundaries prevent cross-tenant access.",
+      "evidence": "tests/integration/commercialQuotes.itest.ts tenant/role boundaries; tests/e2e/m2-commercial.mjs asserts a foreign organization gets 404."
+    },
+    {
+      "id": "M2-QUAL-01",
+      "status": "PASS",
+      "requirement": "Failure UX never turns an API error into empty success.",
+      "evidence": "Catalog and quote reads surface API failures instead of an empty catalog; tests/e2e/m2-commercial.mjs fails on any unexpected browser console error."
+    },
+    {
+      "id": "M2-QUAL-02",
+      "status": "PASS",
+      "requirement": "Desktop, mobile, keyboard and 200 percent zoom gates pass.",
+      "evidence": "tests/e2e/m2-commercial.mjs: desktop, mobile viewport, keyboard-reachable controls and 200 percent zoom overflow checks all pass."
+    },
+    {
+      "id": "M2-GATE-01",
+      "status": "PASS",
+      "requirement": "All deterministic gates pass with skipped=0 and NOT_RUN=0.",
+      "evidence": "lint, typecheck, git diff --check (base..HEAD), prisma validate/generate, build, unit 91/91, integration 44/44 at default parallelism, e2e 4/4, migration rehearsal and schema parity: skipped=0, notRun=0. Exact counts are recorded in test-results.json, which is the single source for gate numbers."
+    },
+    {
+      "id": "M2-GATE-02",
+      "status": "PASS",
+      "requirement": "Independent review reports P0=0 and P1=0.",
+      "evidence": "Independent adversarial review closed at round 7 with P0=0 and P1=0 on the certified source tree. Seven rounds by seven separate reviewer agents, none given the previous summaries; P1 per round 5, 3, 1, 1, 0, 1, 0, all fixed. Round 7's seven P2s are recorded in test-results.json round7AcceptedP2."
+    },
+    {
+      "id": "M2-UAT-01",
+      "status": "PASS",
+      "requirement": "Cremation and relative-burial journeys pass on exact isolated Preview SHA.",
+      "evidence": "Both journeys passed on the isolated Preview deployment dpl_3axb1aDPUAEVevmE7ejaysV49UKc at SHA e885135, against Neon store m2-uat-commercial (fingerprint c89bdda845806b40, distinct from production 0257665af2dd90a4): cremation and relative burial PASS, draft/published isolation, client decision, print, manager context, cross-tenant denial, mobile, 200% zoom, accessibility 0 critical / 0 serious, 0 unexpected console errors, skipped 0. Post-UAT: reconciliation 0, orphan commercial rows 0, foreign fixture rows 0."
+    }
+  ]
+}
