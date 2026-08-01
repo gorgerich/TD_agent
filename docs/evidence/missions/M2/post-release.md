@@ -85,3 +85,58 @@ correct order from here is: **migrate production first, then re-promote the
 - Production environment variables were not modified.
 - No undocumented production writes. The production database was never written to.
 - Isolated UAT resources are retained pending final release evidence.
+
+---
+
+## Second attempt — owner accepted the PITR risk; blocked on credential access
+
+Owner explicitly accepted the unverified-PITR risk and authorised continuation, which
+cleared the backup blocker. The release still cannot proceed, for a different and
+independently proven reason.
+
+### Production store identified (metadata only, no values read)
+
+`ACTIVE_PRODUCTION_STORE = neon-bole-lamp` (`store_MB9cTWCMbEdoHhrO`), established from
+Vercel env `contentHint.storeId`: production `DATABASE_URL_UNPOOLED`, `NEON_PROJECT_ID`
+and `POSTGRES_HOST` all resolve to that store. `neon-cinereous-plank`
+(`store_aOyIaIxYfYSPCpJd`) is not referenced by any production database variable.
+
+Unresolved: production `DATABASE_URL` (the pooled URL the running app uses) has **no**
+store link — it was set manually — so it cannot be proven to address the same database as
+the unpooled URL that migrations would use.
+
+### Blocker: the production connection string is architecturally unreadable
+
+Both production database variables are Vercel `type=sensitive`:
+
+```
+DATABASE_URL_UNPOOLED   type=sensitive   valueReturned=NO
+DATABASE_URL            type=sensitive   valueReturned=NO
+```
+
+Sensitive variables in Vercel are write-only by design. They are injected into the
+deployment runtime and are never returned by the API or by `vercel env pull`. Verified
+three independent ways:
+
+1. `vercel env pull --environment=production` — both keys present, both values empty (run twice).
+2. `GET /v9/projects/{id}` — `"type":"sensitive"`, no value field populated.
+3. `GET /v1/storage/stores/store_MB9cTWCMbEdoHhrO` — all 18 secret names listed, every value empty.
+
+Consequence: the mandated fail-closed preflight cannot even begin. Step 1 is "connect via
+production `DATABASE_URL_UNPOOLED`". Without that string there is no connection, therefore
+no fingerprint comparison against `0257665af2dd90a4`, no `current_database()` check, no
+migration-history or checksum verification, and no `prisma migrate deploy`.
+
+This is an access limitation, not a safety refusal. Zero production writes occurred.
+
+### Safe next step (one owner action, choose either)
+
+1. Supply the production direct connection string (`POSTGRES_URL_NON_POOLING` /
+   `DATABASE_URL_UNPOOLED`) through a channel outside the repository, and the preflight and
+   migration proceed unattended; or
+2. Run the migration yourself from an environment that already holds it:
+   `npx prisma migrate deploy` with `DATABASE_URL_UNPOOLED` set to the production direct URL.
+   Exactly one migration is pending: `20260729170000_m2_commercial_trust_loop`.
+
+Order is not optional: migrate **first**, then promote the `54da133` production deployment.
+Promoting before migrating reproduces the 500s recorded above.
