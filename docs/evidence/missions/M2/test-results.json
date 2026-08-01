@@ -2,7 +2,7 @@
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
   "implementationSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30690273573",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30691860303",
   "previewDeploymentId": null,
   "checks": {
     "lint": "PASS",
@@ -154,10 +154,9 @@
     "notRun": 0,
     "ci": {
       "status": "PASS",
-      "runId": 30690273573,
-      "headSha": "ce17518853f82490cdb16e215730ede199065c78",
-      "certifiedSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
-      "note": "Green on the exact PR head. Verified with git diff --quiet that this commit and the certified implementationSha differ only under docs/evidence — the condition scripts/validate-mission-evidence.mjs enforces for a mission under development."
+      "runId": 30691860303,
+      "headSha": "d75ba6e0d3df671ba52a4107c412aff092345dc1",
+      "note": "Green on the exact PR head. Stated plainly: the first attempt of this run failed in tests/e2e/m1-operations.mjs with a 30s locator timeout waiting for a case heading — a file this mission does not modify — and the re-run passed. Treated as a CI timing flake, not a clean first pass. Related and already recorded: round 7 measured 1 spurious 409 in 17 local integration runs, so the e2e and integration gates are not bit-for-bit deterministic."
     },
     "previewStorage": {
       "status": "NOT_USED",
