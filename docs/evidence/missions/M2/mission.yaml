@@ -1,6 +1,6 @@
 mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
-state: MISSION_RELEASE_READY
+state: PRODUCTION_RELEASE_BLOCKED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
 implementation_sha: d75ba6e0d3df671ba52a4107c412aff092345dc1
 review_sha: e8851357047c44547bc1d2fa7352be69940c747d
@@ -38,6 +38,14 @@ passed_gates:
   - client_link_security
   - reconciliation
   - accessibility
-open_blockers: []
-owner_release_authorization: false
-production_release: NOT_AUTHORIZED
+open_blockers:
+  - gate: production_backup_readiness
+    severity: OPEN
+    reason: >-
+      The migrations runbook requires a verified restorable backup, owner-run, before any
+      production step. Reproducing the prior release's method means exporting the whole
+      production database — real client names, phones and case records — to a local machine,
+      which was not specifically authorized. Neon PITR could not be confirmed: no Neon API
+      credential is available. Stopped before any production write.
+owner_release_authorization: true
+production_release: BLOCKED_ON_BACKUP_READINESS
