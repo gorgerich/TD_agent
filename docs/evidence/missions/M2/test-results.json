@@ -1,7 +1,7 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
   "state": "IMPLEMENTATION_VERIFIED",
-  "implementationSha": "fc1ef5e175484fd82a5ae8a29b2eec2adc058175",
+  "implementationSha": "d75ba6e0d3df671ba52a4107c412aff092345dc1",
   "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30691860303",
   "previewDeploymentId": null,
   "checks": {
@@ -174,7 +174,8 @@
         "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so any unexpected blob call errors instead of reaching the production store"
       ],
       "honestly": "The isolated blob store was created but is NOT wired to the Preview deployment — the CLI cannot emit its token without a project-wide link, which would alter Production env. The M2 journeys perform no blob operation, so this is recorded as NOT_USED rather than claimed as connected. Any M2 scope that later requires a blob operation invalidates this and needs option A."
-    }
+    },
+    "shaIntegrity": "Certified against d75ba6e, the commit carrying the final source change (E2E_PROTECTION_BYPASS support). Verified with git diff --quiet that it is source-identical to the final head outside docs/evidence. Noted honestly: the validator's source-tree check is skipped once a mission reaches MISSION_RELEASE_READY, so this was checked by hand rather than relied on — see round7AcceptedP2 item 1."
   },
   "blockers": [
     {
