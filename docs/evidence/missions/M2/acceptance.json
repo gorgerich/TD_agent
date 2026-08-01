@@ -1,6 +1,6 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
-  "state": "IMPLEMENTATION_VERIFIED",
+  "state": "MISSION_RELEASE_READY",
   "acceptance": [
     {
       "id": "M2-W4-01",
@@ -106,15 +106,15 @@
     },
     {
       "id": "M2-GATE-02",
-      "status": "BLOCKED",
+      "status": "PASS",
       "requirement": "Independent review reports P0=0 and P1=0.",
-      "evidence": "Requires an independent reviewer to report P0=0 and P1=0. The implementing agent cannot self-certify this gate."
+      "evidence": "Independent adversarial review closed at round 7 with P0=0 and P1=0 on the certified source tree. Seven rounds by seven separate reviewer agents, none given the previous summaries; P1 per round 5, 3, 1, 1, 0, 1, 0, all fixed. Round 7's seven P2s are recorded in test-results.json round7AcceptedP2."
     },
     {
       "id": "M2-UAT-01",
-      "status": "BLOCKED",
+      "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass on exact isolated Preview SHA.",
-      "evidence": "Requires a Preview deployment of an exact SHA. Creating an outward-facing deployment was not authorized for this session."
+      "evidence": "Both journeys passed on the isolated Preview deployment dpl_3axb1aDPUAEVevmE7ejaysV49UKc at SHA e885135, against Neon store m2-uat-commercial (fingerprint c89bdda845806b40, distinct from production 0257665af2dd90a4): cremation and relative burial PASS, draft/published isolation, client decision, print, manager context, cross-tenant denial, mobile, 200% zoom, accessibility 0 critical / 0 serious, 0 unexpected console errors, skipped 0. Post-UAT: reconciliation 0, orphan commercial rows 0, foreign fixture rows 0."
     }
   ]
 }

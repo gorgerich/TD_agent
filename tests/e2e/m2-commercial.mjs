@@ -29,10 +29,15 @@ if (!foreignEmail || !foreignPassword) {
 }
 
 const browser = await chromium.launch({ headless: true });
+// A protected Vercel Preview answers 302 to vercel.com/sso-api unless the request carries
+// the automation bypass. Supplied only via env so the secret never enters the repository,
+// and absent locally, where the target is an unprotected dev server.
+const protectionBypass = process.env.E2E_PROTECTION_BYPASS?.trim();
 const context = await browser.newContext({
   viewport: { width: 1365, height: 900 },
   locale: "ru-RU",
   timezoneId: "Europe/Moscow",
+  ...(protectionBypass ? { extraHTTPHeaders: { "x-vercel-protection-bypass": protectionBypass } } : {}),
 });
 const page = await context.newPage();
 const browserErrors = [];

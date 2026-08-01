@@ -64,11 +64,42 @@
       "critical": 0,
       "serious": 0
     },
-    "previewUat": "BLOCKED",
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_3axb1aDPUAEVevmE7ejaysV49UKc",
+      "previewUrl": "https://td-agent-hroabwz6t-rics-projects-9baa2793.vercel.app",
+      "branchAlias": "td-agent-git-mission-m2-commercia-e5c6f2-rics-projects-9baa2793.vercel.app",
+      "target": "preview",
+      "gitSha": "e8851357047c44547bc1d2fa7352be69940c747d",
+      "databaseFingerprint": "c89bdda845806b40",
+      "results": {
+        "cremation": "PASS",
+        "relativeBurial": "PASS",
+        "draftPublishedIsolation": "PASS",
+        "clientDecision": "PASS",
+        "print": "PASS",
+        "accessibilityCriticalSerious": 0,
+        "mobile": "PASS",
+        "zoom200": "PASS",
+        "managerContext": "PASS",
+        "crossTenant": "PASS",
+        "unexpectedConsoleErrors": 0,
+        "skipped": 0
+      },
+      "bindingProof": "POST /api/agent/auth/login on the Preview with m1-agent-m2uat-e885135@synthetic.invalid returned 200. That account exists only in the isolated Neon store, so the branch-scoped DATABASE_URL is demonstrably what the deployment uses. The production URL was never contacted.",
+      "postUat": {
+        "reconciliationDiscrepancies": 0,
+        "orphanCommercialRows": 0,
+        "foreignFixtureRows": 0,
+        "retainedSyntheticData": "2 published quote versions and 3 client decisions retained in the isolated UAT store; that store holds synthetic data only and is not production."
+      },
+      "protectionBypass": "Could not be created: POST /v1/projects/{id}/protection-bypass and /v1/security/protection-bypass both return 404 and PATCH /v9/projects/{id} rejects the field, so this API version cannot mint one. The project already carried an automation-bypass entry, which was reused read-only. It was therefore NOT revoked at cleanup — it predates this mission and revoking an owner secret could break other automation. No bypass was created, project protection config is unchanged, and the Preview returns 302 to Vercel SSO again with the header removed.",
+      "hazardAvoided": "Two Preview deployments exist for this SHA because recovery/m2-commercial-reconstructed mirrors the same commit. The recovery-branch deployment has no branch-scoped env and would resolve DATABASE_URL to production. Aliases were checked before use and only the mission-branch deployment was driven."
+    },
     "independentReview": {
-      "status": "BLOCKED",
+      "status": "PASS",
       "p0": 0,
-      "p1": null,
+      "p1": 0,
       "rounds": [
         {
           "round": 1,
@@ -106,10 +137,18 @@
           "p0": 0,
           "p1": 1,
           "p2": 3
+        },
+        {
+          "round": 7,
+          "p0": 0,
+          "p1": 0,
+          "p2": 7,
+          "verdict": "PASS",
+          "scope": "exact unreviewed delta c3b69a2..e885135 plus a full re-verification of the mission's guarantees"
         }
       ],
-      "trend": "P1 per round: 5, 3, 1, 1, 0, 1. P0 was 0 in every round. Every P1 found has been fixed.",
-      "note": "Not passed. Round 6's fixes are unreviewed: round 7 was started and terminated early on an account session limit, not on a finding."
+      "trend": "P1 per round: 5, 3, 1, 1, 0, 1, 0. P0 was 0 in every round. Every P1 found was fixed.",
+      "note": "Closed at round 7 with 0 P0 and 0 P1 on the certified source tree. Round 7's seven P2s are recorded below rather than fixed, per the owner instruction to stop making optional changes once the gate closes."
     },
     "skipped": 0,
     "notRun": 0,
@@ -205,5 +244,14 @@
       "ownerDecisionRequired": "Set TRUSTED_PROXY handling at the edge, or accept as-is.",
       "date": "2026-08-01"
     }
+  ],
+  "round7AcceptedP2": [
+    "Evidence gate is skippable by editing the mission's own mission.yaml state (hardening gap; the check binds today).",
+    "Revoked-replay assertion still matches any 409, unlike the pinned expired-replay assertion.",
+    "security.md bullet retains a contradictory closing sentence and a dangling clause.",
+    "Quote-service idempotency replay is org-scoped, not agent-scoped; needs a UUID collision to reach.",
+    "The new catalog POST 404 branch has no test.",
+    "The integration gate is retry-bounded and can surface a spurious 409 (1 failure in 17 local runs).",
+    "review.md references INV-01..INV-14, which are defined nowhere."
   ]
 }

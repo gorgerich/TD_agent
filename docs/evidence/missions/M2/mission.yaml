@@ -1,10 +1,10 @@
 mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
-state: IMPLEMENTATION_VERIFIED
+state: MISSION_RELEASE_READY
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
 implementation_sha: fc1ef5e175484fd82a5ae8a29b2eec2adc058175
-review_sha: null
-preview_deployment_id: null
+review_sha: e8851357047c44547bc1d2fa7352be69940c747d
+preview_deployment_id: dpl_3axb1aDPUAEVevmE7ejaysV49UKc
 production_deployment_id: null
 required_gates:
   - code_quality
@@ -38,22 +38,6 @@ passed_gates:
   - client_link_security
   - reconciliation
   - accessibility
-open_blockers:
-  - gate: independent_review
-    severity: OPEN
-    reason: >-
-      Six rounds returned 5, 3, 1, 1, 0 and 1 P1, with 0 P0 throughout; every P1 was fixed.
-      Round 5 returned PASS, but round 6 then found a regression that round 5's own cleanup
-      had introduced (a catalog POST replay answering 201 with a null item), which is fixed
-      at fc1ef5e. A confirming round on the round-6 fixes was started and could not complete
-      — the reviewer agent hit an account session limit — so this gate stays open.
-  - gate: preview_uat
-    severity: OPEN
-    reason: >-
-      Infrastructure is ready and isolation is proven: a dedicated Neon store
-      (m2-uat-commercial, fingerprint c89bdda845806b40, distinct from production
-      0257665af2dd90a4) bound to this branch only, verified empty before fixtures, with both
-      synthetic fixtures now provisioned into it and zero foreign rows. Remaining: create the
-      Preview deployment on the exact implementation SHA and run the two journeys against it.
+open_blockers: []
 owner_release_authorization: false
 production_release: NOT_AUTHORIZED
