@@ -42,10 +42,11 @@ open_blockers:
   - gate: independent_review
     severity: OPEN
     reason: >-
-      Rounds 1-5 returned 5, 3, 1, 1 and 0 P1 respectively, with 0 P0 throughout; every P1
-      was fixed. Round 5 returned PASS. Round 5's own P2s were then fixed, which changed the
-      evidence validator, the rate-limit key and one catalog status code, so that delta is
-      pending a confirming round before this gate is recorded as passed.
+      Six rounds returned 5, 3, 1, 1, 0 and 1 P1, with 0 P0 throughout; every P1 was fixed.
+      Round 5 returned PASS, but round 6 then found a regression that round 5's own cleanup
+      had introduced (a catalog POST replay answering 201 with a null item), which is fixed
+      at fc1ef5e. A confirming round on the round-6 fixes was started and could not complete
+      — the reviewer agent hit an account session limit — so this gate stays open.
   - gate: preview_uat
     severity: OPEN
     reason: >-

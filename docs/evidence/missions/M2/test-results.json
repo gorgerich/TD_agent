@@ -109,7 +109,7 @@
         }
       ],
       "trend": "P1 per round: 5, 3, 1, 1, 0, 1. P0 was 0 in every round. Every P1 found has been fixed.",
-      "note": "Not passed. Round 6 found a regression introduced by the round-5 cleanup, now fixed; that fix is unreviewed."
+      "note": "Not passed. Round 6's fixes are unreviewed: round 7 was started and terminated early on an account session limit, not on a finding."
     },
     "skipped": 0,
     "notRun": 0,
@@ -141,11 +141,11 @@
   "blockers": [
     {
       "gate": "independent_review",
-      "reason": "Six rounds: 5, 3, 1, 1, 0 and 1 P1, zero P0 throughout; all fixed. Round 5 returned PASS but round 6 found a regression its own cleanup introduced, so a confirming round on the round-6 fixes is required before this gate closes."
+      "reason": "Six rounds: 5, 3, 1, 1, 0 and 1 P1, zero P0 throughout; all fixed. Round 5 returned PASS; round 6 found a regression its own cleanup introduced, fixed at fc1ef5e. The confirming round 7 could not complete — the reviewer agent hit an account session limit — so this gate is not recorded as passed."
     },
     {
       "gate": "preview_uat",
-      "reason": "The Vercel project resolves DATABASE_URL and BLOB_READ_WRITE_TOKEN from a single 'Preview, Production' scope, and no branch-scoped override exists for mission/m2-commercial-trust-loop. Running UAT against the auto-created Preview would write synthetic tenants into the production database and blob store. Blocked pending an isolated Preview database."
+      "reason": "Isolation is solved and proven: a dedicated Neon store (m2-uat-commercial, fingerprint c89bdda845806b40) is bound to this branch only via branch-scoped DATABASE_URL/DATABASE_URL_UNPOOLED, the shared 'Preview, Production' entries were not modified, and both synthetic fixtures are provisioned into it with zero foreign rows. Remaining: the Preview deployments are SSO-protected, so driving the two journeys needs a Protection Bypass for Automation secret — a project-level Deployment Protection change."
     }
   ],
   "environment": {
