@@ -2,14 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CommercialQuoteError,
+  INTERNAL_COST_LINE_SOURCE,
   assertPublishable,
+  calculateCommercialEconomics,
   calculateCommercialTotals,
+  isClientVisibleCommercialLine,
   quoteSnapshotChecksum,
   diffCommercialLines,
   settleCommercialLines,
   type CommercialLine,
   type PublishedQuoteSnapshot,
 } from "../lib/commercialQuote";
+import { buildCommercialDraftLines } from "../lib/commercialDraftAdapter";
 import { handleApiError } from "../lib/apiAuth";
 import { formatMinorUnits, formatMinorUnitsCurrency } from "../lib/calculationUtils";
 
@@ -77,6 +81,81 @@ test("unknown cost suppresses margin instead of showing 100 percent", () => {
   assert.equal(totals.costTotal, null);
   assert.equal(totals.margin, null);
   assert.match(totals.warnings[0] ?? "", /не подтверждена/);
+});
+
+test("canonical economics never presents a partial total when one price is unknown", () => {
+  const economics = calculateCommercialEconomics([
+    line({ stableKey: "known", clientUnitPrice: 1_000_00 }),
+    line({ stableKey: "unknown", position: 1, priceState: "UNKNOWN", clientUnitPrice: null }),
+  ], "CREMATION_V1");
+
+  assert.equal(economics.subtotal, 1_000_00, "known subtotal remains available for diagnosis");
+  assert.equal(economics.total, null, "client total must not expose the partial subtotal");
+  assert.equal(economics.totalState, "UNKNOWN");
+  assert.equal(economics.margin, null, "margin cannot be stated without the final client total");
+  assert.equal(economics.items.find((item) => item.stableKey === "unknown")?.clientTotal, null);
+});
+
+test("margin-only external expense enters canonical cost without entering client composition", () => {
+  const lines = buildCommercialDraftLines({
+    result: {
+      total: 1_000,
+      sections: [{ title: "Организация церемонии", total: 1_000, costTotal: 400 }],
+    },
+    estimateItems: [],
+    externalExpenses: [{
+      id: "internal-fee",
+      name: "Внутренняя комиссия подрядчика",
+      category: "Другое",
+      clientPrice: 0,
+      costPrice: 100,
+      includeInClientTotal: false,
+      includeInMarginCalculation: true,
+    }],
+    scenario: "CREMATION_V1",
+  });
+  const internal = lines.find((item) => item.source === INTERNAL_COST_LINE_SOURCE);
+  const economics = calculateCommercialEconomics(lines, "CREMATION_V1");
+
+  assert.ok(internal, "adapter must retain the internal expense");
+  assert.equal(internal.priceState, "KNOWN");
+  assert.equal(internal.clientUnitPrice, 0);
+  assert.equal(internal.costState, "KNOWN");
+  assert.equal(internal.unitCost, 10_000);
+  assert.equal(economics.total, 100_000);
+  assert.equal(economics.costTotal, 50_000);
+  assert.equal(economics.margin, 50_000);
+  assert.equal(isClientVisibleCommercialLine(internal), false);
+
+  const visibleLines = lines.filter(isClientVisibleCommercialLine);
+  const visibleSettlement = settleCommercialLines(visibleLines);
+  assert.equal(visibleLines.length, 1);
+  assert.equal(
+    [...visibleSettlement.values()].reduce((sum, item) => sum + (item.lineTotal ?? 0), 0),
+    economics.total,
+    "family-visible lines must still reconcile to the canonical total",
+  );
+});
+
+test("a source marker cannot hide a billed external line", () => {
+  const disguised = line({
+    type: "EXTERNAL_EXPENSE",
+    source: INTERNAL_COST_LINE_SOURCE,
+    clientUnitPrice: 1_000,
+  });
+  assert.equal(isClientVisibleCommercialLine(disguised), true);
+});
+
+test("an internal expense alone cannot make an empty client quote publishable", () => {
+  const internalOnly = line({
+    type: "EXTERNAL_EXPENSE",
+    source: INTERNAL_COST_LINE_SOURCE,
+    clientUnitPrice: 0,
+  });
+  const totals = calculateCommercialTotals([internalOnly], "CREMATION_V1");
+  assert.equal(totals.total, null);
+  assert.match(totals.blockers[0] ?? "", /оплачиваемую позицию/);
+  assert.throws(() => assertPublishable(totals), /оплачиваемую позицию/);
 });
 
 test("included package children are not double counted", () => {

@@ -1027,23 +1027,6 @@ export type PublicExternalExpense = {
   comment?: string;
 };
 
-export type EstimateSnapshot = {
-  id: string;
-  createdAt: string;
-  title: string;
-  items: EstimateItem[];
-  externalExpenses: ExternalExpense[];
-  memorialData: MemorialData;
-  orderClientTotal: number;
-  orderCostTotal: number;
-  orderMarginRub: number;
-  orderMarginPercent: number;
-  clientBudget?: number | null;
-  budgetRemaining?: number | null;
-  budgetExceeded?: boolean;
-  note?: string;
-};
-
 export type CatalogCategory =
   | "Гробы"
   | "Постель / комплект в гроб"
@@ -1933,43 +1916,6 @@ export function createExternalExpense(
     comment: input.comment ?? "",
     includeInClientTotal: input.includeInClientTotal ?? true,
     includeInMarginCalculation: input.includeInMarginCalculation ?? true,
-  };
-}
-
-export function createEstimateSnapshot({
-  title,
-  note,
-  items,
-  externalExpenses,
-  memorialData,
-  economics,
-  clientBudget,
-  budgetStatus,
-}: {
-  title: string;
-  note?: string;
-  items: EstimateItem[];
-  externalExpenses: ExternalExpense[];
-  memorialData: MemorialData;
-  economics: OrderEconomics;
-  clientBudget?: number | null;
-  budgetStatus: BudgetStatus;
-}): EstimateSnapshot {
-  return {
-    id: `snapshot-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    title,
-    items: items.map((item) => ({ ...item })),
-    externalExpenses: externalExpenses.map((expense) => ({ ...expense })),
-    memorialData: { ...memorialData },
-    orderClientTotal: economics.orderClientTotal,
-    orderCostTotal: economics.orderCostTotal,
-    orderMarginRub: economics.orderMarginRub,
-    orderMarginPercent: economics.orderMarginPercent,
-    clientBudget,
-    budgetRemaining: budgetStatus.clientBudget ? budgetStatus.budgetRemaining : null,
-    budgetExceeded: budgetStatus.clientBudget ? budgetStatus.budgetExceeded : false,
-    note,
   };
 }
 

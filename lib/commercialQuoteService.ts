@@ -6,6 +6,7 @@ import {
   calculateCommercialTotals,
   canonicalSnapshotJson,
   diffCommercialLines,
+  isClientVisibleCommercialLine,
   quoteSnapshotChecksum,
   settleCommercialLines,
   type CommercialLine,
@@ -104,6 +105,7 @@ export type CommercialQuoteReadModel = {
   scenario: CommercialScenario;
   draft: CommercialVersionReadModel | null;
   published: CommercialVersionReadModel | null;
+  history: CommercialVersionHistoryItem[];
 };
 
 export type CommercialVersionReadModel = {
@@ -124,6 +126,19 @@ export type CommercialVersionReadModel = {
   editorState: Prisma.JsonValue | null;
 };
 
+export type CommercialVersionHistoryItem = {
+  id: number;
+  versionNumber: number;
+  state: string;
+  total: number | null;
+  totalState: string;
+  costTotal: number | null;
+  margin: number | null;
+  lineCount: number;
+  publishedAt: string | null;
+  validUntil: string | null;
+};
+
 export async function getCommercialQuoteForMeeting(
   meetingId: number,
   context: OperationalContext,
@@ -137,6 +152,11 @@ export async function getCommercialQuoteForMeeting(
     include: {
       activeDraftVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
       latestPublishedVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
+      versions: {
+        where: { versionNumber: { not: null } },
+        include: { lineItems: { orderBy: { position: "asc" } } },
+        orderBy: { versionNumber: "desc" },
+      },
     },
   });
   return quote ? quoteReadModel(quote) : null;
@@ -573,7 +593,9 @@ export async function startCommercialPresentation(input: {
           draftVersionId: quote.activeDraftVersion.id,
           lines: (() => {
             const settlement = settleCommercialLines(lines);
-            return lines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
+            return lines
+              .filter(isClientVisibleCommercialLine)
+              .map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
           })(),
           totals: {
             total: totals.total,
@@ -985,6 +1007,7 @@ function quoteReadModel(quote: {
   scenario: string | null;
   activeDraftVersion: VersionWithLines | null;
   latestPublishedVersion: VersionWithLines | null;
+  versions: VersionWithLines[];
 }): CommercialQuoteReadModel {
   const scenario = scenarioFromQuote(quote.scenario);
   return {
@@ -995,6 +1018,22 @@ function quoteReadModel(quote: {
     scenario,
     draft: quote.activeDraftVersion ? versionReadModel(quote.activeDraftVersion, scenario) : null,
     published: quote.latestPublishedVersion ? versionReadModel(quote.latestPublishedVersion, scenario) : null,
+    history: quote.versions.flatMap((version) => {
+      if (version.versionNumber === null) return [];
+      const model = versionReadModel(version, scenario);
+      return [{
+        id: model.id,
+        versionNumber: version.versionNumber,
+        state: model.state,
+        total: model.total,
+        totalState: model.totalState,
+        costTotal: model.costTotal,
+        margin: model.margin,
+        lineCount: model.lines.length,
+        publishedAt: model.publishedAt,
+        validUntil: model.validUntil,
+      }];
+    }),
   };
 }
 
@@ -1040,7 +1079,9 @@ function publicVersion(version: VersionWithLines & {
   // view. A replacement target or a package child must never render a price it does not
   // contribute to the total.
   const settlement = settleCommercialLines(domainLines);
-  const lines = domainLines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
+  const lines = domainLines
+    .filter(isClientVisibleCommercialLine)
+    .map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
   return {
     id: version.id,
     versionNumber: version.versionNumber,

@@ -1615,13 +1615,9 @@
   background: color-mix(in srgb, var(--color-surface-2) 42%, var(--color-surface));
 }
 .economicsTag {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* Сворачиваемые заголовки (экономика, история версий) */
@@ -1782,46 +1778,62 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   border-top: 0;
   background: var(--color-surface);
 }
-.snapshotInput,
-.snapshotTextarea {
-  margin-bottom: 8px;
+.versionHistoryHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.versionHistoryHead h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.versionHistoryHead p {
+  max-width: 44ch;
+  margin: 4px 0 0;
+  color: var(--color-ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.versionHistoryCount {
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.versionHistoryEmpty {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .snapshotList {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+  padding: 0;
+  list-style: none;
 }
 .snapshotItem {
-  border: 1px solid var(--color-line);
   border-radius: 8px;
-  overflow: hidden;
-  background: var(--color-surface);
+  background: var(--color-surface-2);
 }
 .snapshotItemHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px;
-}
-.snapshotItemHead button {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.snapshotItemHead button:first-child {
-  min-width: 0;
-  color: var(--color-ink);
-}
-.snapshotItemHead button:last-child {
-  color: var(--color-danger);
-  font-size: 11px;
-  font-weight: 700;
+  gap: 12px;
+  padding: 12px 12px 8px;
 }
 .snapshotItemHead strong {
   display: block;
-  font-size: 12px;
+  color: var(--color-ink);
+  font-size: 13px;
 }
 .snapshotItemHead span {
   display: block;
@@ -1829,49 +1841,37 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   color: var(--color-ink-3);
   font-size: 11px;
 }
+.snapshotItemHead .versionState {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-weight: 650;
+}
 .snapshotMetrics {
   display: grid;
-  gap: 3px;
-  padding: 0 10px 10px;
-  color: var(--color-ink-2);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 4px 12px 12px;
 }
-.snapshotDetails {
-  border-top: 1px solid var(--color-line);
-  padding: 10px;
-  background: var(--color-surface-2);
-}
-.snapshotDetails p {
-  margin: 0 0 8px;
-  color: var(--color-ink-2);
-  font-size: 12px;
-  line-height: 1.35;
-}
-.snapshotLine {
-  display: grid;
-  gap: 3px;
-  margin-top: 8px;
-}
-.snapshotLine span {
+.snapshotMetrics div { min-width: 0; }
+.snapshotMetrics dt {
   color: var(--color-ink-3);
   font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
 }
-.snapshotLine em {
-  color: var(--color-ink);
-  font-size: 12px;
-  font-style: normal;
-}
-.snapshotTotals {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
+.snapshotMetrics dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .snapshotMetrics { grid-template-columns: 1fr; gap: 7px; }
+  .snapshotItemHead { align-items: flex-start; }
 }
 
 .panelActions {
@@ -2139,8 +2139,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .mobileBarMeta { display: none; }
   .mobileBarStatus { display: none; }
   .mobileBarSum { min-height: 40px; align-content: center; }
-  .sheetTabs { overflow-x: auto; grid-template-columns: repeat(4, max-content); justify-content: start; }
-  .sheetTab { padding: 0 13px; }
+  .sheetTab { padding: 0 6px; font-size: 11px; }
   .panelHead { align-items: flex-start; flex-wrap: wrap; }
 }
 

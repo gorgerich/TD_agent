@@ -4,7 +4,11 @@ import type {
   ExternalExpense,
   FormData,
 } from "@/lib/calculationUtils";
-import type { CommercialLine, CommercialScenario } from "@/lib/commercialQuote";
+import {
+  INTERNAL_COST_LINE_SOURCE,
+  type CommercialLine,
+  type CommercialScenario,
+} from "@/lib/commercialQuote";
 
 const bothScenarios: CommercialScenario[] = ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"];
 
@@ -127,8 +131,9 @@ export function buildCommercialDraftLines(input: {
   });
 
   input.externalExpenses
-    .filter((expense) => expense.includeInClientTotal)
+    .filter((expense) => expense.includeInClientTotal || expense.includeInMarginCalculation)
     .forEach((expense, index) => {
+      const internalCostOnly = !expense.includeInClientTotal && expense.includeInMarginCalculation;
       push({
         stableKey: `external:${expense.id}:${index}`,
         type: "EXTERNAL_EXPENSE",
@@ -136,15 +141,19 @@ export function buildCommercialDraftLines(input: {
         description: expense.name,
         quantity: 1,
         unit: "услуга",
-        priceState: expense.clientPrice > 0 ? "KNOWN" : "UNKNOWN",
-        clientUnitPrice: expense.clientPrice > 0 ? rublesToKopecks(expense.clientPrice) : null,
-        costState: expense.includeInMarginCalculation ? knownState(expense.costPrice) : "UNKNOWN",
-        unitCost: expense.includeInMarginCalculation ? knownValue(expense.costPrice) : null,
+        priceState: expense.includeInClientTotal
+          ? (expense.clientPrice > 0 ? "KNOWN" : "UNKNOWN")
+          : "KNOWN",
+        clientUnitPrice: expense.includeInClientTotal
+          ? (expense.clientPrice > 0 ? rublesToKopecks(expense.clientPrice) : null)
+          : 0,
+        costState: expense.includeInMarginCalculation ? knownState(expense.costPrice) : "KNOWN",
+        unitCost: expense.includeInMarginCalculation ? knownValue(expense.costPrice) : 0,
         discountAmount: 0,
         included: false,
         optional: false,
         relationKind: "STANDALONE",
-        source: "agent-entered-expense",
+        source: internalCostOnly ? INTERNAL_COST_LINE_SOURCE : "agent-entered-expense",
         sourceVersion: "1",
         scenarioCompatibility: [...bothScenarios],
       });

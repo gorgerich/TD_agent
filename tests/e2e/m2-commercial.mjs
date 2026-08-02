@@ -211,6 +211,18 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
     `${requireSecondVersion ? "1 400" : "1 250"} ₽`,
     "Builder total must equal the latest immutable Published version",
   );
+  await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  await target.getByRole("tab", { name: "Экономика", exact: true }).click();
+  await target.getByRole("button", { name: /Экономика сделки/ }).click();
+  const clientTotalMetric = target.getByText("Итог клиенту", { exact: true }).locator("..");
+  await clientTotalMetric.getByText(`${requireSecondVersion ? "1 400" : "1 250"} ₽`, { exact: true }).waitFor();
+  await target.getByRole("tab", { name: "Версии", exact: true }).click();
+  await target.getByRole("heading", { name: "Опубликованные версии", exact: true }).waitFor();
+  await target.getByText(`Версия ${requireSecondVersion ? 2 : 1}`, { exact: true }).waitFor();
+  if (requireSecondVersion) {
+    await target.getByText("Версия 1", { exact: true }).waitFor();
+    await target.getByText("Заменена новой", { exact: true }).waitFor();
+  }
 
   await target.goto(`${baseUrl}/co/${finalToken}`, { waitUntil: "networkidle" });
   await target.getByRole("button", { name: "Принять смету" }).click();

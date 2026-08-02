@@ -47,6 +47,27 @@ export type CommercialTotals = {
   countedLineKeys: string[];
 };
 
+export const INTERNAL_COST_LINE_SOURCE = "agent-entered-internal-expense";
+
+export type CommercialEconomicsLine = {
+  stableKey: string;
+  description: string;
+  type: CommercialLineType;
+  quantity: number;
+  clientVisible: boolean;
+  priceState: CommercialValueState;
+  costState: CommercialValueState;
+  clientTotal: number | null;
+  costTotal: number | null;
+  margin: number | null;
+  marginPercent: number | null;
+};
+
+export type CommercialEconomics = CommercialTotals & {
+  marginPercent: number | null;
+  items: CommercialEconomicsLine[];
+};
+
 /** How a line relates to the total the client is asked to pay. */
 export type LineSettlement = "COUNTED" | "INCLUDED" | "REPLACED";
 
@@ -99,6 +120,21 @@ export function settleCommercialLines(
     });
   }
   return result;
+}
+
+/**
+ * Internal expenses affect agent economics but never the client composition. The strict
+ * shape check prevents a caller from hiding a billed line merely by spoofing `source`.
+ */
+export function isClientVisibleCommercialLine(line: CommercialLine): boolean {
+  return !(
+    line.source === INTERNAL_COST_LINE_SOURCE
+    && line.type === "EXTERNAL_EXPENSE"
+    && line.priceState === "KNOWN"
+    && line.clientUnitPrice === 0
+    && line.relationKind === "STANDALONE"
+    && !line.included
+  );
 }
 
 export type PublishedQuoteSnapshot = {
@@ -187,7 +223,7 @@ export function calculateCommercialTotals(
 
   const settlement = settleCommercialLines(lines, replacementTargets);
   const counted = lines.filter((line) => settlement.get(line.stableKey)?.settlement === "COUNTED");
-  if (counted.length === 0) {
+  if (!counted.some(isClientVisibleCommercialLine)) {
     blockers.push("Добавьте хотя бы одну оплачиваемую позицию");
   }
   let subtotal = 0;
@@ -233,6 +269,49 @@ export function calculateCommercialTotals(
     blockers: [...new Set(blockers)],
     warnings: [...new Set(warnings)],
     countedLineKeys: counted.map((line) => line.stableKey),
+  };
+}
+
+/** One canonical projection for every internal economics surface. */
+export function calculateCommercialEconomics(
+  lines: CommercialLine[],
+  scenario: CommercialScenario,
+): CommercialEconomics {
+  const totals = calculateCommercialTotals(lines, scenario);
+  const settlement = settleCommercialLines(lines);
+  const items = lines.flatMap((line): CommercialEconomicsLine[] => {
+    const lineSettlement = settlement.get(line.stableKey);
+    if (lineSettlement?.settlement !== "COUNTED") return [];
+
+    const clientTotal = lineSettlement.lineTotal;
+    const costTotal = line.costState === "KNOWN" && line.unitCost !== null
+      ? assertMinorUnit(line.unitCost, `Себестоимость «${line.description}»`) * line.quantity
+      : null;
+    const margin = clientTotal !== null && costTotal !== null ? clientTotal - costTotal : null;
+    const marginPercent = margin !== null && clientTotal !== null && clientTotal > 0
+      ? margin / clientTotal * 100
+      : null;
+    return [{
+      stableKey: line.stableKey,
+      description: line.description,
+      type: line.type,
+      quantity: line.quantity,
+      clientVisible: isClientVisibleCommercialLine(line),
+      priceState: line.priceState,
+      costState: line.costState,
+      clientTotal,
+      costTotal,
+      margin,
+      marginPercent,
+    }];
+  });
+
+  return {
+    ...totals,
+    marginPercent: totals.margin !== null && totals.total !== null && totals.total > 0
+      ? totals.margin / totals.total * 100
+      : null,
+    items,
   };
 }
 
