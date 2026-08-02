@@ -524,6 +524,14 @@ async function assertTabLabelsFit(target, label) {
 
 async function assertZoomControlsVisible(target) {
   await target.getByTestId("quote-sheet-save").waitFor();
+  const dockNavigation = target.getByRole("navigation", { name: "Основная навигация", exact: true });
+  for (const label of ["Кейсы", "Календарь", "Сметы", "Сегодня"]) {
+    assert.equal(
+      await dockNavigation.getByRole("link", { name: label, exact: true }).count(),
+      1,
+      `Zoom navigation link must keep the accessible name: ${label}`,
+    );
+  }
   const state = await target.evaluate(() => {
     const save = document.querySelector('[data-testid="quote-sheet-save"]')?.getBoundingClientRect();
     const dock = document.querySelector('[aria-label="Основная навигация"]')?.getBoundingClientRect();
