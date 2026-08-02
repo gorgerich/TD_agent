@@ -297,6 +297,20 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       context: owner.context,
       meta: meta(fixtures.runId, "link-v2"),
     });
+    const v2Snapshot = JSON.parse((await db.quoteVersion.findUniqueOrThrow({
+      where: { id: Number(publishedV2.quoteVersionId) },
+      select: { payload: true },
+    })).payload);
+    const immutableProjection = await getCommercialQuoteForMeeting(meeting.id, owner.context);
+    assert.equal(immutableProjection?.published?.total, v2Snapshot.totals.total);
+    assert.deepEqual(immutableProjection?.published?.lines, v2Snapshot.lines);
+    assert.equal(immutableProjection?.history[0]?.total, v2Snapshot.totals.total);
+    const immutableClientView = await resolveCommercialClientView(linkV2.token);
+    assert.equal(immutableClientView.state, "PUBLISHED");
+    if (immutableClientView.state !== "PUBLISHED") throw new Error("Expected immutable published client view");
+    assert.equal(immutableClientView.version.total, v2Snapshot.totals.total);
+    assert.equal(immutableClientView.version.lines[0]?.clientUnitPrice, v2Snapshot.lines[0]?.clientUnitPrice);
+
     const accepted = await recordCommercialClientDecision({
       token: linkV2.token,
       type: "ACCEPTED",

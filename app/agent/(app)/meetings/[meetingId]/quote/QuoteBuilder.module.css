@@ -148,6 +148,42 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.quoteLoadNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, var(--color-line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+  color: var(--color-ink);
+}
+.quoteLoadNotice strong,
+.quoteLoadNotice p { margin: 0; }
+.quoteLoadNotice strong { font-size: 13px; }
+.quoteLoadNotice p {
+  margin-top: 3px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.quoteLoadNotice button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.quoteLoadNotice button:hover { background: var(--color-ink-2); }
+.quoteLoadNotice button:focus-visible { outline: 3px solid var(--color-accent-soft); outline-offset: 2px; }
 .planModeSwitch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1585,20 +1621,24 @@
 .sheetClose:hover { border-color: var(--color-line-strong); color: var(--color-ink); background: var(--color-surface-2); }
 .sheetTabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(64px, 100%), 1fr));
   gap: 4px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
 }
 .sheetTab {
+  min-width: 0;
   min-height: 38px;
+  padding: 4px 6px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--color-ink-2);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -2139,7 +2179,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .mobileBarMeta { display: none; }
   .mobileBarStatus { display: none; }
   .mobileBarSum { min-height: 40px; align-content: center; }
-  .sheetTab { padding: 0 6px; font-size: 11px; }
+  .sheetTab { font-size: 11px; }
   .panelHead { align-items: flex-start; flex-wrap: wrap; }
 }
 
@@ -2239,10 +2279,10 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 /* ── Паттерны wizard tihiydom.com (B2C /wizard) ──────────────────
    Radio-карточки, карточки длительности, маршрут-чипы, буллеты пакетов.
    Палитра - токены кабинета (evergreen вместо чёрного B2C). */
-.radioCards { display: grid; gap: 8px; }
+.radioCards { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 8px; }
 .radioCard {
   display: flex; align-items: center; gap: 12px;
-  width: 100%; text-align: left; font: inherit; appearance: none;
+  width: 100%; min-width: 0; text-align: left; font: inherit; appearance: none;
   padding: 13px 16px;
   border-radius: 14px; border: 1px solid var(--color-line);
   background: var(--color-surface); cursor: pointer;
@@ -2712,13 +2752,78 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .b2cWizardShell { margin-right: -2px; margin-left: -2px; padding: 14px; }
   .card,
   .b2cWizardShell .card { padding: 16px 0; }
-  .b2cStageRail { margin-right: -4px; margin-left: -4px; padding-right: 4px; padding-left: 4px; }
-  .b2cStageChip { min-height: 40px; }
+  .b2cStageRail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-right: 0;
+    margin-left: 0;
+    overflow: visible;
+    padding-right: 0;
+    padding-left: 0;
+  }
+  .b2cStageChip { width: 100%; min-width: 0; min-height: 40px; }
+  .serviceToggle { grid-template-columns: minmax(0, 1fr); }
   .previewShell { margin-right: -2px; margin-left: -2px; }
+}
+
+/* 390px mobile at 200% browser zoom exposes a 195px CSS viewport. */
+@media (max-width: 240px) {
+  .root { padding-right: 8px; padding-left: 8px; }
+  .b2cWizardShell { padding: 10px; }
+  .radioCard {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 11px 10px;
+  }
+  .radioCardText,
+  .radioCardLabel,
+  .radioCardSub { overflow-wrap: anywhere; }
+  .radioCardPrice { grid-column: 2; justify-self: start; }
+  .panel {
+    bottom: calc(70px + env(safe-area-inset-bottom));
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+  .panelCard { height: calc(100dvh - 78px); max-height: none; }
+  .panelHero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 4px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    padding-right: 8px;
+    padding-left: 10px;
+  }
+  .panelHero > div { min-width: 0; }
+  .panelHeroLabel { font-size: 9px; }
+  .panelHeroAmount { overflow-wrap: anywhere; font-size: 22px; }
+  .panelHeroMeta { font-size: 10px; }
+  .panelHead {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 6px 8px;
+  }
+  .panelHeadTitle { font-size: 13px; }
+  .panelStatus,
+  .panelVersions { min-height: 22px; padding: 2px 6px; white-space: normal; overflow-wrap: anywhere; font-size: 9px; }
+  .sheetTabs { gap: 3px; padding: 4px 6px; }
+  .sheetTab { min-height: 32px; padding: 3px 4px; font-size: 10px; }
+  .panelSections { padding-right: 10px; padding-left: 10px; }
+  .panelItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .panelItem > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .sheetFooter { gap: 6px; padding: 6px; }
+  .sheetFooterSummary { min-height: 40px; padding: 4px 7px; }
+  .sheetFooterSummary strong { font-size: 14px; }
+  .sheetFooterSave { min-height: 40px; padding: 0 10px; font-size: 12px; }
 }
 
 @media (max-width: 640px) {
   .mobileBar { background: var(--color-surface); }
+  .quoteLoadNotice { align-items: stretch; flex-direction: column; gap: 10px; }
+  .quoteLoadNotice button { width: 100%; }
 }
 
 .commercialReview {

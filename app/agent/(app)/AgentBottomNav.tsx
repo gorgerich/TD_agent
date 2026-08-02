@@ -58,7 +58,7 @@ export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number
                 </span>
               )}
             </span>
-            <span className="leading-none">{label}</span>
+            <span className="td-mobile-dock-label leading-none">{label}</span>
           </Link>
         );
       })}

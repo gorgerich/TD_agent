@@ -159,6 +159,8 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   const [publishing, setPublishing] = useState(false);
   const [clientLink, setClientLink] = useState<string | null>(null);
   const [quoteHydrated, setQuoteHydrated] = useState(false);
+  const [quoteLoadFailed, setQuoteLoadFailed] = useState(false);
+  const [quoteLoadAttempt, setQuoteLoadAttempt] = useState(0);
   const [canonicalEconomics, setCanonicalEconomics] = useState<CommercialEconomics | null>(null);
   const [lastAutosavedState, setLastAutosavedState] = useState<string | null>(null);
   const autosaveHandler = useRef<(options?: { quiet?: boolean }) => Promise<number | null>>(async () => null);
@@ -187,7 +189,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   );
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
-  const grandTotal = result.total + estimateTotal + externalTotal;
+  const estimatePricesKnown = useMemo(
+    () => estimateItems.every((item) => (item.priceState ?? (item.clientPrice > 0 ? "KNOWN" : "UNKNOWN")) === "KNOWN"),
+    [estimateItems],
+  );
+  const externalPricesKnown = useMemo(
+    () => externalExpenses.every((expense) => !expense.includeInClientTotal || expense.clientPrice > 0),
+    [externalExpenses],
+  );
   const baseLineCount = useMemo(
     () => result.sections.reduce((sum, section) => sum + (section.items?.length ?? (section.total > 0 ? 1 : 0)), 0),
     [result.sections],
@@ -274,7 +283,8 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     () => JSON.stringify({ form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData }),
     [attributes, cemeteryCategory, estimateItems, externalExpenses, form, memorialData],
   );
-  const hasLocalChanges = quoteHydrated && editorStateJson !== lastAutosavedState;
+  const hasLocalChanges = quoteHydrated && !quoteLoadFailed && editorStateJson !== lastAutosavedState;
+  const quoteWritesAvailable = quoteHydrated && !quoteLoadFailed;
   const economics = !hasLocalChanges && canonicalEconomics ? canonicalEconomics : liveEconomics;
   const commercialTotals = economics;
   /**
@@ -284,12 +294,18 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
    * stale value there. Gate the headline on the canonical state instead, and render the
    * blockers rather than a confident figure.
    */
-  const visibleGrandTotalMinor = commercialTotals.totalState === "KNOWN" ? commercialTotals.total : null;
+  const visibleGrandTotalMinor = quoteHydrated && !quoteLoadFailed && commercialTotals.totalState === "KNOWN"
+    ? commercialTotals.total
+    : null;
   // Render from minor units, never from a rounded ruble figure: the client view states the
   // same number and the two must not disagree by a rounding step.
-  const headlineTotal = visibleGrandTotalMinor !== null
-    ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
-    : "Цена требует уточнения";
+  const headlineTotal = !quoteHydrated
+    ? "Загрузка сметы..."
+    : quoteLoadFailed
+      ? "Не удалось загрузить"
+    : visibleGrandTotalMinor !== null
+      ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
+      : "Цена требует уточнения";
   const hasUnknownCosts = commercialTotals.costTotal === null;
   const budgetStatus = useMemo(
     () => visibleGrandTotalMinor === null
@@ -351,7 +367,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   );
   const selectedPackage = relevantPackages.find((p) => p.id === form.packageType);
   const planMode = form.packageType === "custom" ? "custom" : "package";
-  const baselineDelta = baseline ? grandTotal - baseline.price : 0;
+  const baselineDelta = baseline && visibleGrandTotalMinor !== null
+    ? visibleGrandTotalMinor / 100 - baseline.price
+    : null;
   const planTitle =
     planMode === "package"
       ? selectedPackage
@@ -376,6 +394,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
   useEffect(() => {
     let active = true;
+    setQuoteHydrated(false);
+    setQuoteLoadFailed(false);
+    setSaveError(null);
     const emptyEditorState = {
       form: DEFAULT_FORM,
       cemeteryCategory: "standard",
@@ -391,6 +412,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .then((data) => {
         if (!active) return;
+        setQuoteLoadFailed(false);
         if (!data.quote) {
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           return;
@@ -444,6 +466,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .catch(() => {
         if (active) {
+          setQuoteLoadFailed(true);
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           setSaveError("Не удалось загрузить сохранённый черновик. Обновите страницу или повторите попытку.");
         }
@@ -454,7 +477,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     return () => {
       active = false;
     };
-  }, [meetingId]);
+  }, [meetingId, quoteLoadAttempt]);
 
   useEffect(() => {
     if (!calculatorOpen) return;
@@ -677,6 +700,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   async function saveVersion(options: { quiet?: boolean } = {}): Promise<number | null> {
+    if (!quoteWritesAvailable) {
+      const message = quoteLoadFailed
+        ? "Сначала восстановите загрузку канонической сметы. Локальные данные не записаны."
+        : "Дождитесь загрузки сметы.";
+      setSaveError(message);
+      if (!options.quiet) toast({ type: "error", message });
+      return null;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -734,12 +765,12 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   });
 
   useEffect(() => {
-    if (!quoteHydrated || editorStateJson === lastAutosavedState) return;
+    if (!quoteHydrated || quoteLoadFailed || editorStateJson === lastAutosavedState) return;
     const timer = window.setTimeout(() => {
       void autosaveHandler.current({ quiet: true });
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [editorStateJson, lastAutosavedState, quoteHydrated]);
+  }, [editorStateJson, lastAutosavedState, quoteHydrated, quoteLoadFailed]);
 
   async function startReview() {
     const activeQuoteId = await saveVersion();
@@ -927,6 +958,17 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       </div>
 
       <section className={s.planShell} aria-label="Сводка плана">
+        {quoteLoadFailed && (
+          <div className={s.quoteLoadNotice} role="alert">
+            <div>
+              <strong>Каноническая смета недоступна</strong>
+              <p>Локальный расчёт не будет сохранён, пока данные кейса не загрузятся.</p>
+            </div>
+            <button type="button" onClick={() => setQuoteLoadAttempt((attempt) => attempt + 1)}>
+              Повторить загрузку
+            </button>
+          </div>
+        )}
         <div className={s.planHero}>
           <div>
             <span className={s.planEyebrow}>План прощания</span>
@@ -937,7 +979,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             <div className={s.planTotal}>
               <span>Итого</span>
               <strong>{headlineTotal}</strong>
-              {planMode === "custom" && baseline && baselineDelta !== 0 && (
+              {planMode === "custom" && baseline && baselineDelta !== null && baselineDelta !== 0 && (
                 <em className={baselineDelta > 0 ? s.deltaUp : s.deltaDown}>
                   {formatDelta(baselineDelta)} к тарифу
                 </em>
@@ -1013,7 +1055,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             </div>
 
             <div className={s.planActions}>
-              <button type="button" className={s.planPrimary} onClick={() => void saveVersion()} disabled={saving}>
+              <button type="button" className={s.planPrimary} onClick={() => void saveVersion()} disabled={saving || !quoteWritesAvailable}>
                 {saving ? "Сохраняю…" : "Сохранить план"}
               </button>
               <button type="button" className={s.planSecondary} onClick={editPackageDetails}>
@@ -1451,7 +1493,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 type="button"
                 className={`${s.stepForward} ${s.stepForwardDone}`}
                 onClick={() => void saveVersion()}
-                disabled={saving}
+                disabled={saving || !quoteWritesAvailable}
               >
                 {saving ? "Сохраняю…" : "Готово - сохранить смету"}
                 {!saving && <Check size={14} weight="bold" />}
@@ -1476,7 +1518,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             </span>
             <span className={s.mobileBarMore}>Подробнее</span>
           </button>
-          <button type="button" className={s.mobileBarBtn} onClick={() => void saveVersion()} disabled={saving}>
+          <button type="button" className={s.mobileBarBtn} onClick={() => void saveVersion()} disabled={saving || !quoteWritesAvailable}>
             {saving ? "Сохраняю..." : "Сохранить"}
           </button>
         </div>
@@ -1567,7 +1609,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   <div className={s.panelSection}>
                     <div className={s.panelSectionHead}>
                       <span>Атрибутика</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
+                      <span className={s.panelSectionAmt}>
+                        {estimatePricesKnown ? formatCurrency(estimateTotal) : "Цена требует уточнения"}
+                      </span>
                     </div>
                     <div className={s.estimateList}>
                       {estimateItems.map((item) => (
@@ -1587,7 +1631,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   <div className={s.panelSection}>
                     <div className={s.panelSectionHead}>
                       <span>Внешние расходы</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(externalTotal)}</span>
+                      <span className={s.panelSectionAmt}>
+                        {externalPricesKnown ? formatCurrency(externalTotal) : "Цена требует уточнения"}
+                      </span>
                     </div>
                     <div className={s.externalSummaryList}>
                       {externalExpenses.map((expense) => {
@@ -1657,16 +1703,16 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 <button
                   className={s.saveBtn}
                   onClick={() => void saveVersion()}
-                  disabled={saving || publishing}
+                  disabled={saving || publishing || !quoteWritesAvailable}
                 >
                   {saving ? "Сохраняю..." : "Сохранить черновик"}
                 </button>
-                <button type="button" className={s.secondaryActionBtn} onClick={startPresentation} disabled={saving || publishing}>
+                <button type="button" className={s.secondaryActionBtn} onClick={startPresentation} disabled={saving || publishing || !quoteWritesAvailable}>
                   <Eye size={15} weight="fill" /> Открыть режим презентации
                 </button>
 
                 {(commercialStatus === "DRAFT" || commercialStatus === "REJECTED") && (
-                  <button type="button" className={s.secondaryActionBtn} onClick={startReview} disabled={saving || publishing}>
+                  <button type="button" className={s.secondaryActionBtn} onClick={startReview} disabled={saving || publishing || !quoteWritesAvailable}>
                     <Eye size={15} weight="fill" /> Проверить перед публикацией
                   </button>
                 )}
@@ -1754,7 +1800,13 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 <span>Итого</span>
                 <strong>{headlineTotal}</strong>
               </button>
-              <button type="button" className={s.sheetFooterSave} onClick={() => void saveVersion()} disabled={saving}>
+              <button
+                type="button"
+                className={s.sheetFooterSave}
+                data-testid="quote-sheet-save"
+                onClick={() => void saveVersion()}
+                disabled={saving || !quoteWritesAvailable}
+              >
                 {saving ? "Сохраняю..." : "Сохранить"}
               </button>
             </div>

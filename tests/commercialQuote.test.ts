@@ -6,8 +6,10 @@ import {
   assertPublishable,
   calculateCommercialEconomics,
   calculateCommercialTotals,
+  canonicalSnapshotJson,
   isClientVisibleCommercialLine,
   quoteSnapshotChecksum,
+  readPublishedQuoteSnapshot,
   diffCommercialLines,
   settleCommercialLines,
   type CommercialLine,
@@ -229,6 +231,51 @@ test("one hundred calculations and snapshots are minor-unit deterministic", () =
     },
   };
   assert.equal(new Set(Array.from({ length: 100 }, () => quoteSnapshotChecksum(snapshot))).size, 1);
+});
+
+test("published snapshot stays authoritative when current line arithmetic would differ", () => {
+  const snapshot: PublishedQuoteSnapshot = {
+    schemaVersion: 1,
+    quoteId: 77,
+    versionNumber: 3,
+    organizationId: "org:immutable",
+    caseId: "case:immutable",
+    scenario: "CREMATION_V1",
+    currency: "RUB",
+    publishedAt: "2026-07-29T12:00:00.000Z",
+    validUntil: "2026-08-05T12:00:00.000Z",
+    lines: [line({ clientUnitPrice: 100_000, unitCost: 40_000 })],
+    editorState: { step: "published" },
+    totals: {
+      subtotal: 100_000,
+      discountTotal: 10_000,
+      total: 90_000,
+      totalState: "KNOWN",
+      costTotal: 40_000,
+      margin: 50_000,
+      countedLineKeys: ["service:coordination"],
+    },
+  };
+  const payload = canonicalSnapshotJson(snapshot);
+  const snapshotChecksum = quoteSnapshotChecksum(snapshot);
+  const restored = readPublishedQuoteSnapshot({
+    payload,
+    snapshotChecksum,
+    quoteId: snapshot.quoteId,
+    versionNumber: snapshot.versionNumber,
+  });
+
+  assert.equal(calculateCommercialTotals(snapshot.lines, snapshot.scenario).total, 100_000);
+  assert.equal(restored.totals.total, 90_000);
+  assert.throws(
+    () => readPublishedQuoteSnapshot({
+      payload,
+      snapshotChecksum,
+      quoteId: snapshot.quoteId,
+      versionNumber: snapshot.versionNumber + 1,
+    }),
+    /integrity check failed/,
+  );
 });
 
 test("review diff reports added, removed and changed lines without mutating either version", () => {

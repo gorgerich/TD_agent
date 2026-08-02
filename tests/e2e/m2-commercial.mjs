@@ -47,6 +47,7 @@ const browserErrors = [];
 // the behaviour, so account for that noise here instead of treating it as a page defect.
 let expectedPublishBlocks = 0;
 let expectedCrossTenantMisses = 0;
+let expectedQuoteLoadFailures = 0;
 let throttledLogins = 0;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
@@ -57,6 +58,10 @@ page.on("console", (message) => {
   }
   if (message.text().includes("status of 404") && location.includes("/api/agent/meeting/")) {
     expectedCrossTenantMisses += 1;
+    return;
+  }
+  if (message.text().includes("status of 503") && location.includes("/api/agent/meeting/")) {
+    expectedQuoteLoadFailures += 1;
     return;
   }
   // login() handles a throttled login by honouring Retry-After and trying again. The
@@ -75,6 +80,7 @@ try {
   await login(page, email, password);
   const cremation = await commercialJourney(page, "Семья Кремова · синтетика", "CREMATION_V1", true);
   const burial = await commercialJourney(page, "Семья Участкова · синтетика", "FAMILY_PLOT_BURIAL_V1", false);
+  await assertQuoteLoadFailureIsHonest(page, burial.meetingId);
 
   await page.goto(`${baseUrl}/agent/estimates`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Сметы", exact: true }).waitFor();
@@ -82,14 +88,25 @@ try {
   await assertA11y(page, "quote registry");
 
   await page.setViewportSize({ width: 390, height: 844 });
+  // Browser zoom reduces the CSS viewport. A 195px CSS viewport is the deterministic
+  // equivalent of a 390px mobile viewport at 200% zoom; CSS `zoom` would instead enlarge
+  // descendants without updating media-query geometry and does not model browser zoom.
+  await page.setViewportSize({ width: 195, height: 422 });
+  await page.goto(`${baseUrl}/agent/meetings/${burial.meetingId}/quote`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  await assertNoOverflow(page, "quote builder 200 percent zoom");
+  await assertTabLabelsFit(page, "quote builder 200 percent zoom");
+  await assertZoomControlsVisible(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${baseUrl}/co/${burial.token}`, { waitUntil: "networkidle" });
   await page.getByText("Опубликована версия 1", { exact: true }).waitFor();
   await assertNoOverflow(page, "client quote mobile");
   await assertA11y(page, "client quote mobile");
 
-  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await page.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(page, "client quote 200 percent zoom");
-  await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+  await page.setViewportSize({ width: 390, height: 844 });
 
   await context.clearCookies();
   await login(page, managerEmail, password);
@@ -108,6 +125,7 @@ try {
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.ok(expectedPublishBlocks >= 1, "Unknown-price publish must be observed as blocked in the browser");
   assert.ok(expectedCrossTenantMisses >= 1, "Cross-tenant quote read must be observed as not found in the browser");
+  assert.ok(expectedQuoteLoadFailures >= 1, "Quote load failure must be observed and rendered honestly");
   process.stdout.write(`${JSON.stringify({
     cremation: cremation.status,
     relativeBurial: burial.status,
@@ -119,6 +137,7 @@ try {
     zoom200: "PASS",
     managerContext: "PASS",
     crossTenant: "PASS",
+    failureUx: "PASS",
     throttledLoginsRetried: throttledLogins,
     skipped: 0,
   })}\n`);
@@ -206,9 +225,13 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
 
   await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
   await target.getByTestId("quote-visible-total").waitFor();
+  const expectedBuilderTotal = `${requireSecondVersion ? "1 400" : "1 250"} ₽`;
+  await target.waitForFunction((expected) =>
+    (document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").replace(/\s+/g, " ").trim() === expected,
+  expectedBuilderTotal);
   assert.equal(
     normalizeText(await target.getByTestId("quote-visible-total").textContent()),
-    `${requireSecondVersion ? "1 400" : "1 250"} ₽`,
+    expectedBuilderTotal,
     "Builder total must equal the latest immutable Published version",
   );
   await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
@@ -316,7 +339,25 @@ async function saveDraftOnly(target, meetingId, scenario, price, suffix, priceSt
         sourceVersion: "1",
         scenarioCompatibility: [quoteScenario],
       }],
-      editorState: { e2e: true, scenario: quoteScenario },
+      editorState: valueState === "REQUESTED"
+        ? {
+            e2e: true,
+            scenario: quoteScenario,
+            estimateItems: [{
+              id: `requested-${quoteScenario}`,
+              catalogItemId: `requested-${quoteScenario}`,
+              name: "Позиция с запрошенной ценой",
+              category: "Гробы",
+              description: "Синтетическая позиция",
+              imagePlaceholder: "",
+              clientPrice: unitPrice / 100,
+              costPrice: 100,
+              priceState: "REQUESTED",
+              costState: "KNOWN",
+              quantity: 1,
+            }],
+          }
+        : { e2e: true, scenario: quoteScenario },
     }, `${runKey}:draft`);
     return saved;
   }, { meetingId, scenario, price, suffix, priceState });
@@ -335,7 +376,27 @@ function readQuoteStatus(target, meetingId) {
 }
 
 async function assertUnknownPriceBlocksPublish(target, meetingId, scenario) {
-  const saved = await saveDraftOnly(target, meetingId, scenario, 0, "unknown-price", "UNKNOWN");
+  const saved = await saveDraftOnly(target, meetingId, scenario, 25_000, "unknown-price", "REQUESTED");
+  const quoteRead = target.waitForResponse((response) =>
+    response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+  await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+  assert.equal((await quoteRead).status(), 200);
+  await target.getByTestId("quote-visible-total").waitFor();
+  await target.waitForFunction(() =>
+    document.querySelector('[data-testid="quote-visible-total"]')?.textContent?.includes("Цена требует уточнения"));
+  assert.equal(
+    normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+    "Цена требует уточнения",
+    "Requested price must not render the stale editor amount as the quote total",
+  );
+  await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  const attribution = target.getByText("Атрибутика", { exact: true }).locator("..");
+  await attribution.getByText("Цена требует уточнения", { exact: true }).waitFor();
+  assert.equal(
+    await target.getByText(/к тарифу/).count(),
+    0,
+    "Requested price must not produce a package delta",
+  );
   const review = await target.evaluate(async (quoteId) => {
     const key = `e2e-m2:${quoteId}:unknown-review`;
     const res = await fetch(`/api/agent/quotes/${quoteId}/review`, {
@@ -408,6 +469,130 @@ async function assertNoOverflow(target, label) {
   const dimensions = await target.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
+    offenders: Array.from(document.body.querySelectorAll("*")).flatMap((node) => {
+      const element = /** @type {HTMLElement} */ (node);
+      const rect = element.getBoundingClientRect();
+      return rect.right > document.documentElement.clientWidth + 1
+        ? [{
+            tag: element.tagName,
+            className: element.className?.toString().slice(0, 120) ?? "",
+            text: element.textContent?.trim().replace(/\s+/g, " ").slice(0, 80) ?? "",
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+          }]
+        : [];
+    }).slice(0, 12),
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.clientWidth + 1, `${label} overflow: ${JSON.stringify(dimensions)}`);
+}
+
+async function assertTabLabelsFit(target, label) {
+  const result = await target.evaluate(() => {
+    const tabs = Array.from(document.querySelectorAll('[role="tablist"] [role="tab"]'));
+    const metrics = tabs.map((tab) => {
+      const element = /** @type {HTMLElement} */ (tab);
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.textContent?.trim() ?? "",
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      };
+    });
+    const overlaps = [];
+    for (let left = 0; left < metrics.length; left += 1) {
+      for (let right = left + 1; right < metrics.length; right += 1) {
+        const a = metrics[left];
+        const b = metrics[right];
+        if (Math.min(a.rect.right, b.rect.right) > Math.max(a.rect.left, b.rect.left)
+          && Math.min(a.rect.bottom, b.rect.bottom) > Math.max(a.rect.top, b.rect.top)) {
+          overlaps.push(`${a.label}/${b.label}`);
+        }
+      }
+    }
+    return { metrics, overlaps };
+  });
+  assert.deepEqual(result.overlaps, [], `${label} overlapping tabs: ${JSON.stringify(result)}`);
+  assert.ok(
+    result.metrics.every((tab) => tab.scrollWidth <= tab.clientWidth + 1 && tab.scrollHeight <= tab.clientHeight + 1),
+    `${label} clipped tab label: ${JSON.stringify(result)}`,
+  );
+}
+
+async function assertZoomControlsVisible(target) {
+  await target.getByTestId("quote-sheet-save").waitFor();
+  const state = await target.evaluate(() => {
+    const save = document.querySelector('[data-testid="quote-sheet-save"]')?.getBoundingClientRect();
+    const dock = document.querySelector('[aria-label="Основная навигация"]')?.getBoundingClientRect();
+    const labels = Array.from(document.querySelectorAll(".td-mobile-dock-label"));
+    return {
+      save: save ? { top: save.top, bottom: save.bottom, left: save.left, right: save.right } : null,
+      dock: dock ? { top: dock.top, bottom: dock.bottom, left: dock.left, right: dock.right } : null,
+      labelsHidden: labels.length > 0 && labels.every((label) => getComputedStyle(label).display === "none"),
+      viewport: { width: innerWidth, height: innerHeight },
+    };
+  });
+  assert.ok(state.save, `200 percent zoom save action missing: ${JSON.stringify(state)}`);
+  assert.ok(state.dock, `200 percent zoom navigation missing: ${JSON.stringify(state)}`);
+  assert.ok(
+    state.save.left >= 0 && state.save.right <= state.viewport.width
+      && state.save.top >= 0 && state.save.bottom <= state.viewport.height,
+    `200 percent zoom save action is clipped: ${JSON.stringify(state)}`,
+  );
+  assert.ok(
+    state.dock.left >= 0 && state.dock.right <= state.viewport.width
+      && state.dock.top >= 0 && state.dock.bottom <= state.viewport.height,
+    `200 percent zoom navigation is clipped: ${JSON.stringify(state)}`,
+  );
+  assert.ok(state.save.bottom <= state.dock.top, `Save action overlaps navigation: ${JSON.stringify(state)}`);
+  assert.equal(state.labelsHidden, true, `Zoom navigation labels must not collide: ${JSON.stringify(state)}`);
+}
+
+async function assertQuoteLoadFailureIsHonest(target, meetingId) {
+  const routePattern = `**/api/agent/meeting/${meetingId}/quote`;
+  const writes = [];
+  let failRead = true;
+  const recordWrite = (request) => {
+    if (request.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && request.method() === "POST") {
+      writes.push(request.url());
+    }
+  };
+  target.on("request", recordWrite);
+  await target.route(routePattern, async (route) => {
+    if (route.request().method() === "GET" && failRead) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  try {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByTestId("quote-visible-total").waitFor();
+    assert.equal(
+      normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+      "Не удалось загрузить",
+      "Failed canonical read must not fall back to a local total",
+    );
+    await target.getByRole("alert").filter({ hasText: "Каноническая смета недоступна" }).waitFor();
+    assert.equal(await target.getByTestId("quote-sheet-save").isDisabled(), true, "Manual save must fail closed");
+    await target.waitForTimeout(1_500);
+    assert.deepEqual(writes, [], "Failed canonical read must not trigger autosave");
+
+    failRead = false;
+    const recoveredRead = target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
+    assert.equal((await recoveredRead).status(), 200);
+    await target.waitForFunction(() =>
+      (document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").replace(/\s+/g, " ").trim() === "1 250 ₽");
+    assert.equal(await target.getByTestId("quote-sheet-save").isEnabled(), true, "Save must recover only after canonical read succeeds");
+    await target.waitForTimeout(1_000);
+    assert.deepEqual(writes, [], "Recovery read must not create a write");
+  } finally {
+    target.off("request", recordWrite);
+    await target.unroute(routePattern);
+  }
 }
