@@ -564,8 +564,12 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
   const writes = [];
   let failRead = true;
   const recordWrite = (request) => {
-    if (request.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && request.method() === "POST") {
-      writes.push(request.url());
+    const url = new URL(request.url());
+    const isCommercialMutation =
+      (url.pathname === `/api/agent/meeting/${meetingId}/quote` || url.pathname.startsWith("/api/agent/quotes/"))
+      && request.method() !== "GET";
+    if (isCommercialMutation) {
+      writes.push(`${request.method()} ${url.pathname}`);
     }
   };
   target.on("request", recordWrite);
@@ -586,9 +590,22 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
     );
     await target.getByRole("alert").filter({ hasText: "Каноническая смета недоступна" }).waitFor();
     assert.equal(await target.getByTestId("quote-sheet-save").isDisabled(), true, "Manual save must fail closed");
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+    assert.equal(
+      await target.getByRole("button", { name: "Открыть режим презентации", exact: true }).isDisabled(),
+      true,
+      "Presentation must fail closed",
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).isDisabled(),
+      true,
+      "Review must fail closed",
+    );
     await target.waitForTimeout(1_500);
-    assert.deepEqual(writes, [], "Failed canonical read must not trigger autosave");
+    assert.deepEqual(writes, [], "Failed canonical read must not trigger any commercial mutation");
 
+    await target.keyboard.press("Escape");
     failRead = false;
     const recoveredRead = target.waitForResponse((response) =>
       response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");

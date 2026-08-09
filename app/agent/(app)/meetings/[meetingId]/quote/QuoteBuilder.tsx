@@ -158,9 +158,12 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [clientLink, setClientLink] = useState<string | null>(null);
-  const [quoteHydrated, setQuoteHydrated] = useState(false);
-  const [quoteLoadFailed, setQuoteLoadFailed] = useState(false);
   const [quoteLoadAttempt, setQuoteLoadAttempt] = useState(0);
+  const quoteLoadKey = `${meetingId}:${quoteLoadAttempt}`;
+  const [settledQuoteLoadKey, setSettledQuoteLoadKey] = useState<string | null>(null);
+  const [failedQuoteLoadKey, setFailedQuoteLoadKey] = useState<string | null>(null);
+  const quoteHydrated = settledQuoteLoadKey === quoteLoadKey;
+  const quoteLoadFailed = failedQuoteLoadKey === quoteLoadKey;
   const [canonicalEconomics, setCanonicalEconomics] = useState<CommercialEconomics | null>(null);
   const [lastAutosavedState, setLastAutosavedState] = useState<string | null>(null);
   const autosaveHandler = useRef<(options?: { quiet?: boolean }) => Promise<number | null>>(async () => null);
@@ -394,9 +397,6 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
   useEffect(() => {
     let active = true;
-    setQuoteHydrated(false);
-    setQuoteLoadFailed(false);
-    setSaveError(null);
     const emptyEditorState = {
       form: DEFAULT_FORM,
       cemeteryCategory: "standard",
@@ -405,6 +405,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       externalExpenses: [] as ExternalExpense[],
       memorialData: DEFAULT_MEMORIAL_DATA,
     };
+    // quoteLoadKey invalidates every server-derived handle before this effect runs. Stale
+    // state may exist while the request is in flight, but no read model or mutation can
+    // treat it as current until this exact key settles successfully.
     fetch(`/api/agent/meeting/${meetingId}/quote`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("quote-load-failed");
@@ -412,8 +415,22 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .then((data) => {
         if (!active) return;
-        setQuoteLoadFailed(false);
+        setFailedQuoteLoadKey(null);
+        setSaveError(null);
+        setQuoteId(null);
+        setCommercialStatus("DRAFT");
+        setPublishedVersion(null);
+        setReviewResult(null);
+        setClientLink(null);
+        setVersionHistory([]);
+        setCanonicalEconomics(null);
         if (!data.quote) {
+          setForm(emptyEditorState.form);
+          setCemeteryCategory(emptyEditorState.cemeteryCategory);
+          setAttributes(emptyEditorState.attributes);
+          setEstimateItems(emptyEditorState.estimateItems);
+          setExternalExpenses(emptyEditorState.externalExpenses);
+          setMemorialData(emptyEditorState.memorialData);
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           return;
         }
@@ -466,18 +483,31 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .catch(() => {
         if (active) {
-          setQuoteLoadFailed(true);
+          setFailedQuoteLoadKey(quoteLoadKey);
+          setQuoteId(null);
+          setCommercialStatus("DRAFT");
+          setPublishedVersion(null);
+          setReviewResult(null);
+          setClientLink(null);
+          setVersionHistory([]);
+          setCanonicalEconomics(null);
+          setForm(emptyEditorState.form);
+          setCemeteryCategory(emptyEditorState.cemeteryCategory);
+          setAttributes(emptyEditorState.attributes);
+          setEstimateItems(emptyEditorState.estimateItems);
+          setExternalExpenses(emptyEditorState.externalExpenses);
+          setMemorialData(emptyEditorState.memorialData);
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           setSaveError("Не удалось загрузить сохранённый черновик. Обновите страницу или повторите попытку.");
         }
       })
       .finally(() => {
-        if (active) setQuoteHydrated(true);
+        if (active) setSettledQuoteLoadKey(quoteLoadKey);
       });
     return () => {
       active = false;
     };
-  }, [meetingId, quoteLoadAttempt]);
+  }, [meetingId, quoteLoadKey]);
 
   useEffect(() => {
     if (!calculatorOpen) return;
@@ -804,7 +834,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   async function publishQuote() {
-    if (!quoteId) return;
+    if (!quoteWritesAvailable || !quoteId) {
+      toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
+      return;
+    }
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -857,7 +890,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   async function createClientLink() {
-    if (!quoteId) return;
+    if (!quoteWritesAvailable || !quoteId) {
+      toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
+      return;
+    }
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -1755,7 +1791,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                       type="button"
                       className={s.publishBtn}
                       onClick={publishQuote}
-                      disabled={publishing || reviewResult.blockers.length > 0}
+                      disabled={publishing || !quoteWritesAvailable || reviewResult.blockers.length > 0}
                     >
                       {publishing ? "Публикую..." : "Опубликовать версию"}
                     </button>
@@ -1764,7 +1800,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
                 {(commercialStatus === "PUBLISHED" || commercialStatus === "ACCEPTED") && (
                   <>
-                    <button type="button" className={s.secondaryActionBtn} onClick={createClientLink} disabled={publishing}>
+                    <button type="button" className={s.secondaryActionBtn} onClick={createClientLink} disabled={publishing || !quoteWritesAvailable}>
                       <PaperPlaneTilt size={15} weight="fill" /> Создать ссылку для семьи
                     </button>
                     {clientLink && (

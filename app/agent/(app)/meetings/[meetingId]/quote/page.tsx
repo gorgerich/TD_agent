@@ -56,6 +56,7 @@ export default async function QuoteBuilderPage({
       </nav>
 
       <QuoteBuilder
+        key={meetingId}
         meetingId={meetingId}
         clientName={clientName}
         caseId={caseId}
