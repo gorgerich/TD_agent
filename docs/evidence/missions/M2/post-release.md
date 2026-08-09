@@ -14,7 +14,7 @@ evidence, but their blocker states are superseded by the successful release abov
 
 Read-only audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
 
-Final source repair: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
+Final source repair: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
 
 The candidate closes five P1 commercial-truth defects: unknown price rendered as a final
 amount, lost margin-only cost, editor/published divergence, current-rule recalculation of
@@ -23,10 +23,18 @@ gates pass with 96 unit and 44 integration tests, four browser suites, skipped=0
 no-op, schema parity, 0 accessibility critical/serious findings and 0 fixture residue. The
 route-authority, delayed-response-body, stale-feedback and failed post-publish-refresh race
 regressions passed five full isolated commercial journeys in succession. Each run left zero
-commercial fixture rows and zero synthetic rate-limit buckets.
+commercial fixture rows and zero synthetic rate-limit buckets. Final 200 percent zoom geometry
+and M1 meeting-detail navigation each passed 5/5 targeted runs. Exact-source Quality run
+`31320817751` passed twice, and independent final review returned P0=0, P1=0, P2=0.
 
-The repair remains unmerged and undeployed. Production writes, schema changes, environment
-changes and deployment changes during this audit: NONE. M3 remains `NOT_STARTED`.
+Exact-source Preview `dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY at
+`https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app`. Its protected read-only smoke
+returned 200/307/307/401 for login/root/protected page/protected API. The temporary exact-project
+link was removed after the check.
+
+The repair remains unmerged and undeployed to production. Production writes, schema changes,
+environment changes and production deployment changes during this audit: NONE. M3 remains
+`NOT_STARTED`.
 
 ## Historical first attempt
 

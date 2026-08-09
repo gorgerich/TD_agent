@@ -59,7 +59,7 @@ assertion, timeout or production path was weakened.
 
 Review on `9d1b38aa95959b22e54487ba59c916496a0736bb` returned P0=0, P1=0 and
 one narrower P2: authority was checked before `Response.json()`, but could expire while the
-body was still being read. Final repair source SHA:
+body was still being read. Async-authority repair source SHA:
 `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
 
 Both success and non-success response branches now re-check exact authority after body
@@ -80,3 +80,31 @@ commercial unit 18/18, browser syntax, diff, secret and prohibited-file checks. 
 confirmed no skip, `.only`, serialization, concurrency, timeout, migration, schema, workflow,
 dependency or production-behavior change. The implementer's DB-backed browser evidence remains
 the 5/5 full-journey result above; the reviewer did not falsely claim to rerun that long gate.
+
+## Final repair-candidate review
+
+Exact final source: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
+
+The final delta after the async-authority repair contains one responsive geometry correction
+and bounded CI failure diagnostics:
+
+- the 195 x 422 quote sheet keeps the save action above the global dock with an 8 px top
+  clearance and at least 9.7 px measured steady-state save-to-dock separation;
+- the original M1 meeting URL and exact-heading assertions remain unchanged;
+- diagnostics rethrow every failure and add no retry, timeout, skip, serialization or
+  catch-and-continue behavior;
+- failure output is bounded to synthetic route status/type, request failure text, headings,
+  320 body characters and 200 server-log lines;
+- migrations, schema, dependencies and production runtime/security behavior are unchanged.
+
+Two uninstrumented CI executions had stopped on the same M1 meeting heading wait without enough
+state to classify the response. The exact instrumented source then passed Quality run
+`31320817751` twice, each time with unit 96/96, integration 44/44, all four E2E suites and
+skipped=0. Targeted local navigation passed 5/5. The reviewer treated the historical CI-only
+behavior as contained rather than hidden because all assertions remain fail-closed and any
+recurrence now emits the missing route/server evidence.
+
+Final independent review of
+`f6f3f17e984d7b1baaff619c9bcf063933e63e05..3e03061821dac6ec9623dd6305bb05e799cd191d`:
+P0=0, P1=0, P2=0, verdict `PASS`. The earlier evidence-SHA P2 is closed by this evidence-only
+update.

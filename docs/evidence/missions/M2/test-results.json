@@ -230,8 +230,8 @@
   },
   "postReleaseAudit": {
     "auditBaseSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
-    "repairImplementationSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
-    "status": "REPAIR_CANDIDATE_UNMERGED",
+    "repairImplementationSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
+    "status": "REPAIR_RELEASE_READY_UNMERGED",
     "production": {
       "deploymentId": "dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma",
       "deploymentSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
@@ -283,6 +283,20 @@
         "accessibilityCriticalSerious": 0,
         "skipped": 0
       },
+      "meetingNavigationTargeted": {
+        "status": "PASS",
+        "runs": 5,
+        "passed": 5,
+        "skipped": 0
+      },
+      "zoom200Geometry": {
+        "status": "PASS",
+        "viewport": "195x422",
+        "runs": 5,
+        "passed": 5,
+        "minimumSaveDockGapPx": 9.7,
+        "horizontalOverflow": 0
+      },
       "migrationFilesChanged": false,
       "migrationChecksum": "fc82c99f3fa06cd7a74d42917e82638923d543bb19b5150a1a9403183eb6999e",
       "repeatedDeploy": "NO_OP",
@@ -293,15 +307,40 @@
       "conflictMarkerScan": "PASS",
       "independentReview": {
         "status": "PASS",
-        "sourceSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+        "sourceSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
         "p0": 0,
         "p1": 0,
         "p2": 0,
-        "reviewerExecuted": "commercial unit 18/18, browser syntax, git diff --check, secret and prohibited-file scans",
-        "reviewerDidNotClaim": "DB-backed full E2E rerun"
+        "reviewerExecuted": "exact base-to-source diff review, commercial unit 18/18, browser syntax, git diff --check, secret, migration, workflow and prohibited-file scans",
+        "reviewerDidNotClaim": "the implementer's local five-run DB-backed navigation repeat"
       },
-      "ci": "PENDING_PR",
-      "preview": "PENDING_PR"
+      "ci": {
+        "status": "PASS",
+        "runId": 31320817751,
+        "url": "https://github.com/gorgerich/TD_agent/actions/runs/31320817751",
+        "sourceSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
+        "attemptsPassed": 2,
+        "unitPassed": 96,
+        "integrationPassed": 44,
+        "e2eSuitesPassed": 4,
+        "skipped": 0
+      },
+      "preview": {
+        "status": "PASS",
+        "githubDeploymentId": 5820066847,
+        "deploymentId": "dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p",
+        "url": "https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app",
+        "sourceSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
+        "protection": "PASS_302",
+        "authenticatedVercelCurlReadOnlySmoke": {
+          "login": 200,
+          "root": 307,
+          "protectedPageWithoutAppSession": 307,
+          "protectedApiWithoutAppSession": 401
+        },
+        "temporaryLinkTarget": "team_2bCVT1emiAQS4WOT01ndaA7b/prj_1lA8bU4JS13sSJYKH22oCWuWkB5g",
+        "temporaryLinkCleanup": "PASS"
+      }
     },
     "localReworkLog": [
       {
@@ -343,6 +382,22 @@
         "cause": "The wrapper assumed every non-string fetch input had a method, producing undefined.toUpperCase() for URL inputs.",
         "resolution": "Handle string, URL and Request inputs explicitly; preserve the original fetch for all non-target requests. Product code, assertions, timeouts and concurrency remain unchanged.",
         "finalResult": "5/5 full commercial journeys PASS for delayed success and non-success bodies, skipped=0, commercial residue=0 and rate-limit bucket residue=0 after every run"
+      },
+      {
+        "gate": "200 percent zoom action clearance",
+        "firstResult": "Quality run 31317542166 attempt 2 found the save action overlapping the global dock by 1.5 px at 195 x 422.",
+        "classification": "DETERMINISTIC_RESPONSIVE_GEOMETRY_DEFECT",
+        "cause": "The quote sheet and its height cap reserved 70/78 px while the fixed dock began at 360 px in the effective 200 percent zoom viewport.",
+        "resolution": "Reserve 78 px plus safe area below the sheet and cap panel height at viewport minus 86 px plus safe area, preserving an 8 px top clearance and visible fixed save footer.",
+        "finalResult": "5/5 measured local runs PASS; minimum steady-state save-to-dock gap 9.7 px; exact-source CI attempts 1 and 2 PASS."
+      },
+      {
+        "gate": "M1 meeting-detail navigation",
+        "firstResult": "Quality run 31317542166 attempt 1 and run 31320296288 stopped on the same exact meeting-detail heading wait.",
+        "classification": "CI_ONLY_TRANSIENT_WITH_MISSING_OBSERVABILITY",
+        "cause": "The uninstrumented failures proved that the browser URL changed but did not record the target RSC/document response or server state, so no product response defect could be established from those logs.",
+        "resolution": "Keep the original URL and exact-heading assertions and add bounded synthetic-only response/request/page diagnostics plus a failure-only 200-line server-log tail. No retry, timeout, skip, serialization or catch-and-continue was added.",
+        "finalResult": "Targeted local navigation 5/5 PASS; exact source Quality run 31320817751 passed twice with unit 96/96, integration 44/44, all four E2E suites and skipped=0. Independent review classified the behavior as contained and non-blocking with P0/P1/P2=0."
       }
     ],
     "controlledProductionWriteSmoke": {

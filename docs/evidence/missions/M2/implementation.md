@@ -70,7 +70,7 @@ input cannot select a tenant.
 
 Audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
 
-Repair source: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
+Final repair source: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
 
 - `calculateCommercialEconomics` is now the shared internal projection for total, cost,
   margin, and per-line economics.
@@ -101,5 +101,16 @@ Repair source: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
 - The four calculator tabs use stable responsive tracks; the save action and icon-first mobile
   dock remain separate and visible at a 195 px CSS viewport, equivalent to 200 percent browser
   zoom on a 390 px device.
+- At 200 percent zoom the quote sheet reserves 78 px plus the device safe area above the global
+  dock and caps its height with a matching 8 px top clearance. Five measured 195 x 422 runs kept
+  the save action 9.7 px or more above the dock after the first layout pass.
+- The M1 meeting-detail browser assertion remains unchanged. Bounded failure diagnostics now
+  record only synthetic route status/type, request failure text, headings and the first 320 body
+  characters; CI prints at most 200 server-log lines after a failure. No retry, skip, timeout,
+  serialization or catch-and-continue path was added.
 - No migration, schema, authentication, tenant, or production behavior outside the
   commercial read/write model was changed.
+
+Source gate: Quality run `31320817751` passed twice on the exact source SHA with unit 96/96,
+integration 44/44, all four E2E suites and skipped=0. Exact-SHA Preview
+`dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY and passed protected read-only smoke.

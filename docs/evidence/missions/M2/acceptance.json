@@ -119,8 +119,8 @@
   ],
   "postReleaseAudit": {
     "baseSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
-    "repairImplementationSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
-    "status": "REPAIR_CANDIDATE_UNMERGED",
+    "repairImplementationSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
+    "status": "REPAIR_RELEASE_READY_UNMERGED",
     "p1ClosedInCandidate": [
       "Unknown price cannot become a definitive economics or budget total.",
       "Margin-only external expenses remain canonical cost without entering client composition.",
@@ -135,10 +135,23 @@
     ],
     "independentReview": {
       "status": "PASS",
-      "sourceSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+      "sourceSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
       "p0": 0,
       "p1": 0,
       "p2": 0
+    },
+    "sourceCi": {
+      "status": "PASS",
+      "url": "https://github.com/gorgerich/TD_agent/actions/runs/31320817751",
+      "attemptsPassed": 2,
+      "skipped": 0
+    },
+    "preview": {
+      "status": "PASS",
+      "deploymentId": "dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p",
+      "deploymentSha": "3e03061821dac6ec9623dd6305bb05e799cd191d",
+      "url": "https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app",
+      "readOnlySmoke": "PASS"
     },
     "productionChanged": false,
     "ownerMergeAuthorizationRequired": true

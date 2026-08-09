@@ -54,5 +54,14 @@ At 195 px, each tab label remains inside its own track, document width equals vi
 the sheet save action is fully visible above the global dock, dock labels collapse while their
 accessible names remain, and no live content is clipped or hidden behind motion.
 
-No production browser write was performed. The repair still requires an exact-SHA Vercel
-Preview and final CI before owner merge authorization.
+Final responsive repair source `3e03061821dac6ec9623dd6305bb05e799cd191d` was measured in
+five 195 x 422 runs. All passed; the steady-state save-to-dock gap was at least 9.7 px and
+horizontal overflow remained zero. Fresh-fixture M1 meeting-detail navigation passed 5/5.
+
+Exact-source Quality run `31320817751` passed twice with all four E2E suites, mobile and 200
+percent zoom PASS, accessibility critical/serious 0 and skipped=0. Exact-SHA Preview
+`dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY and passed protected read-only smoke. The Preview
+was not given an application session and no Preview mutation was performed in this final check.
+
+No production browser write was performed. Owner authorization remains required before merge
+or deployment of the repair.

@@ -46,8 +46,17 @@ passed_gates:
   - independent_review
 post_release_audit:
   base_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
-  repair_implementation_sha: 12cf2b3b6950cd320b237954871e8fbe44c70d2c
-  status: REPAIR_CANDIDATE_UNMERGED
+  repair_implementation_sha: 3e03061821dac6ec9623dd6305bb05e799cd191d
+  status: REPAIR_RELEASE_READY_UNMERGED
+  pull_request: https://github.com/gorgerich/TD_agent/pull/29
+  source_ci: https://github.com/gorgerich/TD_agent/actions/runs/31320817751
+  source_ci_attempts_passed: 2
+  source_ci_skipped: 0
+  preview_deployment_id: dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p
+  preview_deployment_sha: 3e03061821dac6ec9623dd6305bb05e799cd191d
+  preview_url: https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app
+  preview_read_only_smoke: PASS
+  independent_review: PASS_P0_0_P1_0_P2_0
   findings:
     - unknown_price_rendered_as_definitive_total
     - margin_only_expense_dropped_from_canonical_cost
@@ -61,10 +70,10 @@ post_release_audit:
     write. Read-only production verification and isolated browser UAT remain the safe gate.
 open_blockers:
   - gate: post_release_repair_merge
-    severity: P1
+    severity: BLOCKED_AUTHORITY
     reason: >-
-      The repair candidate is verified locally but is not authorized for merge, production
-      deployment, or production writes in this audit session.
+      The repair candidate passed local, CI, Preview and independent-review gates but is not
+      authorized for merge, production deployment, or production writes in this audit session.
   - gate: risk_w1_tech_human_review
     severity: OPEN
     reason: Human technical review remains open under the existing governance decision.

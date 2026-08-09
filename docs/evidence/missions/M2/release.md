@@ -33,7 +33,7 @@ defects:
 4. history and client read models could recalculate a Published version using current rules;
 5. a failed canonical read could leave a local fallback available for manual write.
 
-Repair source commit: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
+Final repair source commit: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
 
 The repair keeps one canonical money projection, excludes strict internal-cost-only lines
 from presentation/client output, and replaces volatile local snapshots with checksum-verified
@@ -43,7 +43,19 @@ read generation, so route change cannot release a second mutation, and a failed 
 refresh removes stale publish/link authority. Unit 96/96, integration 44/44, all four browser
 suites, mobile, accessibility, migration no-op, and schema parity gates pass on an isolated
 database with skipped=0 and fixture residue=0. Both authority regressions passed five full
-commercial journeys. The repair is not merged or deployed. Owner authorization is required.
+commercial journeys. The final zoom geometry passed five measured 195 x 422 runs. Quality run
+`31320817751` passed twice on the exact source SHA with unit 96/96, integration 44/44, all four
+E2E suites and skipped=0. Independent final review returned P0=0, P1=0 and P2=0.
+
+Exact-SHA Preview `dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY at
+`https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app`. Public access remains protected
+by Vercel SSO. Authenticated Vercel protection bypass read-only smoke returned login 200, root
+307, unauthenticated protected page 307 and unauthenticated protected API 401. Temporary local
+linking targeted the existing team/project IDs and was removed; no project setting changed.
+
+PR [#29](https://github.com/gorgerich/TD_agent/pull/29) is OPEN, Ready, CLEAN and MERGEABLE.
+The repair is not merged or deployed to production. Owner authorization is the only release
+blocker.
 
 Controlled production commercial write smoke remains `NOT_RUN`. No approved safe cleanup
 exists for a production synthetic Quote/client-decision fixture, so this audit used
@@ -57,8 +69,8 @@ https://github.com/gorgerich/TD_agent/actions/runs/30693286770
 
 Current-main CI run 30716761666 stopped at evidence validation because `mission.yaml` used
 the unknown state `PRODUCTION_RELEASE_BLOCKED`; later steps were skipped. This repair changes
-the authoritative state to `RELEASED` and must obtain a fresh full CI with skipped=0 before
-merge.
+the authoritative state to `RELEASED`. Exact-source Quality run 31320817751 subsequently passed
+twice with skipped=0. Final evidence-head CI must also pass before owner-authorized merge.
 
 ## Open governance
 
