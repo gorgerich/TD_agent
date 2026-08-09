@@ -2782,11 +2782,14 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .radioCardSub { overflow-wrap: anywhere; }
   .radioCardPrice { grid-column: 2; justify-self: start; }
   .panel {
-    bottom: calc(70px + env(safe-area-inset-bottom));
+    bottom: calc(78px + env(safe-area-inset-bottom));
     padding-right: 6px;
     padding-left: 6px;
   }
-  .panelCard { height: calc(100dvh - 78px); max-height: none; }
+  .panelCard {
+    height: calc(100dvh - 86px - env(safe-area-inset-bottom));
+    max-height: none;
+  }
   .panelHero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 38px;
