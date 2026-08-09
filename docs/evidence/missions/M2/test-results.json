@@ -1,9 +1,9 @@
 {
   "mission": "M2-COMMERCIAL-TRUST-LOOP",
-  "state": "IMPLEMENTATION_VERIFIED",
+  "state": "RELEASED",
   "implementationSha": "d75ba6e0d3df671ba52a4107c412aff092345dc1",
   "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/30691860303",
-  "previewDeploymentId": null,
+  "previewDeploymentId": "dpl_3axb1aDPUAEVevmE7ejaysV49UKc",
   "checks": {
     "lint": "PASS",
     "typecheck": "PASS",
@@ -177,13 +177,15 @@
     },
     "shaIntegrity": "Certified against d75ba6e, the commit carrying the final source change (E2E_PROTECTION_BYPASS support). Verified with git diff --quiet that it is source-identical to the final head outside docs/evidence. Noted honestly: the validator's source-tree check is skipped once a mission reaches MISSION_RELEASE_READY, so this was checked by hand rather than relied on — see round7AcceptedP2 item 1."
   },
-  "blockers": [
+  "historicalResolvedBlockers": [
     {
       "gate": "independent_review",
+      "status": "RESOLVED_BEFORE_RELEASE",
       "reason": "Six rounds: 5, 3, 1, 1, 0 and 1 P1, zero P0 throughout; all fixed. Round 5 returned PASS; round 6 found a regression its own cleanup introduced, fixed at fc1ef5e. The confirming round 7 could not complete — the reviewer agent hit an account session limit — so this gate is not recorded as passed."
     },
     {
       "gate": "preview_uat",
+      "status": "RESOLVED_BEFORE_RELEASE",
       "reason": "Isolation is solved and proven: a dedicated Neon store (m2-uat-commercial, fingerprint c89bdda845806b40) is bound to this branch only via branch-scoped DATABASE_URL/DATABASE_URL_UNPOOLED, the shared 'Preview, Production' entries were not modified, and both synthetic fixtures are provisioned into it with zero foreign rows. Remaining: the Preview deployments are SSO-protected, so driving the two journeys needs a Protection Bypass for Automation secret — a project-level Deployment Protection change."
     }
   ],
@@ -191,17 +193,17 @@
     "postgres": "17.10, local isolated throwaway database td_agent_m2_test",
     "node": "24.12.0",
     "prisma": "5.22.0",
-    "note": "All commands were local and non-production: no deployment, no production database, no real secrets."
+    "note": "Historical pre-release validation environment; superseded by the released production record and the post-release audit below."
   },
   "pullRequest": {
     "number": 28,
     "url": "https://github.com/gorgerich/TD_agent/pull/28",
-    "state": "OPEN",
-    "mergeable": "MERGEABLE",
-    "mergeStateStatus": "CLEAN"
+    "state": "MERGED",
+    "mergeCommit": "54da13348d0a983d44752c3683fb8a17c40683f2",
+    "finalHead": "62347c2b8efaf12ab9e91aa6e2449939664a8483"
   },
   "previewEnvironment": {
-    "status": "PROVISIONED_ISOLATION_PROVEN_UAT_NOT_RUN",
+    "status": "HISTORICAL_PRE_RELEASE_PREVIEW",
     "neonStore": {
       "name": "m2-uat-commercial",
       "id": "store_IuW6I8X2Rb3rG2d2",
@@ -224,7 +226,129 @@
       "BLOB_READ_WRITE_TOKEN is branch-scoped to a fail-closed sentinel, so a blob write errors rather than reaching the production store",
       "the fixtures' own production-fingerprint exclusion guard was active during provisioning"
     ],
-    "remaining": "Both fixtures are now provisioned into the one isolated store (3 organizations, 9 users, 7 memberships, 2 cases, 2 meetings, zero foreign rows) via the fail-closed sibling-aware guard in tests/e2e/uatFixtureGuard.ts. Remaining: the Preview URLs are SSO-protected, so running the journeys needs a Protection Bypass for Automation secret."
+    "historicalProvisioningNote": "Both fixtures were provisioned into the isolated store (3 organizations, 9 users, 7 memberships, 2 cases, 2 meetings, zero foreign rows) through the fail-closed sibling-aware guard. The later authenticated Preview UAT result is recorded in checks.previewUat."
+  },
+  "postReleaseAudit": {
+    "auditBaseSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
+    "repairImplementationSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+    "status": "REPAIR_CANDIDATE_UNMERGED",
+    "production": {
+      "deploymentId": "dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma",
+      "deploymentSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
+      "databaseFingerprint": "0257665af2dd90a4",
+      "writes": "NONE",
+      "schemaChanges": "NONE"
+    },
+    "findings": {
+      "p0": 0,
+      "p1": 5,
+      "fixedInCandidate": 5
+    },
+    "checks": {
+      "gitDiffCheck": "PASS",
+      "prismaGenerate": "PASS",
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "unit": { "status": "PASS", "passed": 96, "skipped": 0 },
+      "targetedCommercialUnit": {
+        "status": "PASS",
+        "runs": 5,
+        "passedPerRun": 18,
+        "skippedPerRun": 0
+      },
+      "integration": { "status": "PASS", "passed": 44, "skipped": 0 },
+      "testDiscovery": {
+        "status": "PASS",
+        "integrationFiles": 9,
+        "e2eFiles": 4,
+        "localCiCommandParity": "PASS"
+      },
+      "build": "PASS",
+      "e2e": {
+        "status": "PASS",
+        "suites": 4,
+        "cremation": "PASS",
+        "relativeBurial": "PASS",
+        "commercialEconomicsTruth": "PASS",
+        "immutableVersionHistory": "PASS",
+        "canonicalReadFailureRecovery": "PASS",
+        "stagedMutationAuthority": "PASS",
+        "postPublishRefreshFailure": "PASS",
+        "staleFailureFeedback": "PASS",
+        "delayedResponseBodyAuthority": "5/5 PASS",
+        "authorityRaceFullJourneyRepeats": "5/5 PASS",
+        "crossTenant": "PASS",
+        "mobile": "PASS",
+        "zoom200": "PASS",
+        "accessibilityCriticalSerious": 0,
+        "skipped": 0
+      },
+      "migrationFilesChanged": false,
+      "migrationChecksum": "fc82c99f3fa06cd7a74d42917e82638923d543bb19b5150a1a9403183eb6999e",
+      "repeatedDeploy": "NO_OP",
+      "schemaParity": "PASS",
+      "fixtureResidue": 0,
+      "rateLimitBucketResidue": 0,
+      "secretScan": "PASS",
+      "conflictMarkerScan": "PASS",
+      "independentReview": {
+        "status": "PASS",
+        "sourceSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+        "p0": 0,
+        "p1": 0,
+        "p2": 0,
+        "reviewerExecuted": "commercial unit 18/18, browser syntax, git diff --check, secret and prohibited-file scans",
+        "reviewerDidNotClaim": "DB-backed full E2E rerun"
+      },
+      "ci": "PENDING_PR",
+      "preview": "PENDING_PR"
+    },
+    "localReworkLog": [
+      {
+        "gate": "integration",
+        "firstResult": "42/44",
+        "classification": "LOCAL_CONFIGURATION",
+        "cause": "The first process omitted CLIENT_LINK_SECRET; both client-link tests failed closed with CLIENT_LINK_SECRET_MISSING.",
+        "resolution": "Re-run the unchanged 44-test suite with an isolated synthetic secret.",
+        "finalResult": "44/44, skipped=0"
+      },
+      {
+        "gate": "e2e",
+        "firstResult": "M2 admin recovery stopped before the password form",
+        "classification": "ISOLATED_FIXTURE_KEY_MISMATCH",
+        "cause": "The M2 fixture encrypted MFA material with a different local key from the production-mode test server.",
+        "resolution": "Re-provision both isolated fixtures with one local key and restart the server; no assertion, timeout, or product code changed.",
+        "finalResult": "4/4 suites PASS, skipped=0"
+      },
+      {
+        "gate": "commercial authority race",
+        "firstResult": "The first regression placement targeted an already ACCEPTED quote, where review is intentionally unavailable.",
+        "classification": "TEST_SCENARIO_PLACEMENT",
+        "cause": "ACCEPTED is a terminal commercial fact and saveCommercialDraft correctly preserves that status.",
+        "resolution": "Run both authority regressions in the real Draft v2 window before immutable Publish v2 and client Accept; production assertions were not weakened.",
+        "finalResult": "5/5 full commercial journeys PASS, skipped=0, residue=0 after every run"
+      },
+      {
+        "gate": "commercial authority and stale-feedback repeat",
+        "firstResult": "4/5 full journeys PASS; the fifth run was rate-limited on its thirteenth persistent client-decision request",
+        "classification": "ISOLATED_FIXTURE_CLEANUP_GAP",
+        "cause": "Next represented loopback as ::ffff:127.0.0.1, while exact synthetic rate-limit cleanup covered only unknown, 127.0.0.1 and ::1.",
+        "resolution": "Add the IPv4-mapped loopback key to exact local fixture cleanup; rate-limit policy, limits, product code, assertions and timeouts remain unchanged.",
+        "finalResult": "5/5 full commercial journeys PASS, skipped=0, commercial residue=0 and rate-limit bucket residue=0 after every run"
+      },
+      {
+        "gate": "delayed response-body authority",
+        "firstResult": "The first harness attempt failed the zero-console-error assertion because its fetch wrapper did not support Next RSC fetch(URL).",
+        "classification": "TEST_HARNESS_INPUT_SHAPE",
+        "cause": "The wrapper assumed every non-string fetch input had a method, producing undefined.toUpperCase() for URL inputs.",
+        "resolution": "Handle string, URL and Request inputs explicitly; preserve the original fetch for all non-target requests. Product code, assertions, timeouts and concurrency remain unchanged.",
+        "finalResult": "5/5 full commercial journeys PASS for delayed success and non-success bodies, skipped=0, commercial residue=0 and rate-limit bucket residue=0 after every run"
+      }
+    ],
+    "controlledProductionWriteSmoke": {
+      "status": "NOT_RUN",
+      "reason": "No approved safe cleanup exists for a production synthetic commercial business fixture."
+    }
   },
   "releasePrerequisites": [
     {

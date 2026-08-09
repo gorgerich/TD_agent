@@ -1,5 +1,8 @@
 # M2 Commercial Trust Loop
 
+Status: `RELEASED`. The inventory below is the historical contract-lock analysis that led
+to the released aggregate.
+
 ## Contract lock
 
 M2 owns the commercial path from an operational Case to an immutable client
@@ -62,3 +65,41 @@ input cannot select a tenant.
 - Contract and payment redesign.
 - Platform-admin access to sensitive case contents.
 - Production migration or release in this implementation mission.
+
+## Post-release economics truth repair
+
+Audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
+
+Repair source: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
+
+- `calculateCommercialEconomics` is now the shared internal projection for total, cost,
+  margin, and per-line economics.
+- Unknown price keeps the client total and margin unknown; a partial subtotal is diagnostic
+  only and never becomes the displayed total.
+- Margin-only external expenses remain canonical cost lines with zero client contribution.
+- A strict source/type/price/relation shape identifies internal cost-only lines; billed lines
+  cannot be hidden by the source marker alone.
+- Internal cost-only lines are omitted from presentation and client projections.
+- Builder economics hydrates from the server QuoteVersion when local editor state is
+  unchanged, so incomplete legacy editor JSON cannot invent a different total.
+- The Versions tab reads immutable QuoteVersion rows. Local deletable snapshots were removed.
+- Published history and client projection verify the stored snapshot checksum and read totals,
+  lines and editor state from that immutable payload. Current calculator rules cannot rewrite
+  an already published version.
+- A failed canonical Quote read hides the local total and blocks autosave, manual save, review
+  and presentation. A visible retry restores writes only after a successful canonical read.
+- Every staged commercial action is bound to the successful canonical-read generation that
+  authorized it. Route change, unmount, retry, or failed post-publish refresh invalidates that
+  generation before a second mutation or a stale client-link action can run.
+- Async failure/success feedback and pending-state cleanup use the same authority check, so a
+  rejected request from a previous route cannot show a false toast or clear state on the next
+  Quote.
+- Save responses re-check authority after asynchronous response-body parsing on both success
+  and non-success branches. Receiving headers is not treated as lasting write authority.
+- Requested or otherwise unconfirmed secondary prices cannot surface a subtotal or tariff
+  delta from stale editor values.
+- The four calculator tabs use stable responsive tracks; the save action and icon-first mobile
+  dock remain separate and visible at a 195 px CSS viewport, equivalent to 200 percent browser
+  zoom on a 390 px device.
+- No migration, schema, authentication, tenant, or production behavior outside the
+  commercial read/write model was changed.

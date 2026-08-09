@@ -1,6 +1,36 @@
-# M2 Commercial Trust Loop — production release attempt
+# M2 Commercial Trust Loop - release chronology
 
-State: `PRODUCTION_RELEASE_BLOCKED`
+Authoritative status as of 2026-08-02: `RELEASED`.
+
+The production deployment is `dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma`, READY at
+`f6f3f17e984d7b1baaff619c9bcf063933e63e05`, and the production database fingerprint is
+`0257665af2dd90a4`. Ten migrations are applied; the M2 migration checksum matches and
+schema parity is `No difference detected`.
+
+Everything below records earlier stopped release attempts. Those facts remain historical
+evidence, but their blocker states are superseded by the successful release above.
+
+## Post-release truth audit and repair candidate
+
+Read-only audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
+
+Final source repair: `12cf2b3b6950cd320b237954871e8fbe44c70d2c`.
+
+The candidate closes five P1 commercial-truth defects: unknown price rendered as a final
+amount, lost margin-only cost, editor/published divergence, current-rule recalculation of
+published history, and local write fallback after a failed canonical read. Local deterministic
+gates pass with 96 unit and 44 integration tests, four browser suites, skipped=0, migration
+no-op, schema parity, 0 accessibility critical/serious findings and 0 fixture residue. The
+route-authority, delayed-response-body, stale-feedback and failed post-publish-refresh race
+regressions passed five full isolated commercial journeys in succession. Each run left zero
+commercial fixture rows and zero synthetic rate-limit buckets.
+
+The repair remains unmerged and undeployed. Production writes, schema changes, environment
+changes and deployment changes during this audit: NONE. M3 remains `NOT_STARTED`.
+
+## Historical first attempt
+
+Attempt state: `PRODUCTION_RELEASE_BLOCKED`
 
 ## What was done
 

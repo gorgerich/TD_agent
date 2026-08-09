@@ -116,5 +116,31 @@
       "requirement": "Cremation and relative-burial journeys pass on exact isolated Preview SHA.",
       "evidence": "Both journeys passed on the isolated Preview deployment dpl_3axb1aDPUAEVevmE7ejaysV49UKc at SHA e885135, against Neon store m2-uat-commercial (fingerprint c89bdda845806b40, distinct from production 0257665af2dd90a4): cremation and relative burial PASS, draft/published isolation, client decision, print, manager context, cross-tenant denial, mobile, 200% zoom, accessibility 0 critical / 0 serious, 0 unexpected console errors, skipped 0. Post-UAT: reconciliation 0, orphan commercial rows 0, foreign fixture rows 0."
     }
-  ]
+  ],
+  "postReleaseAudit": {
+    "baseSha": "f6f3f17e984d7b1baaff619c9bcf063933e63e05",
+    "repairImplementationSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+    "status": "REPAIR_CANDIDATE_UNMERGED",
+    "p1ClosedInCandidate": [
+      "Unknown price cannot become a definitive economics or budget total.",
+      "Margin-only external expenses remain canonical cost without entering client composition.",
+      "Builder, economics, immutable history and client view use the same canonical QuoteVersion totals.",
+      "Published history and client projection read checksum-verified immutable snapshots instead of current calculator rules.",
+      "Canonical read failure or lost route authority hides totals, invalidates stale handles, suppresses stale async feedback and blocks every builder write until a successful canonical retry."
+    ],
+    "regressionEvidence": [
+      "tests/commercialQuote.test.ts",
+      "tests/integration/commercialQuotes.itest.ts",
+      "tests/e2e/m2-commercial.mjs"
+    ],
+    "independentReview": {
+      "status": "PASS",
+      "sourceSha": "12cf2b3b6950cd320b237954871e8fbe44c70d2c",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0
+    },
+    "productionChanged": false,
+    "ownerMergeAuthorizationRequired": true
+  }
 }
