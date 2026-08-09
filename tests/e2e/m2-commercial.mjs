@@ -138,6 +138,8 @@ try {
     managerContext: "PASS",
     crossTenant: "PASS",
     failureUx: "PASS",
+    stagedMutationAuthority: "PASS",
+    postPublishRefreshFailure: "PASS",
     throttledLoginsRetried: throttledLogins,
     skipped: 0,
   })}\n`);
@@ -202,6 +204,8 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
     await target.getByText("Изменения переданы агенту", { exact: true }).waitFor();
 
     await saveDraftOnly(target, meetingId, scenario, 140_000, "autosave-v2");
+    await assertStagedMutationStopsOnRouteChange(target, meetingId);
+    await assertPostPublishRefreshFailureClosesGate(target, meetingId);
     const publishedStillV1 = await target.request.get(`${baseUrl}/api/co/${linkV1.token}`);
     assert.equal(publishedStillV1.status(), 200, "Draft v2 must not revoke Published v1");
     assert.equal((await publishedStillV1.json()).version.versionNumber, 1);
@@ -619,5 +623,157 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
   } finally {
     target.off("request", recordWrite);
     await target.unroute(routePattern);
+  }
+}
+
+async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
+  const actions = [
+    { label: "Проверить перед публикацией", endpoint: "/review" },
+    { label: "Открыть режим презентации", endpoint: "/presentation" },
+  ];
+
+  for (const action of actions) {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+
+    const savePattern = `**/api/agent/meeting/${meetingId}/quote`;
+    const stagedRequests = [];
+    let releaseSave;
+    let markSaveHeld;
+    const saveRelease = new Promise((resolve) => { releaseSave = resolve; });
+    const saveHeld = new Promise((resolve) => { markSaveHeld = resolve; });
+    const recordStagedRequest = (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "POST" && url.pathname.endsWith(action.endpoint)) {
+        stagedRequests.push(url.pathname);
+      }
+    };
+
+    target.on("request", recordStagedRequest);
+    await target.route(savePattern, async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      markSaveHeld();
+      await saveRelease;
+      await route.fulfill({ response }).catch(() => undefined);
+    });
+
+    try {
+      await target.getByRole("button", { name: action.label, exact: true }).click();
+      await saveHeld;
+      await target.keyboard.press("Escape");
+      const caseLink = target.locator('a[href^="/agent/cases/"]').first();
+      await caseLink.click();
+      await target.waitForURL(/\/agent\/cases\/\d+(?:\?|$)/);
+      releaseSave();
+      await target.waitForTimeout(750);
+      assert.deepEqual(
+        stagedRequests,
+        [],
+        `${action.label} must not issue its second mutation after route authority is lost`,
+      );
+    } finally {
+      releaseSave?.();
+      target.off("request", recordStagedRequest);
+      await target.unroute(savePattern);
+    }
+  }
+}
+
+async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
+  const quotePattern = `**/api/agent/meeting/${meetingId}/quote`;
+  const reviewPattern = "**/api/agent/quotes/*/review";
+  const publishPattern = "**/api/agent/quotes/*/publish";
+  const writes = [];
+  let failCanonicalRefresh = false;
+  const recordWrite = (request) => {
+    const url = new URL(request.url());
+    if (request.method() !== "GET" && (
+      url.pathname === `/api/agent/meeting/${meetingId}/quote`
+      || url.pathname.startsWith("/api/agent/quotes/")
+    )) {
+      writes.push(`${request.method()} ${url.pathname}`);
+    }
+  };
+
+  target.on("request", recordWrite);
+  await target.route(quotePattern, async (route) => {
+    if (route.request().method() === "GET" && failCanonicalRefresh) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await target.route(reviewPattern, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      status: "IN_REVIEW",
+      totals: { blockers: [], warnings: [], total: 125_000 },
+      diff: { added: [], removed: [], changed: [] },
+      totalDelta: 0,
+    }),
+  }));
+  await target.route(publishPattern, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ status: "PUBLISHED", versionNumber: 99 }),
+  }));
+
+  try {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+    await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).click();
+    const publishButton = target.getByRole("button", { name: "Опубликовать версию", exact: true });
+    await publishButton.waitFor();
+    assert.equal(await publishButton.isEnabled(), true, "Synthetic review must expose publish for refresh-failure coverage");
+
+    failCanonicalRefresh = true;
+    await publishButton.click();
+    await target.getByRole("alert").filter({ hasText: "Каноническая смета недоступна" }).waitFor();
+    assert.equal(
+      normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+      "Не удалось загрузить",
+      "Failed post-publish canonical refresh must hide the prior total",
+    );
+    assert.equal(await target.getByTestId("quote-sheet-save").isDisabled(), true);
+    assert.equal(
+      await target.getByRole("button", { name: "Открыть режим презентации", exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Создать ссылку для семьи", exact: true }).count(),
+      0,
+      "Client-link action must disappear with invalidated canonical status",
+    );
+    const writeCountAtFailure = writes.length;
+    await target.waitForTimeout(1_000);
+    assert.equal(writes.length, writeCountAtFailure, "Post-publish refresh failure must not trigger another write");
+
+    await target.keyboard.press("Escape");
+    failCanonicalRefresh = false;
+    const recoveredRead = target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
+    assert.equal((await recoveredRead).status(), 200);
+    await target.waitForFunction(() =>
+      !(document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").includes("Загрузка сметы"));
+    assert.equal(await target.getByTestId("quote-sheet-save").isEnabled(), true);
+    await target.waitForTimeout(750);
+    assert.equal(writes.length, writeCountAtFailure, "Successful recovery read must remain read-only");
+  } finally {
+    target.off("request", recordWrite);
+    await target.unroute(quotePattern);
+    await target.unroute(reviewPattern);
+    await target.unroute(publishPattern);
   }
 }

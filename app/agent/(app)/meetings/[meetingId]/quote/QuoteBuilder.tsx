@@ -164,6 +164,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   const [failedQuoteLoadKey, setFailedQuoteLoadKey] = useState<string | null>(null);
   const quoteHydrated = settledQuoteLoadKey === quoteLoadKey;
   const quoteLoadFailed = failedQuoteLoadKey === quoteLoadKey;
+  const quoteAuthorityRef = useRef<string | null>(null);
   const [canonicalEconomics, setCanonicalEconomics] = useState<CommercialEconomics | null>(null);
   const [lastAutosavedState, setLastAutosavedState] = useState<string | null>(null);
   const autosaveHandler = useRef<(options?: { quiet?: boolean }) => Promise<number | null>>(async () => null);
@@ -397,6 +398,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
   useEffect(() => {
     let active = true;
+    quoteAuthorityRef.current = null;
     const emptyEditorState = {
       form: DEFAULT_FORM,
       cemeteryCategory: "standard",
@@ -415,6 +417,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .then((data) => {
         if (!active) return;
+        quoteAuthorityRef.current = quoteLoadKey;
         setFailedQuoteLoadKey(null);
         setSaveError(null);
         setQuoteId(null);
@@ -483,6 +486,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .catch(() => {
         if (active) {
+          quoteAuthorityRef.current = null;
           setFailedQuoteLoadKey(quoteLoadKey);
           setQuoteId(null);
           setCommercialStatus("DRAFT");
@@ -506,6 +510,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       });
     return () => {
       active = false;
+      if (quoteAuthorityRef.current === quoteLoadKey) quoteAuthorityRef.current = null;
     };
   }, [meetingId, quoteLoadKey]);
 
@@ -729,8 +734,43 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     });
   }
 
+  function hasCurrentQuoteAuthority(authorityKey: string) {
+    return quoteAuthorityRef.current === authorityKey;
+  }
+
+  function invalidateCanonicalQuoteRead(authorityKey: string, message: string) {
+    if (!hasCurrentQuoteAuthority(authorityKey)) return false;
+    quoteAuthorityRef.current = null;
+    setFailedQuoteLoadKey(authorityKey);
+    setSettledQuoteLoadKey(authorityKey);
+    setQuoteId(null);
+    setCommercialStatus("DRAFT");
+    setPublishedVersion(null);
+    setReviewResult(null);
+    setClientLink(null);
+    setVersionHistory([]);
+    setCanonicalEconomics(null);
+    setForm(DEFAULT_FORM);
+    setCemeteryCategory("standard");
+    setAttributes(DEFAULT_ATTRIBUTES);
+    setEstimateItems([]);
+    setExternalExpenses([]);
+    setMemorialData(DEFAULT_MEMORIAL_DATA);
+    setLastAutosavedState(JSON.stringify({
+      form: DEFAULT_FORM,
+      cemeteryCategory: "standard",
+      attributes: DEFAULT_ATTRIBUTES,
+      estimateItems: [],
+      externalExpenses: [],
+      memorialData: DEFAULT_MEMORIAL_DATA,
+    }));
+    setSaveError(message);
+    return true;
+  }
+
   async function saveVersion(options: { quiet?: boolean } = {}): Promise<number | null> {
-    if (!quoteWritesAvailable) {
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !hasCurrentQuoteAuthority(authorityKey)) {
       const message = quoteLoadFailed
         ? "Сначала восстановите загрузку канонической сметы. Локальные данные не записаны."
         : "Дождитесь загрузки сметы.";
@@ -757,6 +797,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           editorState: { form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData },
         }),
       });
+      if (!hasCurrentQuoteAuthority(authorityKey)) return null;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         const msg = data.error ?? "Не удалось сохранить смету. Попробуйте ещё раз.";
@@ -803,8 +844,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }, [editorStateJson, lastAutosavedState, quoteHydrated, quoteLoadFailed]);
 
   async function startReview() {
+    const authorityKey = quoteLoadKey;
+    if (!hasCurrentQuoteAuthority(authorityKey)) return;
     const activeQuoteId = await saveVersion();
-    if (!activeQuoteId) return;
+    if (!activeQuoteId || !hasCurrentQuoteAuthority(authorityKey)) return;
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -813,6 +856,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Не удалось подготовить проверку");
       setCommercialStatus(data.status);
       setReviewResult({
@@ -834,7 +878,8 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   async function publishQuote() {
-    if (!quoteWritesAvailable || !quoteId) {
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !quoteId || !hasCurrentQuoteAuthority(authorityKey)) {
       toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
       return;
     }
@@ -856,11 +901,12 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Публикация не выполнена");
       setCommercialStatus(data.status);
       setPublishedVersion(data.versionNumber);
       setReviewResult(null);
-      await refreshVersionHistory();
+      if (!(await refreshVersionHistory(authorityKey))) return;
       toast({ type: "success", message: `Опубликована версия ${data.versionNumber}` });
     } catch (error) {
       toast({ type: "error", message: error instanceof Error ? error.message : "Публикация не выполнена" });
@@ -869,11 +915,12 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     }
   }
 
-  async function refreshVersionHistory() {
+  async function refreshVersionHistory(authorityKey: string) {
     try {
       const response = await fetch(`/api/agent/meeting/${meetingId}/quote`, { cache: "no-store" });
       if (!response.ok) throw new Error("history-load-failed");
       const data = await response.json();
+      if (!hasCurrentQuoteAuthority(authorityKey)) return false;
       setVersionHistory(Array.isArray(data.quote?.history) ? data.quote.history : []);
       const canonicalVersion = data.quote?.draft ?? data.quote?.published;
       setCanonicalEconomics(
@@ -881,16 +928,19 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           ? calculateCommercialEconomics(canonicalVersion.lines, data.quote.scenario)
           : null,
       );
+      return true;
     } catch {
-      toast({
-        type: "error",
-        message: "Смета опубликована, но история версий не обновилась. Перезагрузите страницу.",
-      });
+      const message = "Смета опубликована, но канонические данные не обновились. Повторите загрузку.";
+      if (invalidateCanonicalQuoteRead(authorityKey, message)) {
+        toast({ type: "error", message });
+      }
+      return false;
     }
   }
 
   async function createClientLink() {
-    if (!quoteWritesAvailable || !quoteId) {
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !quoteId || !hasCurrentQuoteAuthority(authorityKey)) {
       toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
       return;
     }
@@ -907,6 +957,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         body: JSON.stringify({ expiresAt: defaultCommercialExpiry().toISOString() }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Ссылка не создана");
       const url = `${window.location.origin}/co/${data.token}`;
       setClientLink(url);
@@ -922,8 +973,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   async function startPresentation() {
+    const authorityKey = quoteLoadKey;
+    if (!hasCurrentQuoteAuthority(authorityKey)) return;
     const activeQuoteId = await saveVersion();
-    if (!activeQuoteId) return;
+    if (!activeQuoteId || !hasCurrentQuoteAuthority(authorityKey)) return;
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -932,6 +985,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Не удалось начать показ");
       window.open(`/agent/presentations/${data.presentationId}`, "_blank", "noopener,noreferrer");
     } catch (error) {
