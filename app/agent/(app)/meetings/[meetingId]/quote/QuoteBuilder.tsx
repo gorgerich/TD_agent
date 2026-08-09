@@ -726,12 +726,22 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   }
 
   function copyClientLink() {
-    if (!clientLink || typeof window === "undefined") return;
-    navigator.clipboard.writeText(clientLink).then(() => {
-      setCopied(true);
-      toast({ type: "success", message: "Ссылка скопирована" });
-      setTimeout(() => setCopied(false), 2000);
-    });
+    const authorityKey = quoteLoadKey;
+    if (!clientLink || typeof window === "undefined" || !hasCurrentQuoteAuthority(authorityKey)) return;
+    void navigator.clipboard.writeText(clientLink)
+      .then(() => {
+        if (!hasCurrentQuoteAuthority(authorityKey)) return;
+        setCopied(true);
+        toast({ type: "success", message: "Ссылка скопирована" });
+        setTimeout(() => {
+          if (hasCurrentQuoteAuthority(authorityKey)) setCopied(false);
+        }, 2000);
+      })
+      .catch(() => {
+        if (hasCurrentQuoteAuthority(authorityKey)) {
+          toast({ type: "error", message: "Не удалось скопировать ссылку" });
+        }
+      });
   }
 
   function hasCurrentQuoteAuthority(authorityKey: string) {
@@ -756,6 +766,8 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     setEstimateItems([]);
     setExternalExpenses([]);
     setMemorialData(DEFAULT_MEMORIAL_DATA);
+    setSaving(false);
+    setPublishing(false);
     setLastAutosavedState(JSON.stringify({
       form: DEFAULT_FORM,
       cemeteryCategory: "standard",
@@ -824,11 +836,12 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         return data.quoteId as number;
       }
     } catch {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return null;
       setSaveError("Нет связи. Проверьте интернет и попробуйте снова.");
       toast({ type: "error", message: "Нет связи — смета не сохранена. Проверьте интернет." });
       return null;
     } finally {
-      setSaving(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setSaving(false);
     }
   }
   useEffect(() => {
@@ -871,9 +884,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       setCalculatorOpen(true);
       setCalculatorTab("actions");
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось подготовить проверку" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
@@ -909,9 +923,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       if (!(await refreshVersionHistory(authorityKey))) return;
       toast({ type: "success", message: `Опубликована версия ${data.versionNumber}` });
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Публикация не выполнена" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
@@ -962,13 +977,17 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       const url = `${window.location.origin}/co/${data.token}`;
       setClientLink(url);
       await navigator.clipboard.writeText(url);
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       setCopied(true);
       toast({ type: "success", message: "Защищённая ссылка скопирована" });
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => {
+        if (hasCurrentQuoteAuthority(authorityKey)) setCopied(false);
+      }, 2000);
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Ссылка не создана" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
@@ -989,9 +1008,10 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       if (!response.ok) throw new Error(data.error ?? "Не удалось начать показ");
       window.open(`/agent/presentations/${data.presentationId}`, "_blank", "noopener,noreferrer");
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось начать показ" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 

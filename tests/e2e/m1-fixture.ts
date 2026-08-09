@@ -298,7 +298,7 @@ async function cleanup() {
     await db.organizationInvite.deleteMany({ where: { organizationId } });
     await db.task.deleteMany({ where: { organizationId } });
     if (isLocalTarget(directUrl)) {
-      const localIps = ["unknown", "127.0.0.1", "::1"];
+      const localIps = ["unknown", "127.0.0.1", "::1", "::ffff:127.0.0.1"];
       const commercialBuckets = ["commercial-client-view", "commercial-client-decision"];
       await db.securityRateLimitBucket.deleteMany({
         where: {

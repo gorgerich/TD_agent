@@ -676,6 +676,11 @@ async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
         [],
         `${action.label} must not issue its second mutation after route authority is lost`,
       );
+      assert.equal(
+        await target.getByText("Нет связи — смета не сохранена. Проверьте интернет.", { exact: true }).count(),
+        0,
+        `${action.label} must not leak a stale failure toast into the destination route`,
+      );
     } finally {
       releaseSave?.();
       target.off("request", recordStagedRequest);
