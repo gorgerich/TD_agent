@@ -143,11 +143,51 @@ async function agentFlow(target, browserContext) {
   assert.equal(await meetingLink.count(), 1, "The synthetic cremation row must expose one meeting link");
   const meetingHref = await meetingLink.getAttribute("href");
   assert.match(meetingHref ?? "", /^\/agent\/meetings\/\d+$/, "The meeting link must target one concrete meeting");
-  await Promise.all([
-    target.waitForURL(new RegExp(`${meetingHref}$`)),
-    meetingLink.click(),
-  ]);
-  await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
+  const meetingResponses = [];
+  const meetingRequestFailures = [];
+  const recordMeetingResponse = (response) => {
+    const url = new URL(response.url());
+    if (url.pathname !== meetingHref) return;
+    meetingResponses.push({
+      status: response.status(),
+      resourceType: response.request().resourceType(),
+      rsc: url.searchParams.has("_rsc"),
+    });
+  };
+  const recordMeetingRequestFailure = (request) => {
+    const url = new URL(request.url());
+    if (url.pathname !== meetingHref) return;
+    meetingRequestFailures.push({
+      resourceType: request.resourceType(),
+      error: request.failure()?.errorText ?? "unknown",
+      rsc: url.searchParams.has("_rsc"),
+    });
+  };
+  target.on("response", recordMeetingResponse);
+  target.on("requestfailed", recordMeetingRequestFailure);
+  try {
+    await Promise.all([
+      target.waitForURL(new RegExp(`${meetingHref}$`)),
+      meetingLink.click(),
+    ]);
+    await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
+  } catch (error) {
+    const pageState = await target.evaluate(() => ({
+      url: location.href,
+      title: document.title,
+      headings: Array.from(document.querySelectorAll("h1, h2"), (heading) => heading.textContent?.trim()).filter(Boolean),
+      bodyText: document.body.innerText.replace(/\s+/g, " ").trim().slice(0, 320),
+    }));
+    throw new Error(`Meeting detail navigation failed: ${JSON.stringify({
+      pageState,
+      responses: meetingResponses,
+      requestFailures: meetingRequestFailures,
+      cause: error instanceof Error ? error.message : String(error),
+    })}`);
+  } finally {
+    target.off("response", recordMeetingResponse);
+    target.off("requestfailed", recordMeetingRequestFailure);
+  }
   await target.getByText("Подтверждена", { exact: true }).waitFor();
   await target.getByRole("button", { name: "Зафиксировать итог" }).click();
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
