@@ -812,12 +812,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       if (!hasCurrentQuoteAuthority(authorityKey)) return null;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (!hasCurrentQuoteAuthority(authorityKey)) return null;
         const msg = data.error ?? "Не удалось сохранить смету. Попробуйте ещё раз.";
         setSaveError(msg);
         toast({ type: "error", message: msg });
         return null;
       } else {
         const data = await res.json();
+        if (!hasCurrentQuoteAuthority(authorityKey)) return null;
         setQuoteId(data.quoteId);
         setCommercialStatus(data.status);
         setReviewResult({

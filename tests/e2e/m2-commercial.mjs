@@ -628,8 +628,18 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
 
 async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
   const actions = [
-    { label: "Проверить перед публикацией", endpoint: "/review" },
-    { label: "Открыть режим презентации", endpoint: "/presentation" },
+    {
+      label: "Проверить перед публикацией",
+      endpoint: "/review",
+      delayedBodyMode: "success",
+      staleToast: "Черновик сохранён",
+    },
+    {
+      label: "Открыть режим презентации",
+      endpoint: "/presentation",
+      delayedBodyMode: "error",
+      staleToast: "Ошибка задержанного тела ответа",
+    },
   ];
 
   for (const action of actions) {
@@ -637,12 +647,7 @@ async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
     await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
     await target.getByRole("tab", { name: "Действия", exact: true }).click();
 
-    const savePattern = `**/api/agent/meeting/${meetingId}/quote`;
     const stagedRequests = [];
-    let releaseSave;
-    let markSaveHeld;
-    const saveRelease = new Promise((resolve) => { releaseSave = resolve; });
-    const saveHeld = new Promise((resolve) => { markSaveHeld = resolve; });
     const recordStagedRequest = (request) => {
       const url = new URL(request.url());
       if (request.method() === "POST" && url.pathname.endsWith(action.endpoint)) {
@@ -651,25 +656,71 @@ async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
     };
 
     target.on("request", recordStagedRequest);
-    await target.route(savePattern, async (route) => {
-      if (route.request().method() !== "POST") {
-        await route.continue();
-        return;
-      }
-      const response = await route.fetch();
-      markSaveHeld();
-      await saveRelease;
-      await route.fulfill({ response }).catch(() => undefined);
-    });
+    await target.evaluate(({ activeMeetingId, delayedBodyMode }) => {
+      const originalFetch = window.fetch.bind(window);
+      let intercepted = false;
+      let releaseBody = () => undefined;
+      window.__m2DelayedBodyHeld = false;
+      window.__m2ReleaseDelayedBody = () => releaseBody();
+      window.__m2RestoreFetch = () => {
+        window.fetch = originalFetch;
+        delete window.__m2DelayedBodyHeld;
+        delete window.__m2ReleaseDelayedBody;
+        delete window.__m2RestoreFetch;
+      };
+
+      window.fetch = async (...args) => {
+        const [input, init] = args;
+        const requestUrl = typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        const requestMethod = input instanceof Request ? input.method : "GET";
+        const method = String(init?.method ?? requestMethod).toUpperCase();
+        const pathname = new URL(requestUrl, window.location.origin).pathname;
+        if (intercepted || method !== "POST" || pathname !== `/api/agent/meeting/${activeMeetingId}/quote`) {
+          return originalFetch(...args);
+        }
+        intercepted = true;
+
+        let status = 422;
+        let statusText = "Unprocessable Entity";
+        let headers = new Headers({ "Content-Type": "application/json" });
+        let body = JSON.stringify({ error: "Ошибка задержанного тела ответа" });
+        if (delayedBodyMode === "success") {
+          const response = await originalFetch(...args);
+          status = response.status;
+          statusText = response.statusText;
+          headers = new Headers(response.headers);
+          body = await response.text();
+        }
+
+        let resolveBody;
+        const bodyRelease = new Promise((resolve) => { resolveBody = resolve; });
+        releaseBody = () => resolveBody();
+        const stream = new ReadableStream({
+          async start(controller) {
+            window.__m2DelayedBodyHeld = true;
+            await bodyRelease;
+            controller.enqueue(new TextEncoder().encode(body));
+            controller.close();
+          },
+        });
+        return new Response(stream, { status, statusText, headers });
+      };
+    }, { activeMeetingId: meetingId, delayedBodyMode: action.delayedBodyMode });
 
     try {
       await target.getByRole("button", { name: action.label, exact: true }).click();
-      await saveHeld;
+      await target.waitForFunction(() => window.__m2DelayedBodyHeld === true);
       await target.keyboard.press("Escape");
       const caseLink = target.locator('a[href^="/agent/cases/"]').first();
       await caseLink.click();
       await target.waitForURL(/\/agent\/cases\/\d+(?:\?|$)/);
-      releaseSave();
+      await target.evaluate(() => window.__m2ReleaseDelayedBody?.());
       await target.waitForTimeout(750);
       assert.deepEqual(
         stagedRequests,
@@ -681,10 +732,17 @@ async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
         0,
         `${action.label} must not leak a stale failure toast into the destination route`,
       );
+      assert.equal(
+        await target.getByText(action.staleToast, { exact: true }).count(),
+        0,
+        `${action.label} must not update feedback after authority expires during response parsing`,
+      );
     } finally {
-      releaseSave?.();
+      await target.evaluate(() => {
+        window.__m2ReleaseDelayedBody?.();
+        window.__m2RestoreFetch?.();
+      }).catch(() => undefined);
       target.off("request", recordStagedRequest);
-      await target.unroute(savePattern);
     }
   }
 }
