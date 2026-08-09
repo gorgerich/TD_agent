@@ -665,6 +665,31 @@ textarea.td-field { min-height: 96px; padding: 10px 12px; }
   height: 27px;
 }
 
+/* Preserve the icon-first dock at 200% zoom without colliding Russian labels. */
+@media (max-width: 240px) {
+  .td-mobile-dock {
+    left: 4px;
+    right: 4px;
+    bottom: max(4px, env(safe-area-inset-bottom));
+    gap: 2px;
+    border-radius: 22px;
+    padding: 2px !important;
+  }
+  .td-mobile-dock-item {
+    min-width: 0;
+    min-height: 52px !important;
+    gap: 0 !important;
+    border-radius: 18px;
+  }
+  .td-mobile-dock-item .td-nav-orb {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+  }
+  .td-mobile-dock-item .td-nav-orb > svg { width: 24px; height: 24px; }
+  .td-mobile-dock-label { display: none; }
+}
+
 /* B2C-related product rail: warm paper, neutral ink, white selected object. */
 .td-rail {
   background: var(--color-canvas);

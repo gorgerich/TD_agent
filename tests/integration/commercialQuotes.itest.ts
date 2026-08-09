@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { CommercialLine, CommercialScenario } from "../../lib/commercialQuote";
+import {
+  INTERNAL_COST_LINE_SOURCE,
+  type CommercialLine,
+  type CommercialScenario,
+} from "../../lib/commercialQuote";
 import { reconcileCommercialQuotes } from "../../lib/commercialReconciliation";
 import {
   createCommercialClientLink,
@@ -86,7 +90,19 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       data: { stage: "QUOTING", scenarioId: "CREMATION_V1" },
     });
     const meeting = await makeCommercialMeeting(owner, canonicalCase.id, canonicalCase.leadId, fixtures.runId);
-    const v1Lines = [knownLine("service:ceremony", "CREMATION_V1")];
+    const v1Lines = [
+      knownLine("service:ceremony", "CREMATION_V1"),
+      knownLine("expense:internal", "CREMATION_V1", 0),
+    ];
+    v1Lines[1] = {
+      ...v1Lines[1],
+      position: 1,
+      type: "EXTERNAL_EXPENSE",
+      description: "Внутренняя комиссия",
+      clientUnitPrice: 0,
+      unitCost: 10_000,
+      source: INTERNAL_COST_LINE_SOURCE,
+    };
 
     const draft = await saveCommercialDraft({
       meetingId: meeting.id,
@@ -111,7 +127,13 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       context: owner.context,
       meta: meta(fixtures.runId, "presentation-v1"),
     });
-    assert.equal((await getCommercialPresentation(String(presentation.presentationId), owner.context)).quoteId, Number(draft.quoteId));
+    const presentationRead = await getCommercialPresentation(String(presentation.presentationId), owner.context);
+    assert.equal(presentationRead.quoteId, Number(draft.quoteId));
+    assert.equal(
+      ((presentationRead.state as { lines?: unknown[] }).lines ?? []).length,
+      1,
+      "internal cost-only line must not appear in family presentation",
+    );
     assert.equal(await db.quoteVersion.count({ where: { quoteId: Number(draft.quoteId), state: "PUBLISHED" } }), 0);
     await endCommercialPresentation({
       presentationId: String(presentation.presentationId),
@@ -145,6 +167,9 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
     }), 1);
     const publishedRead = await getCommercialQuoteForMeeting(meeting.id, owner.context);
     assert.deepEqual(publishedRead?.published?.editorState, { step: "review" });
+    assert.equal(publishedRead?.published?.total, 125_000);
+    assert.equal(publishedRead?.published?.costTotal, 90_000);
+    assert.equal(publishedRead?.published?.margin, 35_000);
     await assert.rejects(
       db.quoteVersion.update({
         where: { id: publishedV1.quoteVersionId },
@@ -196,6 +221,7 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
     assert.equal(publicV1.state, "PUBLISHED");
     if (publicV1.state !== "PUBLISHED") throw new Error("Expected published client view");
     assert.equal(publicV1.version.total, 125_000);
+    assert.equal(publicV1.version.lines.length, 1, "internal cost-only line must not appear in client view");
     assert.equal("unitCost" in publicV1.version.lines[0], false);
 
     const changeInput = {
@@ -251,6 +277,19 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       v1RowBefore,
     );
     assert.equal(v1RowAfter.state, "SUPERSEDED");
+    const versionHistory = await getCommercialQuoteForMeeting(meeting.id, owner.context);
+    assert.deepEqual(
+      versionHistory?.history.map((version) => ({
+        versionNumber: version.versionNumber,
+        state: version.state,
+        total: version.total,
+      })),
+      [
+        { versionNumber: 2, state: "PUBLISHED", total: 140_000 },
+        { versionNumber: 1, state: "SUPERSEDED", total: 125_000 },
+      ],
+      "history must come from immutable canonical QuoteVersion rows",
+    );
 
     const linkV2 = await createCommercialClientLink({
       quoteId: Number(draft.quoteId),
@@ -258,6 +297,20 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       context: owner.context,
       meta: meta(fixtures.runId, "link-v2"),
     });
+    const v2Snapshot = JSON.parse((await db.quoteVersion.findUniqueOrThrow({
+      where: { id: Number(publishedV2.quoteVersionId) },
+      select: { payload: true },
+    })).payload);
+    const immutableProjection = await getCommercialQuoteForMeeting(meeting.id, owner.context);
+    assert.equal(immutableProjection?.published?.total, v2Snapshot.totals.total);
+    assert.deepEqual(immutableProjection?.published?.lines, v2Snapshot.lines);
+    assert.equal(immutableProjection?.history[0]?.total, v2Snapshot.totals.total);
+    const immutableClientView = await resolveCommercialClientView(linkV2.token);
+    assert.equal(immutableClientView.state, "PUBLISHED");
+    if (immutableClientView.state !== "PUBLISHED") throw new Error("Expected immutable published client view");
+    assert.equal(immutableClientView.version.total, v2Snapshot.totals.total);
+    assert.equal(immutableClientView.version.lines[0]?.clientUnitPrice, v2Snapshot.lines[0]?.clientUnitPrice);
+
     const accepted = await recordCommercialClientDecision({
       token: linkV2.token,
       type: "ACCEPTED",

@@ -1,6 +1,44 @@
-# M2 Commercial Trust Loop — production release attempt
+# M2 Commercial Trust Loop - release chronology
 
-State: `PRODUCTION_RELEASE_BLOCKED`
+Authoritative status as of 2026-08-02: `RELEASED`.
+
+The production deployment is `dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma`, READY at
+`f6f3f17e984d7b1baaff619c9bcf063933e63e05`, and the production database fingerprint is
+`0257665af2dd90a4`. Ten migrations are applied; the M2 migration checksum matches and
+schema parity is `No difference detected`.
+
+Everything below records earlier stopped release attempts. Those facts remain historical
+evidence, but their blocker states are superseded by the successful release above.
+
+## Post-release truth audit and repair candidate
+
+Read-only audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
+
+Final source repair: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
+
+The candidate closes five P1 commercial-truth defects: unknown price rendered as a final
+amount, lost margin-only cost, editor/published divergence, current-rule recalculation of
+published history, and local write fallback after a failed canonical read. Local deterministic
+gates pass with 96 unit and 44 integration tests, four browser suites, skipped=0, migration
+no-op, schema parity, 0 accessibility critical/serious findings and 0 fixture residue. The
+route-authority, delayed-response-body, stale-feedback and failed post-publish-refresh race
+regressions passed five full isolated commercial journeys in succession. Each run left zero
+commercial fixture rows and zero synthetic rate-limit buckets. Final 200 percent zoom geometry
+and M1 meeting-detail navigation each passed 5/5 targeted runs. Exact-source Quality run
+`31320817751` passed twice, and independent final review returned P0=0, P1=0, P2=0.
+
+Exact-source Preview `dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY at
+`https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app`. Its protected read-only smoke
+returned 200/307/307/401 for login/root/protected page/protected API. The temporary exact-project
+link was removed after the check.
+
+The repair remains unmerged and undeployed to production. Production writes, schema changes,
+environment changes and production deployment changes during this audit: NONE. M3 remains
+`NOT_STARTED`.
+
+## Historical first attempt
+
+Attempt state: `PRODUCTION_RELEASE_BLOCKED`
 
 ## What was done
 

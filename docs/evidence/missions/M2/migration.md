@@ -14,4 +14,19 @@
   authorized, uses containment and safe forward-fix; published history is not
   destructively removed.
 
-Status: contract locked; implementation and isolated rehearsal pending.
+## Authoritative status
+
+- Release state: `RELEASED`.
+- Applied migration: `20260729170000_m2_commercial_trust_loop`.
+- Approved checksum:
+  `fc82c99f3fa06cd7a74d42917e82638923d543bb19b5150a1a9403183eb6999e`.
+- Production database fingerprint: `0257665af2dd90a4`.
+- Production migration history: 10 applied migrations, no failed or incomplete record found
+  during the read-only post-release audit.
+- Production schema parity: PASS, `No difference detected`.
+- Repair branch migration files changed: NO.
+- Isolated repair database: repeated `prisma migrate deploy` returned no pending migration;
+  schema parity PASS.
+
+The earlier contract-lock wording described the pre-release phase and is superseded by this
+status. The P1 economics repair is source-only and requires no schema change.

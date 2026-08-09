@@ -173,6 +173,9 @@ jobs:
           cat /tmp/td-agent-next.log
           exit 1
       - run: npm run test:e2e
+      - name: Show server diagnostics after an E2E failure
+        if: failure()
+        run: tail -n 200 /tmp/td-agent-next.log
       - name: Cleanup isolated M1 browser UAT fixture
         if: always()
         run: |

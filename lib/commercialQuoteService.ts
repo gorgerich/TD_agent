@@ -6,7 +6,9 @@ import {
   calculateCommercialTotals,
   canonicalSnapshotJson,
   diffCommercialLines,
+  isClientVisibleCommercialLine,
   quoteSnapshotChecksum,
+  readPublishedQuoteSnapshot,
   settleCommercialLines,
   type CommercialLine,
   type CommercialLineSettlement,
@@ -104,6 +106,7 @@ export type CommercialQuoteReadModel = {
   scenario: CommercialScenario;
   draft: CommercialVersionReadModel | null;
   published: CommercialVersionReadModel | null;
+  history: CommercialVersionHistoryItem[];
 };
 
 export type CommercialVersionReadModel = {
@@ -124,6 +127,19 @@ export type CommercialVersionReadModel = {
   editorState: Prisma.JsonValue | null;
 };
 
+export type CommercialVersionHistoryItem = {
+  id: number;
+  versionNumber: number;
+  state: string;
+  total: number | null;
+  totalState: string;
+  costTotal: number | null;
+  margin: number | null;
+  lineCount: number;
+  publishedAt: string | null;
+  validUntil: string | null;
+};
+
 export async function getCommercialQuoteForMeeting(
   meetingId: number,
   context: OperationalContext,
@@ -137,6 +153,11 @@ export async function getCommercialQuoteForMeeting(
     include: {
       activeDraftVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
       latestPublishedVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
+      versions: {
+        where: { versionNumber: { not: null } },
+        include: { lineItems: { orderBy: { position: "asc" } } },
+        orderBy: { versionNumber: "desc" },
+      },
     },
   });
   return quote ? quoteReadModel(quote) : null;
@@ -573,7 +594,9 @@ export async function startCommercialPresentation(input: {
           draftVersionId: quote.activeDraftVersion.id,
           lines: (() => {
             const settlement = settleCommercialLines(lines);
-            return lines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
+            return lines
+              .filter(isClientVisibleCommercialLine)
+              .map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
           })(),
           totals: {
             total: totals.total,
@@ -985,6 +1008,7 @@ function quoteReadModel(quote: {
   scenario: string | null;
   activeDraftVersion: VersionWithLines | null;
   latestPublishedVersion: VersionWithLines | null;
+  versions: VersionWithLines[];
 }): CommercialQuoteReadModel {
   const scenario = scenarioFromQuote(quote.scenario);
   return {
@@ -995,20 +1019,42 @@ function quoteReadModel(quote: {
     scenario,
     draft: quote.activeDraftVersion ? versionReadModel(quote.activeDraftVersion, scenario) : null,
     published: quote.latestPublishedVersion ? versionReadModel(quote.latestPublishedVersion, scenario) : null,
+    history: quote.versions.flatMap((version) => {
+      if (version.versionNumber === null) return [];
+      const model = versionReadModel(version, scenario);
+      return [{
+        id: model.id,
+        versionNumber: version.versionNumber,
+        state: model.state,
+        total: model.total,
+        totalState: model.totalState,
+        costTotal: model.costTotal,
+        margin: model.margin,
+        lineCount: model.lines.length,
+        publishedAt: model.publishedAt,
+        validUntil: model.validUntil,
+      }];
+    }),
   };
 }
 
 type VersionWithLines = {
   id: number;
+  quoteId: number;
   versionNumber: number | null;
   state: string;
   publishedAt: Date | null;
   validUntil: Date | null;
   payload: string;
+  snapshotChecksum: string | null;
   lineItems: Parameters<typeof lineFromRecord>[0][];
 };
 
 function versionReadModel(version: VersionWithLines, scenario: CommercialScenario): CommercialVersionReadModel {
+  if (version.versionNumber !== null && isImmutablePublishedState(version.state)) {
+    return publishedVersionReadModel(version);
+  }
+
   const lines = version.lineItems.map(lineFromRecord);
   const totals = calculateCommercialTotals(lines, scenario);
   return {
@@ -1030,24 +1076,63 @@ function versionReadModel(version: VersionWithLines, scenario: CommercialScenari
   };
 }
 
+function isImmutablePublishedState(state: string) {
+  return state === "PUBLISHED" || state === "SUPERSEDED" || state === "EXPIRED";
+}
+
+function publishedVersionReadModel(version: VersionWithLines): CommercialVersionReadModel {
+  const snapshot = requirePublishedSnapshot(version);
+  return {
+    id: version.id,
+    versionNumber: version.versionNumber,
+    state: version.state,
+    lines: snapshot.lines,
+    subtotal: snapshot.totals.subtotal,
+    discountTotal: snapshot.totals.discountTotal,
+    total: snapshot.totals.total,
+    totalState: snapshot.totals.totalState,
+    costTotal: snapshot.totals.costTotal,
+    margin: snapshot.totals.margin,
+    blockers: [],
+    warnings: snapshot.totals.costTotal === null
+      ? ["Себестоимость опубликованной версии не подтверждена"]
+      : [],
+    publishedAt: snapshot.publishedAt,
+    validUntil: snapshot.validUntil,
+    editorState: snapshot.editorState as Prisma.JsonValue,
+  };
+}
+
+function requirePublishedSnapshot(version: VersionWithLines): PublishedQuoteSnapshot {
+  return readPublishedQuoteSnapshot({
+    payload: version.payload,
+    snapshotChecksum: version.snapshotChecksum,
+    quoteId: version.quoteId,
+    versionNumber: version.versionNumber,
+  });
+}
+
 function publicVersion(version: VersionWithLines & {
   currency: string;
   total: number;
   snapshotChecksum: string | null;
 }) {
-  const domainLines = version.lineItems.map(lineFromRecord);
+  const snapshot = requirePublishedSnapshot(version);
+  const domainLines = snapshot.lines;
   // The client-facing amounts come from the domain, not from a second calculation in the
   // view. A replacement target or a package child must never render a price it does not
   // contribute to the total.
   const settlement = settleCommercialLines(domainLines);
-  const lines = domainLines.map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
+  const lines = domainLines
+    .filter(isClientVisibleCommercialLine)
+    .map((line) => clientSafeLine(line, settlement.get(line.stableKey)));
   return {
     id: version.id,
     versionNumber: version.versionNumber,
-    publishedAt: version.publishedAt?.toISOString() ?? null,
-    validUntil: version.validUntil?.toISOString() ?? null,
-    currency: version.currency,
-    total: version.total,
+    publishedAt: snapshot.publishedAt,
+    validUntil: snapshot.validUntil,
+    currency: snapshot.currency,
+    total: snapshot.totals.total,
     snapshotChecksum: version.snapshotChecksum,
     lines,
   };

@@ -47,6 +47,27 @@ export type CommercialTotals = {
   countedLineKeys: string[];
 };
 
+export const INTERNAL_COST_LINE_SOURCE = "agent-entered-internal-expense";
+
+export type CommercialEconomicsLine = {
+  stableKey: string;
+  description: string;
+  type: CommercialLineType;
+  quantity: number;
+  clientVisible: boolean;
+  priceState: CommercialValueState;
+  costState: CommercialValueState;
+  clientTotal: number | null;
+  costTotal: number | null;
+  margin: number | null;
+  marginPercent: number | null;
+};
+
+export type CommercialEconomics = CommercialTotals & {
+  marginPercent: number | null;
+  items: CommercialEconomicsLine[];
+};
+
 /** How a line relates to the total the client is asked to pay. */
 export type LineSettlement = "COUNTED" | "INCLUDED" | "REPLACED";
 
@@ -99,6 +120,21 @@ export function settleCommercialLines(
     });
   }
   return result;
+}
+
+/**
+ * Internal expenses affect agent economics but never the client composition. The strict
+ * shape check prevents a caller from hiding a billed line merely by spoofing `source`.
+ */
+export function isClientVisibleCommercialLine(line: CommercialLine): boolean {
+  return !(
+    line.source === INTERNAL_COST_LINE_SOURCE
+    && line.type === "EXTERNAL_EXPENSE"
+    && line.priceState === "KNOWN"
+    && line.clientUnitPrice === 0
+    && line.relationKind === "STANDALONE"
+    && !line.included
+  );
 }
 
 export type PublishedQuoteSnapshot = {
@@ -187,7 +223,7 @@ export function calculateCommercialTotals(
 
   const settlement = settleCommercialLines(lines, replacementTargets);
   const counted = lines.filter((line) => settlement.get(line.stableKey)?.settlement === "COUNTED");
-  if (counted.length === 0) {
+  if (!counted.some(isClientVisibleCommercialLine)) {
     blockers.push("Добавьте хотя бы одну оплачиваемую позицию");
   }
   let subtotal = 0;
@@ -236,6 +272,49 @@ export function calculateCommercialTotals(
   };
 }
 
+/** One canonical projection for every internal economics surface. */
+export function calculateCommercialEconomics(
+  lines: CommercialLine[],
+  scenario: CommercialScenario,
+): CommercialEconomics {
+  const totals = calculateCommercialTotals(lines, scenario);
+  const settlement = settleCommercialLines(lines);
+  const items = lines.flatMap((line): CommercialEconomicsLine[] => {
+    const lineSettlement = settlement.get(line.stableKey);
+    if (lineSettlement?.settlement !== "COUNTED") return [];
+
+    const clientTotal = lineSettlement.lineTotal;
+    const costTotal = line.costState === "KNOWN" && line.unitCost !== null
+      ? assertMinorUnit(line.unitCost, `Себестоимость «${line.description}»`) * line.quantity
+      : null;
+    const margin = clientTotal !== null && costTotal !== null ? clientTotal - costTotal : null;
+    const marginPercent = margin !== null && clientTotal !== null && clientTotal > 0
+      ? margin / clientTotal * 100
+      : null;
+    return [{
+      stableKey: line.stableKey,
+      description: line.description,
+      type: line.type,
+      quantity: line.quantity,
+      clientVisible: isClientVisibleCommercialLine(line),
+      priceState: line.priceState,
+      costState: line.costState,
+      clientTotal,
+      costTotal,
+      margin,
+      marginPercent,
+    }];
+  });
+
+  return {
+    ...totals,
+    marginPercent: totals.margin !== null && totals.total !== null && totals.total > 0
+      ? totals.margin / totals.total * 100
+      : null,
+    items,
+  };
+}
+
 export function assertPublishable(totals: CommercialTotals): asserts totals is CommercialTotals & { total: number } {
   if (totals.totalState !== "KNOWN" || totals.total === null || totals.blockers.length > 0) {
     throw new CommercialQuoteError("PUBLISH_BLOCKED", totals.blockers[0] ?? "Смета содержит неподтверждённые цены");
@@ -260,6 +339,94 @@ export function canonicalSnapshotJson(snapshot: PublishedQuoteSnapshot): string 
 
 export function quoteSnapshotChecksum(snapshot: PublishedQuoteSnapshot): string {
   return createHash("sha256").update(canonicalSnapshotJson(snapshot)).digest("hex");
+}
+
+/**
+ * Read a published version from its signed-at-publish payload. Historical versions must
+ * never be projected by today's calculation rules: the exact snapshot received by the
+ * family remains authoritative even after the calculator evolves.
+ */
+export function readPublishedQuoteSnapshot(input: {
+  payload: string;
+  snapshotChecksum: string | null;
+  quoteId: number;
+  versionNumber: number | null;
+}): PublishedQuoteSnapshot {
+  let value: unknown;
+  try {
+    value = JSON.parse(input.payload);
+  } catch {
+    throw new Error("Published quote snapshot integrity check failed");
+  }
+
+  if (!isPublishedQuoteSnapshot(value)
+    || value.quoteId !== input.quoteId
+    || value.versionNumber !== input.versionNumber
+    || !input.snapshotChecksum
+    || quoteSnapshotChecksum(value) !== input.snapshotChecksum) {
+    throw new Error("Published quote snapshot integrity check failed");
+  }
+  return value;
+}
+
+function isPublishedQuoteSnapshot(value: unknown): value is PublishedQuoteSnapshot {
+  if (!isRecord(value) || value.schemaVersion !== 1) return false;
+  if (!Number.isSafeInteger(value.quoteId) || !Number.isSafeInteger(value.versionNumber)) return false;
+  if (typeof value.organizationId !== "string" || typeof value.caseId !== "string") return false;
+  if (!isCommercialScenario(value.scenario) || value.currency !== "RUB") return false;
+  if (typeof value.publishedAt !== "string" || typeof value.validUntil !== "string") return false;
+  if (!Array.isArray(value.lines) || !value.lines.every(isPublishedCommercialLine)) return false;
+  if (!isRecord(value.totals)) return false;
+  return isNonNegativeMinor(value.totals.subtotal)
+    && isNonNegativeMinor(value.totals.discountTotal)
+    && isNullableNonNegativeMinor(value.totals.total)
+    && isCommercialValueState(value.totals.totalState)
+    && isNullableNonNegativeMinor(value.totals.costTotal)
+    && (value.totals.margin === null || Number.isSafeInteger(value.totals.margin))
+    && Array.isArray(value.totals.countedLineKeys)
+    && value.totals.countedLineKeys.every((key) => typeof key === "string");
+}
+
+function isPublishedCommercialLine(value: unknown): value is CommercialLine {
+  if (!isRecord(value)) return false;
+  return typeof value.stableKey === "string"
+    && Number.isSafeInteger(value.position)
+    && ["SERVICE", "PRODUCT", "PACKAGE", "ADD_ON", "EXTERNAL_EXPENSE", "MEMORIAL"].includes(String(value.type))
+    && typeof value.description === "string"
+    && Number.isSafeInteger(value.quantity)
+    && typeof value.unit === "string"
+    && isCommercialValueState(value.priceState)
+    && isNullableNonNegativeMinor(value.clientUnitPrice)
+    && isCommercialValueState(value.costState)
+    && isNullableNonNegativeMinor(value.unitCost)
+    && isNonNegativeMinor(value.discountAmount)
+    && typeof value.included === "boolean"
+    && typeof value.optional === "boolean"
+    && ["STANDALONE", "INCLUDED", "ADD_ON", "REPLACEMENT"].includes(String(value.relationKind))
+    && typeof value.source === "string"
+    && typeof value.sourceVersion === "string"
+    && Array.isArray(value.scenarioCompatibility)
+    && value.scenarioCompatibility.every(isCommercialScenario);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCommercialScenario(value: unknown): value is CommercialScenario {
+  return value === "CREMATION_V1" || value === "FAMILY_PLOT_BURIAL_V1";
+}
+
+function isCommercialValueState(value: unknown): value is CommercialValueState {
+  return value === "KNOWN" || value === "UNKNOWN" || value === "REQUESTED" || value === "EXPIRED";
+}
+
+function isNonNegativeMinor(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0;
+}
+
+function isNullableNonNegativeMinor(value: unknown): value is number | null {
+  return value === null || isNonNegativeMinor(value);
 }
 
 export function diffCommercialLines(previous: CommercialLine[], next: CommercialLine[]) {

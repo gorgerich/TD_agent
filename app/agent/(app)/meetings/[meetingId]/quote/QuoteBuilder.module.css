@@ -148,6 +148,42 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
+.quoteLoadNotice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 24%, var(--color-line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+  color: var(--color-ink);
+}
+.quoteLoadNotice strong,
+.quoteLoadNotice p { margin: 0; }
+.quoteLoadNotice strong { font-size: 13px; }
+.quoteLoadNotice p {
+  margin-top: 3px;
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.quoteLoadNotice button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.quoteLoadNotice button:hover { background: var(--color-ink-2); }
+.quoteLoadNotice button:focus-visible { outline: 3px solid var(--color-accent-soft); outline-offset: 2px; }
 .planModeSwitch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1585,20 +1621,24 @@
 .sheetClose:hover { border-color: var(--color-line-strong); color: var(--color-ink); background: var(--color-surface-2); }
 .sheetTabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(64px, 100%), 1fr));
   gap: 4px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
 }
 .sheetTab {
+  min-width: 0;
   min-height: 38px;
+  padding: 4px 6px;
   border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--color-ink-2);
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -1615,13 +1655,9 @@
   background: color-mix(in srgb, var(--color-surface-2) 42%, var(--color-surface));
 }
 .economicsTag {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--color-accent-soft);
-  color: var(--color-accent);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+  color: var(--color-ink-3);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* Сворачиваемые заголовки (экономика, история версий) */
@@ -1782,46 +1818,62 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   border-top: 0;
   background: var(--color-surface);
 }
-.snapshotInput,
-.snapshotTextarea {
-  margin-bottom: 8px;
+.versionHistoryHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.versionHistoryHead h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.versionHistoryHead p {
+  max-width: 44ch;
+  margin: 4px 0 0;
+  color: var(--color-ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.versionHistoryCount {
+  color: var(--color-ink-2);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.versionHistoryEmpty {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--color-surface-2);
+  color: var(--color-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .snapshotList {
   display: grid;
   gap: 8px;
   margin-top: 12px;
+  padding: 0;
+  list-style: none;
 }
 .snapshotItem {
-  border: 1px solid var(--color-line);
   border-radius: 8px;
-  overflow: hidden;
-  background: var(--color-surface);
+  background: var(--color-surface-2);
 }
 .snapshotItemHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 10px;
-}
-.snapshotItemHead button {
-  border: 0;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.snapshotItemHead button:first-child {
-  min-width: 0;
-  color: var(--color-ink);
-}
-.snapshotItemHead button:last-child {
-  color: var(--color-danger);
-  font-size: 11px;
-  font-weight: 700;
+  gap: 12px;
+  padding: 12px 12px 8px;
 }
 .snapshotItemHead strong {
   display: block;
-  font-size: 12px;
+  color: var(--color-ink);
+  font-size: 13px;
 }
 .snapshotItemHead span {
   display: block;
@@ -1829,49 +1881,37 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   color: var(--color-ink-3);
   font-size: 11px;
 }
+.snapshotItemHead .versionState {
+  flex-shrink: 0;
+  margin: 0;
+  color: var(--color-ink-2);
+  font-weight: 650;
+}
 .snapshotMetrics {
   display: grid;
-  gap: 3px;
-  padding: 0 10px 10px;
-  color: var(--color-ink-2);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 4px 12px 12px;
 }
-.snapshotDetails {
-  border-top: 1px solid var(--color-line);
-  padding: 10px;
-  background: var(--color-surface-2);
-}
-.snapshotDetails p {
-  margin: 0 0 8px;
-  color: var(--color-ink-2);
-  font-size: 12px;
-  line-height: 1.35;
-}
-.snapshotLine {
-  display: grid;
-  gap: 3px;
-  margin-top: 8px;
-}
-.snapshotLine span {
+.snapshotMetrics div { min-width: 0; }
+.snapshotMetrics dt {
   color: var(--color-ink-3);
   font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 600;
 }
-.snapshotLine em {
-  color: var(--color-ink);
-  font-size: 12px;
-  font-style: normal;
-}
-.snapshotTotals {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
+.snapshotMetrics dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .snapshotMetrics { grid-template-columns: 1fr; gap: 7px; }
+  .snapshotItemHead { align-items: flex-start; }
 }
 
 .panelActions {
@@ -2139,8 +2179,7 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .mobileBarMeta { display: none; }
   .mobileBarStatus { display: none; }
   .mobileBarSum { min-height: 40px; align-content: center; }
-  .sheetTabs { overflow-x: auto; grid-template-columns: repeat(4, max-content); justify-content: start; }
-  .sheetTab { padding: 0 13px; }
+  .sheetTab { font-size: 11px; }
   .panelHead { align-items: flex-start; flex-wrap: wrap; }
 }
 
@@ -2240,10 +2279,10 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
 /* ── Паттерны wizard tihiydom.com (B2C /wizard) ──────────────────
    Radio-карточки, карточки длительности, маршрут-чипы, буллеты пакетов.
    Палитра - токены кабинета (evergreen вместо чёрного B2C). */
-.radioCards { display: grid; gap: 8px; }
+.radioCards { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 8px; }
 .radioCard {
   display: flex; align-items: center; gap: 12px;
-  width: 100%; text-align: left; font: inherit; appearance: none;
+  width: 100%; min-width: 0; text-align: left; font: inherit; appearance: none;
   padding: 13px 16px;
   border-radius: 14px; border: 1px solid var(--color-line);
   background: var(--color-surface); cursor: pointer;
@@ -2713,13 +2752,81 @@ button.collapseHead[aria-expanded="true"] { margin-bottom: 12px; }
   .b2cWizardShell { margin-right: -2px; margin-left: -2px; padding: 14px; }
   .card,
   .b2cWizardShell .card { padding: 16px 0; }
-  .b2cStageRail { margin-right: -4px; margin-left: -4px; padding-right: 4px; padding-left: 4px; }
-  .b2cStageChip { min-height: 40px; }
+  .b2cStageRail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-right: 0;
+    margin-left: 0;
+    overflow: visible;
+    padding-right: 0;
+    padding-left: 0;
+  }
+  .b2cStageChip { width: 100%; min-width: 0; min-height: 40px; }
+  .serviceToggle { grid-template-columns: minmax(0, 1fr); }
   .previewShell { margin-right: -2px; margin-left: -2px; }
+}
+
+/* 390px mobile at 200% browser zoom exposes a 195px CSS viewport. */
+@media (max-width: 240px) {
+  .root { padding-right: 8px; padding-left: 8px; }
+  .b2cWizardShell { padding: 10px; }
+  .radioCard {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 11px 10px;
+  }
+  .radioCardText,
+  .radioCardLabel,
+  .radioCardSub { overflow-wrap: anywhere; }
+  .radioCardPrice { grid-column: 2; justify-self: start; }
+  .panel {
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+  .panelCard {
+    height: calc(100dvh - 86px - env(safe-area-inset-bottom));
+    max-height: none;
+  }
+  .panelHero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 4px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    padding-right: 8px;
+    padding-left: 10px;
+  }
+  .panelHero > div { min-width: 0; }
+  .panelHeroLabel { font-size: 9px; }
+  .panelHeroAmount { overflow-wrap: anywhere; font-size: 22px; }
+  .panelHeroMeta { font-size: 10px; }
+  .panelHead {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 6px 8px;
+  }
+  .panelHeadTitle { font-size: 13px; }
+  .panelStatus,
+  .panelVersions { min-height: 22px; padding: 2px 6px; white-space: normal; overflow-wrap: anywhere; font-size: 9px; }
+  .sheetTabs { gap: 3px; padding: 4px 6px; }
+  .sheetTab { min-height: 32px; padding: 3px 4px; font-size: 10px; }
+  .panelSections { padding-right: 10px; padding-left: 10px; }
+  .panelItem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .panelItem > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .sheetFooter { gap: 6px; padding: 6px; }
+  .sheetFooterSummary { min-height: 40px; padding: 4px 7px; }
+  .sheetFooterSummary strong { font-size: 14px; }
+  .sheetFooterSave { min-height: 40px; padding: 0 10px; font-size: 12px; }
 }
 
 @media (max-width: 640px) {
   .mobileBar { background: var(--color-surface); }
+  .quoteLoadNotice { align-items: stretch; flex-direction: column; gap: 10px; }
+  .quoteLoadNotice button { width: 100%; }
 }
 
 .commercialReview {

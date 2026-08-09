@@ -43,6 +43,7 @@ export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number
           <Link
             key={href}
             href={href}
+            aria-label={label}
             aria-current={active ? "page" : undefined}
             data-active={active ? "true" : undefined}
             className={`td-mobile-dock-item td-press flex min-h-[58px] flex-col items-center justify-center gap-1.5 text-[10px] font-semibold ${active ? "text-ink" : "text-ink-3"}`}
@@ -58,7 +59,7 @@ export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number
                 </span>
               )}
             </span>
-            <span className="leading-none">{label}</span>
+            <span className="td-mobile-dock-label leading-none">{label}</span>
           </Link>
         );
       })}

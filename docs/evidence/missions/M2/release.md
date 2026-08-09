@@ -1,52 +1,79 @@
 # M2 release
 
-Production release is outside this mission authority envelope.
+Authoritative status as of 2026-08-02: `RELEASED`.
 
-- Production writes: none.
-- Production schema changes: none.
-- Production deployment: unchanged.
-- Owner release authorization: required after `MISSION_RELEASE_READY`.
+## Production truth
 
-Status: `IMPLEMENTATION_VERIFIED` at `d75ba6e0d3df671ba52a4107c412aff092345dc1`.
+| Item | Verified value |
+| --- | --- |
+| Product PR | [#28](https://github.com/gorgerich/TD_agent/pull/28), merged |
+| Product merge | `54da13348d0a983d44752c3683fb8a17c40683f2` |
+| Current main | `f6f3f17e984d7b1baaff619c9bcf063933e63e05` |
+| Production deployment | `dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma`, READY |
+| Production URL | `https://td-agent-9bx56sl3y-rics-projects-9baa2793.vercel.app` |
+| Production Git SHA | `f6f3f17e984d7b1baaff619c9bcf063933e63e05` |
+| Production database fingerprint | `0257665af2dd90a4` |
+| Applied migrations | 10 |
+| M2 migration checksum | `fc82c99f3fa06cd7a74d42917e82638923d543bb19b5150a1a9403183eb6999e` |
+| Schema parity | PASS, `No difference detected` |
+| Commercial orphan/duplicate/tenant mismatch | 0 |
 
-`MISSION_RELEASE_READY` is not reachable from an implementation session: it needs
-`preview_uat` (a Preview deployment of the exact SHA) and `independent_review`
-(P0 = 0 and P1 = 0 from someone other than the implementer). Both are recorded as
-open blockers in `mission.yaml`.
+The production deployment and database checks were read-only. This audit did not change
+production data, schema, environment variables, or deployment.
 
-## Deployment requirement: SSI predicate lock granularity
+## Post-release audit
 
-Every operational command runs at `SERIALIZABLE`. Postgres tracks that with SSI predicate
-locks, and `max_pred_locks_per_page` (default **2**) is the point at which per-tuple locks
-on one page collapse into a single page-level lock. Past that point two transactions that
-touch different tenants' rows conflict because those rows share a heap or index page, and
-the command fails with `P2034` although nothing raced.
+Independent inspection of released main and adversarial review found five related P1 truth
+defects:
 
-Escalation never breaks serializability — it trades precision for memory — but the false
-positives it produces are indistinguishable from real conflicts, so at the default the
-product returns `409 Конфликт параллельных изменений` on publish, link and accept for
-tenants that never contended. Measured on the integration suite: at the default the suite
-failed roughly one run in six after the retry budget was exhausted; at 64 it passed eight
-consecutive runs.
+1. unknown client price could still be rendered as a definitive economics total;
+2. a margin-only external expense was dropped from canonical cost;
+3. an incomplete legacy editor state could make the builder economics disagree with the
+   immutable Published QuoteVersion;
+4. history and client read models could recalculate a Published version using current rules;
+5. a failed canonical read could leave a local fallback available for manual write.
 
-**Required on every database this ships to, including production:**
+Final repair source commit: `3e03061821dac6ec9623dd6305bb05e799cd191d`.
 
-```sql
-ALTER SYSTEM SET max_pred_locks_per_page = 64;
-SELECT pg_reload_conf();
-```
+The repair keeps one canonical money projection, excludes strict internal-cost-only lines
+from presentation/client output, and replaces volatile local snapshots with checksum-verified
+immutable QuoteVersion history. Failed canonical reads now hide totals and block every write
+until a successful retry. Staged review/presentation actions are tied to the exact canonical
+read generation, so route change cannot release a second mutation, and a failed post-publish
+refresh removes stale publish/link authority. Unit 96/96, integration 44/44, all four browser
+suites, mobile, accessibility, migration no-op, and schema parity gates pass on an isolated
+database with skipped=0 and fixture residue=0. Both authority regressions passed five full
+commercial journeys. The final zoom geometry passed five measured 195 x 422 runs. Quality run
+`31320817751` passed twice on the exact source SHA with unit 96/96, integration 44/44, all four
+E2E suites and skipped=0. Independent final review returned P0=0, P1=0 and P2=0.
 
-`max_pred_locks_per_page` is a `SIGHUP` parameter — no restart, no downtime.
+Exact-SHA Preview `dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p` is READY at
+`https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app`. Public access remains protected
+by Vercel SSO. Authenticated Vercel protection bypass read-only smoke returned login 200, root
+307, unauthenticated protected page 307 and unauthenticated protected API 401. Temporary local
+linking targeted the existing team/project IDs and was removed; no project setting changed.
 
-Enforcement status:
+PR [#29](https://github.com/gorgerich/TD_agent/pull/29) is OPEN, Ready, CLEAN and MERGEABLE.
+The repair is not merged or deployed to production. Owner authorization is the only release
+blocker.
 
-- CI configures it before the integration gate (`.github/workflows/quality.yml`).
-- `tests/integration/fixtureIsolation.itest.ts` asserts it, so a misconfigured test
-  database fails loudly and once rather than flaking elsewhere.
-- **Not yet verified on the production Neon instance.** This is recorded as a RECOMMENDED release prerequisite in `test-results.json`, not as a
-  blocker in `mission.yaml`: it was measured only under integration-suite density. Bounded jittered retry
-  (`lib/serializationBackoff.ts`) limits the blast radius if the setting is not applied,
-  but the setting remains recommended: at the default, the retry budget was measured as
-  insufficient under integration-suite density. Note that density is a test artifact, not a
-  tenant workload, so this is not claimed as a production blocker. Measured at the default under integration-suite density, the
-  default under load.
+Controlled production commercial write smoke remains `NOT_RUN`. No approved safe cleanup
+exists for a production synthetic Quote/client-decision fixture, so this audit used
+read-only production verification plus isolated browser UAT instead of creating business
+records in production.
+
+## CI history
+
+The release merge CI passed:
+https://github.com/gorgerich/TD_agent/actions/runs/30693286770
+
+Current-main CI run 30716761666 stopped at evidence validation because `mission.yaml` used
+the unknown state `PRODUCTION_RELEASE_BLOCKED`; later steps were skipped. This repair changes
+the authoritative state to `RELEASED`. Exact-source Quality run 31320817751 subsequently passed
+twice with skipped=0. Final evidence-head CI must also pass before owner-authorized merge.
+
+## Open governance
+
+- `RISK-W1-TECH-HUMAN-REVIEW`: OPEN.
+- M3 Fulfilment & Money Trust: NOT_STARTED.
+- Production release or merge of the P1 repair: not authorized in this audit session.

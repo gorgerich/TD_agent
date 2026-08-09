@@ -8,14 +8,12 @@ import s from "./QuoteBuilder.module.css";
 import {
   type FormData,
   type CalculationSection,
-  type MarginItemInput,
   type CatalogCategory,
   type CatalogItem,
   type EstimateItem,
   type MemorialData,
   type MemorialStatus,
   type ExternalExpense,
-  type EstimateSnapshot,
   calculateOrder,
   calculateOrderEconomics,
   calculateBudgetStatus,
@@ -27,10 +25,7 @@ import {
   updateEstimateItemQuantity,
   removeEstimateItem,
   updateEstimateItemClientPrice,
-  estimateItemsToMarginInputs,
-  externalExpensesToMarginInputs,
   createExternalExpense,
-  createEstimateSnapshot,
   formatCurrency,
   formatMinorUnitsCurrency,
   PRICES,
@@ -47,7 +42,7 @@ import {
 } from "@/lib/calculationUtils";
 import { DEFAULT_ATTRIBUTES, type AttrSelection } from "@/lib/attributes";
 import { buildCommercialDraftLines, commercialScenarioFromForm } from "@/lib/commercialDraftAdapter";
-import { calculateCommercialTotals } from "@/lib/commercialQuote";
+import { calculateCommercialEconomics, type CommercialEconomics } from "@/lib/commercialQuote";
 import { hydratePackage, withoutPackageItems, PACKAGE_ITEM_SOURCE } from "@/lib/packagePresets";
 import { formatDelta } from "@/lib/calculationUtils";
 import AttributeRender from "@/components/AttributeRender";
@@ -57,7 +52,7 @@ import { EstimateItemRow } from "./components/EstimateItemRow";
 import { OptionCard } from "./components/OptionCard";
 import { ExternalExpensesBlock } from "./components/ExternalExpensesBlock";
 import { AgentEconomicsBlock } from "./components/AgentEconomicsBlock";
-import { SnapshotBlock } from "./components/SnapshotBlock";
+import { QuoteVersionHistory } from "./components/SnapshotBlock";
 
 /* ─── Types ─────────────────────────────────────────────────────────── */
 
@@ -95,6 +90,19 @@ const ATTRIBUTION_CATEGORIES: CatalogCategory[] = [
 type Step = "basics" | "logistics" | "attributes" | "memorial" | "expenses";
 type CalculatorTab = "composition" | "economics" | "versions" | "actions";
 
+type QuoteVersionHistoryItem = {
+  id: number;
+  versionNumber: number;
+  state: string;
+  total: number | null;
+  totalState: string;
+  costTotal: number | null;
+  margin: number | null;
+  lineCount: number;
+  publishedAt: string | null;
+  validUntil: string | null;
+};
+
 const STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: "basics", label: "Основное", hint: "Тип услуги, бюджет, пакет и формат церемонии." },
   { id: "logistics", label: "Логистика", hint: "Транспорт, носильщики, место захоронения и доп. услуги." },
@@ -102,6 +110,10 @@ const STEPS: Array<{ id: Step; label: string; hint: string }> = [
   { id: "memorial", label: "Поминки", hint: "Нужны ли поминки и помощь агента с подбором кафе." },
   { id: "expenses", label: "Расходы", hint: "Внешние расходы: морг, кладбище, крематорий, церковь." },
 ];
+
+function defaultCommercialExpiry() {
+  return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+}
 
 /* ─── Main component ─────────────────────────────────────────────────── */
 
@@ -124,11 +136,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   const [expenseDraft, setExpenseDraft] = useState<ExternalExpense>(
     createExternalExpense({ id: "draft", name: "", category: "Морг", clientPrice: 0, costPrice: 0 }),
   );
-  const [snapshots, setSnapshots] = useState<EstimateSnapshot[]>([]);
-  const [snapshotTitle, setSnapshotTitle] = useState("");
-  const [snapshotNote, setSnapshotNote] = useState("");
-  const [snapshotError, setSnapshotError] = useState<string | null>(null);
-  const [openSnapshotId, setOpenSnapshotId] = useState<string | null>(null);
+  const [versionHistory, setVersionHistory] = useState<QuoteVersionHistoryItem[]>([]);
   const [step, setStep] = useState<Step>("basics");
   const [visited, setVisited] = useState<Set<Step>>(() => new Set<Step>(["basics"]));
   // Якорь тарифа: после «Изменить детали» помним исходную цену пакета,
@@ -150,8 +158,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [clientLink, setClientLink] = useState<string | null>(null);
-  const [quoteHydrated, setQuoteHydrated] = useState(false);
-  const [canonicalTotalMinor, setCanonicalTotalMinor] = useState<number | null>(null);
+  const [quoteLoadAttempt, setQuoteLoadAttempt] = useState(0);
+  const quoteLoadKey = `${meetingId}:${quoteLoadAttempt}`;
+  const [settledQuoteLoadKey, setSettledQuoteLoadKey] = useState<string | null>(null);
+  const [failedQuoteLoadKey, setFailedQuoteLoadKey] = useState<string | null>(null);
+  const quoteHydrated = settledQuoteLoadKey === quoteLoadKey;
+  const quoteLoadFailed = failedQuoteLoadKey === quoteLoadKey;
+  const quoteAuthorityRef = useRef<string | null>(null);
+  const [canonicalEconomics, setCanonicalEconomics] = useState<CommercialEconomics | null>(null);
   const [lastAutosavedState, setLastAutosavedState] = useState<string | null>(null);
   const autosaveHandler = useRef<(options?: { quiet?: boolean }) => Promise<number | null>>(async () => null);
 
@@ -179,7 +193,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   );
   const estimateTotal = useMemo(() => calculateEstimateItemsTotal(estimateItems), [estimateItems]);
   const externalTotal = useMemo(() => calculateExternalExpensesClientTotal(externalExpenses), [externalExpenses]);
-  const grandTotal = result.total + estimateTotal + externalTotal;
+  const estimatePricesKnown = useMemo(
+    () => estimateItems.every((item) => (item.priceState ?? (item.clientPrice > 0 ? "KNOWN" : "UNKNOWN")) === "KNOWN"),
+    [estimateItems],
+  );
+  const externalPricesKnown = useMemo(
+    () => externalExpenses.every((expense) => !expense.includeInClientTotal || expense.clientPrice > 0),
+    [externalExpenses],
+  );
   const baseLineCount = useMemo(
     () => result.sections.reduce((sum, section) => sum + (section.items?.length ?? (section.total > 0 ? 1 : 0)), 0),
     [result.sections],
@@ -254,50 +275,22 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       ),
     [activeCategory, customCatalog],
   );
-  const marginItems = useMemo<MarginItemInput[]>(() => {
-    const sectionItems = result.sections.flatMap((section) => {
-      const pricedItems =
-        section.items
-          ?.filter((item) => !item.included && (item.price ?? 0) > 0)
-          .map((item) => ({
-            name: item.label,
-            category: item.category ?? section.title,
-            clientPrice: item.clientPrice ?? item.price ?? 0,
-            costPrice: item.costPrice ?? 0,
-            quantity: item.quantity ?? 1,
-          })) ?? [];
-
-      if (pricedItems.length > 0) return pricedItems;
-      if (section.total <= 0) return [];
-
-      return [
-        {
-          name: section.title,
-          category: section.title,
-          clientPrice: section.total,
-          costPrice: section.costTotal ?? 0,
-          quantity: 1,
-        },
-      ];
-    });
-
-    return [
-      ...sectionItems,
-      ...estimateItemsToMarginInputs(estimateItems),
-      ...externalExpensesToMarginInputs(externalExpenses),
-    ];
-  }, [result.sections, estimateItems, externalExpenses]);
-  const economics = useMemo(() => calculateOrderEconomics(marginItems), [marginItems]);
-  const commercialTotals = useMemo(() => {
+  const commercialLines = useMemo(() => {
     const scenario = commercialScenarioFromForm(form);
-    const lines = buildCommercialDraftLines({ result, estimateItems, externalExpenses, scenario });
-    return calculateCommercialTotals(lines, scenario);
+    return buildCommercialDraftLines({ result, estimateItems, externalExpenses, scenario });
   }, [externalExpenses, form, estimateItems, result]);
+  const liveEconomics = useMemo(
+    () => calculateCommercialEconomics(commercialLines, commercialScenarioFromForm(form)),
+    [commercialLines, form],
+  );
   const editorStateJson = useMemo(
     () => JSON.stringify({ form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData }),
     [attributes, cemeteryCategory, estimateItems, externalExpenses, form, memorialData],
   );
-  const hasLocalChanges = quoteHydrated && editorStateJson !== lastAutosavedState;
+  const hasLocalChanges = quoteHydrated && !quoteLoadFailed && editorStateJson !== lastAutosavedState;
+  const quoteWritesAvailable = quoteHydrated && !quoteLoadFailed;
+  const economics = !hasLocalChanges && canonicalEconomics ? canonicalEconomics : liveEconomics;
+  const commercialTotals = economics;
   /**
    * The headline the agent reads aloud to a family must never be a number the domain
    * refuses to total. `grandTotal` is legacy editor arithmetic that sums clientPrice with
@@ -305,39 +298,55 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
    * stale value there. Gate the headline on the canonical state instead, and render the
    * blockers rather than a confident figure.
    */
-  const visibleGrandTotalMinor =
-    commercialTotals.totalState === "KNOWN" && commercialTotals.total !== null
-      ? (canonicalTotalMinor !== null && !hasLocalChanges ? canonicalTotalMinor : commercialTotals.total)
-      : null;
+  const visibleGrandTotalMinor = quoteHydrated && !quoteLoadFailed && commercialTotals.totalState === "KNOWN"
+    ? commercialTotals.total
+    : null;
   // Render from minor units, never from a rounded ruble figure: the client view states the
   // same number and the two must not disagree by a rounding step.
-  const headlineTotal = visibleGrandTotalMinor !== null
-    ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
-    : "Цена требует уточнения";
+  const headlineTotal = !quoteHydrated
+    ? "Загрузка сметы..."
+    : quoteLoadFailed
+      ? "Не удалось загрузить"
+    : visibleGrandTotalMinor !== null
+      ? formatMinorUnitsCurrency(visibleGrandTotalMinor)
+      : "Цена требует уточнения";
   const hasUnknownCosts = commercialTotals.costTotal === null;
   const budgetStatus = useMemo(
-    () => calculateBudgetStatus(economics.orderClientTotal, form.clientBudget),
-    [economics.orderClientTotal, form.clientBudget],
+    () => visibleGrandTotalMinor === null
+      ? {
+          clientBudget: form.clientBudget,
+          budgetRemaining: 0,
+          budgetExceeded: false,
+          budgetUsagePercent: 0,
+          status: "unknown_total" as const,
+        }
+      : calculateBudgetStatus(visibleGrandTotalMinor / 100, form.clientBudget),
+    [form.clientBudget, visibleGrandTotalMinor],
   );
   const itemMarginAlert = useMemo(() => {
-    const worstMarginPercent = Math.min(...economics.items.map((item) => item.marginPercent), Number.POSITIVE_INFINITY);
-    if (economics.items.some((item) => item.marginRub < 0)) return "negative";
+    const marginPercents = economics.items.flatMap((item) => item.marginPercent === null ? [] : [item.marginPercent]);
+    const worstMarginPercent = Math.min(...marginPercents, Number.POSITIVE_INFINITY);
+    if (economics.items.some((item) => item.margin !== null && item.margin < 0)) return "negative";
     if (worstMarginPercent < 5) return "critical";
     if (worstMarginPercent < 15) return "low";
     return null;
   }, [economics.items]);
   const marginWarning =
-    hasUnknownCosts
+    commercialTotals.total === null
+      ? "Итог не подтверждён. Маржа не рассчитывается."
+      : hasUnknownCosts
       ? "Себестоимость не подтверждена. Маржа не рассчитывается."
-      : economics.orderMarginRub < 0 || itemMarginAlert === "negative"
+      : (economics.margin !== null && economics.margin < 0) || itemMarginAlert === "negative"
       ? "Внимание: цена ниже себестоимости"
-      : economics.orderMarginPercent < 5 || itemMarginAlert === "critical"
+      : (economics.marginPercent !== null && economics.marginPercent < 5) || itemMarginAlert === "critical"
         ? "Критически низкая маржа: сделка почти без прибыли"
-        : economics.orderMarginPercent < 15 || itemMarginAlert === "low"
+        : (economics.marginPercent !== null && economics.marginPercent < 15) || itemMarginAlert === "low"
           ? "Низкая маржа: проверьте цену или себестоимость"
           : null;
   const calculatorStatus =
-    budgetStatus.status === "exceeded"
+    budgetStatus.status === "unknown_total"
+      ? { tone: "warning" as const, text: "Уточните цены" }
+      : budgetStatus.status === "exceeded"
       ? { tone: "danger" as const, text: `Бюджет +${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}` }
       : marginWarning
         ? { tone: "warning" as const, text: "Проверьте экономику" }
@@ -345,7 +354,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           ? { tone: "warning" as const, text: "Бюджет почти выбран" }
           : { tone: "ok" as const, text: "Можно сохранять" };
   const budgetMessage =
-    budgetStatus.status === "not_set"
+    budgetStatus.status === "unknown_total"
+      ? "Итог не подтверждён. Сравнение с бюджетом недоступно."
+      : budgetStatus.status === "not_set"
       ? "Бюджет не указан"
       : budgetStatus.status === "exceeded"
         ? `Превышение бюджета: ${formatCurrency(Math.abs(budgetStatus.budgetRemaining))}`
@@ -360,7 +371,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   );
   const selectedPackage = relevantPackages.find((p) => p.id === form.packageType);
   const planMode = form.packageType === "custom" ? "custom" : "package";
-  const baselineDelta = baseline ? grandTotal - baseline.price : 0;
+  const baselineDelta = baseline && visibleGrandTotalMinor !== null
+    ? visibleGrandTotalMinor / 100 - baseline.price
+    : null;
   const planTitle =
     planMode === "package"
       ? selectedPackage
@@ -385,6 +398,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
   useEffect(() => {
     let active = true;
+    quoteAuthorityRef.current = null;
     const emptyEditorState = {
       form: DEFAULT_FORM,
       cemeteryCategory: "standard",
@@ -393,6 +407,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       externalExpenses: [] as ExternalExpense[],
       memorialData: DEFAULT_MEMORIAL_DATA,
     };
+    // quoteLoadKey invalidates every server-derived handle before this effect runs. Stale
+    // state may exist while the request is in flight, but no read model or mutation can
+    // treat it as current until this exact key settles successfully.
     fetch(`/api/agent/meeting/${meetingId}/quote`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("quote-load-failed");
@@ -400,7 +417,23 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .then((data) => {
         if (!active) return;
+        quoteAuthorityRef.current = quoteLoadKey;
+        setFailedQuoteLoadKey(null);
+        setSaveError(null);
+        setQuoteId(null);
+        setCommercialStatus("DRAFT");
+        setPublishedVersion(null);
+        setReviewResult(null);
+        setClientLink(null);
+        setVersionHistory([]);
+        setCanonicalEconomics(null);
         if (!data.quote) {
+          setForm(emptyEditorState.form);
+          setCemeteryCategory(emptyEditorState.cemeteryCategory);
+          setAttributes(emptyEditorState.attributes);
+          setEstimateItems(emptyEditorState.estimateItems);
+          setExternalExpenses(emptyEditorState.externalExpenses);
+          setMemorialData(emptyEditorState.memorialData);
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           return;
         }
@@ -414,9 +447,13 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         setQuoteId(data.quote.quoteId);
         setCommercialStatus(data.quote.status);
         setPublishedVersion(data.quote.published?.versionNumber ?? null);
-        // An unpriced draft has total === null. Falling through to the published total
-        // would show the family the previous version's figure for the draft in front of us.
-        setCanonicalTotalMinor(data.quote.draft ? data.quote.draft.total : (data.quote.published?.total ?? null));
+        setVersionHistory(Array.isArray(data.quote.history) ? data.quote.history : []);
+        const canonicalVersion = data.quote.draft ?? data.quote.published;
+        setCanonicalEconomics(
+          canonicalVersion && Array.isArray(canonicalVersion.lines)
+            ? calculateCommercialEconomics(canonicalVersion.lines, data.quote.scenario)
+            : null,
+        );
         const editor = data.quote.draft?.editorState ?? data.quote.published?.editorState;
         if (!editor || typeof editor !== "object" || Array.isArray(editor)) {
           setForm(canonicalEditorState.form);
@@ -449,17 +486,33 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       })
       .catch(() => {
         if (active) {
+          quoteAuthorityRef.current = null;
+          setFailedQuoteLoadKey(quoteLoadKey);
+          setQuoteId(null);
+          setCommercialStatus("DRAFT");
+          setPublishedVersion(null);
+          setReviewResult(null);
+          setClientLink(null);
+          setVersionHistory([]);
+          setCanonicalEconomics(null);
+          setForm(emptyEditorState.form);
+          setCemeteryCategory(emptyEditorState.cemeteryCategory);
+          setAttributes(emptyEditorState.attributes);
+          setEstimateItems(emptyEditorState.estimateItems);
+          setExternalExpenses(emptyEditorState.externalExpenses);
+          setMemorialData(emptyEditorState.memorialData);
           setLastAutosavedState(JSON.stringify(emptyEditorState));
           setSaveError("Не удалось загрузить сохранённый черновик. Обновите страницу или повторите попытку.");
         }
       })
       .finally(() => {
-        if (active) setQuoteHydrated(true);
+        if (active) setSettledQuoteLoadKey(quoteLoadKey);
       });
     return () => {
       active = false;
+      if (quoteAuthorityRef.current === quoteLoadKey) quoteAuthorityRef.current = null;
     };
-  }, [meetingId]);
+  }, [meetingId, quoteLoadKey]);
 
   useEffect(() => {
     if (!calculatorOpen) return;
@@ -672,46 +725,71 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
     setExternalExpenses((current) => current.map((expense) => (expense.id === id ? { ...expense, ...patch } : expense)));
   }
 
-  function fixSnapshot() {
-    setSnapshotError(null);
-    if (estimateItems.length === 0 && externalExpenses.length === 0) {
-      setSnapshotError("Добавьте хотя бы одну позицию или внешний расход, чтобы зафиксировать смету.");
-      return;
-    }
-
-    const number = snapshots.length + 1;
-    const snapshot = createEstimateSnapshot({
-      title: snapshotTitle.trim() || `Версия ${number}`,
-      note: snapshotNote.trim(),
-      items: estimateItems,
-      externalExpenses,
-      memorialData,
-      economics,
-      clientBudget: form.clientBudget,
-      budgetStatus,
-    });
-    setSnapshots((current) => [snapshot, ...current]);
-    setOpenSnapshotId(snapshot.id);
-    setSnapshotTitle("");
-    setSnapshotNote("");
-    setCalculatorTab("versions");
-  }
-
-  function deleteSnapshot(id: string) {
-    setSnapshots((current) => current.filter((snapshot) => snapshot.id !== id));
-    setOpenSnapshotId((current) => (current === id ? null : current));
-  }
-
   function copyClientLink() {
-    if (!clientLink || typeof window === "undefined") return;
-    navigator.clipboard.writeText(clientLink).then(() => {
-      setCopied(true);
-      toast({ type: "success", message: "Ссылка скопирована" });
-      setTimeout(() => setCopied(false), 2000);
-    });
+    const authorityKey = quoteLoadKey;
+    if (!clientLink || typeof window === "undefined" || !hasCurrentQuoteAuthority(authorityKey)) return;
+    void navigator.clipboard.writeText(clientLink)
+      .then(() => {
+        if (!hasCurrentQuoteAuthority(authorityKey)) return;
+        setCopied(true);
+        toast({ type: "success", message: "Ссылка скопирована" });
+        setTimeout(() => {
+          if (hasCurrentQuoteAuthority(authorityKey)) setCopied(false);
+        }, 2000);
+      })
+      .catch(() => {
+        if (hasCurrentQuoteAuthority(authorityKey)) {
+          toast({ type: "error", message: "Не удалось скопировать ссылку" });
+        }
+      });
+  }
+
+  function hasCurrentQuoteAuthority(authorityKey: string) {
+    return quoteAuthorityRef.current === authorityKey;
+  }
+
+  function invalidateCanonicalQuoteRead(authorityKey: string, message: string) {
+    if (!hasCurrentQuoteAuthority(authorityKey)) return false;
+    quoteAuthorityRef.current = null;
+    setFailedQuoteLoadKey(authorityKey);
+    setSettledQuoteLoadKey(authorityKey);
+    setQuoteId(null);
+    setCommercialStatus("DRAFT");
+    setPublishedVersion(null);
+    setReviewResult(null);
+    setClientLink(null);
+    setVersionHistory([]);
+    setCanonicalEconomics(null);
+    setForm(DEFAULT_FORM);
+    setCemeteryCategory("standard");
+    setAttributes(DEFAULT_ATTRIBUTES);
+    setEstimateItems([]);
+    setExternalExpenses([]);
+    setMemorialData(DEFAULT_MEMORIAL_DATA);
+    setSaving(false);
+    setPublishing(false);
+    setLastAutosavedState(JSON.stringify({
+      form: DEFAULT_FORM,
+      cemeteryCategory: "standard",
+      attributes: DEFAULT_ATTRIBUTES,
+      estimateItems: [],
+      externalExpenses: [],
+      memorialData: DEFAULT_MEMORIAL_DATA,
+    }));
+    setSaveError(message);
+    return true;
   }
 
   async function saveVersion(options: { quiet?: boolean } = {}): Promise<number | null> {
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !hasCurrentQuoteAuthority(authorityKey)) {
+      const message = quoteLoadFailed
+        ? "Сначала восстановите загрузку канонической сметы. Локальные данные не записаны."
+        : "Дождитесь загрузки сметы.";
+      setSaveError(message);
+      if (!options.quiet) toast({ type: "error", message });
+      return null;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -731,14 +809,17 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           editorState: { form, cemeteryCategory, attributes, estimateItems, externalExpenses, memorialData },
         }),
       });
+      if (!hasCurrentQuoteAuthority(authorityKey)) return null;
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        if (!hasCurrentQuoteAuthority(authorityKey)) return null;
         const msg = data.error ?? "Не удалось сохранить смету. Попробуйте ещё раз.";
         setSaveError(msg);
         toast({ type: "error", message: msg });
         return null;
       } else {
         const data = await res.json();
+        if (!hasCurrentQuoteAuthority(authorityKey)) return null;
         setQuoteId(data.quoteId);
         setCommercialStatus(data.status);
         setReviewResult({
@@ -750,18 +831,19 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           changed: 0,
           totalDelta: null,
         });
-        setCanonicalTotalMinor(data.totals?.total ?? null);
+        setCanonicalEconomics(liveEconomics);
         setSavedAt(new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
         setLastAutosavedState(editorStateJson);
         if (!options.quiet) toast({ type: "success", message: "Черновик сохранён" });
         return data.quoteId as number;
       }
     } catch {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return null;
       setSaveError("Нет связи. Проверьте интернет и попробуйте снова.");
       toast({ type: "error", message: "Нет связи — смета не сохранена. Проверьте интернет." });
       return null;
     } finally {
-      setSaving(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setSaving(false);
     }
   }
   useEffect(() => {
@@ -769,16 +851,18 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
   });
 
   useEffect(() => {
-    if (!quoteHydrated || editorStateJson === lastAutosavedState) return;
+    if (!quoteHydrated || quoteLoadFailed || editorStateJson === lastAutosavedState) return;
     const timer = window.setTimeout(() => {
       void autosaveHandler.current({ quiet: true });
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [editorStateJson, lastAutosavedState, quoteHydrated]);
+  }, [editorStateJson, lastAutosavedState, quoteHydrated, quoteLoadFailed]);
 
   async function startReview() {
+    const authorityKey = quoteLoadKey;
+    if (!hasCurrentQuoteAuthority(authorityKey)) return;
     const activeQuoteId = await saveVersion();
-    if (!activeQuoteId) return;
+    if (!activeQuoteId || !hasCurrentQuoteAuthority(authorityKey)) return;
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -787,6 +871,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Не удалось подготовить проверку");
       setCommercialStatus(data.status);
       setReviewResult({
@@ -801,18 +886,23 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       setCalculatorOpen(true);
       setCalculatorTab("actions");
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось подготовить проверку" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
   async function publishQuote() {
-    if (!quoteId) return;
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !quoteId || !hasCurrentQuoteAuthority(authorityKey)) {
+      toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
+      return;
+    }
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
-      const validUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const validUntil = defaultCommercialExpiry();
       const response = await fetch(`/api/agent/quotes/${quoteId}/publish`, {
         method: "POST",
         headers: {
@@ -827,21 +917,50 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Публикация не выполнена");
       setCommercialStatus(data.status);
       setPublishedVersion(data.versionNumber);
-      setCanonicalTotalMinor(data.total);
       setReviewResult(null);
+      if (!(await refreshVersionHistory(authorityKey))) return;
       toast({ type: "success", message: `Опубликована версия ${data.versionNumber}` });
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Публикация не выполнена" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
+    }
+  }
+
+  async function refreshVersionHistory(authorityKey: string) {
+    try {
+      const response = await fetch(`/api/agent/meeting/${meetingId}/quote`, { cache: "no-store" });
+      if (!response.ok) throw new Error("history-load-failed");
+      const data = await response.json();
+      if (!hasCurrentQuoteAuthority(authorityKey)) return false;
+      setVersionHistory(Array.isArray(data.quote?.history) ? data.quote.history : []);
+      const canonicalVersion = data.quote?.draft ?? data.quote?.published;
+      setCanonicalEconomics(
+        canonicalVersion && Array.isArray(canonicalVersion.lines)
+          ? calculateCommercialEconomics(canonicalVersion.lines, data.quote.scenario)
+          : null,
+      );
+      return true;
+    } catch {
+      const message = "Смета опубликована, но канонические данные не обновились. Повторите загрузку.";
+      if (invalidateCanonicalQuoteRead(authorityKey, message)) {
+        toast({ type: "error", message });
+      }
+      return false;
     }
   }
 
   async function createClientLink() {
-    if (!quoteId) return;
+    const authorityKey = quoteLoadKey;
+    if (!quoteWritesAvailable || !quoteId || !hasCurrentQuoteAuthority(authorityKey)) {
+      toast({ type: "error", message: "Сначала восстановите загрузку канонической сметы." });
+      return;
+    }
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -852,26 +971,33 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
           "Idempotency-Key": requestId,
           "X-Correlation-Id": requestId,
         },
-        body: JSON.stringify({ expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() }),
+        body: JSON.stringify({ expiresAt: defaultCommercialExpiry().toISOString() }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Ссылка не создана");
       const url = `${window.location.origin}/co/${data.token}`;
       setClientLink(url);
       await navigator.clipboard.writeText(url);
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       setCopied(true);
       toast({ type: "success", message: "Защищённая ссылка скопирована" });
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => {
+        if (hasCurrentQuoteAuthority(authorityKey)) setCopied(false);
+      }, 2000);
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Ссылка не создана" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
   async function startPresentation() {
+    const authorityKey = quoteLoadKey;
+    if (!hasCurrentQuoteAuthority(authorityKey)) return;
     const activeQuoteId = await saveVersion();
-    if (!activeQuoteId) return;
+    if (!activeQuoteId || !hasCurrentQuoteAuthority(authorityKey)) return;
     setPublishing(true);
     const requestId = crypto.randomUUID();
     try {
@@ -880,12 +1006,14 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
         headers: { "Idempotency-Key": requestId, "X-Correlation-Id": requestId },
       });
       const data = await response.json().catch(() => ({}));
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       if (!response.ok) throw new Error(data.error ?? "Не удалось начать показ");
       window.open(`/agent/presentations/${data.presentationId}`, "_blank", "noopener,noreferrer");
     } catch (error) {
+      if (!hasCurrentQuoteAuthority(authorityKey)) return;
       toast({ type: "error", message: error instanceof Error ? error.message : "Не удалось начать показ" });
     } finally {
-      setPublishing(false);
+      if (hasCurrentQuoteAuthority(authorityKey)) setPublishing(false);
     }
   }
 
@@ -942,6 +1070,17 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
       </div>
 
       <section className={s.planShell} aria-label="Сводка плана">
+        {quoteLoadFailed && (
+          <div className={s.quoteLoadNotice} role="alert">
+            <div>
+              <strong>Каноническая смета недоступна</strong>
+              <p>Локальный расчёт не будет сохранён, пока данные кейса не загрузятся.</p>
+            </div>
+            <button type="button" onClick={() => setQuoteLoadAttempt((attempt) => attempt + 1)}>
+              Повторить загрузку
+            </button>
+          </div>
+        )}
         <div className={s.planHero}>
           <div>
             <span className={s.planEyebrow}>План прощания</span>
@@ -952,7 +1091,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             <div className={s.planTotal}>
               <span>Итого</span>
               <strong>{headlineTotal}</strong>
-              {planMode === "custom" && baseline && baselineDelta !== 0 && (
+              {planMode === "custom" && baseline && baselineDelta !== null && baselineDelta !== 0 && (
                 <em className={baselineDelta > 0 ? s.deltaUp : s.deltaDown}>
                   {formatDelta(baselineDelta)} к тарифу
                 </em>
@@ -1028,7 +1167,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             </div>
 
             <div className={s.planActions}>
-              <button type="button" className={s.planPrimary} onClick={() => void saveVersion()} disabled={saving}>
+              <button type="button" className={s.planPrimary} onClick={() => void saveVersion()} disabled={saving || !quoteWritesAvailable}>
                 {saving ? "Сохраняю…" : "Сохранить план"}
               </button>
               <button type="button" className={s.planSecondary} onClick={editPackageDetails}>
@@ -1466,7 +1605,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 type="button"
                 className={`${s.stepForward} ${s.stepForwardDone}`}
                 onClick={() => void saveVersion()}
-                disabled={saving}
+                disabled={saving || !quoteWritesAvailable}
               >
                 {saving ? "Сохраняю…" : "Готово - сохранить смету"}
                 {!saving && <Check size={14} weight="bold" />}
@@ -1491,7 +1630,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
             </span>
             <span className={s.mobileBarMore}>Подробнее</span>
           </button>
-          <button type="button" className={s.mobileBarBtn} onClick={() => void saveVersion()} disabled={saving}>
+          <button type="button" className={s.mobileBarBtn} onClick={() => void saveVersion()} disabled={saving || !quoteWritesAvailable}>
             {saving ? "Сохраняю..." : "Сохранить"}
           </button>
         </div>
@@ -1582,7 +1721,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   <div className={s.panelSection}>
                     <div className={s.panelSectionHead}>
                       <span>Атрибутика</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(estimateTotal)}</span>
+                      <span className={s.panelSectionAmt}>
+                        {estimatePricesKnown ? formatCurrency(estimateTotal) : "Цена требует уточнения"}
+                      </span>
                     </div>
                     <div className={s.estimateList}>
                       {estimateItems.map((item) => (
@@ -1602,7 +1743,9 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                   <div className={s.panelSection}>
                     <div className={s.panelSectionHead}>
                       <span>Внешние расходы</span>
-                      <span className={s.panelSectionAmt}>{formatCurrency(externalTotal)}</span>
+                      <span className={s.panelSectionAmt}>
+                        {externalPricesKnown ? formatCurrency(externalTotal) : "Цена требует уточнения"}
+                      </span>
                     </div>
                     <div className={s.externalSummaryList}>
                       {externalExpenses.map((expense) => {
@@ -1649,30 +1792,21 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 <AgentEconomicsBlock
                   budgetMessage={budgetMessage}
                   budgetStatus={budgetStatus.status}
-                  clientBudget={budgetStatus.clientBudget}
+                  clientBudgetMinor={budgetStatus.clientBudget == null ? null : Math.round(budgetStatus.clientBudget * 100)}
+                  budgetRemainingMinor={
+                    budgetStatus.status === "unknown_total" || budgetStatus.status === "not_set"
+                      ? null
+                      : Math.round(budgetStatus.budgetRemaining * 100)
+                  }
                   economics={economics}
-                  marginItems={economics.items}
                   marginWarning={marginWarning}
-                  hasUnknownCosts={hasUnknownCosts}
                 />
               </div>
             )}
 
             {calculatorTab === "versions" && (
               <div className={s.sheetPane}>
-                <SnapshotBlock
-                  budgetStatus={budgetStatus}
-                  error={snapshotError}
-                  note={snapshotNote}
-                  onDelete={deleteSnapshot}
-                  onFix={fixSnapshot}
-                  onNoteChange={setSnapshotNote}
-                  onOpenChange={setOpenSnapshotId}
-                  onTitleChange={setSnapshotTitle}
-                  openSnapshotId={openSnapshotId}
-                  snapshots={snapshots}
-                  title={snapshotTitle}
-                />
+                <QuoteVersionHistory versions={versionHistory} />
               </div>
             )}
 
@@ -1681,16 +1815,16 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 <button
                   className={s.saveBtn}
                   onClick={() => void saveVersion()}
-                  disabled={saving || publishing}
+                  disabled={saving || publishing || !quoteWritesAvailable}
                 >
                   {saving ? "Сохраняю..." : "Сохранить черновик"}
                 </button>
-                <button type="button" className={s.secondaryActionBtn} onClick={startPresentation} disabled={saving || publishing}>
+                <button type="button" className={s.secondaryActionBtn} onClick={startPresentation} disabled={saving || publishing || !quoteWritesAvailable}>
                   <Eye size={15} weight="fill" /> Открыть режим презентации
                 </button>
 
                 {(commercialStatus === "DRAFT" || commercialStatus === "REJECTED") && (
-                  <button type="button" className={s.secondaryActionBtn} onClick={startReview} disabled={saving || publishing}>
+                  <button type="button" className={s.secondaryActionBtn} onClick={startReview} disabled={saving || publishing || !quoteWritesAvailable}>
                     <Eye size={15} weight="fill" /> Проверить перед публикацией
                   </button>
                 )}
@@ -1733,7 +1867,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                       type="button"
                       className={s.publishBtn}
                       onClick={publishQuote}
-                      disabled={publishing || reviewResult.blockers.length > 0}
+                      disabled={publishing || !quoteWritesAvailable || reviewResult.blockers.length > 0}
                     >
                       {publishing ? "Публикую..." : "Опубликовать версию"}
                     </button>
@@ -1742,7 +1876,7 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
 
                 {(commercialStatus === "PUBLISHED" || commercialStatus === "ACCEPTED") && (
                   <>
-                    <button type="button" className={s.secondaryActionBtn} onClick={createClientLink} disabled={publishing}>
+                    <button type="button" className={s.secondaryActionBtn} onClick={createClientLink} disabled={publishing || !quoteWritesAvailable}>
                       <PaperPlaneTilt size={15} weight="fill" /> Создать ссылку для семьи
                     </button>
                     {clientLink && (
@@ -1778,7 +1912,13 @@ export default function QuoteBuilder({ meetingId, clientName, caseId }: Props) {
                 <span>Итого</span>
                 <strong>{headlineTotal}</strong>
               </button>
-              <button type="button" className={s.sheetFooterSave} onClick={() => void saveVersion()} disabled={saving}>
+              <button
+                type="button"
+                className={s.sheetFooterSave}
+                data-testid="quote-sheet-save"
+                onClick={() => void saveVersion()}
+                disabled={saving || !quoteWritesAvailable}
+              >
                 {saving ? "Сохраняю..." : "Сохранить"}
               </button>
             </div>

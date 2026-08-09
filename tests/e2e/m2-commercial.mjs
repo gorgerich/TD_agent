@@ -47,6 +47,7 @@ const browserErrors = [];
 // the behaviour, so account for that noise here instead of treating it as a page defect.
 let expectedPublishBlocks = 0;
 let expectedCrossTenantMisses = 0;
+let expectedQuoteLoadFailures = 0;
 let throttledLogins = 0;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
@@ -57,6 +58,10 @@ page.on("console", (message) => {
   }
   if (message.text().includes("status of 404") && location.includes("/api/agent/meeting/")) {
     expectedCrossTenantMisses += 1;
+    return;
+  }
+  if (message.text().includes("status of 503") && location.includes("/api/agent/meeting/")) {
+    expectedQuoteLoadFailures += 1;
     return;
   }
   // login() handles a throttled login by honouring Retry-After and trying again. The
@@ -75,6 +80,7 @@ try {
   await login(page, email, password);
   const cremation = await commercialJourney(page, "Семья Кремова · синтетика", "CREMATION_V1", true);
   const burial = await commercialJourney(page, "Семья Участкова · синтетика", "FAMILY_PLOT_BURIAL_V1", false);
+  await assertQuoteLoadFailureIsHonest(page, burial.meetingId);
 
   await page.goto(`${baseUrl}/agent/estimates`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Сметы", exact: true }).waitFor();
@@ -82,14 +88,25 @@ try {
   await assertA11y(page, "quote registry");
 
   await page.setViewportSize({ width: 390, height: 844 });
+  // Browser zoom reduces the CSS viewport. A 195px CSS viewport is the deterministic
+  // equivalent of a 390px mobile viewport at 200% zoom; CSS `zoom` would instead enlarge
+  // descendants without updating media-query geometry and does not model browser zoom.
+  await page.setViewportSize({ width: 195, height: 422 });
+  await page.goto(`${baseUrl}/agent/meetings/${burial.meetingId}/quote`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  await assertNoOverflow(page, "quote builder 200 percent zoom");
+  await assertTabLabelsFit(page, "quote builder 200 percent zoom");
+  await assertZoomControlsVisible(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${baseUrl}/co/${burial.token}`, { waitUntil: "networkidle" });
   await page.getByText("Опубликована версия 1", { exact: true }).waitFor();
   await assertNoOverflow(page, "client quote mobile");
   await assertA11y(page, "client quote mobile");
 
-  await page.evaluate(() => { document.documentElement.style.zoom = "2"; });
+  await page.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(page, "client quote 200 percent zoom");
-  await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+  await page.setViewportSize({ width: 390, height: 844 });
 
   await context.clearCookies();
   await login(page, managerEmail, password);
@@ -108,6 +125,7 @@ try {
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.ok(expectedPublishBlocks >= 1, "Unknown-price publish must be observed as blocked in the browser");
   assert.ok(expectedCrossTenantMisses >= 1, "Cross-tenant quote read must be observed as not found in the browser");
+  assert.ok(expectedQuoteLoadFailures >= 1, "Quote load failure must be observed and rendered honestly");
   process.stdout.write(`${JSON.stringify({
     cremation: cremation.status,
     relativeBurial: burial.status,
@@ -119,6 +137,9 @@ try {
     zoom200: "PASS",
     managerContext: "PASS",
     crossTenant: "PASS",
+    failureUx: "PASS",
+    stagedMutationAuthority: "PASS",
+    postPublishRefreshFailure: "PASS",
     throttledLoginsRetried: throttledLogins,
     skipped: 0,
   })}\n`);
@@ -183,6 +204,8 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
     await target.getByText("Изменения переданы агенту", { exact: true }).waitFor();
 
     await saveDraftOnly(target, meetingId, scenario, 140_000, "autosave-v2");
+    await assertStagedMutationStopsOnRouteChange(target, meetingId);
+    await assertPostPublishRefreshFailureClosesGate(target, meetingId);
     const publishedStillV1 = await target.request.get(`${baseUrl}/api/co/${linkV1.token}`);
     assert.equal(publishedStillV1.status(), 200, "Draft v2 must not revoke Published v1");
     assert.equal((await publishedStillV1.json()).version.versionNumber, 1);
@@ -206,11 +229,27 @@ async function commercialJourney(target, clientName, scenario, requireSecondVers
 
   await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
   await target.getByTestId("quote-visible-total").waitFor();
+  const expectedBuilderTotal = `${requireSecondVersion ? "1 400" : "1 250"} ₽`;
+  await target.waitForFunction((expected) =>
+    (document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").replace(/\s+/g, " ").trim() === expected,
+  expectedBuilderTotal);
   assert.equal(
     normalizeText(await target.getByTestId("quote-visible-total").textContent()),
-    `${requireSecondVersion ? "1 400" : "1 250"} ₽`,
+    expectedBuilderTotal,
     "Builder total must equal the latest immutable Published version",
   );
+  await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  await target.getByRole("tab", { name: "Экономика", exact: true }).click();
+  await target.getByRole("button", { name: /Экономика сделки/ }).click();
+  const clientTotalMetric = target.getByText("Итог клиенту", { exact: true }).locator("..");
+  await clientTotalMetric.getByText(`${requireSecondVersion ? "1 400" : "1 250"} ₽`, { exact: true }).waitFor();
+  await target.getByRole("tab", { name: "Версии", exact: true }).click();
+  await target.getByRole("heading", { name: "Опубликованные версии", exact: true }).waitFor();
+  await target.getByText(`Версия ${requireSecondVersion ? 2 : 1}`, { exact: true }).waitFor();
+  if (requireSecondVersion) {
+    await target.getByText("Версия 1", { exact: true }).waitFor();
+    await target.getByText("Заменена новой", { exact: true }).waitFor();
+  }
 
   await target.goto(`${baseUrl}/co/${finalToken}`, { waitUntil: "networkidle" });
   await target.getByRole("button", { name: "Принять смету" }).click();
@@ -304,7 +343,25 @@ async function saveDraftOnly(target, meetingId, scenario, price, suffix, priceSt
         sourceVersion: "1",
         scenarioCompatibility: [quoteScenario],
       }],
-      editorState: { e2e: true, scenario: quoteScenario },
+      editorState: valueState === "REQUESTED"
+        ? {
+            e2e: true,
+            scenario: quoteScenario,
+            estimateItems: [{
+              id: `requested-${quoteScenario}`,
+              catalogItemId: `requested-${quoteScenario}`,
+              name: "Позиция с запрошенной ценой",
+              category: "Гробы",
+              description: "Синтетическая позиция",
+              imagePlaceholder: "",
+              clientPrice: unitPrice / 100,
+              costPrice: 100,
+              priceState: "REQUESTED",
+              costState: "KNOWN",
+              quantity: 1,
+            }],
+          }
+        : { e2e: true, scenario: quoteScenario },
     }, `${runKey}:draft`);
     return saved;
   }, { meetingId, scenario, price, suffix, priceState });
@@ -323,7 +380,27 @@ function readQuoteStatus(target, meetingId) {
 }
 
 async function assertUnknownPriceBlocksPublish(target, meetingId, scenario) {
-  const saved = await saveDraftOnly(target, meetingId, scenario, 0, "unknown-price", "UNKNOWN");
+  const saved = await saveDraftOnly(target, meetingId, scenario, 25_000, "unknown-price", "REQUESTED");
+  const quoteRead = target.waitForResponse((response) =>
+    response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+  await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+  assert.equal((await quoteRead).status(), 200);
+  await target.getByTestId("quote-visible-total").waitFor();
+  await target.waitForFunction(() =>
+    document.querySelector('[data-testid="quote-visible-total"]')?.textContent?.includes("Цена требует уточнения"));
+  assert.equal(
+    normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+    "Цена требует уточнения",
+    "Requested price must not render the stale editor amount as the quote total",
+  );
+  await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+  const attribution = target.getByText("Атрибутика", { exact: true }).locator("..");
+  await attribution.getByText("Цена требует уточнения", { exact: true }).waitFor();
+  assert.equal(
+    await target.getByText(/к тарифу/).count(),
+    0,
+    "Requested price must not produce a package delta",
+  );
   const review = await target.evaluate(async (quoteId) => {
     const key = `e2e-m2:${quoteId}:unknown-review`;
     const res = await fetch(`/api/agent/quotes/${quoteId}/review`, {
@@ -396,6 +473,370 @@ async function assertNoOverflow(target, label) {
   const dimensions = await target.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
+    offenders: Array.from(document.body.querySelectorAll("*")).flatMap((node) => {
+      const element = /** @type {HTMLElement} */ (node);
+      const rect = element.getBoundingClientRect();
+      return rect.right > document.documentElement.clientWidth + 1
+        ? [{
+            tag: element.tagName,
+            className: element.className?.toString().slice(0, 120) ?? "",
+            text: element.textContent?.trim().replace(/\s+/g, " ").slice(0, 80) ?? "",
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+          }]
+        : [];
+    }).slice(0, 12),
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.clientWidth + 1, `${label} overflow: ${JSON.stringify(dimensions)}`);
+}
+
+async function assertTabLabelsFit(target, label) {
+  const result = await target.evaluate(() => {
+    const tabs = Array.from(document.querySelectorAll('[role="tablist"] [role="tab"]'));
+    const metrics = tabs.map((tab) => {
+      const element = /** @type {HTMLElement} */ (tab);
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.textContent?.trim() ?? "",
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      };
+    });
+    const overlaps = [];
+    for (let left = 0; left < metrics.length; left += 1) {
+      for (let right = left + 1; right < metrics.length; right += 1) {
+        const a = metrics[left];
+        const b = metrics[right];
+        if (Math.min(a.rect.right, b.rect.right) > Math.max(a.rect.left, b.rect.left)
+          && Math.min(a.rect.bottom, b.rect.bottom) > Math.max(a.rect.top, b.rect.top)) {
+          overlaps.push(`${a.label}/${b.label}`);
+        }
+      }
+    }
+    return { metrics, overlaps };
+  });
+  assert.deepEqual(result.overlaps, [], `${label} overlapping tabs: ${JSON.stringify(result)}`);
+  assert.ok(
+    result.metrics.every((tab) => tab.scrollWidth <= tab.clientWidth + 1 && tab.scrollHeight <= tab.clientHeight + 1),
+    `${label} clipped tab label: ${JSON.stringify(result)}`,
+  );
+}
+
+async function assertZoomControlsVisible(target) {
+  await target.getByTestId("quote-sheet-save").waitFor();
+  const dockNavigation = target.getByRole("navigation", { name: "Основная навигация", exact: true });
+  for (const label of ["Кейсы", "Календарь", "Сметы", "Сегодня"]) {
+    assert.equal(
+      await dockNavigation.getByRole("link", { name: label, exact: true }).count(),
+      1,
+      `Zoom navigation link must keep the accessible name: ${label}`,
+    );
+  }
+  const state = await target.evaluate(() => {
+    const save = document.querySelector('[data-testid="quote-sheet-save"]')?.getBoundingClientRect();
+    const dock = document.querySelector('[aria-label="Основная навигация"]')?.getBoundingClientRect();
+    const labels = Array.from(document.querySelectorAll(".td-mobile-dock-label"));
+    return {
+      save: save ? { top: save.top, bottom: save.bottom, left: save.left, right: save.right } : null,
+      dock: dock ? { top: dock.top, bottom: dock.bottom, left: dock.left, right: dock.right } : null,
+      labelsHidden: labels.length > 0 && labels.every((label) => getComputedStyle(label).display === "none"),
+      viewport: { width: innerWidth, height: innerHeight },
+    };
+  });
+  assert.ok(state.save, `200 percent zoom save action missing: ${JSON.stringify(state)}`);
+  assert.ok(state.dock, `200 percent zoom navigation missing: ${JSON.stringify(state)}`);
+  assert.ok(
+    state.save.left >= 0 && state.save.right <= state.viewport.width
+      && state.save.top >= 0 && state.save.bottom <= state.viewport.height,
+    `200 percent zoom save action is clipped: ${JSON.stringify(state)}`,
+  );
+  assert.ok(
+    state.dock.left >= 0 && state.dock.right <= state.viewport.width
+      && state.dock.top >= 0 && state.dock.bottom <= state.viewport.height,
+    `200 percent zoom navigation is clipped: ${JSON.stringify(state)}`,
+  );
+  assert.ok(state.save.bottom <= state.dock.top, `Save action overlaps navigation: ${JSON.stringify(state)}`);
+  assert.equal(state.labelsHidden, true, `Zoom navigation labels must not collide: ${JSON.stringify(state)}`);
+}
+
+async function assertQuoteLoadFailureIsHonest(target, meetingId) {
+  const routePattern = `**/api/agent/meeting/${meetingId}/quote`;
+  const writes = [];
+  let failRead = true;
+  const recordWrite = (request) => {
+    const url = new URL(request.url());
+    const isCommercialMutation =
+      (url.pathname === `/api/agent/meeting/${meetingId}/quote` || url.pathname.startsWith("/api/agent/quotes/"))
+      && request.method() !== "GET";
+    if (isCommercialMutation) {
+      writes.push(`${request.method()} ${url.pathname}`);
+    }
+  };
+  target.on("request", recordWrite);
+  await target.route(routePattern, async (route) => {
+    if (route.request().method() === "GET" && failRead) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  try {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByTestId("quote-visible-total").waitFor();
+    assert.equal(
+      normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+      "Не удалось загрузить",
+      "Failed canonical read must not fall back to a local total",
+    );
+    await target.getByRole("alert").filter({ hasText: "Каноническая смета недоступна" }).waitFor();
+    assert.equal(await target.getByTestId("quote-sheet-save").isDisabled(), true, "Manual save must fail closed");
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+    assert.equal(
+      await target.getByRole("button", { name: "Открыть режим презентации", exact: true }).isDisabled(),
+      true,
+      "Presentation must fail closed",
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).isDisabled(),
+      true,
+      "Review must fail closed",
+    );
+    await target.waitForTimeout(1_500);
+    assert.deepEqual(writes, [], "Failed canonical read must not trigger any commercial mutation");
+
+    await target.keyboard.press("Escape");
+    failRead = false;
+    const recoveredRead = target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
+    assert.equal((await recoveredRead).status(), 200);
+    await target.waitForFunction(() =>
+      (document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").replace(/\s+/g, " ").trim() === "1 250 ₽");
+    assert.equal(await target.getByTestId("quote-sheet-save").isEnabled(), true, "Save must recover only after canonical read succeeds");
+    await target.waitForTimeout(1_000);
+    assert.deepEqual(writes, [], "Recovery read must not create a write");
+  } finally {
+    target.off("request", recordWrite);
+    await target.unroute(routePattern);
+  }
+}
+
+async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
+  const actions = [
+    {
+      label: "Проверить перед публикацией",
+      endpoint: "/review",
+      delayedBodyMode: "success",
+      staleToast: "Черновик сохранён",
+    },
+    {
+      label: "Открыть режим презентации",
+      endpoint: "/presentation",
+      delayedBodyMode: "error",
+      staleToast: "Ошибка задержанного тела ответа",
+    },
+  ];
+
+  for (const action of actions) {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+
+    const stagedRequests = [];
+    const recordStagedRequest = (request) => {
+      const url = new URL(request.url());
+      if (request.method() === "POST" && url.pathname.endsWith(action.endpoint)) {
+        stagedRequests.push(url.pathname);
+      }
+    };
+
+    target.on("request", recordStagedRequest);
+    await target.evaluate(({ activeMeetingId, delayedBodyMode }) => {
+      const originalFetch = window.fetch.bind(window);
+      let intercepted = false;
+      let releaseBody = () => undefined;
+      window.__m2DelayedBodyHeld = false;
+      window.__m2ReleaseDelayedBody = () => releaseBody();
+      window.__m2RestoreFetch = () => {
+        window.fetch = originalFetch;
+        delete window.__m2DelayedBodyHeld;
+        delete window.__m2ReleaseDelayedBody;
+        delete window.__m2RestoreFetch;
+      };
+
+      window.fetch = async (...args) => {
+        const [input, init] = args;
+        const requestUrl = typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input instanceof Request
+              ? input.url
+              : String(input);
+        const requestMethod = input instanceof Request ? input.method : "GET";
+        const method = String(init?.method ?? requestMethod).toUpperCase();
+        const pathname = new URL(requestUrl, window.location.origin).pathname;
+        if (intercepted || method !== "POST" || pathname !== `/api/agent/meeting/${activeMeetingId}/quote`) {
+          return originalFetch(...args);
+        }
+        intercepted = true;
+
+        let status = 422;
+        let statusText = "Unprocessable Entity";
+        let headers = new Headers({ "Content-Type": "application/json" });
+        let body = JSON.stringify({ error: "Ошибка задержанного тела ответа" });
+        if (delayedBodyMode === "success") {
+          const response = await originalFetch(...args);
+          status = response.status;
+          statusText = response.statusText;
+          headers = new Headers(response.headers);
+          body = await response.text();
+        }
+
+        let resolveBody;
+        const bodyRelease = new Promise((resolve) => { resolveBody = resolve; });
+        releaseBody = () => resolveBody();
+        const stream = new ReadableStream({
+          async start(controller) {
+            window.__m2DelayedBodyHeld = true;
+            await bodyRelease;
+            controller.enqueue(new TextEncoder().encode(body));
+            controller.close();
+          },
+        });
+        return new Response(stream, { status, statusText, headers });
+      };
+    }, { activeMeetingId: meetingId, delayedBodyMode: action.delayedBodyMode });
+
+    try {
+      await target.getByRole("button", { name: action.label, exact: true }).click();
+      await target.waitForFunction(() => window.__m2DelayedBodyHeld === true);
+      await target.keyboard.press("Escape");
+      const caseLink = target.locator('a[href^="/agent/cases/"]').first();
+      await caseLink.click();
+      await target.waitForURL(/\/agent\/cases\/\d+(?:\?|$)/);
+      await target.evaluate(() => window.__m2ReleaseDelayedBody?.());
+      await target.waitForTimeout(750);
+      assert.deepEqual(
+        stagedRequests,
+        [],
+        `${action.label} must not issue its second mutation after route authority is lost`,
+      );
+      assert.equal(
+        await target.getByText("Нет связи — смета не сохранена. Проверьте интернет.", { exact: true }).count(),
+        0,
+        `${action.label} must not leak a stale failure toast into the destination route`,
+      );
+      assert.equal(
+        await target.getByText(action.staleToast, { exact: true }).count(),
+        0,
+        `${action.label} must not update feedback after authority expires during response parsing`,
+      );
+    } finally {
+      await target.evaluate(() => {
+        window.__m2ReleaseDelayedBody?.();
+        window.__m2RestoreFetch?.();
+      }).catch(() => undefined);
+      target.off("request", recordStagedRequest);
+    }
+  }
+}
+
+async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
+  const quotePattern = `**/api/agent/meeting/${meetingId}/quote`;
+  const reviewPattern = "**/api/agent/quotes/*/review";
+  const publishPattern = "**/api/agent/quotes/*/publish";
+  const writes = [];
+  let failCanonicalRefresh = false;
+  const recordWrite = (request) => {
+    const url = new URL(request.url());
+    if (request.method() !== "GET" && (
+      url.pathname === `/api/agent/meeting/${meetingId}/quote`
+      || url.pathname.startsWith("/api/agent/quotes/")
+    )) {
+      writes.push(`${request.method()} ${url.pathname}`);
+    }
+  };
+
+  target.on("request", recordWrite);
+  await target.route(quotePattern, async (route) => {
+    if (route.request().method() === "GET" && failCanonicalRefresh) {
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
+      return;
+    }
+    await route.continue();
+  });
+  await target.route(reviewPattern, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      status: "IN_REVIEW",
+      totals: { blockers: [], warnings: [], total: 125_000 },
+      diff: { added: [], removed: [], changed: [] },
+      totalDelta: 0,
+    }),
+  }));
+  await target.route(publishPattern, (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ status: "PUBLISHED", versionNumber: 99 }),
+  }));
+
+  try {
+    await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
+    await target.getByRole("button", { name: "Открыть детали сметы", exact: true }).click();
+    await target.getByRole("tab", { name: "Действия", exact: true }).click();
+    await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).click();
+    const publishButton = target.getByRole("button", { name: "Опубликовать версию", exact: true });
+    await publishButton.waitFor();
+    assert.equal(await publishButton.isEnabled(), true, "Synthetic review must expose publish for refresh-failure coverage");
+
+    failCanonicalRefresh = true;
+    await publishButton.click();
+    await target.getByRole("alert").filter({ hasText: "Каноническая смета недоступна" }).waitFor();
+    assert.equal(
+      normalizeText(await target.getByTestId("quote-visible-total").textContent()),
+      "Не удалось загрузить",
+      "Failed post-publish canonical refresh must hide the prior total",
+    );
+    assert.equal(await target.getByTestId("quote-sheet-save").isDisabled(), true);
+    assert.equal(
+      await target.getByRole("button", { name: "Открыть режим презентации", exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Проверить перед публикацией", exact: true }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await target.getByRole("button", { name: "Создать ссылку для семьи", exact: true }).count(),
+      0,
+      "Client-link action must disappear with invalidated canonical status",
+    );
+    const writeCountAtFailure = writes.length;
+    await target.waitForTimeout(1_000);
+    assert.equal(writes.length, writeCountAtFailure, "Post-publish refresh failure must not trigger another write");
+
+    await target.keyboard.press("Escape");
+    failCanonicalRefresh = false;
+    const recoveredRead = target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
+    assert.equal((await recoveredRead).status(), 200);
+    await target.waitForFunction(() =>
+      !(document.querySelector('[data-testid="quote-visible-total"]')?.textContent ?? "").includes("Загрузка сметы"));
+    assert.equal(await target.getByTestId("quote-sheet-save").isEnabled(), true);
+    await target.waitForTimeout(750);
+    assert.equal(writes.length, writeCountAtFailure, "Successful recovery read must remain read-only");
+  } finally {
+    target.off("request", recordWrite);
+    await target.unroute(quotePattern);
+    await target.unroute(reviewPattern);
+    await target.unroute(publishPattern);
+  }
 }

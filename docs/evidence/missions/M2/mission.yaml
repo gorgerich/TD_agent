@@ -1,11 +1,15 @@
 mission: M2-COMMERCIAL-TRUST-LOOP
 name: Commercial Trust Loop
-state: PRODUCTION_RELEASE_BLOCKED
+state: RELEASED
 base_sha: a7b085106ab732722509e22671d36c3d697ddd53
 implementation_sha: d75ba6e0d3df671ba52a4107c412aff092345dc1
 review_sha: e8851357047c44547bc1d2fa7352be69940c747d
+release_merge_sha: 54da13348d0a983d44752c3683fb8a17c40683f2
+current_main_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
 preview_deployment_id: dpl_3axb1aDPUAEVevmE7ejaysV49UKc
-production_deployment_id: null
+production_deployment_id: dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma
+production_deployment_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
+production_database_fingerprint: 0257665af2dd90a4
 required_gates:
   - code_quality
   - unit
@@ -38,14 +42,41 @@ passed_gates:
   - client_link_security
   - reconciliation
   - accessibility
+  - preview_uat
+  - independent_review
+post_release_audit:
+  base_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
+  repair_implementation_sha: 3e03061821dac6ec9623dd6305bb05e799cd191d
+  status: REPAIR_RELEASE_READY_UNMERGED
+  pull_request: https://github.com/gorgerich/TD_agent/pull/29
+  source_ci: https://github.com/gorgerich/TD_agent/actions/runs/31320817751
+  source_ci_attempts_passed: 2
+  source_ci_skipped: 0
+  preview_deployment_id: dpl_CAgGrVtHkGeQNZ8fjJkh5Ld1d85p
+  preview_deployment_sha: 3e03061821dac6ec9623dd6305bb05e799cd191d
+  preview_url: https://td-agent-h6cc7oxaz-rics-projects-9baa2793.vercel.app
+  preview_read_only_smoke: PASS
+  independent_review: PASS_P0_0_P1_0_P2_0
+  findings:
+    - unknown_price_rendered_as_definitive_total
+    - margin_only_expense_dropped_from_canonical_cost
+    - local_editor_economics_diverged_from_published_quote
+    - published_history_recomputed_with_current_rules
+    - canonical_read_failure_allowed_local_write_fallback
+  production_changed: false
+  controlled_production_write_smoke: NOT_RUN
+  controlled_production_write_smoke_reason: >-
+    No approved synthetic business-record cleanup exists for a production commercial
+    write. Read-only production verification and isolated browser UAT remain the safe gate.
 open_blockers:
-  - gate: production_backup_readiness
-    severity: OPEN
+  - gate: post_release_repair_merge
+    severity: BLOCKED_AUTHORITY
     reason: >-
-      The migrations runbook requires a verified restorable backup, owner-run, before any
-      production step. Reproducing the prior release's method means exporting the whole
-      production database — real client names, phones and case records — to a local machine,
-      which was not specifically authorized. Neon PITR could not be confirmed: no Neon API
-      credential is available. Stopped before any production write.
-owner_release_authorization: true
-production_release: BLOCKED_ON_BACKUP_READINESS
+      The repair candidate passed local, CI, Preview and independent-review gates but is not
+      authorized for merge, production deployment, or production writes in this audit session.
+  - gate: risk_w1_tech_human_review
+    severity: OPEN
+    reason: Human technical review remains open under the existing governance decision.
+owner_release_authorization: false
+production_release: RELEASED
+m3_fulfilment_money_trust: NOT_STARTED
