@@ -5,10 +5,11 @@ base_sha: a7b085106ab732722509e22671d36c3d697ddd53
 implementation_sha: d75ba6e0d3df671ba52a4107c412aff092345dc1
 review_sha: e8851357047c44547bc1d2fa7352be69940c747d
 release_merge_sha: 54da13348d0a983d44752c3683fb8a17c40683f2
-current_main_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
+current_main_sha: b8f6a40555c5fda83798dc2fc3fc96386d9156fd
 preview_deployment_id: dpl_3axb1aDPUAEVevmE7ejaysV49UKc
-production_deployment_id: dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma
-production_deployment_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
+production_deployment_id: dpl_Cdk9bcWg9EYE5B482etPGQTzC9VP
+production_deployment_sha: b8f6a40555c5fda83798dc2fc3fc96386d9156fd
+production_deployment_url: https://td-agent-ezrb054zu-rics-projects-9baa2793.vercel.app
 production_database_fingerprint: 0257665af2dd90a4
 required_gates:
   - code_quality
@@ -47,8 +48,9 @@ passed_gates:
 post_release_audit:
   base_sha: f6f3f17e984d7b1baaff619c9bcf063933e63e05
   repair_implementation_sha: 3e03061821dac6ec9623dd6305bb05e799cd191d
-  status: REPAIR_RELEASE_READY_UNMERGED
+  status: POST_RELEASE_VERIFIED
   pull_request: https://github.com/gorgerich/TD_agent/pull/29
+  merge_sha: fb5d76bfe328810fec5aa72b9a097e22ec09cc87
   source_ci: https://github.com/gorgerich/TD_agent/actions/runs/31320817751
   source_ci_attempts_passed: 2
   source_ci_skipped: 0
@@ -63,20 +65,37 @@ post_release_audit:
     - local_editor_economics_diverged_from_published_quote
     - published_history_recomputed_with_current_rules
     - canonical_read_failure_allowed_local_write_fallback
-  production_changed: false
-  controlled_production_write_smoke: NOT_RUN
+  production_changed: true
+  controlled_production_write_smoke: PASS
   controlled_production_write_smoke_reason: >-
-    No approved synthetic business-record cleanup exists for a production commercial
-    write. Read-only production verification and isolated browser UAT remain the safe gate.
+    The owner-authorized smoke used only the designated synthetic tenant, retained append-only
+    history, suspended all access afterward, and changed zero real customer records.
+idempotency_truth_hotfix:
+  status: POST_RELEASE_VERIFIED
+  base_sha: fb5d76bfe328810fec5aa72b9a097e22ec09cc87
+  repair_implementation_sha: 4f1b78481a305b05eabbee4c3fcea297707bd3ce
+  evidence_sha: 004864f20ac7c58ed0a49d6e4898bee7df7fdc5f
+  pull_request: https://github.com/gorgerich/TD_agent/pull/30
+  merge_sha: b8f6a40555c5fda83798dc2fc3fc96386d9156fd
+  pull_request_ci: https://github.com/gorgerich/TD_agent/actions/runs/31484886101
+  main_ci: https://github.com/gorgerich/TD_agent/actions/runs/31486011860
+  preview_deployment_id: dpl_831MXqVLy1gy2fKbxMs2x6CTVZ5f
+  production_deployment_id: dpl_Cdk9bcWg9EYE5B482etPGQTzC9VP
+  production_database_fingerprint: 0257665af2dd90a4
+  schema_changes: false
+  migration_changes: false
+  first_result_replayed: false
+  replay_response_replayed: true
+  replay_side_effects_added: 0
+  commercial_reconciliation_discrepancies: 0
+  operations_reconciliation_discrepancies: 0
+  real_customer_records_changed: 0
+  final_write_freeze: disabled
+  independent_review: PASS_P0_0_P1_0_P2_0
 open_blockers:
-  - gate: post_release_repair_merge
-    severity: BLOCKED_AUTHORITY
-    reason: >-
-      The repair candidate passed local, CI, Preview and independent-review gates but is not
-      authorized for merge, production deployment, or production writes in this audit session.
   - gate: risk_w1_tech_human_review
     severity: OPEN
     reason: Human technical review remains open under the existing governance decision.
-owner_release_authorization: false
+owner_release_authorization: true
 production_release: RELEASED
 m3_fulfilment_money_trust: NOT_STARTED

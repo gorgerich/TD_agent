@@ -1,14 +1,77 @@
 # M2 Commercial Trust Loop - release chronology
 
-Authoritative status as of 2026-08-02: `RELEASED`.
+Authoritative status as of 2026-08-11: `POST_RELEASE_VERIFIED`.
 
-The production deployment is `dpl_38Ry4cPYMxL3xWStt4aM7nERR4ma`, READY at
-`f6f3f17e984d7b1baaff619c9bcf063933e63e05`, and the production database fingerprint is
-`0257665af2dd90a4`. Ten migrations are applied; the M2 migration checksum matches and
-schema parity is `No difference detected`.
+The current production deployment is `dpl_Cdk9bcWg9EYE5B482etPGQTzC9VP`, READY at
+`b8f6a40555c5fda83798dc2fc3fc96386d9156fd`, and serves `https://td-agent.vercel.app`.
+The production database fingerprint remains `0257665af2dd90a4`. Ten migrations are applied;
+their approved checksums match, no migration changed in the hotfix, and schema parity is
+`No difference detected`. `RELEASE_WRITE_FREEZE` is `disabled`.
 
-Everything below records earlier stopped release attempts. Those facts remain historical
-evidence, but their blocker states are superseded by the successful release above.
+Everything below this authoritative record preserves earlier release and stopped-attempt
+facts. Historical blocker states are superseded where a later section explicitly closes them.
+
+## 2026-08-11 idempotency truth hotfix - production verified
+
+The response-truth defect recorded below was repaired in PR #30. The hotfix started from
+`fb5d76bfe328810fec5aa72b9a097e22ec09cc87`; runtime repair source
+`4f1b78481a305b05eabbee4c3fcea297707bd3ce` and evidence head
+`004864f20ac7c58ed0a49d6e4898bee7df7fdc5f` merged as
+`b8f6a40555c5fda83798dc2fc3fc96386d9156fd`.
+
+The root cause was a response-boundary error: the first command correctly persisted its
+domain result with `replayed: false`, but the replay path returned that JSON unchanged. The
+repair leaves the persisted first result immutable and overlays `replayed: true` only after a
+validated idempotency hit. Same-key/different-payload requests still conflict, malformed stored
+results fail closed, and domain creation semantics are unchanged.
+
+Release gates:
+
+- exact-head CI `31484886101`: PASS, skipped tests 0;
+- main CI `31486011860`: PASS, skipped tests 0;
+- exact-head Preview `dpl_831MXqVLy1gy2fKbxMs2x6CTVZ5f`: READY at
+  `https://td-agent-fvpsgg7ww-rics-projects-9baa2793.vercel.app`;
+- independent review of runtime source: P0=0, P1=0, P2=0;
+- targeted idempotency suite: 5/5 runs, 3/3 tests per run;
+- unit 96/96, integration 47/47 across five full repeats, browser suites PASS;
+- migration diff: none; all ten historical checksums: MATCH.
+
+Production deployment `dpl_5DfQBc49c5GvaicQTDR4oq3vgb1T` first promoted the exact merge
+SHA while the write freeze remained enabled. Authenticated frozen smoke passed for Agent and
+Manager reads, capability denial and cross-tenant 404; the representative publish mutation was
+blocked at the proxy with 503. The same deployment was then rebuilt with only the freeze value
+changed to `disabled` as `dpl_Cdk9bcWg9EYE5B482etPGQTzC9VP`; the production alias points to
+that READY deployment. The known-good frozen rollback remains
+`dpl_9qKCzo2jmnHtvggAWdSbpBpf9GB5` at source
+`f6f3f17e984d7b1baaff619c9bcf063933e63e05`.
+
+The production replay used only the designated synthetic tenant
+`m2-p1-prod-smoke:20260809t165002z`. The stored first result remained version 1 / QuoteVersion
+42 with `replayed: false`; the exact HTTP replay returned 200, the same version and
+`replayed: true`. Before and after were identical: QuoteVersion rows 2, numbered Published
+versions 1, publish audit rows 1, CaseEvent rows 5, Task rows 2, ProjectionReceipt rows 3,
+all operational audit rows 14, links 0, decisions 0 and presentation sessions 0. The exact
+publish CaseEvent and publish audit each remain singular. Added replay side effects: 0.
+
+Temporary access was bounded by append-only audits
+`c171b725-86ae-43a7-8895-f3220bee36a6` and
+`d9859926-55cd-4cc0-802a-e277dcda1391`. Final containment is: Organization suspended; Users
+209/210 have no password hash and incremented session versions; Agents 219/220 and both
+memberships suspended; old temporary-password login 401; active links, tasks, meetings,
+presentations and agent sessions all 0. Temporary passwords, cookies and local project links
+were destroyed.
+
+Retained synthetic domain IDs are Lead 55, Case
+`case_5abca500cf1e490b90e2512e75409d9b`, Meeting 48, Quote 37, QuoteVersions 41/42,
+Tasks 34/35, four QuoteLineItems, five append-only CaseEvents and three ProjectionReceipts.
+They remain for honest audit history; no append-only record was deleted.
+
+Commercial reconciliation discrepancies: 0. Operations reconciliation discrepancies: 0.
+The pre/post digest of every non-synthetic row is
+`e8853c82defcb9759d0f30fa9620c4e30e8acfa73017b71b473102522bfc04cb` on both sides; real
+customer records changed: 0. Production schema changes: none. The only production writes in
+this hotfix window were the two-user/two-agent/two-membership synthetic access activation and
+containment updates plus two append-only synthetic audit events. M3 remains `NOT_STARTED`.
 
 ## 2026-08-09 idempotency response incident and hotfix candidate
 
