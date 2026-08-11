@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "../../lib/prisma";
 import type { OperationalContext } from "../../lib/operationalAuth";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
+import { backoffBeforeRetry } from "../../lib/serializationBackoff";
 import { isIsolatedTestDatabase } from "./testDatabaseSafety";
 
 /**
@@ -233,7 +234,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     const ownUserIds = [...userIds];
     if (!ownOrganizationIds.length && !ownAgentIds.length && !ownUserIds.length) return;
 
-    await db.$transaction(async (tx) => {
+    const executeCleanup = () => db.$transaction(async (tx) => {
       // This process has already proved that it targets an approved local throwaway DB.
       // Disable the immutability triggers only while deleting the exact IDs registered by
       // this fixture context — a published QuoteVersion cannot otherwise be removed.
@@ -340,6 +341,20 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       if (ownUserIds.length) await tx.user.deleteMany({ where: { id: { in: ownUserIds } } });
       if (ownOrganizationIds.length) await tx.organization.deleteMany({ where: { id: { in: ownOrganizationIds } } });
     });
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      try {
+        await executeCleanup();
+        break;
+      } catch (error) {
+        const serializationFailure = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+        const deadlock = error instanceof Error
+          && (error.message.includes("40P01") || error.message.includes("deadlock detected"));
+        const retryable = serializationFailure || deadlock;
+        if (!retryable || attempt === 5) throw error;
+        await backoffBeforeRetry(attempt);
+      }
+    }
 
     organizationIds.clear();
     membershipIds.clear();

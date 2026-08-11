@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CommercialLine } from "../../lib/commercialQuote";
-import {
-  markCommercialQuoteInReview,
-  publishCommercialQuote,
-  saveCommercialDraft,
-} from "../../lib/commercialQuoteService";
+import { publishCommercialQuote } from "../../lib/commercialQuoteService";
 import { POST as publishRoute } from "../../app/api/agent/quotes/[quoteId]/publish/route";
 import {
   createFixtureContext,
@@ -50,9 +46,9 @@ function line(stableKey: string): CommercialLine {
   };
 }
 
-async function prepareQuote(fixtures: IntegrationFixtureContext, owner: FixtureMember) {
+async function prepareQuote(fixtures: IntegrationFixtureContext, owner: FixtureMember, suffix = "primary") {
   const runId = fixtures.runId;
-  const canonicalCase = await fixtures.makeCase(owner, "publish-idempotency");
+  const canonicalCase = await fixtures.makeCase(owner, `publish-idempotency-${suffix}`);
   await db.case.update({
     where: { id: canonicalCase.id },
     data: { stage: "QUOTING", scenarioId: "CREMATION_V1" },
@@ -65,20 +61,58 @@ async function prepareQuote(fixtures: IntegrationFixtureContext, owner: FixtureM
       caseId: canonicalCase.id,
       ownerMembershipId: owner.membershipId,
       operationalStatus: "COMPLETED",
-      idempotencyKey: `m2-idempotency-meeting:${runId}`,
+      idempotencyKey: `m2-idempotency-meeting:${runId}:${suffix}`,
     },
   });
-  const draft = await saveCommercialDraft({
-    meetingId: meeting.id,
-    scenario: "CREMATION_V1",
-    lines: [line(`service:${runId}`)],
-    context: owner.context,
-    meta: meta(runId, "draft"),
+  const quote = await db.quote.create({
+    data: {
+      meetingId: meeting.id,
+      organizationId: owner.organizationId,
+      caseId: canonicalCase.id,
+      ownerMembershipId: owner.membershipId,
+      scenario: "CREMATION_V1",
+      status: "DRAFT",
+      currency: "RUB",
+    },
   });
-  await markCommercialQuoteInReview({
-    quoteId: draft.quoteId,
-    context: owner.context,
-    meta: meta(runId, "review"),
+  const fixtureLine = line(`service:${runId}:${suffix}`);
+  const draft = await db.quoteVersion.create({
+    data: {
+      quoteId: quote.id,
+      state: "DRAFT",
+      payload: JSON.stringify({ schemaVersion: 1, editorState: null }),
+      subtotal: 125_000,
+      discountTotal: 0,
+      total: 125_000,
+      totalState: "KNOWN",
+      currency: "RUB",
+      lineItems: {
+        create: {
+          stableKey: fixtureLine.stableKey,
+          position: fixtureLine.position,
+          type: fixtureLine.type,
+          serviceCode: fixtureLine.serviceCode,
+          description: fixtureLine.description,
+          quantity: fixtureLine.quantity,
+          unit: fixtureLine.unit,
+          priceState: fixtureLine.priceState,
+          clientUnitPrice: fixtureLine.clientUnitPrice,
+          costState: fixtureLine.costState,
+          unitCost: fixtureLine.unitCost,
+          discountAmount: fixtureLine.discountAmount,
+          included: fixtureLine.included,
+          optional: fixtureLine.optional,
+          relationKind: fixtureLine.relationKind,
+          source: fixtureLine.source,
+          sourceVersion: fixtureLine.sourceVersion,
+          scenarioCompatibility: fixtureLine.scenarioCompatibility,
+        },
+      },
+    },
+  });
+  await db.quote.update({
+    where: { id: quote.id },
+    data: { activeDraftVersionId: draft.id, status: "IN_REVIEW" },
   });
   await db.task.create({
     data: {
@@ -91,11 +125,11 @@ async function prepareQuote(fixtures: IntegrationFixtureContext, owner: FixtureM
       type: "QUOTE_SEND",
       priority: "HIGH",
       status: "OPEN",
-      idempotencyKey: `m2-idempotency-task:${runId}`,
+      idempotencyKey: `m2-idempotency-task:${runId}:${suffix}`,
       title: "Опубликовать синтетическую смету",
     },
   });
-  return { canonicalCase, meeting, quoteId: draft.quoteId };
+  return { canonicalCase, meeting, quoteId: quote.id };
 }
 
 async function sideEffectCounts(input: {
@@ -143,34 +177,56 @@ test("M2 publish idempotency truth: API replay is true and changed payload confl
   try {
     const owner = await fixtures.makeAgent("owner");
     const prepared = await prepareQuote(fixtures, owner);
+    const foreign = await fixtures.makeAgent("foreign");
     const cookie = await sessionCookieHeader(owner.userId, owner.agentId);
+    const foreignCookie = await sessionCookieHeader(foreign.userId, foreign.agentId);
     const command = meta(fixtures.runId, "publish-api");
     const body = {
-      validUntil: new Date(Date.now() + 86_400_000).toISOString(),
+      validUntil: new Date(Date.now() + 5_000).toISOString(),
       channel: "link",
       reason: command.reason,
     };
-    const request = (requestBody = body) => publishRoute(
-      makeRequest(`/api/agent/quotes/${prepared.quoteId}/publish`, {
+    const request = (
+      requestBody = body,
+      quoteId = prepared.quoteId,
+      requestCookie = cookie,
+      requestCommand = command,
+    ) => publishRoute(
+      makeRequest(`/api/agent/quotes/${quoteId}/publish`, {
         method: "POST",
-        cookie,
+        cookie: requestCookie,
         headers: {
-          "idempotency-key": command.idempotencyKey,
-          "x-correlation-id": command.correlationId,
+          "idempotency-key": requestCommand.idempotencyKey,
+          "x-correlation-id": requestCommand.correlationId,
         },
         body: requestBody,
       }),
-      { params: Promise.resolve({ quoteId: String(prepared.quoteId) }) },
+      { params: Promise.resolve({ quoteId: String(quoteId) }) },
     );
 
     const firstResponse = await request();
     assert.equal(firstResponse.status, 200);
     const first = await firstResponse.json() as {
+      ok: boolean;
+      quoteId: number;
       quoteVersionId: number;
       versionNumber: number;
+      status: string;
+      total: number;
+      snapshotChecksum: string;
       replayed: boolean;
     };
+    assert.equal(first.ok, true);
     assert.equal(first.replayed, false);
+    const persistedAfterFirst = await db.operationalAuditEvent.findUniqueOrThrow({
+      where: {
+        organizationId_idempotencyKey: {
+          organizationId: owner.organizationId,
+          idempotencyKey: `quote:publish:${command.idempotencyKey}`,
+        },
+      },
+      select: { result: true },
+    });
     const afterFirst = await sideEffectCounts({
       organizationId: owner.organizationId,
       caseId: prepared.canonicalCase.id,
@@ -181,9 +237,7 @@ test("M2 publish idempotency truth: API replay is true and changed payload confl
     const replayResponse = await request();
     assert.equal(replayResponse.status, 200);
     const replay = await replayResponse.json() as typeof first;
-    assert.equal(replay.replayed, true);
-    assert.equal(replay.quoteVersionId, first.quoteVersionId);
-    assert.equal(replay.versionNumber, first.versionNumber);
+    assert.deepEqual(replay, { ...first, replayed: true });
     assert.deepEqual(await sideEffectCounts({
       organizationId: owner.organizationId,
       caseId: prepared.canonicalCase.id,
@@ -191,9 +245,24 @@ test("M2 publish idempotency truth: API replay is true and changed payload confl
       publishKey: command.idempotencyKey,
     }), afterFirst);
 
-    const conflictResponse = await request({ ...body, reason: "Другой payload" });
-    assert.equal(conflictResponse.status, 409);
-    assert.equal((await conflictResponse.json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
+    const conflicts = [
+      { ...body, reason: "Другой payload" },
+      { ...body, validUntil: new Date(Date.now() + 172_800_000).toISOString() },
+      { ...body, channel: "print" },
+    ];
+    for (const changedBody of conflicts) {
+      const conflictResponse = await request(changedBody);
+      assert.equal(conflictResponse.status, 409);
+      assert.equal((await conflictResponse.json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
+    }
+
+    const secondQuote = await prepareQuote(fixtures, owner, "second-target");
+    const targetConflict = await request(body, secondQuote.quoteId);
+    assert.equal(targetConflict.status, 409);
+    assert.equal((await targetConflict.json() as { code: string }).code, "IDEMPOTENCY_CONFLICT");
+
+    const crossTenant = await request(body, prepared.quoteId, foreignCookie);
+    assert.equal(crossTenant.status, 404);
     assert.deepEqual(await sideEffectCounts({
       organizationId: owner.organizationId,
       caseId: prepared.canonicalCase.id,
@@ -209,7 +278,7 @@ test("M2 publish idempotency truth: API replay is true and changed payload confl
       taskProjectionAudit: 1,
       projectionReceipts: 1,
     });
-    const persisted = await db.operationalAuditEvent.findUniqueOrThrow({
+    const persistedAfterReplays = await db.operationalAuditEvent.findUniqueOrThrow({
       where: {
         organizationId_idempotencyKey: {
           organizationId: owner.organizationId,
@@ -218,7 +287,45 @@ test("M2 publish idempotency truth: API replay is true and changed payload confl
       },
       select: { result: true },
     });
-    assert.equal((persisted.result as { replayed: boolean }).replayed, false);
+    assert.deepEqual(persistedAfterReplays.result, persistedAfterFirst.result);
+
+    const remainingValidityMs = new Date(body.validUntil).getTime() - Date.now();
+    if (remainingValidityMs >= 0) await new Promise((resolve) => setTimeout(resolve, remainingValidityMs + 50));
+    const expiredReplayResponse = await request();
+    assert.equal(expiredReplayResponse.status, 200);
+    assert.deepEqual(await expiredReplayResponse.json(), { ...first, replayed: true });
+
+    const malformedQuote = await prepareQuote(fixtures, owner, "malformed-result");
+    const malformedCommand = meta(fixtures.runId, "malformed-result");
+    await db.operationalAuditEvent.create({
+      data: {
+        organizationId: owner.organizationId,
+        actorMembershipId: owner.membershipId,
+        entityType: "quote_version",
+        entityId: "0",
+        action: "quote.published",
+        before: {},
+        after: {},
+        reason: malformedCommand.reason,
+        correlationId: malformedCommand.correlationId,
+        idempotencyKey: `quote:publish:${malformedCommand.idempotencyKey}`,
+        result: { quoteId: malformedQuote.quoteId, quoteVersionId: 0, replayed: false },
+      },
+    });
+    const malformedReplay = await request(
+      { ...body, validUntil: new Date(Date.now() + 86_400_000).toISOString() },
+      malformedQuote.quoteId,
+      cookie,
+      malformedCommand,
+    );
+    assert.equal(malformedReplay.status, 409);
+    assert.equal((await malformedReplay.json() as { code: string }).code, "IDEMPOTENCY_REPLAY_INVALID");
+    assert.deepEqual(await sideEffectCounts({
+      organizationId: owner.organizationId,
+      caseId: prepared.canonicalCase.id,
+      quoteId: prepared.quoteId,
+      publishKey: command.idempotencyKey,
+    }), afterFirst);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

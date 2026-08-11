@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { Prisma, type QuoteClientDecisionType } from "@prisma/client";
+import { z } from "zod";
 import {
   CommercialQuoteError,
   assertPublishable,
@@ -16,11 +17,7 @@ import {
   type PublishedQuoteSnapshot,
 } from "@/lib/commercialQuote";
 import { transitionCaseInTransaction, type CaseCommandContext } from "@/lib/caseService";
-import {
-  appendOperationalAudit,
-  findOperationalReplay,
-  truthfulOperationalReplay,
-} from "@/lib/operationalAudit";
+import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import type { OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
@@ -101,6 +98,36 @@ type DecisionCommandResult = {
   type: QuoteClientDecisionType;
   replayed: boolean;
 };
+
+const CommercialTotalsReplaySchema = z.object({
+  subtotal: z.number().int().nonnegative().safe(),
+  discountTotal: z.number().int().nonnegative().safe(),
+  total: z.number().int().nonnegative().safe().nullable(),
+  totalState: z.enum(["KNOWN", "UNKNOWN", "REQUESTED", "EXPIRED"]),
+  costTotal: z.number().int().nonnegative().safe().nullable(),
+  margin: z.number().int().safe().nullable(),
+  blockers: z.array(z.string()),
+  warnings: z.array(z.string()),
+  countedLineKeys: z.array(z.string()),
+});
+
+const DraftReplaySchema = z.object({
+  quoteId: z.number().int().positive().safe(),
+  draftVersionId: z.number().int().positive().safe(),
+  status: z.literal("DRAFT"),
+  totals: CommercialTotalsReplaySchema,
+  replayed: z.boolean(),
+});
+
+const PublishReplaySchema = z.object({
+  quoteId: z.number().int().positive().safe(),
+  quoteVersionId: z.number().int().positive().safe(),
+  versionNumber: z.number().int().positive().safe(),
+  status: z.literal("PUBLISHED"),
+  total: z.number().int().nonnegative().safe(),
+  snapshotChecksum: z.string().regex(/^[0-9a-f]{64}$/),
+  replayed: z.boolean(),
+});
 
 export type CommercialQuoteReadModel = {
   quoteId: number;
@@ -193,7 +220,7 @@ export async function saveCommercialDraft(input: DraftInput): Promise<DraftComma
     }
     const auditKey = `quote:draft:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
-    if (replay) return truthfulOperationalReplay<DraftCommandResult>(replay.result);
+    if (replay) return readReplayResult(DraftReplaySchema, replay.result);
 
     let quote = await tx.quote.findFirst({
       where: { meetingId: meeting.id, organizationId: input.context.organizationId },
@@ -932,7 +959,7 @@ async function publishReplayResult(
   input: PublishInput,
   replay: NonNullable<Awaited<ReturnType<typeof findOperationalReplay>>>,
 ): Promise<PublishCommandResult> {
-  const result = truthfulOperationalReplay<PublishCommandResult>(replay.result);
+  const result = readReplayResult(PublishReplaySchema, replay.result);
   const published = await tx.quoteVersion.findUnique({
     where: { id: result.quoteVersionId },
     select: {
@@ -968,6 +995,21 @@ async function publishReplayResult(
     );
   }
   return result;
+}
+
+function readReplayResult<T extends { replayed: boolean }>(
+  schema: z.ZodType<T>,
+  value: Prisma.JsonValue,
+): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    throw new OperationalCommandError(
+      409,
+      "Сохранённый результат повторной команды повреждён",
+      "IDEMPOTENCY_REPLAY_INVALID",
+    );
+  }
+  return { ...parsed.data, replayed: true };
 }
 
 function lineCreateInput(line: CommercialLine) {
