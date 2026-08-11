@@ -10,6 +10,62 @@ schema parity is `No difference detected`.
 Everything below records earlier stopped release attempts. Those facts remain historical
 evidence, but their blocker states are superseded by the successful release above.
 
+## 2026-08-09 idempotency response incident and hotfix candidate
+
+PR #29 merged as `fb5d76bfe328810fec5aa72b9a097e22ec09cc87`; main CI run
+`31324471482` passed with zero skipped tests. Production verification then found one narrow
+response-truth defect: the first publish correctly returned `replayed: false`, but an exact
+retry returned the persisted first-command result and therefore also reported
+`replayed: false`. The retry did not duplicate domain state: Published QuoteVersion, CaseEvent,
+Task and ProjectionReceipt counts remained unchanged.
+
+Containment completed before this hotfix work began. The candidate deployment
+`dpl_6cCGMvpkKCQcLA4xdWr3XKjxY4ou` was replaced by the known-good runtime source
+`f6f3f17e984d7b1baaff619c9bcf063933e63e05`. Frozen production deployment
+`dpl_9qKCzo2jmnHtvggAWdSbpBpf9GB5` is READY and serves `td-agent.vercel.app` with
+`RELEASE_WRITE_FREEZE=enabled`. The designated synthetic tenant, users, agents and memberships
+are suspended; active links, sessions, tasks, meetings and presentations are zero. Commercial
+and operations reconciliation discrepancies are zero, the non-synthetic production baseline
+digest matches, and real customer records changed are zero.
+
+Hotfix base: `fb5d76bfe328810fec5aa72b9a097e22ec09cc87`.
+
+Runtime repair source: `4f1b78481a305b05eabbee4c3fcea297707bd3ce`.
+
+The fix leaves the persisted original result unchanged and overlays `replayed: true` only when
+an existing idempotency result is returned. Publish replay additionally verifies a complete,
+endpoint-specific persisted result shape and the immutable version against the original quote,
+validity, channel, reason and idempotency key. Reusing the same key with changed command data
+returns `IDEMPOTENCY_CONFLICT` without side effects; malformed stored results fail closed with
+`IDEMPOTENCY_REPLAY_INVALID`.
+
+Local verification on an isolated PostgreSQL database passed: targeted idempotency 5/5 runs
+(3/3 tests per run), unit 96/96, integration 47/47 for five consecutive full-suite runs, all
+four browser suites, lint, typecheck, production build, production-like migration fixtures,
+repeated migrate deploy no-op, and schema parity (`No difference detected`). Browser evidence
+covers Agent, Manager, Platform Admin, Organization Admin, cremation, relative burial,
+Draft/Published isolation, client decisions, print, failure recovery, cross-tenant denial,
+mobile, 200% zoom and zero critical/serious accessibility findings. Skipped and NOT_RUN checks
+are zero. Test residue, schema changes, migration changes, dependency changes and UI changes
+are zero.
+
+A concurrent cleanup deadlock found during the repeat gate was repaired with bounded retry of
+the exact-ID, idempotent fixture transaction after full rollback; no suite serialization, broad
+cleanup, timeout or production retry budget changed. A later SSI collision came only from an
+unnecessary publish command used to prepare the accepted-draft regression fixture; the fixture
+now creates that exact pre-existing lifecycle state directly, while the tested save/replay
+commands remain unchanged.
+
+Independent review round 1 returned P0=0, P1=0, P2=1; complete persisted-result validation
+closed that finding. Round 2 returned P0=0, P1=1, P2=0 because an accepted quote can persist an
+`ACCEPTED` draft-save result. The final runtime source accepts exactly `DRAFT` and `ACCEPTED`
+for that endpoint and adds a persisted-result regression. Final independent review of exact
+runtime source `4f1b78481a305b05eabbee4c3fcea297707bd3ce` returned P0=0, P1=0, P2=0 and recommends
+merge. Exact-head GitHub CI and Vercel Preview remain required before merge.
+
+Production changes made while preparing this hotfix: NONE. The release write freeze remains
+enabled. M3 remains `NOT_STARTED`.
+
 ## Post-release truth audit and repair candidate
 
 Read-only audit base: `f6f3f17e984d7b1baaff619c9bcf063933e63e05`.

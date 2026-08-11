@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 import { Prisma, type QuoteClientDecisionType } from "@prisma/client";
+import { z } from "zod";
 import {
   CommercialQuoteError,
   assertPublishable,
@@ -98,6 +99,36 @@ type DecisionCommandResult = {
   replayed: boolean;
 };
 
+const CommercialTotalsReplaySchema = z.object({
+  subtotal: z.number().int().nonnegative().safe(),
+  discountTotal: z.number().int().nonnegative().safe(),
+  total: z.number().int().nonnegative().safe().nullable(),
+  totalState: z.enum(["KNOWN", "UNKNOWN", "REQUESTED", "EXPIRED"]),
+  costTotal: z.number().int().nonnegative().safe().nullable(),
+  margin: z.number().int().safe().nullable(),
+  blockers: z.array(z.string()),
+  warnings: z.array(z.string()),
+  countedLineKeys: z.array(z.string()),
+});
+
+const DraftReplaySchema = z.object({
+  quoteId: z.number().int().positive().safe(),
+  draftVersionId: z.number().int().positive().safe(),
+  status: z.enum(["DRAFT", "ACCEPTED"]),
+  totals: CommercialTotalsReplaySchema,
+  replayed: z.boolean(),
+});
+
+const PublishReplaySchema = z.object({
+  quoteId: z.number().int().positive().safe(),
+  quoteVersionId: z.number().int().positive().safe(),
+  versionNumber: z.number().int().positive().safe(),
+  status: z.literal("PUBLISHED"),
+  total: z.number().int().nonnegative().safe(),
+  snapshotChecksum: z.string().regex(/^[0-9a-f]{64}$/),
+  replayed: z.boolean(),
+});
+
 export type CommercialQuoteReadModel = {
   quoteId: number;
   meetingId: number;
@@ -189,7 +220,7 @@ export async function saveCommercialDraft(input: DraftInput): Promise<DraftComma
     }
     const auditKey = `quote:draft:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
-    if (replay) return replay.result as unknown as DraftCommandResult;
+    if (replay) return readReplayResult(DraftReplaySchema, replay.result);
 
     let quote = await tx.quote.findFirst({
       where: { meetingId: meeting.id, organizationId: input.context.organizationId },
@@ -335,15 +366,15 @@ export async function markCommercialQuoteInReview(input: {
 
 export async function publishCommercialQuote(input: PublishInput): Promise<PublishCommandResult> {
   validateMeta(input.meta);
-  if (input.validUntil.getTime() <= Date.now()) {
-    throw new OperationalCommandError(422, "Срок действия опубликованной сметы должен быть в будущем");
-  }
 
   return runOperationalTransaction(async (tx) => {
     const quote = await loadQuoteForMutation(tx, input.quoteId, input.context);
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
-    if (replay) return replay.result as unknown as PublishCommandResult;
+    if (replay) return publishReplayResult(tx, input, replay);
+    if (input.validUntil.getTime() <= Date.now()) {
+      throw new OperationalCommandError(422, "Срок действия опубликованной сметы должен быть в будущем");
+    }
     if (!quote.activeDraftVersion) throw new OperationalCommandError(422, "Нет активного черновика для публикации");
     if (quote.status !== "IN_REVIEW") {
       throw new OperationalCommandError(409, "Перед публикацией откройте проверку состава и цен");
@@ -921,6 +952,64 @@ async function loadQuoteForMutation(
     throw new OperationalCommandError(404, "Смета не найдена");
   }
   return quote;
+}
+
+async function publishReplayResult(
+  tx: Prisma.TransactionClient,
+  input: PublishInput,
+  replay: NonNullable<Awaited<ReturnType<typeof findOperationalReplay>>>,
+): Promise<PublishCommandResult> {
+  const result = readReplayResult(PublishReplaySchema, replay.result);
+  const published = await tx.quoteVersion.findUnique({
+    where: { id: result.quoteVersionId },
+    select: {
+      quoteId: true,
+      versionNumber: true,
+      total: true,
+      snapshotChecksum: true,
+      validUntil: true,
+      publishChannel: true,
+      publishReason: true,
+      idempotencyKey: true,
+    },
+  });
+  const expectedReason = input.meta.reason ?? "Передача клиенту";
+  const matchesOriginalCommand = replay.action === "quote.published"
+    && replay.entityType === "quote_version"
+    && replay.entityId === String(result.quoteVersionId)
+    && result.quoteId === input.quoteId
+    && published?.quoteId === input.quoteId
+    && published.versionNumber === result.versionNumber
+    && published.total === result.total
+    && published.snapshotChecksum === result.snapshotChecksum
+    && published.validUntil?.getTime() === input.validUntil.getTime()
+    && published.publishChannel === input.channel
+    && published.publishReason === expectedReason
+    && published.idempotencyKey === input.meta.idempotencyKey;
+
+  if (!matchesOriginalCommand) {
+    throw new OperationalCommandError(
+      409,
+      "Ключ повторной команды уже использован с другими параметрами",
+      "IDEMPOTENCY_CONFLICT",
+    );
+  }
+  return result;
+}
+
+function readReplayResult<T extends { replayed: boolean }>(
+  schema: z.ZodType<T>,
+  value: Prisma.JsonValue,
+): T {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) {
+    throw new OperationalCommandError(
+      409,
+      "Сохранённый результат повторной команды повреждён",
+      "IDEMPOTENCY_REPLAY_INVALID",
+    );
+  }
+  return { ...parsed.data, replayed: true };
 }
 
 function lineCreateInput(line: CommercialLine) {
