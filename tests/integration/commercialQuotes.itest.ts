@@ -121,7 +121,7 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       context: owner.context,
       meta: meta(fixtures.runId, "draft-v1"),
     });
-    assert.deepEqual(draftReplay, draft);
+    assert.deepEqual(draftReplay, { ...draft, replayed: true });
     const presentation = await startCommercialPresentation({
       quoteId: Number(draft.quoteId),
       context: owner.context,
@@ -162,6 +162,11 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       publishCommercialQuote(publishInput),
     ]);
     assert.equal(publishReplay.quoteVersionId, publishedV1.quoteVersionId);
+    assert.deepEqual(
+      [publishedV1.replayed, publishReplay.replayed].sort(),
+      [false, true],
+      "exactly one parallel publish response must report the original execution",
+    );
     assert.equal(await db.quoteVersion.count({
       where: { quoteId: Number(draft.quoteId), state: "PUBLISHED" },
     }), 1);

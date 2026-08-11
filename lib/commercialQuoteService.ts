@@ -16,7 +16,11 @@ import {
   type PublishedQuoteSnapshot,
 } from "@/lib/commercialQuote";
 import { transitionCaseInTransaction, type CaseCommandContext } from "@/lib/caseService";
-import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
+import {
+  appendOperationalAudit,
+  findOperationalReplay,
+  truthfulOperationalReplay,
+} from "@/lib/operationalAudit";
 import type { OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
@@ -189,7 +193,7 @@ export async function saveCommercialDraft(input: DraftInput): Promise<DraftComma
     }
     const auditKey = `quote:draft:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
-    if (replay) return replay.result as unknown as DraftCommandResult;
+    if (replay) return truthfulOperationalReplay<DraftCommandResult>(replay.result);
 
     let quote = await tx.quote.findFirst({
       where: { meetingId: meeting.id, organizationId: input.context.organizationId },
@@ -335,15 +339,15 @@ export async function markCommercialQuoteInReview(input: {
 
 export async function publishCommercialQuote(input: PublishInput): Promise<PublishCommandResult> {
   validateMeta(input.meta);
-  if (input.validUntil.getTime() <= Date.now()) {
-    throw new OperationalCommandError(422, "Срок действия опубликованной сметы должен быть в будущем");
-  }
 
   return runOperationalTransaction(async (tx) => {
     const quote = await loadQuoteForMutation(tx, input.quoteId, input.context);
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
-    if (replay) return replay.result as unknown as PublishCommandResult;
+    if (replay) return publishReplayResult(tx, input, replay);
+    if (input.validUntil.getTime() <= Date.now()) {
+      throw new OperationalCommandError(422, "Срок действия опубликованной сметы должен быть в будущем");
+    }
     if (!quote.activeDraftVersion) throw new OperationalCommandError(422, "Нет активного черновика для публикации");
     if (quote.status !== "IN_REVIEW") {
       throw new OperationalCommandError(409, "Перед публикацией откройте проверку состава и цен");
@@ -921,6 +925,49 @@ async function loadQuoteForMutation(
     throw new OperationalCommandError(404, "Смета не найдена");
   }
   return quote;
+}
+
+async function publishReplayResult(
+  tx: Prisma.TransactionClient,
+  input: PublishInput,
+  replay: NonNullable<Awaited<ReturnType<typeof findOperationalReplay>>>,
+): Promise<PublishCommandResult> {
+  const result = truthfulOperationalReplay<PublishCommandResult>(replay.result);
+  const published = await tx.quoteVersion.findUnique({
+    where: { id: result.quoteVersionId },
+    select: {
+      quoteId: true,
+      versionNumber: true,
+      total: true,
+      snapshotChecksum: true,
+      validUntil: true,
+      publishChannel: true,
+      publishReason: true,
+      idempotencyKey: true,
+    },
+  });
+  const expectedReason = input.meta.reason ?? "Передача клиенту";
+  const matchesOriginalCommand = replay.action === "quote.published"
+    && replay.entityType === "quote_version"
+    && replay.entityId === String(result.quoteVersionId)
+    && result.quoteId === input.quoteId
+    && published?.quoteId === input.quoteId
+    && published.versionNumber === result.versionNumber
+    && published.total === result.total
+    && published.snapshotChecksum === result.snapshotChecksum
+    && published.validUntil?.getTime() === input.validUntil.getTime()
+    && published.publishChannel === input.channel
+    && published.publishReason === expectedReason
+    && published.idempotencyKey === input.meta.idempotencyKey;
+
+  if (!matchesOriginalCommand) {
+    throw new OperationalCommandError(
+      409,
+      "Ключ повторной команды уже использован с другими параметрами",
+      "IDEMPOTENCY_CONFLICT",
+    );
+  }
+  return result;
 }
 
 function lineCreateInput(line: CommercialLine) {

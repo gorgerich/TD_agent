@@ -59,3 +59,10 @@ export async function findOperationalReplay(
     where: { organizationId_idempotencyKey: { organizationId, idempotencyKey } },
   });
 }
+
+export function truthfulOperationalReplay<T extends { replayed: boolean }>(value: Prisma.JsonValue): T {
+  if (!value || Array.isArray(value) || typeof value !== "object" || typeof value.replayed !== "boolean") {
+    throw new Error("Saved idempotency result is malformed");
+  }
+  return { ...value, replayed: true } as T;
+}
