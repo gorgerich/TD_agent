@@ -114,7 +114,7 @@ const CommercialTotalsReplaySchema = z.object({
 const DraftReplaySchema = z.object({
   quoteId: z.number().int().positive().safe(),
   draftVersionId: z.number().int().positive().safe(),
-  status: z.literal("DRAFT"),
+  status: z.enum(["DRAFT", "ACCEPTED"]),
   totals: CommercialTotalsReplaySchema,
   replayed: z.boolean(),
 });

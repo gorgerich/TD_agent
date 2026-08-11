@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CommercialLine } from "../../lib/commercialQuote";
-import { publishCommercialQuote } from "../../lib/commercialQuoteService";
+import { publishCommercialQuote, saveCommercialDraft } from "../../lib/commercialQuoteService";
 import { POST as publishRoute } from "../../app/api/agent/quotes/[quoteId]/publish/route";
 import {
   createFixtureContext,
@@ -364,6 +364,42 @@ test("M2 publish idempotency truth: parallel duplicates create one result with t
       taskProjectionAudit: 1,
       projectionReceipts: 1,
     });
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M2 draft replay preserves the valid ACCEPTED lifecycle status", opts, async () => {
+  const fixtures = createFixtureContext("m2-accepted-draft-replay");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const prepared = await prepareQuote(fixtures, owner);
+    await db.quote.update({ where: { id: prepared.quoteId }, data: { status: "ACCEPTED" } });
+
+    const input = {
+      meetingId: prepared.meeting.id,
+      scenario: "CREMATION_V1" as const,
+      lines: [line(`accepted-revision:${fixtures.runId}`)],
+      context: owner.context,
+      meta: meta(fixtures.runId, "accepted-draft"),
+    };
+    const first = await saveCommercialDraft(input);
+    assert.equal(first.status, "ACCEPTED");
+    assert.equal(first.replayed, false);
+
+    const replay = await saveCommercialDraft(input);
+    assert.deepEqual(replay, { ...first, replayed: true });
+    const persisted = await db.operationalAuditEvent.findUniqueOrThrow({
+      where: {
+        organizationId_idempotencyKey: {
+          organizationId: owner.organizationId,
+          idempotencyKey: `quote:draft:${input.meta.idempotencyKey}`,
+        },
+      },
+      select: { result: true },
+    });
+    assert.deepEqual(persisted.result, first);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
