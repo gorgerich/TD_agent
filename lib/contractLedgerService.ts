@@ -1129,7 +1129,7 @@ async function lockObligationLedger(
   obligationId: string,
 ): Promise<void> {
   await tx.$queryRaw<Array<{ locked: boolean }>>`
-    SELECT pg_advisory_xact_lock(hashtextextended(${`${organizationId}:${obligationId}`}, 0))
+    SELECT pg_advisory_xact_lock(hashtextextended(${`${organizationId}:${obligationId}`}, 0)) IS NULL AS "locked"
   `;
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
