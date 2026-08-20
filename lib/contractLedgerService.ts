@@ -13,9 +13,9 @@ import {
   validateM3CommandMeta,
 } from "@/lib/m3Command";
 import {
+  assertLedgerAdjustmentForestCapacity,
   deriveLedgerSummary,
   remainingRefundableKopecks,
-  remainingSourceCapacityKopecks,
   requiresFourEyesApproval,
   type LedgerProjectionEntry,
   type LedgerSummary,
@@ -497,12 +497,6 @@ export async function recordRefund(
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
   return runOperationalTransaction(async (tx) => {
-    await tx.$queryRaw<Array<{ id: string }>>`
-      SELECT "id"
-      FROM "PaymentLedgerEntry"
-      WHERE "id" = ${input.paymentEntryId} AND "organizationId" = ${context.organizationId}
-      FOR UPDATE
-    `;
     const replay = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -524,7 +518,16 @@ export async function recordRefund(
       },
     });
     if (!payment) throw new OperationalCommandError(404, "Исходная оплата не найдена");
-    await assertSourceCapacity(tx, payment, input.amountKopecks);
+    await lockObligationLedger(tx, context.organizationId, payment.obligationId);
+    await assertSourceCapacity(tx, payment.obligationId, {
+      id: `candidate:${meta.idempotencyKey}`,
+      type: "REFUND",
+      direction: "DEBIT",
+      amountKopecks: input.amountKopecks,
+      relatedEntryId: payment.id,
+      effective: true,
+      reserved: false,
+    });
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -571,7 +574,6 @@ export async function requestLedgerAdjustment(
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
   return runOperationalTransaction(async (tx) => {
-    await lockLedgerEntry(tx, context.organizationId, input.relatedEntryId);
     const replay = await readAuditReplay<{ ledgerEntryId: string; approvalRequired: boolean; policyVersion: number }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -592,16 +594,32 @@ export async function requestLedgerAdjustment(
       },
     });
     if (!related) throw new OperationalCommandError(404, "Исходная запись ledger не найдена");
-    if (related.type === "OBLIGATION") {
+    await lockObligationLedger(tx, context.organizationId, related.obligationId);
+    const lockedRelated = await tx.paymentLedgerEntry.findFirst({
+      where: { id: input.relatedEntryId, organizationId: context.organizationId },
+      select: {
+        id: true,
+        caseId: true,
+        obligationId: true,
+        payerPartyId: true,
+        currency: true,
+        direction: true,
+        type: true,
+        amountKopecks: true,
+        approvalRequired: true,
+        approval: { select: { decision: true } },
+      },
+    });
+    if (!lockedRelated) throw new OperationalCommandError(404, "Исходная запись ledger не найдена");
+    if (lockedRelated.type === "OBLIGATION") {
       throw new OperationalCommandError(422, "Обязательство изменяется только новой версией договора");
     }
-    if (related.approvalRequired && related.approval?.decision !== "APPROVED") {
+    if (lockedRelated.approvalRequired && lockedRelated.approval?.decision !== "APPROVED") {
       throw new OperationalCommandError(409, "Нельзя корректировать не вступившую в силу запись ledger");
     }
-    if (input.type === "REVERSAL" && input.direction === related.direction) {
+    if (input.type === "REVERSAL" && input.direction === lockedRelated.direction) {
       throw new OperationalCommandError(422, "Сторно должно иметь противоположное направление");
     }
-    await assertSourceCapacity(tx, related, input.amountKopecks);
     const policy = await tx.financialControlPolicy.findFirst({
       where: { organizationId: context.organizationId, status: "APPROVED" },
       orderBy: { version: "desc" },
@@ -612,29 +630,39 @@ export async function requestLedgerAdjustment(
       thresholdKopecks: policy?.correctionThresholdKopecks ?? null,
     });
     const policyVersion = policy?.version ?? 0;
+    await assertSourceCapacity(tx, lockedRelated.obligationId, {
+      id: `candidate:${meta.idempotencyKey}`,
+      type: input.type,
+      direction: input.direction,
+      amountKopecks: input.amountKopecks,
+      relatedEntryId: lockedRelated.id,
+      effective: !approvalRequired,
+      reserved: approvalRequired,
+    });
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
-        caseId: related.caseId,
-        obligationId: related.obligationId,
-        payerPartyId: related.payerPartyId,
+        caseId: lockedRelated.caseId,
+        obligationId: lockedRelated.obligationId,
+        payerPartyId: lockedRelated.payerPartyId,
         type: input.type,
         direction: input.direction,
         amountKopecks: input.amountKopecks,
-        currency: related.currency,
+        currency: lockedRelated.currency,
         occurredAt: input.occurredAt,
         source: "manual-finance-adjustment",
         evidenceReference: input.evidenceReference.trim(),
         actorMembershipId: context.membershipId,
         idempotencyKey: meta.idempotencyKey,
         correlationId: meta.correlationId,
-        relatedEntryId: related.id,
+        relatedEntryId: lockedRelated.id,
         approvalRequired,
       },
       select: { id: true },
     });
+    let approvalId: string | null = null;
     if (approvalRequired) {
-      await tx.paymentLedgerApproval.create({
+      const approval = await tx.paymentLedgerApproval.create({
         data: {
           organizationId: context.organizationId,
           ledgerEntryId: entry.id,
@@ -644,14 +672,30 @@ export async function requestLedgerAdjustment(
           idempotencyKey: `${meta.idempotencyKey}:approval-request`,
           correlationId: meta.correlationId,
         },
+        select: { id: true },
       });
+      approvalId = approval.id;
     } else {
       // Fail before commit if an immediately effective correction would make
       // canonical ledger arithmetic impossible (for example net paid < 0).
-      await derivePaymentSummaryInTransaction(tx, related.obligationId);
+      await derivePaymentSummaryInTransaction(tx, lockedRelated.obligationId);
     }
     const data = { ledgerEntryId: entry.id, approvalRequired, policyVersion };
     await appendLedgerAudit(tx, context, entry.id, "ledger.adjustment_requested.v1", input, meta, fingerprint, data);
+    if (approvalId) {
+      await appendOperationalAudit(tx, context, {
+        entityType: "payment_ledger_approval",
+        entityId: approvalId,
+        action: "ledger.adjustment_approval_requested.v1",
+        before: prismaJson({}),
+        after: prismaJson({ ledgerEntryId: entry.id, policyVersion }),
+        correlationId: meta.correlationId,
+        causationId: entry.id,
+        idempotencyKey: `${meta.idempotencyKey}:approval-request-audit`,
+        reason: input.reason,
+        result: prismaJson({ approvalId, ledgerEntryId: entry.id }),
+      });
+    }
     return { ...data, replayed: false };
   });
 }
@@ -666,7 +710,6 @@ export async function decideLedgerAdjustment(
   if (input.reason.trim().length < 3) throw new OperationalCommandError(422, "Нужна причина решения");
   const fingerprint = commandFingerprint(input);
   return runOperationalTransaction(async (tx) => {
-    await lockLedgerEntry(tx, context.organizationId, input.ledgerEntryId);
     const replay = await readAuditReplay<{
       ledgerEntryId: string; decision: "APPROVED" | "REJECTED"; summary: LedgerSummary;
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
@@ -678,39 +721,33 @@ export async function decideLedgerAdjustment(
     if (!entry?.approval || entry.approval.decision) {
       throw new OperationalCommandError(404, "Ожидающая коррекция не найдена");
     }
-    if (entry.approval.requestedByMembershipId === context.membershipId) {
+    await lockObligationLedger(tx, context.organizationId, entry.obligationId);
+    const lockedEntry = await tx.paymentLedgerEntry.findFirst({
+      where: { id: input.ledgerEntryId, organizationId: context.organizationId, approvalRequired: true },
+      include: { approval: true },
+    });
+    if (!lockedEntry?.approval || lockedEntry.approval.decision) {
+      throw new OperationalCommandError(404, "Ожидающая коррекция не найдена");
+    }
+    if (lockedEntry.approval.requestedByMembershipId === context.membershipId) {
       throw new OperationalCommandError(403, "Автор коррекции не может принять решение по ней");
     }
     const policy = await tx.financialControlPolicy.findFirst({
       where: {
         organizationId: context.organizationId,
         status: { in: ["APPROVED", "RETIRED"] },
-        version: entry.approval.policyVersion,
+        version: lockedEntry.approval.policyVersion,
       },
     });
-    if (!policy || entry.approval.policyVersion <= 0) {
+    if (!policy || lockedEntry.approval.policyVersion <= 0) {
       throw new OperationalCommandError(409, "Finance policy не утверждена; коррекция остаётся в ожидании");
     }
     if (input.decision === "APPROVED") {
-      if (!entry.relatedEntryId) throw new OperationalCommandError(409, "Коррекция не связана с исходной записью ledger");
-      await lockLedgerEntry(tx, context.organizationId, entry.relatedEntryId);
-      const related = await tx.paymentLedgerEntry.findFirst({
-        where: { id: entry.relatedEntryId, organizationId: context.organizationId },
-        select: {
-          id: true,
-          obligationId: true,
-          type: true,
-          direction: true,
-          amountKopecks: true,
-          approvalRequired: true,
-          approval: { select: { decision: true } },
-        },
-      });
-      if (!related) throw new OperationalCommandError(409, "Исходная запись ledger недоступна");
-      await assertSourceCapacity(tx, related, entry.amountKopecks, entry.id);
+      if (!lockedEntry.relatedEntryId) throw new OperationalCommandError(409, "Коррекция не связана с исходной записью ledger");
+      await assertSourceCapacity(tx, lockedEntry.obligationId);
     }
     const decided = await tx.paymentLedgerApproval.updateMany({
-      where: { id: entry.approval.id, decision: null, decidedByMembershipId: null, decidedAt: null },
+      where: { id: lockedEntry.approval.id, decision: null, decidedByMembershipId: null, decidedAt: null },
       data: {
         decidedByMembershipId: context.membershipId,
         decision: input.decision,
@@ -719,13 +756,13 @@ export async function decideLedgerAdjustment(
       },
     });
     if (decided.count !== 1) throw new OperationalCommandError(409, "По коррекции уже принято решение");
-    const summary = await derivePaymentSummaryInTransaction(tx, entry.obligationId);
-    const data = { ledgerEntryId: entry.id, decision: input.decision, summary };
+    const summary = await derivePaymentSummaryInTransaction(tx, lockedEntry.obligationId);
+    const data = { ledgerEntryId: lockedEntry.id, decision: input.decision, summary };
     await appendOperationalAudit(tx, context, {
       entityType: "payment_ledger_approval",
-      entityId: entry.approval.id,
+      entityId: lockedEntry.approval.id,
       action: input.decision === "APPROVED" ? "ledger.adjustment_approved.v1" : "ledger.adjustment_rejected.v1",
-      before: prismaJson({ decision: null, policyVersion: entry.approval.policyVersion }),
+      before: prismaJson({ decision: null, policyVersion: lockedEntry.approval.policyVersion }),
       after: prismaJson({ decision: input.decision }),
       correlationId: meta.correlationId,
       idempotencyKey: meta.idempotencyKey,
@@ -734,12 +771,12 @@ export async function decideLedgerAdjustment(
     });
     await advanceCaseFulfilmentInTransaction(tx, {
       organizationId: context.organizationId,
-      caseId: entry.caseId,
+      caseId: lockedEntry.caseId,
       actorAgentId: context.agentId,
       actorMembershipId: context.membershipId,
       idempotencyKey: meta.idempotencyKey,
       correlationId: meta.correlationId,
-      causationId: entry.id,
+      causationId: lockedEntry.id,
     });
     return { ...data, replayed: false };
   });
@@ -1060,32 +1097,13 @@ async function lockContract(tx: Prisma.TransactionClient, contractId: string): P
   if (rows.length !== 1) throw new OperationalCommandError(404, "Договор не найден");
 }
 
-async function lockLedgerEntry(tx: Prisma.TransactionClient, organizationId: string, entryId: string): Promise<void> {
-  const rows = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
-    FROM "PaymentLedgerEntry"
-    WHERE "id" = ${entryId} AND "organizationId" = ${organizationId}
-    FOR UPDATE
-  `;
-  if (rows.length !== 1) throw new OperationalCommandError(404, "Запись ledger не найдена");
-}
-
 async function assertSourceCapacity(
   tx: Prisma.TransactionClient,
-  source: {
-    id: string;
-    obligationId: string;
-    type: PaymentLedgerEntryType;
-    direction: LedgerDirection;
-    amountKopecks: number;
-    approvalRequired: boolean;
-    approval: { decision: string | null } | null;
-  },
-  requestedAmountKopecks: number,
-  excludeEntryId?: string,
+  obligationId: string,
+  candidate?: LedgerProjectionEntry,
 ): Promise<void> {
   const entries = await tx.paymentLedgerEntry.findMany({
-    where: { obligationId: source.obligationId, ...(excludeEntryId ? { id: { not: excludeEntryId } } : {}) },
+    where: { obligationId },
     select: {
       id: true,
       type: true,
@@ -1097,18 +1115,30 @@ async function assertSourceCapacity(
     },
   });
   const projectionEntries = entries.map(toLedgerProjectionEntry);
-  if (!projectionEntries.some((entry) => entry.id === source.id)) {
-    projectionEntries.push(toLedgerProjectionEntry({ ...source, relatedEntryId: null }));
-  }
-  let remaining: number;
+  if (candidate) projectionEntries.push(candidate);
   try {
-    remaining = remainingSourceCapacityKopecks(projectionEntries, source.id);
+    assertLedgerAdjustmentForestCapacity(projectionEntries);
   } catch {
-    throw new OperationalCommandError(409, "Ledger исходной записи не согласован");
-  }
-  if (requestedAmountKopecks > remaining) {
     throw new OperationalCommandError(422, "Коррекция превышает остаток исходной записи ledger");
   }
+}
+
+async function lockObligationLedger(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  obligationId: string,
+): Promise<void> {
+  await tx.$queryRaw<Array<{ locked: boolean }>>`
+    SELECT pg_advisory_xact_lock(hashtextextended(${`${organizationId}:${obligationId}`}, 0))
+  `;
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "PaymentLedgerEntry"
+    WHERE "organizationId" = ${organizationId} AND "obligationId" = ${obligationId}
+    ORDER BY "id"
+    FOR UPDATE
+  `;
+  if (rows.length === 0) throw new OperationalCommandError(404, "Ledger обязательства не найден");
 }
 
 function toLedgerProjectionEntry(entry: {

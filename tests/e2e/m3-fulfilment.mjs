@@ -234,16 +234,22 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   await target.waitForLoadState("networkidle");
   row = reviewRow(target, publicRef, typeName);
   await row.getByText("Назначен вам", { exact: true }).waitFor();
-  const popupPromise = target.waitForEvent("popup");
   const documentResponsePromise = target.waitForResponse((response) => (
     response.url().includes("/documents/") && response.request().method() === "GET"
   ));
-  await row.getByRole("button", { name: "Открыть" }).click();
-  const [popup, documentResponse] = await Promise.all([popupPromise, documentResponsePromise]);
+  const openButton = row.getByRole("button", { name: "Открыть" });
+  await openButton.focus();
+  await target.keyboard.press("Enter");
+  const documentResponse = await documentResponsePromise;
   assert.equal(documentResponse.status(), 200);
   assert.match(documentResponse.headers()["content-type"] ?? "", /^application\/pdf/);
-  await assertBlobDocumentPopup(popup);
-  await popup.close();
+  const viewer = target.getByRole("dialog", { name: new RegExp(typeName) });
+  await viewer.waitFor();
+  await assertFocused(target, viewer.getByRole("button", { name: "Закрыть документ" }), "document viewer close");
+  const viewerSource = await viewer.locator("iframe").getAttribute("src");
+  assert.match(viewerSource ?? "", /^blob:/, "Protected viewer must render an in-memory blob URL");
+  await target.keyboard.press("Escape");
+  await viewer.waitFor({ state: "hidden" });
   if (decision === "REJECT") {
     await row.getByRole("button", { name: "Отклонить" }).click();
     await row.getByLabel("Причина отклонения").fill("Synthetic UAT: требуется новая читаемая версия");
@@ -257,16 +263,6 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   const responsePromise = target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST");
   await row.getByRole("button", { name: "Проверено" }).click();
   assert.equal((await responsePromise).status(), 200);
-}
-
-async function assertBlobDocumentPopup(popup) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (popup.isClosed()) break;
-    const url = popup.url();
-    if (url.startsWith("blob:")) return;
-    await popup.waitForTimeout(50);
-  }
-  assert.fail(`Protected document popup did not receive a blob URL; observed ${popup.isClosed() ? "closed" : popup.url()}`);
 }
 
 function reviewRow(target, publicRef, typeName) {
@@ -309,7 +305,9 @@ async function completeContract(target, caseFixture, leadId) {
 async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   await target.goto(`${baseUrl}/agent/finance`, { waitUntil: "networkidle" });
   const row = obligationRow(target, publicRef);
-  await row.getByRole("button", { name: /Оплата|Записать оплату/ }).click();
+  const paymentButton = row.getByRole("button", { name: /Оплата|Записать оплату/ });
+  await paymentButton.focus();
+  await target.keyboard.press("Enter");
   const dialog = target.getByRole("dialog", { name: "Записать подтверждённую оплату" });
   await dialog.getByLabel("Сумма, ₽").fill(String(rubles));
   await dialog.getByLabel("Подтверждение").fill(`synthetic-evidence:${publicRef}:${rubles}`);
@@ -502,10 +500,23 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await login(target, identities.financeA, password, /\/agent\/finance/);
   await assertNoOverflow(target, "finance mobile");
   await assertA11y(target, "finance mobile");
+  await target.setViewportSize({ width: 195, height: 422 });
+  await assertNoOverflow(target, "finance 200 percent zoom");
+  await assertA11y(target, "finance 200 percent zoom");
+  await target.setViewportSize({ width: 390, height: 844 });
   await context.clearCookies();
   await login(target, identities.reviewer, password, /\/agent\/document-review/);
   await assertNoOverflow(target, "reviewer mobile");
   await assertA11y(target, "reviewer mobile");
+  await target.setViewportSize({ width: 195, height: 422 });
+  await assertNoOverflow(target, "reviewer 200 percent zoom");
+  await assertA11y(target, "reviewer 200 percent zoom");
+}
+
+async function assertFocused(target, locator, label) {
+  const handle = await locator.elementHandle();
+  assert.ok(handle, `${label} element missing`);
+  assert.equal(await target.evaluate((element) => document.activeElement === element, handle), true, `${label} focus missing`);
 }
 
 async function assertA11y(target, label) {

@@ -306,6 +306,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         await tx.task.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
       }
       if (ownUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: ownUserIds } } });
+      if (ownUserIds.length) await tx.platformAccountActivation.deleteMany({ where: { userId: { in: ownUserIds } } });
       if (caseIds.length) await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
       if (meetingIds.length) await tx.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
       if (orderIds.length) {
@@ -411,6 +412,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
+      () => db.platformAccountActivation.count({ where: { userId: { in: [...createdUserIds] } } }),
       () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       // The mission's own tables. Without these the residue gate was structurally unable to
@@ -468,6 +470,8 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
            LEFT JOIN "PaymentLedgerEntry" e ON e.id = a."ledgerEntryId" WHERE e.id IS NULL)
       + (SELECT count(*) FROM "PaymentWebhookReceipt" r
            LEFT JOIN "Case" c ON c.id = r."caseId" WHERE c.id IS NULL)
+      + (SELECT count(*) FROM "PlatformAccountActivation" a
+           LEFT JOIN "User" u ON u.id = a."userId" WHERE u.id IS NULL)
       AS count
     `;
     if (Number(orphans.count) !== 0) {

@@ -188,6 +188,7 @@ CREATE TABLE "CaseDocumentVersion" (
     "requirementId" TEXT,
     "fileChecksum" TEXT NOT NULL,
     "storageKey" TEXT NOT NULL,
+    "storageEtag" TEXT NOT NULL,
     "originalFilenameEncrypted" TEXT NOT NULL,
     "mimeType" TEXT NOT NULL,
     "size" INTEGER NOT NULL,
@@ -779,6 +780,8 @@ ALTER TABLE "CaseDocumentVersion"
   CHECK (
     "versionNumber" > 0
     AND "size" > 0
+    AND length("fileChecksum") = 64
+    AND length(trim("storageEtag")) > 0
     AND ("status" NOT IN ('IN_REVIEW', 'VERIFIED', 'REJECTED') OR "assignedReviewerMembershipId" IS NOT NULL)
     AND ("status" <> 'VERIFIED' OR ("scanStatus" = 'CLEAN' AND "reviewedByMembershipId" IS NOT NULL AND "reviewedAt" IS NOT NULL))
     AND ("status" <> 'REJECTED' OR ("reviewedByMembershipId" IS NOT NULL AND "reviewedAt" IS NOT NULL AND "rejectionReason" IS NOT NULL))
@@ -844,6 +847,40 @@ ALTER TABLE "FinancialControlPolicy"
   ADD CONSTRAINT "FinancialControlPolicy_threshold_check"
   CHECK ("version" > 0 AND ("correctionThresholdKopecks" IS NULL OR "correctionThresholdKopecks" > 0));
 
+CREATE FUNCTION "protect_payment_ledger_approval_history"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'PaymentLedgerApproval history cannot be deleted';
+  END IF;
+  IF ROW(
+    NEW."organizationId", NEW."ledgerEntryId", NEW."requestedByMembershipId", NEW."policyVersion",
+    NEW."requestReason", NEW."idempotencyKey", NEW."correlationId", NEW."createdAt"
+  ) IS DISTINCT FROM ROW(
+    OLD."organizationId", OLD."ledgerEntryId", OLD."requestedByMembershipId", OLD."policyVersion",
+    OLD."requestReason", OLD."idempotencyKey", OLD."correlationId", OLD."createdAt"
+  ) THEN
+    RAISE EXCEPTION 'PaymentLedgerApproval request identity is immutable';
+  END IF;
+  IF OLD."decision" IS NOT NULL THEN
+    RAISE EXCEPTION 'PaymentLedgerApproval terminal decision is immutable';
+  END IF;
+  IF NEW."decision" IS NULL
+    OR NEW."decidedByMembershipId" IS NULL
+    OR NEW."decidedAt" IS NULL
+    OR NEW."decisionReason" IS NULL THEN
+    RAISE EXCEPTION 'PaymentLedgerApproval may update only through one terminal decision';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "PaymentLedgerApproval_history_guard"
+BEFORE UPDATE OR DELETE ON "PaymentLedgerApproval"
+FOR EACH ROW EXECUTE FUNCTION "protect_payment_ledger_approval_history"();
+
 -- Ledger truth is append-only. Test/restore teardown may bypass triggers only
 -- through PostgreSQL's explicitly privileged session_replication_role.
 CREATE FUNCTION "prevent_payment_ledger_mutation"()
@@ -869,11 +906,11 @@ BEGIN
   END IF;
   IF ROW(
     NEW."documentId", NEW."versionNumber", NEW."organizationId", NEW."caseId", NEW."requirementId",
-    NEW."fileChecksum", NEW."storageKey", NEW."originalFilenameEncrypted", NEW."mimeType", NEW."size",
+    NEW."fileChecksum", NEW."storageKey", NEW."storageEtag", NEW."originalFilenameEncrypted", NEW."mimeType", NEW."size",
     NEW."uploaderMembershipId", NEW."source", NEW."supersedesVersionId", NEW."createdAt"
   ) IS DISTINCT FROM ROW(
     OLD."documentId", OLD."versionNumber", OLD."organizationId", OLD."caseId", OLD."requirementId",
-    OLD."fileChecksum", OLD."storageKey", OLD."originalFilenameEncrypted", OLD."mimeType", OLD."size",
+    OLD."fileChecksum", OLD."storageKey", OLD."storageEtag", OLD."originalFilenameEncrypted", OLD."mimeType", OLD."size",
     OLD."uploaderMembershipId", OLD."source", OLD."supersedesVersionId", OLD."createdAt"
   ) THEN
     RAISE EXCEPTION 'CaseDocumentVersion file identity is immutable';

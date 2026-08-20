@@ -200,6 +200,94 @@ export async function lockDocumentRequirementPolicyScenario(
   return rows[0]?.id ?? null;
 }
 
+export async function checkCaseRequirementMaterializationParity(
+  client: Prisma.TransactionClient | typeof prisma,
+  organizationId: string,
+  caseId: string,
+  scenario: CaseScenario,
+): Promise<{ ok: boolean; reason: string | null; policyId: string | null; expected: number; actual: number }> {
+  if (scenario !== "CREMATION_V1" && scenario !== "FAMILY_PLOT_BURIAL_V1") {
+    return { ok: false, reason: "CASE_SCENARIO_UNSUPPORTED", policyId: null, expected: 0, actual: 0 };
+  }
+  const requirements = await client.caseDocumentRequirement.findMany({
+    where: { organizationId, caseId },
+    select: {
+      policyId: true,
+      ruleId: true,
+      policyVersion: true,
+      stableKey: true,
+      kind: true,
+      conditionExplanation: true,
+      ownerRole: true,
+      blockingStage: true,
+      acceptedDocumentTypeCodes: true,
+      reviewChecklist: true,
+      sourceRule: true,
+    },
+  });
+  const policyIds = [...new Set(requirements.map((requirement) => requirement.policyId))];
+  if (policyIds.length !== 1) {
+    return {
+      ok: false,
+      reason: requirements.length === 0 ? "DOCUMENT_REQUIREMENTS_MISSING" : "MULTIPLE_DOCUMENT_POLICIES_MATERIALIZED",
+      policyId: policyIds[0] ?? null,
+      expected: 0,
+      actual: requirements.length,
+    };
+  }
+  const policy = await client.documentRequirementPolicy.findFirst({
+    where: { id: policyIds[0], scenario, status: { in: ["APPROVED", "RETIRED"] } },
+    select: {
+      id: true,
+      version: true,
+      rules: {
+        select: {
+          id: true,
+          stableKey: true,
+          kind: true,
+          conditionExplanation: true,
+          ownerRole: true,
+          blockingStage: true,
+          acceptedDocumentTypeCodes: true,
+          reviewChecklist: true,
+          source: true,
+        },
+      },
+    },
+  });
+  if (!policy) {
+    return {
+      ok: false,
+      reason: "DOCUMENT_POLICY_INVALID",
+      policyId: policyIds[0],
+      expected: 0,
+      actual: requirements.length,
+    };
+  }
+  const requirementsByRule = new Map(requirements.map((requirement) => [requirement.ruleId, requirement]));
+  const exact = requirements.length === policy.rules.length && policy.rules.every((rule) => {
+    const requirement = requirementsByRule.get(rule.id);
+    return requirement != null
+      && requirement.policyId === policy.id
+      && requirement.policyVersion === policy.version
+      && requirement.stableKey === rule.stableKey
+      && requirement.kind === rule.kind
+      && requirement.conditionExplanation === rule.conditionExplanation
+      && requirement.ownerRole === rule.ownerRole
+      && requirement.blockingStage === rule.blockingStage
+      && sameStringArray(requirement.acceptedDocumentTypeCodes, rule.acceptedDocumentTypeCodes)
+      && sameStringArray(requirement.reviewChecklist, rule.reviewChecklist)
+      && requirement.sourceRule === rule.source;
+  });
+  return {
+    ok: exact,
+    reason: exact ? null : "DOCUMENT_REQUIREMENT_POLICY_PARITY_MISMATCH",
+    policyId: policy.id,
+    expected: policy.rules.length,
+    actual: requirements.length,
+  };
+}
+
 export type RequirementFacts = {
   lead: { ceremonyAt: Date | null };
   parties: Array<{ roles: Array<{ role: string }> }>;
@@ -304,4 +392,10 @@ export async function listCaseDocumentRequirements(context: OperationalContext, 
 
 function stringArray(value: Prisma.JsonValue): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function sameStringArray(left: Prisma.JsonValue, right: Prisma.JsonValue): boolean {
+  const leftValues = stringArray(left);
+  const rightValues = stringArray(right);
+  return leftValues.length === rightValues.length && leftValues.every((value, index) => value === rightValues[index]);
 }

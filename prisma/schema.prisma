@@ -1035,6 +1035,7 @@ model CaseDocumentVersion {
   requirement                  CaseDocumentRequirement? @relation(fields: [requirementId], references: [id], onDelete: Restrict)
   fileChecksum                 String
   storageKey                   String                   @unique
+  storageEtag                  String
   originalFilenameEncrypted    String
   mimeType                     String
   size                         Int

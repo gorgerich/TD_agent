@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowSquareOut, Check, FileMagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 
@@ -43,11 +43,29 @@ export function DocumentReviewClient({
   const [reason, setReason] = useState("");
   const [checks, setChecks] = useState<Record<string, Record<string, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ objectUrl: string; title: string } | null>(null);
+  const viewerCloseRef = useRef<HTMLButtonElement>(null);
   const rows = useMemo(() => initial.filter((item) => {
     if (filter === "available") return item.status === "UPLOADED" && item.assignedReviewerMembershipId == null;
     if (filter === "mine") return item.assignedReviewerMembershipId === membershipId;
     return true;
   }), [filter, initial, membershipId]);
+
+  useEffect(() => {
+    if (!viewer) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    viewerCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewer(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      URL.revokeObjectURL(viewer.objectUrl);
+    };
+  }, [viewer]);
 
   async function command(path: string, body?: unknown) {
     const commandId = crypto.randomUUID();
@@ -113,12 +131,6 @@ export function DocumentReviewClient({
   }
 
   async function open(item: QueueItem) {
-    const popup = window.open("about:blank", "_blank");
-    if (!popup) {
-      setError("Браузер заблокировал новое окно. Разрешите открытие и повторите действие.");
-      return;
-    }
-    popup.opener = null;
     setBusyId(item.id);
     setError(null);
     try {
@@ -129,10 +141,11 @@ export function DocumentReviewClient({
       });
       if (!response.ok) throw new Error("Файл недоступен");
       const objectUrl = URL.createObjectURL(await response.blob());
-      popup.location.replace(objectUrl);
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      setViewer({
+        objectUrl,
+        title: `${item.document.documentType.name}, ${item.case.publicRef}`,
+      });
     } catch (cause) {
-      popup.close();
       setError(cause instanceof Error ? cause.message : "Файл недоступен");
     } finally {
       setBusyId(null);
@@ -252,6 +265,19 @@ export function DocumentReviewClient({
               );
             })}
           </ul>
+        </div>
+      )}
+      {viewer && (
+        <div className="fixed inset-0 z-[1000] flex flex-col bg-surface" role="dialog" aria-modal="true" aria-labelledby="document-viewer-title">
+          <div className="flex min-h-14 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
+            <h2 id="document-viewer-title" className="min-w-0 truncate text-[15px] font-semibold text-ink">
+              {viewer.title}
+            </h2>
+            <button ref={viewerCloseRef} type="button" onClick={() => setViewer(null)} className="td-icon-button h-11 w-11 shrink-0" aria-label="Закрыть документ">
+              <X size={18} weight="bold" />
+            </button>
+          </div>
+          <iframe title={`Просмотр: ${viewer.title}`} src={viewer.objectUrl} className="min-h-0 flex-1 bg-white" />
         </div>
       )}
     </div>

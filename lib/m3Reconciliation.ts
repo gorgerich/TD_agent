@@ -8,7 +8,10 @@ import {
   evaluateFulfilmentGuards,
   remainingSourceCapacityKopecks,
 } from "@/lib/m3Domain";
-import { evaluateRequirementCondition } from "@/lib/documentRequirementService";
+import {
+  checkCaseRequirementMaterializationParity,
+  evaluateRequirementCondition,
+} from "@/lib/documentRequirementService";
 
 export type M3Discrepancy = {
   code: string;
@@ -32,6 +35,7 @@ export async function reconcileM3Case(
     select: {
       id: true,
       tenantId: true,
+      scenarioId: true,
       stage: true,
       publishedQuoteVersionId: true,
       lead: { select: { ceremonyAt: true } },
@@ -137,6 +141,22 @@ export async function reconcileM3Case(
     if (party.organizationId !== record.tenantId || party.roles.some((role) => role.organizationId !== record.tenantId)) {
       push("PARTY_TENANT_MISMATCH", "case_party", party.id, "Party или role assignment не принадлежат tenant кейса");
     }
+  }
+
+
+  const documentParity = await checkCaseRequirementMaterializationParity(
+    client,
+    record.tenantId,
+    record.id,
+    record.scenarioId,
+  );
+  if (!documentParity.ok) {
+    push(
+      documentParity.reason ?? "DOCUMENT_REQUIREMENT_POLICY_PARITY_MISMATCH",
+      "case",
+      record.id,
+      `Materialized document requirements не совпадают с policy rules (${documentParity.actual}/${documentParity.expected})`,
+    );
   }
 
   const now = new Date();
@@ -312,14 +332,33 @@ export async function reconcileM3Case(
   }
 
   const auditableEntities = [
-    ...record.parties.map((entity) => ({ entityType: "case_party", id: entity.id })),
+    ...record.parties.map((entity) => ({ entityType: "case_party", id: entity.id, actions: ["case_party.created.v1"] })),
     ...record.documentRequirements.flatMap((requirement) =>
-      (requirement.document?.versions ?? []).map((entity) => ({ entityType: "document_version", id: entity.id }))),
-    ...record.contractVersions.map((entity) => ({ entityType: "contract_version", id: entity.id })),
+      (requirement.document?.versions ?? []).map((entity) => ({
+        entityType: "document_version",
+        id: entity.id,
+        actions: documentAuditActions(entity.status),
+      }))),
+    ...record.contractVersions.map((entity) => ({
+      entityType: "contract_version",
+      id: entity.id,
+      actions: contractAuditActions(entity.status),
+    })),
     ...record.contractVersions.flatMap((version) => version.obligation
       ? [
-          { entityType: "payment_obligation", id: version.obligation.id },
-          ...version.obligation.ledgerEntries.map((entity) => ({ entityType: "payment_ledger_entry", id: entity.id })),
+          { entityType: "payment_obligation", id: version.obligation.id, actions: ["payment.obligation_created.v1"] },
+          ...version.obligation.ledgerEntries.flatMap((entity) => [
+            {
+              entityType: "payment_ledger_entry",
+              id: entity.id,
+              actions: [ledgerAuditAction(entity.type, entity.webhookReceipt != null)],
+            },
+            ...(entity.approval ? [{
+              entityType: "payment_ledger_approval",
+              id: entity.approval.id,
+              actions: approvalAuditActions(entity.approval.decision),
+            }] : []),
+          ]),
         ]
       : []),
   ];
@@ -329,18 +368,21 @@ export async function reconcileM3Case(
         organizationId: context.organizationId,
         OR: auditableEntities.map((entity) => ({ entityType: entity.entityType, entityId: entity.id })),
       },
-      select: { entityType: true, entityId: true },
+      select: { entityType: true, entityId: true, action: true },
     });
-    const audited = new Set(audits.map((audit) => `${audit.entityType}:${audit.entityId}`));
+    const audited = new Set(audits.map((audit) => `${audit.entityType}:${audit.entityId}:${audit.action}`));
     for (const entity of auditableEntities) {
-      if (!audited.has(`${entity.entityType}:${entity.id}`)) {
-        push("AUDIT_MISSING", entity.entityType, entity.id, "Для M3 entity отсутствует immutable operational audit");
+      for (const action of entity.actions) {
+        if (!audited.has(`${entity.entityType}:${entity.id}:${action}`)) {
+          push("AUDIT_MISSING", entity.entityType, entity.id, `Для M3 transition отсутствует immutable audit ${action}`);
+        }
       }
     }
   }
 
   const guards = evaluateFulfilmentGuards({
-    policyApproved: record.documentRequirements.length > 0
+    policyApproved: documentParity.ok
+      && record.documentRequirements.length > 0
       && record.documentRequirements.every((requirement) => requirement.policy.status !== "DRAFT_POLICY"),
     requiredDocuments,
     contractStatus: contract?.status ?? "MISSING",
@@ -357,4 +399,36 @@ export async function reconcileM3Case(
     pendingFinancialAdjustments,
     fulfilment: guards,
   };
+}
+
+function documentAuditActions(status: string): string[] {
+  const actions = ["document.version_uploaded.v1"];
+  if (status === "IN_REVIEW" || status === "VERIFIED" || status === "REJECTED") {
+    actions.push("document.review_started.v1");
+  }
+  if (status === "VERIFIED") actions.push("document.verified.v1");
+  if (status === "REJECTED") actions.push("document.rejected.v1");
+  return actions;
+}
+
+function contractAuditActions(status: string): string[] {
+  const actions = ["contract.version_created.v1"];
+  if (status !== "DRAFT") actions.push("contract.issued.v1");
+  if (status === "SIGNED" || status === "SUPERSEDED") actions.push("contract.signed_obligation_created.v1");
+  if (status === "SUPERSEDED") actions.push("contract.superseded.v1");
+  return actions;
+}
+
+function ledgerAuditAction(type: string, webhook: boolean): string {
+  if (type === "OBLIGATION") return "ledger.obligation_appended.v1";
+  if (type === "PAYMENT") return webhook ? "ledger.webhook_payment_appended.v1" : "ledger.payment_appended.v1";
+  if (type === "REFUND") return "ledger.refund_appended.v1";
+  return "ledger.adjustment_requested.v1";
+}
+
+function approvalAuditActions(decision: string | null): string[] {
+  const actions = ["ledger.adjustment_approval_requested.v1"];
+  if (decision === "APPROVED") actions.push("ledger.adjustment_approved.v1");
+  if (decision === "REJECTED") actions.push("ledger.adjustment_rejected.v1");
+  return actions;
 }

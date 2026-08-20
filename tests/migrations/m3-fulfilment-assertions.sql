@@ -35,6 +35,9 @@ BEGIN
     WHERE tgname = 'CaseDocumentVersion_history_guard' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
+    WHERE tgname = 'PaymentLedgerApproval_history_guard' AND tgenabled = 'O'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
     WHERE tgname = 'ContractVersion_history_guard' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
@@ -56,6 +59,17 @@ BEGIN
     WHERE tgname = 'DocumentTypeDefinition_approved_guard' AND tgenabled = 'O'
   ) THEN
     RAISE EXCEPTION 'M3 immutable-history trigger missing or disabled';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS columns_metadata
+    WHERE columns_metadata.table_schema = 'public'
+      AND columns_metadata.table_name = 'CaseDocumentVersion'
+      AND columns_metadata.column_name = 'storageEtag'
+      AND columns_metadata.is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'CaseDocumentVersion immutable storage ETag missing';
   END IF;
 
   IF NOT EXISTS (

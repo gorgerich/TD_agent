@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   DocumentStorage,
   PrivateDocumentRead,
@@ -15,7 +16,7 @@ export class InMemoryTestStorage implements DocumentStorage {
     if (this.objects.has(storageKey)) throw new Error(`duplicate test storage key: ${storageKey}`);
     const bytes = new Uint8Array(await file.arrayBuffer());
     this.objects.set(storageKey, { bytes: bytes.slice(), contentType: file.type });
-    return { storageKey };
+    return { storageKey, etag: checksum(bytes) };
   }
 
   async readPrivate(storageKey: string): Promise<PrivateDocumentRead | null> {
@@ -31,7 +32,7 @@ export class InMemoryTestStorage implements DocumentStorage {
       }),
       contentType: object.contentType,
       size: copy.byteLength,
-      etag: `test-${copy.byteLength}`,
+      etag: checksum(copy),
     };
   }
 
@@ -61,4 +62,8 @@ export class InMemoryTestStorage implements DocumentStorage {
   clear() {
     this.objects.clear();
   }
+}
+
+function checksum(bytes: Uint8Array) {
+  return createHash("sha256").update(bytes).digest("hex");
 }

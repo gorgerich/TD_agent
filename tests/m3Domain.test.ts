@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertLedgerAdjustmentForestCapacity,
   deriveCaseDocumentTruth,
   deriveLedgerSummary,
   evaluateDocumentRequirement,
@@ -192,6 +193,28 @@ test("M3-W6: reversing an adjustment reopens only its outstanding source capacit
   ];
   assert.equal(remainingSourceCapacityKopecks(entries, "p"), 7_500);
   assert.equal(remainingSourceCapacityKopecks(entries, "correction"), 2_500);
+});
+
+test("M3-W6: nested pending adjustment cannot exceed an immutable ancestor", () => {
+  const entries: LedgerProjectionEntry[] = [
+    { id: "p", type: "PAYMENT", direction: "CREDIT", amountKopecks: 10_000, effective: true },
+    { id: "refund", type: "REFUND", direction: "DEBIT", amountKopecks: 10_000, effective: true, relatedEntryId: "p" },
+    { id: "reversal", type: "REVERSAL", direction: "CREDIT", amountKopecks: 10_000, effective: true, relatedEntryId: "refund" },
+    {
+      id: "nested-pending",
+      type: "CORRECTION",
+      direction: "CREDIT",
+      amountKopecks: 1,
+      effective: false,
+      reserved: true,
+      relatedEntryId: "reversal",
+    },
+  ];
+  assert.equal(remainingSourceCapacityKopecks(entries.slice(0, 3), "reversal"), 10_000);
+  assert.throws(
+    () => assertLedgerAdjustmentForestCapacity(entries),
+    /immutable root amount/,
+  );
 });
 
 test("M3-W6: refund over-reversal fails closed", () => {

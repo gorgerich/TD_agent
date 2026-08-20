@@ -11,6 +11,7 @@ import {
 } from "@/lib/caseDomain";
 import { projectCaseEventInTransaction } from "@/lib/operationsProjection";
 import {
+  checkCaseRequirementMaterializationParity,
   lockDocumentRequirementPolicyScenario,
   materializeCaseRequirementsInTransaction,
   refreshCaseRequirementApplicabilityInTransaction,
@@ -276,12 +277,16 @@ export async function transitionCaseInTransaction(
   const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, input.eventType);
   if (replay) return replayResult(replay.result);
 
+  const documentParity = input.eventType === "scenario.selected.v1"
+    ? { ok: true }
+    : await checkCaseRequirementMaterializationParity(tx, tenantId, aggregate.id, aggregate.scenarioId);
+
   const evaluated = evaluateCaseTransition({
     stage: aggregate.stage,
     scenarioId: aggregate.scenarioId,
     eventType: input.eventType,
     payload: input.payload,
-    facts: transitionFacts(aggregate),
+    facts: transitionFacts(aggregate, documentParity.ok),
   });
   const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
   const nextScenario = evaluated.scenarioId ?? aggregate.scenarioId;
@@ -500,7 +505,7 @@ async function lockCaseForCommand(
 
 type LoadedAggregate = NonNullable<Awaited<ReturnType<typeof loadAggregate>>>;
 
-function transitionFacts(aggregate: LoadedAggregate): CaseTransitionFacts {
+function transitionFacts(aggregate: LoadedAggregate, documentPolicyComplete: boolean): CaseTransitionFacts {
   const availableQuoteVersionIds = aggregate.lead.meetings.flatMap((meeting) =>
     meeting.quotes.flatMap((quote) => quote.versions.map((version) => version.id)),
   );
@@ -530,7 +535,7 @@ function transitionFacts(aggregate: LoadedAggregate): CaseTransitionFacts {
   const pendingFinancialAdjustments = obligation?.ledgerEntries.filter((entry) => (
     entry.approvalRequired && entry.approval?.decision == null
   )).length ?? 0;
-  const documentTruth = deriveCaseDocumentTruth(aggregate.documentRequirements.filter((requirement) => requirement.isApplicable).map((requirement) => ({
+  const documentTruth = deriveCaseDocumentTruth((documentPolicyComplete ? aggregate.documentRequirements : []).filter((requirement) => requirement.isApplicable).map((requirement) => ({
     stableKey: requirement.stableKey,
     blockingStage: requirement.blockingStage,
     versions: requirement.document?.versions ?? [],

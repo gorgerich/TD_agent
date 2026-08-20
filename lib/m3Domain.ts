@@ -349,6 +349,14 @@ export function remainingSourceCapacityKopecks(
   return source.amountKopecks - used;
 }
 
+export function assertLedgerAdjustmentForestCapacity(entries: readonly LedgerProjectionEntry[]): void {
+  const participating = entries.filter((entry) => entry.effective || entry.reserved);
+  for (const source of participating) {
+    if (!source.effective || source.type === "OBLIGATION") continue;
+    remainingSourceCapacityKopecks(entries, source.id);
+  }
+}
+
 function adjustmentDescendsFromRefund(
   entry: LedgerProjectionEntry,
   entriesById: ReadonlyMap<string, LedgerProjectionEntry>,

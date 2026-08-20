@@ -5,7 +5,7 @@ import { del, get, put } from "@vercel/blob";
 
 const ISOLATED_STORAGE_ROOT = path.join(process.cwd(), ".m3-private-storage");
 
-export type StoredPrivateDocument = { storageKey: string };
+export type StoredPrivateDocument = { storageKey: string; etag: string };
 
 export type PrivateDocumentRead = {
   stream: ReadableStream<Uint8Array>;
@@ -33,7 +33,7 @@ const vercelBlobStorage: DocumentStorage = {
       allowOverwrite: false,
       contentType: file.type,
     });
-    return { storageKey: blob.pathname };
+    return { storageKey: blob.pathname, etag: blob.etag };
   },
   async readPrivate(storageKey) {
     const blob = await get(storageKey, { access: "private", useCache: false });
@@ -55,8 +55,9 @@ const isolatedFilesystemStorage: DocumentStorage = {
   async putPrivate(storageKey, file) {
     const target = isolatedStoragePath(storageKey);
     await mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-    await writeFile(target, new Uint8Array(await file.arrayBuffer()), { flag: "wx", mode: 0o600 });
-    return { storageKey };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await writeFile(target, bytes, { flag: "wx", mode: 0o600 });
+    return { storageKey, etag: createHash("sha256").update(bytes).digest("hex") };
   },
   async readPrivate(storageKey) {
     try {

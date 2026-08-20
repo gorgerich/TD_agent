@@ -319,7 +319,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     decideDocumentReview(reviewerTwo.context, identityUpload.versionId, {
       decision: "VERIFIED",
       checklist: { "identity-match": true },
-    }, meta("identity-review-wrong-reviewer")),
+    }, meta("identity-review-wrong-reviewer"), storage),
     404,
   );
 
@@ -333,7 +333,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   await decideDocumentReview(reviewerOne.context, deathUpload.versionId, {
     decision: "VERIFIED",
     checklist: { "death-record-match": true },
-  }, meta("death-review-decision"));
+  }, meta("death-review-decision"), storage);
   const authorizedRead = await readAuthorizedDocument(
     reviewerOne.context,
     identityUpload.versionId,
@@ -368,6 +368,18 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   );
   assert.equal(await db.documentAccessEvent.count({ where: { documentVersionId: identityUpload.versionId } }), 1);
   await expectCommandError(
+    decideDocumentReview(reviewerOne.context, identityUpload.versionId, {
+      decision: "VERIFIED",
+      checklist: { "identity-match": true },
+    }, meta("identity-tampered-review"), storage),
+    409,
+    /Целостность/,
+  );
+  assert.equal(
+    (await db.caseDocumentRequirement.findUniqueOrThrow({ where: { id: identityRequirement.id } })).satisfactionStatus,
+    "NOT_SATISFIED",
+  );
+  await expectCommandError(
     readAuthorizedDocument(
       reviewerTwo.context,
       identityUpload.versionId,
@@ -393,7 +405,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   await decideDocumentReview(reviewerOne.context, identityUpload.versionId, {
     decision: "VERIFIED",
     checklist: { "identity-match": true },
-  }, meta("identity-review-decision"));
+  }, meta("identity-review-decision"), storage);
   await expectCommandError(
     readAuthorizedDocument(
       reviewerOne.context,
@@ -599,7 +611,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   await decideDocumentReview(reviewerOne.context, replacement.versionId, {
     decision: "VERIFIED",
     checklist: { "scenario-evidence": true },
-  }, meta("scenario-review-decision"));
+  }, meta("scenario-review-decision"), storage);
   assert.equal((await db.case.findUniqueOrThrow({ where: { id: caseRecord.id } })).stage, "PAYMENT");
   assert.equal((await getCanonicalCase(manager.context, caseRecord.leadId))?.guardState.payment_satisfied, false);
   assert.equal(await db.caseEvent.count({
@@ -695,6 +707,15 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   ]);
   assert.equal(decisions.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(decisions.filter((result) => result.status === "rejected").length, 1);
+  await expectCommandError(requestLedgerAdjustment(financeOne.context, {
+    type: "CORRECTION",
+    relatedEntryId: adjustment.ledgerEntryId,
+    direction: "CREDIT",
+    amountKopecks: 1,
+    occurredAt: new Date("2026-08-11T13:35:00Z"),
+    evidenceReference: "synthetic-nested-ancestor-overflow",
+    reason: "Nested reservation must preserve every immutable ancestor",
+  }, meta("nested-ancestor-overflow")), 422, /исходной записи/);
 
   const secondRefund = await recordRefund(financeOne.context, {
     paymentEntryId: half.ledgerEntryId,
@@ -723,6 +744,20 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     reason: "Approve in-flight adjustment under its immutable retired policy snapshot",
   }, meta("second-reversal-approve"));
   assert.equal(retiredPolicyDecision.decision, "APPROVED");
+  const terminalApproval = await db.paymentLedgerApproval.findUniqueOrThrow({
+    where: { ledgerEntryId: secondReversal.ledgerEntryId },
+  });
+  await assert.rejects(
+    db.paymentLedgerApproval.update({
+      where: { id: terminalApproval.id },
+      data: { decisionReason: "forbidden rewrite" },
+    }),
+    /terminal decision is immutable/i,
+  );
+  await assert.rejects(
+    db.paymentLedgerApproval.delete({ where: { id: terminalApproval.id } }),
+    /history cannot be deleted/i,
+  );
 
   const restoredSummary = await getPaymentSummary(financeOne.context, signed.obligationId);
   assert.equal(restoredSummary.status, "PAID");
@@ -789,6 +824,34 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     context: caseCommandContext("execution-confirmed"),
   });
   assert.equal(executionConfirmation.stage, "EXECUTION");
+  const parityTarget = await db.caseDocumentRequirement.findFirstOrThrow({
+    where: { caseId: caseRecord.id },
+    select: { id: true, sourceRule: true },
+  });
+  await db.caseDocumentRequirement.update({
+    where: { id: parityTarget.id },
+    data: { sourceRule: "synthetic-stale-materialized-rule" },
+  });
+  const parityDrift = await reconcileM3Case(manager.context, caseRecord.id);
+  assert.equal(
+    parityDrift.discrepancies.some((item) => item.code === "DOCUMENT_REQUIREMENT_POLICY_PARITY_MISMATCH"),
+    true,
+  );
+  await assert.rejects(
+    transitionCase({
+      leadId: caseRecord.leadId,
+      eventType: "case.closure_requested.v1",
+      context: caseCommandContext("closure-with-stale-materialization"),
+    }),
+    (error: unknown) => error instanceof CaseDomainError
+      && error.code === "GUARD_FAILED"
+      && Array.isArray(error.details.missing)
+      && error.details.missing.includes("identity_verified"),
+  );
+  await db.caseDocumentRequirement.update({
+    where: { id: parityTarget.id },
+    data: { sourceRule: parityTarget.sourceRule },
+  });
   const closed = await transitionCase({
     leadId: caseRecord.leadId,
     eventType: "case.closure_requested.v1",

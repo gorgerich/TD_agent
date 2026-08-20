@@ -308,6 +308,7 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
         requirementId: requirement.id,
         fileChecksum: "c".repeat(64),
         storageKey: `integration/${fixtures.runId}/${requirement.id}`,
+        storageEtag: "c".repeat(64),
         originalFilenameEncrypted: "enc1:synthetic",
         mimeType: "application/pdf",
         size: 128,

@@ -128,6 +128,7 @@ export async function uploadCaseDocument(
           requirementId: prerequisite.requirementId,
           fileChecksum: checksum,
           storageKey: stored.storageKey,
+          storageEtag: stored.etag,
           originalFilenameEncrypted: encryptField(sanitizeFilename(input.file.name)),
           mimeType: input.file.type,
           size: input.file.size,
@@ -251,6 +252,7 @@ export async function decideDocumentReview(
     expiresAt?: Date | null;
   },
   meta: M3CommandMeta,
+  storage: DocumentStorage = getDocumentStorage(),
 ) {
   assertCapability(context, "documents:review");
   validateM3CommandMeta(meta);
@@ -264,6 +266,41 @@ export async function decideDocumentReview(
     reason: input.reason?.trim() ?? null,
     expiresAt: input.expiresAt?.toISOString() ?? null,
   });
+  const existingReplay = await prisma.operationalAuditEvent.findUnique({
+    where: {
+      organizationId_idempotencyKey: {
+        organizationId: context.organizationId,
+        idempotencyKey: meta.idempotencyKey,
+      },
+    },
+    select: { result: true },
+  });
+  if (existingReplay) {
+    const data = readReplayResult<{ versionId: string; decision: "VERIFIED" | "REJECTED" }>(
+      existingReplay.result,
+      fingerprint,
+    );
+    if (!data) throw new OperationalCommandError(409, "Idempotency result решения повреждён");
+    return { ...data, replayed: true };
+  }
+
+  let verifiedStorageIdentity: DocumentIntegrityMetadata | null = null;
+  if (input.decision === "VERIFIED") {
+    verifiedStorageIdentity = await prisma.caseDocumentVersion.findFirst({
+      where: {
+        id: versionId,
+        organizationId: context.organizationId,
+        assignedReviewerMembershipId: context.membershipId,
+      },
+      select: DOCUMENT_INTEGRITY_SELECT,
+    });
+    if (!verifiedStorageIdentity) throw new OperationalCommandError(404, "Версия документа не найдена");
+    if (verifiedStorageIdentity.status !== "IN_REVIEW" || verifiedStorageIdentity.scanStatus !== "CLEAN") {
+      throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
+    }
+    await readVerifiedStorageObject(storage, verifiedStorageIdentity);
+  }
+
   return runOperationalTransaction(async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
@@ -287,6 +324,9 @@ export async function decideDocumentReview(
       throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
     }
     if (input.decision === "VERIFIED") {
+      if (!verifiedStorageIdentity || !sameStorageIdentity(version, verifiedStorageIdentity)) {
+        throw new OperationalCommandError(409, "Файловая версия изменилась во время проверки", "DOCUMENT_INTEGRITY_MISMATCH");
+      }
       const requiredChecks = stringList(version.requirement?.reviewChecklist);
       if (requiredChecks.some((key) => input.checklist[key] !== true)) {
         throw new OperationalCommandError(422, "Заполните обязательный checklist проверки");
@@ -533,23 +573,10 @@ export async function readAuthorizedDocument(
         : { status: { in: ["UPLOADED", "IN_REVIEW", "VERIFIED", "REJECTED", "EXPIRED", "SUPERSEDED"] } }),
       ...(context.role === "AGENT" ? { case: { ownerId: context.agentId } } : {}),
     },
-    select: { id: true, caseId: true, storageKey: true, mimeType: true, size: true, fileChecksum: true },
+    select: DOCUMENT_INTEGRITY_SELECT,
   });
   if (!version) throw new OperationalCommandError(404, "Документ не найден");
-  const file = await storage.readPrivate(version.storageKey);
-  if (!file) throw new OperationalCommandError(404, "Файл документа недоступен");
-  const bytes = new Uint8Array(await new Response(file.stream).arrayBuffer());
-  const checksum = createHash("sha256").update(bytes).digest("hex");
-  const contentTypeMatches = file.contentType === version.mimeType || file.contentType === "application/octet-stream";
-  if (file.size !== version.size || bytes.byteLength !== version.size || checksum !== version.fileChecksum || !contentTypeMatches) {
-    throw new OperationalCommandError(409, "Целостность файла не подтверждена", "DOCUMENT_INTEGRITY_MISMATCH");
-  }
-  const verifiedFile: PrivateDocumentRead = {
-    stream: new Blob([bytes], { type: version.mimeType }).stream(),
-    contentType: version.mimeType,
-    size: version.size,
-    etag: checksum,
-  };
+  const verifiedFile = await readVerifiedStorageObject(storage, version);
   await prisma.$transaction(async (tx) => {
     await tx.documentAccessEvent.create({
       data: {
@@ -649,4 +676,61 @@ function buildOpaqueStorageKey(organizationId: string, caseId: string, mimeType:
 
 function stringList(value: Prisma.JsonValue | null | undefined): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+const DOCUMENT_INTEGRITY_SELECT = {
+  id: true,
+  caseId: true,
+  storageKey: true,
+  storageEtag: true,
+  mimeType: true,
+  size: true,
+  fileChecksum: true,
+  status: true,
+  scanStatus: true,
+} satisfies Prisma.CaseDocumentVersionSelect;
+
+type DocumentIntegrityMetadata = Prisma.CaseDocumentVersionGetPayload<{
+  select: typeof DOCUMENT_INTEGRITY_SELECT;
+}>;
+
+function sameStorageIdentity(left: DocumentIntegrityMetadata, right: DocumentIntegrityMetadata): boolean {
+  return left.id === right.id
+    && left.caseId === right.caseId
+    && left.storageKey === right.storageKey
+    && left.storageEtag === right.storageEtag
+    && left.mimeType === right.mimeType
+    && left.size === right.size
+    && left.fileChecksum === right.fileChecksum;
+}
+
+async function readVerifiedStorageObject(
+  storage: DocumentStorage,
+  version: DocumentIntegrityMetadata,
+): Promise<PrivateDocumentRead> {
+  if (!storage.isConfigured()) {
+    throw new OperationalCommandError(503, "Приватное хранилище документов недоступно", "PRIVATE_STORAGE_UNAVAILABLE");
+  }
+  const file = await storage.readPrivate(version.storageKey);
+  if (!file) {
+    throw new OperationalCommandError(409, "Целостность файла не подтверждена", "DOCUMENT_INTEGRITY_MISMATCH");
+  }
+  const bytes = new Uint8Array(await new Response(file.stream).arrayBuffer());
+  const checksum = createHash("sha256").update(bytes).digest("hex");
+  const contentTypeMatches = file.contentType === version.mimeType || file.contentType === "application/octet-stream";
+  if (
+    file.etag !== version.storageEtag
+    || file.size !== version.size
+    || bytes.byteLength !== version.size
+    || checksum !== version.fileChecksum
+    || !contentTypeMatches
+  ) {
+    throw new OperationalCommandError(409, "Целостность файла не подтверждена", "DOCUMENT_INTEGRITY_MISMATCH");
+  }
+  return {
+    stream: new Blob([bytes], { type: version.mimeType }).stream(),
+    contentType: version.mimeType,
+    size: version.size,
+    etag: file.etag,
+  };
 }
