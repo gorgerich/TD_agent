@@ -284,9 +284,15 @@ async function completeContract(target, caseFixture, leadId) {
   let responsePromise = target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST");
   await target.getByRole("button", { name: "Создать", exact: true }).click();
   assert.equal((await responsePromise).status(), 200);
-  responsePromise = target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST");
-  await target.getByRole("button", { name: "Выдать договор" }).click();
-  assert.equal((await responsePromise).status(), 200);
+  await target.getByText(/v\d+ · Черновик/).waitFor();
+  await target.waitForLoadState("networkidle");
+  const issueButton = target.getByRole("button", { name: "Выдать договор" });
+  assert.equal(await issueButton.isEnabled(), true, "Issue action must be enabled after the canonical draft refresh");
+  const [issueResponse] = await Promise.all([
+    target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST"),
+    issueButton.click(),
+  ]);
+  assert.equal(issueResponse.status(), 200);
   await target.getByRole("button", { name: "Зафиксировать подписание" }).click();
   await target.getByLabel("Тип подтверждения").fill("SYNTHETIC_UAT_ACK");
   await target.getByLabel("Ссылка или реестр подтверждения").fill(`synthetic-evidence:${caseFixture.canonicalId}`);
