@@ -293,6 +293,47 @@ export function deriveLedgerSummary(
   };
 }
 
+export function remainingRefundableKopecks(
+  entries: readonly LedgerProjectionEntry[],
+  paymentEntryId: string,
+): number {
+  const effective = entries.filter((entry) => entry.effective);
+  const entriesById = new Map<string, LedgerProjectionEntry>();
+  for (const entry of entries) {
+    if (entriesById.has(entry.id)) throw new Error("Ledger entry IDs must be unique");
+    entriesById.set(entry.id, entry);
+  }
+
+  const payment = entriesById.get(paymentEntryId);
+  if (!payment?.effective || payment.type !== "PAYMENT" || payment.direction !== "CREDIT") {
+    throw new Error("Refund capacity requires an effective payment");
+  }
+  if (!Number.isSafeInteger(payment.amountKopecks) || payment.amountKopecks <= 0) {
+    throw new Error("Ledger amounts must be positive safe integers in minor units");
+  }
+
+  const refundRoots = effective.filter((entry) => {
+    if (entry.type !== "REFUND" || entry.relatedEntryId !== paymentEntryId) return false;
+    if (entry.direction !== "DEBIT") throw new Error("Refund entries must use DEBIT direction");
+    return true;
+  });
+  let refundedKopecks = 0;
+  for (const entry of effective) {
+    const belongsToPaymentRefund = refundRoots.some((refund) => (
+      entry.id === refund.id || ledgerEntryDescendsFrom(entry, refund.id, entriesById)
+    ));
+    if (!belongsToPaymentRefund) continue;
+    refundedKopecks = safeAdd(
+      refundedKopecks,
+      entry.direction === "DEBIT" ? entry.amountKopecks : -entry.amountKopecks,
+    );
+  }
+  if (refundedKopecks < 0 || refundedKopecks > payment.amountKopecks) {
+    throw new Error("Refund ledger exceeds the effective payment amount");
+  }
+  return payment.amountKopecks - refundedKopecks;
+}
+
 function adjustmentDescendsFromRefund(
   entry: LedgerProjectionEntry,
   entriesById: ReadonlyMap<string, LedgerProjectionEntry>,
@@ -310,6 +351,25 @@ function adjustmentDescendsFromRefund(
     if (!related.effective) throw new Error("Ledger adjustment cannot depend on an ineffective entry");
     if (related.type === "REFUND") return true;
     if (related.type !== "CORRECTION" && related.type !== "REVERSAL") return false;
+    relatedId = related.relatedEntryId;
+  }
+  return false;
+}
+
+function ledgerEntryDescendsFrom(
+  entry: LedgerProjectionEntry,
+  ancestorId: string,
+  entriesById: ReadonlyMap<string, LedgerProjectionEntry>,
+): boolean {
+  const visited = new Set<string>([entry.id]);
+  let relatedId: string | null | undefined = entry.relatedEntryId;
+  while (relatedId) {
+    if (relatedId === ancestorId) return true;
+    if (visited.has(relatedId)) throw new Error("Ledger adjustment relations cannot contain a cycle");
+    visited.add(relatedId);
+    const related = entriesById.get(relatedId);
+    if (!related) throw new Error("Ledger adjustment references an unknown entry");
+    if (!related.effective) throw new Error("Ledger adjustment cannot depend on an ineffective entry");
     relatedId = related.relatedEntryId;
   }
   return false;

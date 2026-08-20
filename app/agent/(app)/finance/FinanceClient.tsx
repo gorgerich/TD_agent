@@ -17,6 +17,7 @@ type LedgerEntry = {
   source: string;
   evidenceReference: string;
   relatedEntryId: string | null;
+  remainingRefundableKopecks: number | null;
   approvalRequired: boolean;
   approval: { decision: string | null } | null;
 };
@@ -208,7 +209,7 @@ export function FinanceClient({
         <div>
           <h1 className="td-display text-[30px] text-ink sm:text-[38px]">Финансы</h1>
           <p className="mt-2 max-w-[70ch] text-[13px] leading-relaxed text-ink-2">
-            Обязательства и append-only ledger. Семейные заметки, документы и внутренняя коммерческая маржа не загружаются.
+            Обязательства и неизменяемый реестр операций. Семейные заметки, документы и внутренняя коммерческая маржа не загружаются.
           </p>
         </div>
         <a href="/api/agent/finance/export" className={buttonClasses({ variant: "secondary", size: "sm" })}>
@@ -227,7 +228,7 @@ export function FinanceClient({
                 <li key={item.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
                   <div>
                     <strong className="text-[14px] text-ink">{ENTRY_LABELS[item.ledgerEntry.type] ?? item.ledgerEntry.type} · {moneyFromKopecks(item.ledgerEntry.amountKopecks)}</strong>
-                    <p className="mt-1 text-[12px] text-ink-3">Policy v{item.policyVersion} · {item.requestReason}</p>
+                    <p className="mt-1 text-[12px] text-ink-3">Правило v{item.policyVersion} · {item.requestReason}</p>
                     {ownRequest && <p className="mt-1 text-[12px] font-medium text-warning">Решение должен принять другой сотрудник Finance.</p>}
                   </div>
                   {!ownRequest && (
@@ -277,7 +278,7 @@ export function FinanceClient({
                 </dl>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button type="button" size="sm" onClick={() => openAction({ kind: "PAYMENT", obligation: item })} disabled={!item.payerPartyId}>Записать оплату</Button>
-                  <button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => setLedger(item)}><ListMagnifyingGlass size={15} /> Ledger</button>
+                  <button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => setLedger(item)}><ListMagnifyingGlass size={15} /> Реестр</button>
                 </div>
               </li>
             ))}
@@ -315,15 +316,11 @@ function FinanceRow({ item, onPayment, onLedger }: { item: Obligation; onPayment
 }
 
 function LedgerDialog({ obligation, timezone, onClose, onAction }: { obligation: Obligation; timezone: string; onClose: () => void; onAction: (action: FinanceAction) => void }) {
-  const refunded = new Map<string, number>();
-  for (const entry of obligation.ledgerEntries) {
-    if (entry.type === "REFUND" && entry.relatedEntryId) refunded.set(entry.relatedEntryId, (refunded.get(entry.relatedEntryId) ?? 0) + entry.amountKopecks);
-  }
   return (
-    <Dialog title={`Ledger · ${obligation.case.publicRef}`} onClose={onClose}>
-      <ul className="max-h-[58vh] divide-y divide-line overflow-y-auto" aria-label="Записи ledger">
+    <Dialog title={`Реестр · ${obligation.case.publicRef}`} onClose={onClose}>
+      <ul className="max-h-[58vh] divide-y divide-line overflow-y-auto" aria-label="Финансовые операции">
         {obligation.ledgerEntries.map((entry) => {
-          const remaining = entry.type === "PAYMENT" ? entry.amountKopecks - (refunded.get(entry.id) ?? 0) : 0;
+          const remaining = entry.remainingRefundableKopecks ?? 0;
           return (
             <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -367,8 +364,8 @@ function FinanceActionDialog({ action, busy, onClose, onSubmit }: { action: Fina
           <label><span className="td-field-label">Подтверждение</span><input name="evidenceReference" className="td-field" minLength={3} maxLength={240} required /></label>
           <label><span className="td-field-label">Причина</span><textarea name="reason" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required /></label>
         </div>
-        {action.kind === "ADJUSTMENT" && <p className="mt-3 text-[11px] leading-relaxed text-ink-3">Чувствительная операция останется в ожидании независимого решения согласно утверждённой Finance policy. Исходная запись не изменяется.</p>}
-        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>{action.kind === "ADJUSTMENT" ? "Создать запрос" : "Добавить в ledger"}</Button></div>
+        {action.kind === "ADJUSTMENT" && <p className="mt-3 text-[11px] leading-relaxed text-ink-3">Чувствительная операция останется в ожидании независимого решения согласно утверждённому финансовому правилу. Исходная запись не изменяется.</p>}
+        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>{action.kind === "ADJUSTMENT" ? "Создать запрос" : "Добавить в реестр"}</Button></div>
       </form>
     </Dialog>
   );
@@ -378,9 +375,9 @@ function ApprovalDialog({ action, busy, onClose, onSubmit }: { action: ApprovalA
   return (
     <Dialog title={action.decision === "APPROVED" ? "Одобрить коррекцию" : "Отклонить коррекцию"} onClose={onClose}>
       <form onSubmit={onSubmit}>
-        <p className="text-[12px] text-ink-3">Решение независимо от автора запроса и становится частью immutable audit.</p>
+        <p className="text-[12px] text-ink-3">Решение принимает не автор запроса; результат становится частью неизменяемого журнала.</p>
         <label className="mt-4 block"><span className="td-field-label">Основание решения</span><textarea name="reason" className="td-field min-h-24 resize-y" minLength={3} maxLength={500} required /></label>
-        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить решение</Button></div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить решение</Button></div>
       </form>
     </Dialog>
   );

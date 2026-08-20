@@ -6,6 +6,7 @@ import {
   evaluateDocumentRequirement,
   evaluateFulfilmentGuards,
   getDraftScenarioRequirementBlueprints,
+  remainingRefundableKopecks,
   requiresFourEyesApproval,
   type LedgerProjectionEntry,
 } from "../lib/m3Domain";
@@ -156,6 +157,19 @@ test("M3-W6: partial refund reversal keeps only the effective refund in payment 
   assert.equal(projection.paidKopecks, 8_500);
   assert.equal(projection.refundedKopecks, 1_500);
   assert.equal(projection.balanceKopecks, 1_500);
+});
+
+test("M3-W6: an approved refund reversal reopens only the truthful payment refund capacity", () => {
+  const entries: LedgerProjectionEntry[] = [
+    { id: "o", type: "OBLIGATION", direction: "DEBIT", amountKopecks: 10_000, effective: true },
+    { id: "p", type: "PAYMENT", direction: "CREDIT", amountKopecks: 10_000, effective: true },
+    { id: "r1", type: "REFUND", direction: "DEBIT", amountKopecks: 10_000, effective: true, relatedEntryId: "p" },
+    { id: "rv", type: "REVERSAL", direction: "CREDIT", amountKopecks: 10_000, effective: true, relatedEntryId: "r1" },
+  ];
+  assert.equal(remainingRefundableKopecks(entries, "p"), 10_000);
+
+  entries.push({ id: "r2", type: "REFUND", direction: "DEBIT", amountKopecks: 3_500, effective: true, relatedEntryId: "p" });
+  assert.equal(remainingRefundableKopecks(entries, "p"), 6_500);
 });
 
 test("M3-W6: refund over-reversal fails closed", () => {

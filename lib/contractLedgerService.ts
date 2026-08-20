@@ -12,7 +12,13 @@ import {
   type M3CommandMeta,
   validateM3CommandMeta,
 } from "@/lib/m3Command";
-import { deriveLedgerSummary, requiresFourEyesApproval, type LedgerSummary } from "@/lib/m3Domain";
+import {
+  deriveLedgerSummary,
+  remainingRefundableKopecks,
+  requiresFourEyesApproval,
+  type LedgerProjectionEntry,
+  type LedgerSummary,
+} from "@/lib/m3Domain";
 import { advanceCaseFulfilmentInTransaction } from "@/lib/caseFulfilment";
 
 type CommandResult<T> = T & { replayed: boolean };
@@ -742,10 +748,19 @@ export async function listFinanceWorkspace(context: OperationalContext) {
       },
     },
   });
-  const rows = await Promise.all(obligations.map(async (obligation) => ({
-    ...obligation,
-    summary: await derivePaymentSummaryInTransaction(prisma, obligation.id),
-  })));
+  const rows = await Promise.all(obligations.map(async (obligation) => {
+    const projectionEntries = obligation.ledgerEntries.map(toLedgerProjectionEntry);
+    return {
+      ...obligation,
+      ledgerEntries: obligation.ledgerEntries.map((entry) => ({
+        ...entry,
+        remainingRefundableKopecks: entry.type === "PAYMENT"
+          ? remainingRefundableKopecks(projectionEntries, entry.id)
+          : null,
+      })),
+      summary: await derivePaymentSummaryInTransaction(prisma, obligation.id),
+    };
+  }));
   const pendingApprovals = await prisma.paymentLedgerApproval.findMany({
     where: { organizationId: context.organizationId, decision: null },
     orderBy: { createdAt: "asc" },
@@ -1016,35 +1031,33 @@ async function effectiveRefundedAmountForPayment(
       approval: { select: { decision: true } },
     },
   });
-  const effective = entries.filter((entry) => !entry.approvalRequired || entry.approval?.decision === "APPROVED");
-  const byId = new Map(effective.map((entry) => [entry.id, entry]));
-  const refundRoots = effective.filter((entry) => entry.type === "REFUND" && entry.relatedEntryId === paymentEntryId);
-  let total = 0;
-  for (const entry of effective) {
-    const root = refundRoots.find((refund) => entry.id === refund.id || descendsFrom(entry, refund.id, byId));
-    if (!root) continue;
-    total += entry.direction === "DEBIT" ? entry.amountKopecks : -entry.amountKopecks;
-  }
-  if (!Number.isSafeInteger(total) || total < 0) {
+  try {
+    const projectionEntries = entries.map(toLedgerProjectionEntry);
+    const payment = projectionEntries.find((entry) => entry.id === paymentEntryId);
+    if (!payment) throw new Error("Payment entry is missing");
+    return payment.amountKopecks - remainingRefundableKopecks(projectionEntries, paymentEntryId);
+  } catch {
     throw new OperationalCommandError(409, "Refund ledger исходной оплаты не согласован");
   }
-  return total;
 }
 
-function descendsFrom(
-  entry: { id: string; relatedEntryId: string | null },
-  ancestorId: string,
-  entriesById: ReadonlyMap<string, { id: string; relatedEntryId: string | null }>,
-): boolean {
-  const visited = new Set<string>([entry.id]);
-  let relatedId = entry.relatedEntryId;
-  while (relatedId) {
-    if (relatedId === ancestorId) return true;
-    if (visited.has(relatedId)) throw new OperationalCommandError(409, "Ledger relations содержат цикл");
-    visited.add(relatedId);
-    relatedId = entriesById.get(relatedId)?.relatedEntryId ?? null;
-  }
-  return false;
+function toLedgerProjectionEntry(entry: {
+  id: string;
+  type: PaymentLedgerEntryType;
+  direction: LedgerDirection;
+  amountKopecks: number;
+  relatedEntryId: string | null;
+  approvalRequired: boolean;
+  approval: { decision: string | null } | null;
+}): LedgerProjectionEntry {
+  return {
+    id: entry.id,
+    type: entry.type,
+    direction: entry.direction,
+    amountKopecks: entry.amountKopecks,
+    relatedEntryId: entry.relatedEntryId,
+    effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
+  };
 }
 
 async function loadObligation(tx: Prisma.TransactionClient, organizationId: string, obligationId: string) {

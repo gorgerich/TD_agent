@@ -173,15 +173,15 @@ export function DocumentsSection({
       {legacyCount > 0 && (
         <p role="status" className="flex gap-2 border-l-4 border-warning bg-warning-soft px-3 py-2 text-[12px] leading-relaxed text-warning">
           <WarningCircle size={17} weight="fill" className="mt-0.5 shrink-0" />
-          {legacyCount} legacy-файл не считается проверенным и требует явной миграции в сценарное требование.
+          {legacyCount} старый файл не считается проверенным и требует явной привязки к сценарному требованию.
         </p>
       )}
       {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
 
       {visibleRequirements.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="font-medium text-ink">Checklist ещё не утверждён или сценарий не выбран</p>
-          <p className="mt-1 text-[12px] text-ink-3">Документы не будут названы обязательными без утверждённой policy.</p>
+          <p className="font-medium text-ink">Перечень ещё не утверждён или сценарий не выбран</p>
+          <p className="mt-1 text-[12px] text-ink-3">Документы не будут названы обязательными без утверждённого правила.</p>
         </div>
       ) : (
         <ul className="divide-y divide-line" aria-label="Сценарные требования документов">
@@ -202,7 +202,7 @@ export function DocumentsSection({
                         {!requirement.isApplicable ? "Не применяется" : satisfied ? "Проверен" : STATUS_LABELS[effectiveStatus] ?? effectiveStatus}
                       </span>
                     </div>
-                    <p className="mt-1 text-[12px] leading-relaxed text-ink-3">Policy v{requirement.policyVersion} · блокирует этап {requirement.blockingStage}</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-ink-3">Правило v{requirement.policyVersion} · блокирует этап {requirement.blockingStage}</p>
                     <dl className="mt-2 grid gap-1 text-[12px] text-ink-2 sm:grid-cols-2">
                       <div className="flex gap-2"><dt className="text-ink-3">Ответственный:</dt><dd>{OWNER_LABELS[requirement.ownerRole] ?? requirement.ownerRole}</dd></div>
                       <div className="flex gap-2"><dt className="text-ink-3">Срок:</dt><dd>{requirement.dueAt ? formatDate(requirement.dueAt, timezone) : "не назначен policy"}</dd></div>

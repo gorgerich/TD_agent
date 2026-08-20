@@ -240,7 +240,7 @@ function PartyEditForm({ party, busy, onCancel, onSubmit }: { party: CasePartyIt
         <label><span className="td-field-label">Согласие</span><select className="td-field" name="consentStatus" defaultValue={party.consentStatus}><option value="UNKNOWN">Не определено</option><option value="NOT_REQUESTED">Не запрашивалось</option><option value="GRANTED">Получено</option><option value="WITHDRAWN">Отозвано</option><option value="RESTRICTED">Ограничено</option></select></label>
         <label><span className="td-field-label">Источник согласия</span><input className="td-field" name="consentSource" defaultValue={party.consentSource ?? ""} maxLength={240} /></label>
       </div>
-      <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={onCancel}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить</Button></div>
+      <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onCancel}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить</Button></div>
     </form>
   );
 }

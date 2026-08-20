@@ -176,12 +176,12 @@ export function DocumentReviewClient({
                         <strong className="text-[14px] text-ink">{item.document.documentType.name} · v{item.versionNumber}</strong>
                         <span className={`text-[12px] font-semibold ${mine ? "text-accent" : "text-ink-3"}`}>{mine ? "Назначен вам" : item.status === "UPLOADED" ? "Свободен" : "Назначен"}</span>
                       </div>
-                      <p className="mt-1 text-[12px] text-ink-3">{item.case.publicRef} · {scenarioLabel(item.requirement?.policy.scenario)} · policy v{item.requirement?.policy.version}</p>
+                      <p className="mt-1 text-[12px] text-ink-3">{item.case.publicRef} · {scenarioLabel(item.requirement?.policy.scenario)} · правило v{item.requirement?.policy.version}</p>
                       <p className={`mt-1 text-[12px] ${item.overdue ? "font-semibold text-danger" : "text-ink-3"}`}>
-                        {due ? `${item.overdue ? "Срок нарушен" : "Срок"}: ${formatDateTime(due, timezone)}` : "Срок не назначен policy"}
+                        {due ? `${item.overdue ? "Срок нарушен" : "Срок"}: ${formatDateTime(due, timezone)}` : "Срок не задан правилом"}
                       </p>
                       {mine && item.status === "IN_REVIEW" && requiredChecks.length > 0 && (
-                        <fieldset className="mt-3 grid gap-2" aria-label={`Checklist ${item.document.documentType.name}`}>
+                        <fieldset className="mt-3 grid gap-2" aria-label={`Проверочный перечень: ${item.document.documentType.name}`}>
                           <legend className="mb-1 text-[12px] font-semibold text-ink">Подтвердите каждый пункт</legend>
                           {requiredChecks.map((key) => (
                             <label key={key} className="flex min-h-11 items-center gap-2 bg-surface-2 px-3 text-[12px] text-ink-2">
@@ -214,10 +214,10 @@ export function DocumentReviewClient({
                           <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete} loading={busyId === item.id}>
                             <Check size={14} weight="bold" /> Проверено
                           </Button>
-                          <button type="button" onClick={() => setRejectingId(item.id)} className={buttonClasses({ variant: "secondary", size: "sm" })}>
+                          <button type="button" onClick={() => { setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
                             <X size={14} weight="bold" /> Отклонить
                           </button>
-                          <button type="button" onClick={() => setEscalatingId(item.id)} className={buttonClasses({ variant: "secondary", size: "sm" })}>
+                          <button type="button" onClick={() => { setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
                             <Warning size={14} weight="bold" /> Эскалировать
                           </button>
                         </>
@@ -230,7 +230,10 @@ export function DocumentReviewClient({
                         <span className="td-field-label">Причина отклонения</span>
                         <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
                       </label>
-                      <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3} loading={busyId === item.id}>Сохранить решение</Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { setRejectingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3} loading={busyId === item.id}>Сохранить решение</Button>
+                      </div>
                     </div>
                   )}
                   {escalatingId === item.id && (
@@ -239,7 +242,10 @@ export function DocumentReviewClient({
                         <span className="td-field-label">Причина и безопасное следующее действие</span>
                         <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
                       </label>
-                      <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3} loading={busyId === item.id}>Передать владельцу кейса</Button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { setEscalatingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3} loading={busyId === item.id}>Передать владельцу кейса</Button>
+                      </div>
                     </div>
                   )}
                 </li>

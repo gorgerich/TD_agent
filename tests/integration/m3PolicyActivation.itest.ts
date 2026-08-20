@@ -21,6 +21,7 @@ import {
 } from "./_setup";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+const ACTIVATION_POLICY_VERSION = 3_000_002;
 
 test("M3 approved policy activation is human-attested, idempotent and retires prior versions", opts, async () => {
   const fixtures = createFixtureContext("m3-policy-activation");
@@ -168,7 +169,7 @@ function baselinePolicyBundle(
     documentPolicies: [
       {
         scenario: "CREMATION_V1",
-        version: 3_000_001,
+        version: ACTIVATION_POLICY_VERSION,
         source: "SYNTHETIC_INTEGRATION_BASELINE_NOT_A_HUMAN_VERDICT",
         rules: [
           rule("identity-record", typeCodes.identity, "identity-match"),
@@ -178,7 +179,7 @@ function baselinePolicyBundle(
       },
       {
         scenario: "FAMILY_PLOT_BURIAL_V1",
-        version: 3_000_001,
+        version: ACTIVATION_POLICY_VERSION,
         source: "SYNTHETIC_INTEGRATION_BASELINE_NOT_A_HUMAN_VERDICT",
         rules: [
           rule("identity-record", typeCodes.identity, "identity-match"),
