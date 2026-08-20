@@ -242,7 +242,7 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   const [popup, documentResponse] = await Promise.all([popupPromise, documentResponsePromise]);
   assert.equal(documentResponse.status(), 200);
   assert.match(documentResponse.headers()["content-type"] ?? "", /^application\/pdf/);
-  await popup.waitForURL(/^blob:/);
+  await assertBlobDocumentPopup(popup);
   await popup.close();
   if (decision === "REJECT") {
     await row.getByRole("button", { name: "Отклонить" }).click();
@@ -257,6 +257,16 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   const responsePromise = target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST");
   await row.getByRole("button", { name: "Проверено" }).click();
   assert.equal((await responsePromise).status(), 200);
+}
+
+async function assertBlobDocumentPopup(popup) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (popup.isClosed()) break;
+    const url = popup.url();
+    if (url.startsWith("blob:")) return;
+    await popup.waitForTimeout(50);
+  }
+  assert.fail(`Protected document popup did not receive a blob URL; observed ${popup.isClosed() ? "closed" : popup.url()}`);
 }
 
 function reviewRow(target, publicRef, typeName) {
