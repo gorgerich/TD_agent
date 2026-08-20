@@ -1,63 +1,43 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getSessionFromRequest } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { assertLeadOwned, handleApiError, parseId } from "@/lib/apiAuth";
+import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
+import { listCaseContractAndLedger, recordManualPayment } from "@/lib/contractLedgerService";
+import { canonicalCaseIdFromLead, commandMetaFromHeaders } from "@/lib/m3Api";
 
-export const runtime = "nodejs";
-
-const Schema = z.object({
-  amountRub: z.number().int().min(1).max(100_000_000),
-  kind: z.enum(["аванс", "остаток", "полная"]),
-  method: z.enum(["наличные", "карта", "счёт"]),
-  note: z.string().max(500).optional().nullable(),
+const Body = z.object({
+  obligationId: z.string().min(1).max(120),
+  payerPartyId: z.string().min(1).max(120),
+  amountKopecks: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  currency: z.literal("RUB"),
+  occurredAt: z.string().datetime(),
+  method: z.enum(["CASH", "SBP_QR", "CARD", "BANK_TRANSFER"]),
+  evidenceReference: z.string().trim().min(3).max(240),
+  reason: z.string().trim().min(3).max(500),
 });
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ caseId: string }> }) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
-
+export async function GET(req: Request, { params }: { params: Promise<{ caseId: string }> }) {
   try {
-    const leadId = parseId((await params).caseId, "caseId");
-    await assertLeadOwned(leadId, session.agentId);
-
-    const parsed = Schema.safeParse(await req.json());
-    if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
-
-    const payment = await prisma.casePayment.create({
-      data: {
-        leadId,
-        agentId: session.agentId,
-        amountKopecks: parsed.data.amountRub * 100,
-        kind: parsed.data.kind,
-        method: parsed.data.method,
-        note: parsed.data.note ?? null,
-      },
-      select: { id: true, amountKopecks: true, kind: true, method: true, note: true, paidAt: true },
+    const context = await requireAgent(req, {
+      allowedRoles: ["AGENT", "MANAGER", "ADMIN", "FINANCE"],
     });
-    return NextResponse.json({ payment });
-  } catch (err) {
-    return handleApiError(err, "cases/payments");
+    const caseId = await canonicalCaseIdFromLead(context, (await params).caseId);
+    return NextResponse.json(await listCaseContractAndLedger(context, caseId));
+  } catch (error) {
+    return handleApiError(error, "m3/payments/read");
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ caseId: string }> }) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
-
+export async function POST(req: Request) {
   try {
-    const leadId = parseId((await params).caseId, "caseId");
-    await assertLeadOwned(leadId, session.agentId);
-
-    const id = Number(new URL(req.url).searchParams.get("id"));
-    if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Неверный id" }, { status: 400 });
-
-    const found = await prisma.casePayment.findFirst({ where: { id, leadId, agentId: session.agentId }, select: { id: true } });
-    if (!found) return NextResponse.json({ error: "Оплата не найдена" }, { status: 404 });
-
-    await prisma.casePayment.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    return handleApiError(err, "cases/payments/delete");
+    const context = await requireAgent(req, { allowedRoles: ["FINANCE"] });
+    const parsed = Body.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректная оплата");
+    const result = await recordManualPayment(context, {
+      ...parsed.data,
+      occurredAt: new Date(parsed.data.occurredAt),
+    }, commandMetaFromHeaders(req, parsed.data.reason));
+    return NextResponse.json(result, { status: result.replayed ? 200 : 201 });
+  } catch (error) {
+    return handleApiError(error, "m3/payments/record");
   }
 }

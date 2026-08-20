@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleApiError, requireAgent } from "@/lib/apiAuth";
-import { assertCapability } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
     assertCapability(session, "work:read");
     const query = new URL(req.url).searchParams.get("q")?.trim() ?? "";
     if (query.length < 2) return NextResponse.json({ results: [] });
-    const agentScope = session.role === "AGENT" ? { ownerId: session.agentId } : {};
-    const taskScope = session.role === "AGENT" ? { assigneeMembershipId: session.membershipId } : {};
-    const meetingScope = session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {};
+    const agentScope = !hasTeamOperationalScope(session.role) ? { ownerId: session.agentId } : {};
+    const taskScope = !hasTeamOperationalScope(session.role) ? { assigneeMembershipId: session.membershipId } : {};
+    const meetingScope = !hasTeamOperationalScope(session.role) ? { ownerMembershipId: session.membershipId } : {};
     const numeric = Number(query);
     const [cases, tasks, meetings] = await Promise.all([
       prisma.case.findMany({

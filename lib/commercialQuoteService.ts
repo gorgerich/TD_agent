@@ -18,7 +18,7 @@ import {
 } from "@/lib/commercialQuote";
 import { transitionCaseInTransaction, type CaseCommandContext } from "@/lib/caseService";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
-import type { OperationalContext } from "@/lib/operationalAuth";
+import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 
@@ -179,7 +179,7 @@ export async function getCommercialQuoteForMeeting(
     where: {
       meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       activeDraftVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
@@ -202,7 +202,7 @@ export async function requireCommercialMeetingAccess(
     where: {
       id: meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     select: { id: true },
   });
@@ -658,7 +658,7 @@ export async function getCommercialPresentation(id: string, context: Operational
     where: {
       id,
       quote: { organizationId: context.organizationId },
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       quote: {
@@ -693,7 +693,7 @@ export async function endCommercialPresentation(input: {
       where: {
         id: input.presentationId,
         quote: { organizationId: input.context.organizationId },
-        ...(input.context.role === "AGENT" ? { ownerMembershipId: input.context.membershipId } : {}),
+        ...(!hasTeamOperationalScope(input.context.role) ? { ownerMembershipId: input.context.membershipId } : {}),
       },
     });
     if (!session) throw new OperationalCommandError(404, "Презентация не найдена");
@@ -922,7 +922,7 @@ function loadMeetingForMutation(tx: Prisma.TransactionClient, meetingId: number,
     where: {
       id: meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     select: { id: true, caseId: true, ownerMembershipId: true, case: { select: { scenarioId: true } } },
   }).then((meeting) => {
@@ -940,7 +940,7 @@ async function loadQuoteForMutation(
     where: {
       id: quoteId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       case: true,

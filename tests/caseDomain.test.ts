@@ -18,6 +18,7 @@ const transitionFacts: CaseTransitionFacts = {
   publishedQuoteVersionId: 17,
   contractSigned: true,
   paymentSatisfied: true,
+  documentsReadyForExecution: true,
   guardState: {},
 };
 
@@ -38,7 +39,9 @@ test("Week 2: every allowed Case transition has executable guard coverage", () =
             || rule.eventType === "quote.republished.v1"
             || rule.eventType === "quote.accepted.v1"
           ? { quoteVersionId: 17 }
-          : {},
+          : rule.eventType === "execution.confirmed.v1"
+            ? { confirmationSource: "OPERATOR_CONFIRMED" }
+            : {},
       facts,
     });
     assert.equal(result.toStage, rule.to);
@@ -76,6 +79,29 @@ test("Week 2: both pilot closure policies reject their exact missing guard", () 
         && Array.isArray(error.details.missing)
         && error.details.missing.includes(required[0]),
     );
+  }
+});
+
+test("M3: execution confirmation is explicit and scenario closure remains guarded", () => {
+  for (const scenarioId of ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const) {
+    assert.throws(
+      () => evaluateCaseTransition({
+        stage: "EXECUTION",
+        scenarioId,
+        eventType: "execution.confirmed.v1",
+        payload: {},
+        facts: transitionFacts,
+      }),
+      (error: unknown) => error instanceof CaseDomainError && error.code === "GUARD_FAILED",
+    );
+    const confirmation = evaluateCaseTransition({
+      stage: "EXECUTION",
+      scenarioId,
+      eventType: "execution.confirmed.v1",
+      payload: { confirmationSource: "OPERATOR_CONFIRMED" },
+      facts: transitionFacts,
+    });
+    assert.equal(confirmation.toStage, "EXECUTION");
   }
 });
 

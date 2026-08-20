@@ -7,6 +7,15 @@ import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/
 import { reconcileCaseState } from "../../lib/caseReconciliation";
 import { SCENARIO_CLOSURE_GUARDS } from "../../lib/caseDomain";
 import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
+import { createCaseParty } from "../../lib/casePartyService";
+import {
+  createContractVersion,
+  issueContractVersion,
+  recordManualPayment,
+  signContractVersion,
+} from "../../lib/contractLedgerService";
+import { materializeCaseRequirements } from "../../lib/documentRequirementService";
+import { getM3IntegrationBaseline } from "./_m3Baseline";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const fixtures = createFixtureContext("cases");
@@ -109,7 +118,7 @@ test("W2-09: intake save and derived transitions replay atomically", opts, async
   );
 
   const first = await request("Первое значение");
-  assert.equal(first.status, 200);
+  assert.equal(first.status, 200, JSON.stringify(await first.clone().json()));
   const firstBody = await first.json() as { stage: string; replayed: boolean };
   assert.equal(firstBody.stage, "QUOTING");
   assert.equal(firstBody.replayed, false);
@@ -123,6 +132,24 @@ test("W2-09: intake save and derived transitions replay atomically", opts, async
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "case.intake_saved.v1" } }), 1);
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "intake.completed.v1" } }), 1);
   assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "scenario.selected.v1" } }), 1);
+});
+
+test("M3 privacy: legacy religion field is fail-closed in the operational intake API", opts, async () => {
+  const fixture = await createCase("privacy-religion");
+  const response = await intakePatch(
+    makeRequest(`/api/agent/cases/${fixture.lead.id}/intake`, {
+      method: "PATCH",
+      cookie: fixture.cookie,
+      headers: {
+        "idempotency-key": "it:privacy-religion:save",
+        "x-correlation-id": "it:privacy-religion",
+      },
+      body: { religion: "synthetic-special-category-value" },
+    }),
+    { params: Promise.resolve({ caseId: String(fixture.lead.id) }) },
+  );
+  assert.equal(response.status, 400);
+  assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).religion, null);
 });
 
 test("W2-09: an idempotency key cannot replay another case in the same tenant", opts, async () => {
@@ -184,10 +211,21 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   const fixture = await createCase("chain");
   const leadId = fixture.lead.id;
   await db.clientLead.update({ where: { id: leadId }, data: { deceasedName: "enc1:test", ceremonyType: "кремация" } });
+  const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
+  const baseline = await getM3IntegrationBaseline();
+  const documentTypes = await db.documentTypeDefinition.findMany({
+    where: {
+      code: { in: [baseline.documentTypes.identity, baseline.documentTypes.death, baseline.documentTypes.cremation] },
+      version: 1,
+    },
+  });
+  const reviewer = await fixtures.makeMember("chain-reviewer", {
+    organizationId: membership.organizationId,
+    role: "DOCUMENT_REVIEWER",
+  });
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "intake.completed.v1", key: "it:chain:intake" })).status, 200);
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "scenario.selected.v1", key: "it:chain:scenario", payload: { scenarioId: "CREMATION_V1" } })).status, 200);
 
-  const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
   const meeting = await db.meeting.create({
     data: {
       leadId,
@@ -202,10 +240,147 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
       outcomeRecordedAt: new Date(),
     },
   });
-  const quote = await db.quote.create({ data: { meetingId: meeting.id } });
-  const version = await db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000_00 } });
+  const quote = await db.quote.create({
+    data: {
+      meetingId: meeting.id,
+      organizationId: membership.organizationId,
+      caseId: fixture.lead.caseId,
+      ownerMembershipId: membership.id,
+      scenario: "CREMATION_V1",
+      status: "ACCEPTED",
+      currency: "RUB",
+    },
+  });
+  const version = await db.quoteVersion.create({
+    data: {
+      quoteId: quote.id,
+      versionNumber: 1,
+      state: "PUBLISHED",
+      payload: JSON.stringify({ schemaVersion: 1, total: 100_000_00, synthetic: true }),
+      subtotal: 100_000_00,
+      discountTotal: 0,
+      total: 100_000_00,
+      totalState: "KNOWN",
+      currency: "RUB",
+      snapshotChecksum: "b".repeat(64),
+      catalogSourceVersion: "synthetic-week2-chain-v1",
+      publishedByMembershipId: membership.id,
+      publishedAt: new Date(),
+      publishReason: "Synthetic integration chain",
+      publishChannel: "integration",
+      idempotencyKey: `it:chain:quote-version:${leadId}`,
+      correlationId: `it:chain:quote-version:${leadId}`,
+    },
+  });
+  await db.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: version.id } });
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.published.v1", key: "it:chain:publish", payload: { quoteVersionId: version.id } })).status, 200);
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.accepted.v1", key: "it:chain:accept", payload: { quoteVersionId: version.id } })).status, 200);
+
+  await materializeCaseRequirements(fixture.context, fixture.lead.caseId, {
+    idempotencyKey: `it:chain:requirements:${leadId}`,
+    correlationId: `it:chain:requirements:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
+  const requirements = await db.caseDocumentRequirement.findMany({
+    where: { caseId: fixture.lead.caseId, policyId: baseline.cremationPolicyId },
+    orderBy: { stableKey: "asc" },
+  });
+  assert.equal(requirements.length, 3);
+  for (const requirement of requirements) {
+    const acceptedCode = (requirement.acceptedDocumentTypeCodes as string[])[0];
+    const documentType = documentTypes.find((definition) => definition.code === acceptedCode);
+    assert.ok(documentType);
+    const document = await db.caseDocument.create({
+      data: {
+        organizationId: membership.organizationId,
+        caseId: fixture.lead.caseId,
+        requirementId: requirement.id,
+        documentTypeId: documentType.id,
+        status: "VERIFIED",
+      },
+    });
+    const verified = await db.caseDocumentVersion.create({
+      data: {
+        documentId: document.id,
+        versionNumber: 1,
+        organizationId: membership.organizationId,
+        caseId: fixture.lead.caseId,
+        requirementId: requirement.id,
+        fileChecksum: "c".repeat(64),
+        storageKey: `integration/${fixtures.runId}/${requirement.id}`,
+        originalFilenameEncrypted: "enc1:synthetic",
+        mimeType: "application/pdf",
+        size: 128,
+        uploaderMembershipId: membership.id,
+        source: "SYNTHETIC_TEST_ONLY",
+        status: "VERIFIED",
+        scanStatus: "CLEAN",
+        scanProvider: "synthetic-integration",
+        assignedReviewerMembershipId: reviewer.membershipId,
+        reviewedByMembershipId: reviewer.membershipId,
+        reviewedAt: new Date(),
+        reviewChecklist: acceptedCode === baseline.documentTypes.identity
+          ? { "identity-match": true }
+          : acceptedCode === baseline.documentTypes.death
+            ? { "death-record-match": true }
+            : { "scenario-evidence": true },
+      },
+    });
+    await db.caseDocumentRequirement.update({
+      where: { id: requirement.id },
+      data: { satisfactionStatus: "SATISFIED", satisfiedByVersionId: verified.id },
+    });
+  }
+
+  const payer = await createCaseParty(fixture.context, fixture.lead.caseId, {
+    name: "Synthetic payer",
+    roles: ["PAYER"],
+    preferredChannel: "NONE",
+    consentStatus: "NOT_REQUESTED",
+    visibilityPolicy: "FINANCE_LIMITED",
+  }, {
+    idempotencyKey: `it:chain:payer:${leadId}`,
+    correlationId: `it:chain:payer:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
+  const contract = await createContractVersion(fixture.context, {
+    caseId: fixture.lead.caseId,
+    payerPartyId: payer.partyId,
+    paymentTerms: { mode: "synthetic-test-only" },
+    validUntil: new Date(Date.now() + 60 * 60 * 1000),
+  }, {
+    idempotencyKey: `it:chain:contract-create:${leadId}`,
+    correlationId: `it:chain:contract-create:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
+  await issueContractVersion(fixture.context, contract.contractVersionId, {
+    idempotencyKey: `it:chain:contract-issue:${leadId}`,
+    correlationId: `it:chain:contract-issue:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
+  const signingPolicyVersion = `SYNTHETIC_TEST_ONLY_${fixtures.runId}`;
+  const signingPolicy = await db.contractSigningPolicy.create({
+    data: {
+      organizationId: membership.organizationId,
+      version: signingPolicyVersion,
+      status: "APPROVED",
+      allowedEvidenceTypes: ["SYNTHETIC_TEST_ONLY"],
+      source: "SYNTHETIC_TEST_ONLY_NOT_A_LEGAL_VERDICT",
+      approvedByUserId: fixture.userId,
+      approvedAt: new Date(),
+      effectiveFrom: new Date(Date.now() - 60_000),
+    },
+  });
+  fixtures.trackSigningPolicy(signingPolicy.id);
+  const signed = await signContractVersion(fixture.context, {
+    contractVersionId: contract.contractVersionId,
+    signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-chain-evidence" },
+    signaturePolicyVersion: signingPolicyVersion,
+  }, {
+    idempotencyKey: `it:chain:contract-sign:${leadId}`,
+    correlationId: `it:chain:contract-sign:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
 
   const customer = await db.user.create({ data: { email: `it-customer-${fixture.agentId}@test.local` } });
   fixtures.trackUser(customer.id);
@@ -221,13 +396,37 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
       meta: "{}",
     },
   });
-  assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "contract.signed.v1", key: "it:chain:contract" })).status, 200);
-  await db.order.update({ where: { id: order.id }, data: { status: "PAID" } });
-  assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "payment.requirement_satisfied.v1", key: "it:chain:payment" })).status, 200);
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } })).stage, "PAYMENT");
+  assert.equal(await db.caseEvent.count({
+    where: { caseId: fixture.lead.caseId, eventType: "contract.signed.v1" },
+  }), 1);
+  const finance = await fixtures.makeMember("chain-finance", {
+    organizationId: membership.organizationId,
+    role: "FINANCE",
+  });
+  await recordManualPayment(finance.context, {
+    obligationId: signed.obligationId,
+    payerPartyId: payer.partyId,
+    amountKopecks: version.total,
+    currency: "RUB",
+    occurredAt: new Date(),
+    method: "BANK_TRANSFER",
+    evidenceReference: "synthetic-chain-payment-evidence",
+    reason: "Synthetic full payment",
+  }, {
+    idempotencyKey: `it:chain:payment-ledger:${leadId}`,
+    correlationId: `it:chain:payment-ledger:${leadId}`,
+    reason: "Synthetic integration chain",
+  });
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } })).stage, "EXECUTION");
+  assert.equal(await db.caseEvent.count({
+    where: { caseId: fixture.lead.caseId, eventType: "payment.requirement_satisfied.v1" },
+  }), 1);
 
   const guardState = Object.fromEntries(SCENARIO_CLOSURE_GUARDS.CREMATION_V1.map((guard) => [guard, true]));
   await db.case.update({ where: { id: fixture.lead.caseId }, data: { guardState } });
-  assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "case.closure_requested.v1", key: "it:chain:close" })).status, 200);
+  const closeResponse = await command({ leadId, cookie: fixture.cookie, eventType: "case.closure_requested.v1", key: "it:chain:close" });
+  assert.equal(closeResponse.status, 200, JSON.stringify(await closeResponse.clone().json()));
 
   await db.document.create({
     data: {

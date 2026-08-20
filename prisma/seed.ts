@@ -1,13 +1,9 @@
 /**
- * Демо-данные для MVP-демонстрации. RE-SEED: при каждом запуске СТИРАЕТ данные
- * ТОЛЬКО демо-агента (scoped по agentId, не глобальный wipe) и пересоздаёт их со
- * свежими датами — чтобы операционные статусы и бакеты дашборда были живыми
- * (Срочное / Сегодня / Ждём клиента / Ждём оплату / В работе), а не «всё устарело».
- * Запуск: `npm run db:seed`. Трогает только демо-агента — безопасно и на общей БД.
+ * Одноразовые synthetic demo-данные только для свежей изолированной БД.
+ * Повторный запуск блокируется: финансовая, документная и audit-история не удаляется.
  */
 import { PrismaClient } from "@prisma/client";
 import { encryptField } from "../lib/crypto";
-import { SCENARIO_CLOSURE_GUARDS, isSupportedScenario } from "../lib/caseDomain";
 import { ensureCanonicalCaseForLead, scenarioFromCeremonyType, transitionCase } from "../lib/caseService";
 import { assertReleaseWritesAllowed } from "../lib/releaseWriteFreeze";
 import { ensureLegacyOrganizationForAgent } from "../lib/operationalAuth";
@@ -18,38 +14,25 @@ const DAY = 86_400_000;
 const now = Date.now();
 const at = (deltaDays: number, hour = 11) => new Date(now + deltaDays * DAY - (new Date().getHours() - hour) * 3_600_000);
 
-async function resetAgentData(agentId: number) {
-  // Порядок учитывает FK: версии → сметы → заказы → платежи → встречи → дела.
-  // Дети дела (task/note/payment/document) каскадятся при удалении лида.
-  const meetings = await prisma.meeting.findMany({ where: { agentId }, select: { id: true } });
-  const meetingIds = meetings.map((m) => m.id);
-  const membership = await prisma.membership.findUnique({ where: { agentId }, select: { id: true, organizationId: true } });
-
-  if (membership) {
-    await prisma.projectionReceipt.deleteMany({ where: { organizationId: membership.organizationId } });
-    await prisma.operationalAuditEvent.deleteMany({ where: { organizationId: membership.organizationId } });
-    await prisma.savedOperationalView.deleteMany({ where: { organizationId: membership.organizationId } });
+async function assertFreshDemoScope(agentId: number) {
+  const [leads, documents, legacyPayments, ledgerEntries] = await Promise.all([
+    prisma.clientLead.count({ where: { agentId } }),
+    prisma.document.count({ where: { agentId } }),
+    prisma.casePayment.count({ where: { agentId } }),
+    prisma.paymentLedgerEntry.count({ where: { case: { ownerId: agentId } } }),
+  ]);
+  if (leads + documents + legacyPayments + ledgerEntries > 0) {
+    throw new Error("Demo scope is not empty. Use a fresh isolated database; destructive re-seed is forbidden.");
   }
-
-  await prisma.commission.deleteMany({ where: { agentId } });
-  await prisma.payout.deleteMany({ where: { agentId } });
-  await prisma.payment.deleteMany({ where: { OR: [{ order: { agentId } }, { meetingId: { in: meetingIds } }] } });
-  await prisma.quoteVersion.deleteMany({ where: { quote: { meetingId: { in: meetingIds } } } });
-  await prisma.quote.deleteMany({ where: { meetingId: { in: meetingIds } } });
-  await prisma.order.deleteMany({ where: { agentId } });
-  await prisma.task.deleteMany({ where: { agentId } });
-  await prisma.caseNote.deleteMany({ where: { agentId } });
-  await prisma.casePayment.deleteMany({ where: { agentId } });
-  await prisma.document.deleteMany({ where: { agentId } });
-  // AgentSession → Meeting (RESTRICT): co-browse сессии держат встречу, чистим первыми.
-  await prisma.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
-  await prisma.meeting.deleteMany({ where: { agentId } });
-  await prisma.clientLead.deleteMany({ where: { agentId } });
 }
 
 async function main() {
   assertReleaseWritesAllowed("prisma seed");
   if (process.env.DEMO_MODE !== "1") throw new Error("Prisma seed is restricted to DEMO_MODE=1");
+  if (process.env.NODE_ENV === "production") throw new Error("Prisma seed is forbidden in production");
+  if (process.env.PREVIEW_DB_ISOLATION !== "PASS" && process.env.ALLOW_DB_TESTS !== "1") {
+    throw new Error("Prisma seed requires PREVIEW_DB_ISOLATION=PASS or an approved local test database");
+  }
   const tier = await prisma.agentTier.upsert({
     where: { name: "Стандарт" },
     update: {},
@@ -72,7 +55,7 @@ async function main() {
     agentStatus: "ACTIVE",
   });
 
-  await resetAgentData(agent.id);
+  await assertFreshDemoScope(agent.id);
 
   // Клиент-плейсхолдер для заказов (Order.userId).
   const client = await prisma.user.upsert({
@@ -169,25 +152,14 @@ async function main() {
       quoteVersionId = version.id;
     }
 
-    const orderStage = { contract: "SIGNED", paid: "PAID", done: "COMPLETED" } as const;
-    if (s.stage in orderStage && meetingId) {
+    if (["contract", "paid", "done"].includes(s.stage) && meetingId) {
       await prisma.order.create({
         data: {
           publicId: `DEMO-${created.id}-${Math.random().toString(36).slice(2, 7)}`,
           userId: client.id, agentId: agent.id, meetingId,
-          status: orderStage[s.stage as keyof typeof orderStage],
-          serviceType: "funeral", totalAmount: (s.total ?? 150000) * 100, meta: "{}",
-        },
-      });
-    }
-
-    // Аванс по оплаченным — оплата видна в кейсе
-    if (s.stage === "paid") {
-      await prisma.casePayment.create({
-        data: {
-          leadId: created.id, agentId: agent.id,
-          amountKopecks: Math.round((s.total ?? 150000) * 100 * 0.5),
-          kind: "аванс", method: "наличные",
+          status: "PENDING",
+          serviceType: "funeral", totalAmount: (s.total ?? 150000) * 100,
+          meta: JSON.stringify({ truthStatus: "LEGACY_INCOMPLETE", synthetic: true }),
         },
       });
     }
@@ -240,13 +212,6 @@ async function main() {
     if (shouldPublish && quoteVersionId && (Boolean(s.agreed) || ["contract", "paid", "done"].includes(s.stage))) {
       await command("accept", "quote.accepted.v1", { quoteVersionId });
     }
-    if (["contract", "paid", "done"].includes(s.stage)) await command("contract", "contract.signed.v1");
-    if (["paid", "done"].includes(s.stage)) await command("payment", "payment.requirement_satisfied.v1");
-    if (s.stage === "done" && isSupportedScenario(scenarioId)) {
-      const guardState = Object.fromEntries(SCENARIO_CLOSURE_GUARDS[scenarioId].map((guard) => [guard, true]));
-      await prisma.case.update({ where: { id: canonical.caseId }, data: { guardState } });
-      await command("close", "case.closure_requested.v1");
-    }
   }
 
   const [leads, tasks, notes] = await Promise.all([
@@ -254,7 +219,7 @@ async function main() {
     prisma.task.count({ where: { agentId: agent.id } }),
     prisma.caseNote.count({ where: { agentId: agent.id } }),
   ]);
-  console.log(`Пересеяно: ${leads} дел, ${tasks} задач, ${notes} заметок. Агент: ${DEMO_EMAIL}`);
+  console.log(`Создано: ${leads} дел, ${tasks} задач, ${notes} заметок. Агент: ${DEMO_EMAIL}`);
 }
 
 main()

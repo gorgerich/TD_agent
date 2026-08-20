@@ -10,6 +10,7 @@ import {
   verifyPlatformMfaCode,
 } from "@/lib/platformMfa";
 import { appendPlatformAudit } from "@/lib/platformAudit";
+import { appendOperationalAudit } from "@/lib/operationalAudit";
 import { prisma } from "@/lib/prisma";
 import { enforcePersistentRateLimit } from "@/lib/persistentRateLimit";
 
@@ -26,7 +27,21 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
   const session = await getCurrentUserSessionFromRequest(req);
   if (!session) return json({ error: "Unauthorized" }, 401);
-  if (session.platformRole !== "SUPER_ADMIN") return json({ error: "Forbidden" }, 403);
+  const platformEnrollment = session.platformRole === "SUPER_ADMIN";
+  const financeMembership = !platformEnrollment && session.activeMembershipId
+    ? await prisma.membership.findFirst({
+        where: {
+          id: session.activeMembershipId,
+          userId: session.userId,
+          role: "FINANCE",
+          status: "ACTIVE",
+          organization: { status: "ACTIVE" },
+          agent: { status: "ACTIVE" },
+        },
+        select: { id: true, organizationId: true },
+      })
+    : null;
+  if (!platformEnrollment && !financeMembership) return json({ error: "Forbidden" }, 403);
   if (session.platformMfaEnabled) return json({ error: "Двухфакторная защита уже включена" }, 409);
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json({ error: "Неверный запрос" }, 400);
@@ -56,17 +71,39 @@ export async function POST(req: NextRequest) {
       data: { platformMfaEnabledAt: new Date(), sessionVersion: { increment: 1 } },
       select: { sessionVersion: true },
     });
-    await appendPlatformAudit(tx, {
-      actorUserId: session.userId,
-      action: "PLATFORM_MFA_ENABLED",
-      targetType: "user",
-      targetId: String(session.userId),
-      metadata: { source: "authenticated-enrollment" },
-    });
+    if (platformEnrollment) {
+      await appendPlatformAudit(tx, {
+        actorUserId: session.userId,
+        action: "PLATFORM_MFA_ENABLED",
+        targetType: "user",
+        targetId: String(session.userId),
+        metadata: { source: "authenticated-enrollment" },
+      });
+    } else if (financeMembership) {
+      await appendOperationalAudit(tx, {
+        organizationId: financeMembership.organizationId,
+        membershipId: financeMembership.id,
+      }, {
+        entityType: "membership",
+        entityId: financeMembership.id,
+        action: "finance.mfa_enabled.v1",
+        before: {},
+        after: { mfaEnabled: true },
+        correlationId: `finance-mfa:${session.userId}:${result.sessionVersion}`,
+        idempotencyKey: `finance-mfa-enabled:${session.userId}:${result.sessionVersion}`,
+        reason: "Обязательная двухфакторная защита финансовой роли",
+        result: { userId: session.userId, membershipId: financeMembership.id },
+      });
+    }
     return result;
   });
-  const token = await createUserSession({ userId: session.userId, mfaVerified: true });
-  return setAgentSessionCookie(json({ ok: true, redirectTo: "/platform-admin", sessionVersion: updated.sessionVersion }), token);
+  const redirectTo = platformEnrollment ? "/platform-admin" : "/agent/finance";
+  const token = await createUserSession({
+    userId: session.userId,
+    activeMembershipId: financeMembership?.id ?? session.activeMembershipId,
+    mfaVerified: true,
+  });
+  return setAgentSessionCookie(json({ ok: true, redirectTo, sessionVersion: updated.sessionVersion }), token);
 }
 
 function json(body: unknown, status = 200) {

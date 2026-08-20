@@ -35,6 +35,7 @@ export async function appendPlatformAudit(
       | "PLATFORM_OWNER_PASSWORD_RECOVERED"
       | "PLATFORM_MFA_ENABLED"
       | "PLATFORM_SESSIONS_REVOKED"
+      | "M3_POLICIES_ACTIVATED"
       | "ORGANIZATION_SUSPENDED"
       | "ORGANIZATION_REACTIVATED";
     targetType: "user" | "organization" | "activation" | "session";

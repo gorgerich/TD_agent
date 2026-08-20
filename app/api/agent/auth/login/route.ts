@@ -8,6 +8,7 @@ import {
   decryptPlatformMfaSecret,
   verifyPlatformMfaCode,
 } from "@/lib/platformMfa";
+import { operationalLanding } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -57,8 +58,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Рабочий доступ приостановлен или не назначен" }, { status: 403 });
   }
 
+  const mfaRequiredForRole = user.platformRole === "SUPER_ADMIN" || activeMembership?.role === "FINANCE";
   let mfaVerified = false;
-  if (user.platformRole === "SUPER_ADMIN" && user.platformMfaEnabledAt) {
+  if (mfaRequiredForRole && user.platformMfaEnabledAt) {
     const secret = user.platformMfaSecretEncrypted
       ? decryptPlatformMfaSecret(user.platformMfaSecretEncrypted)
       : "";
@@ -77,11 +79,11 @@ export async function POST(req: NextRequest) {
     mfaVerified,
     name: user.name,
   });
-  const redirectTo = user.platformRole === "SUPER_ADMIN"
-    ? user.platformMfaEnabledAt
+  const redirectTo = mfaRequiredForRole && !user.platformMfaEnabledAt
+    ? "/setup/platform-admin-mfa"
+    : user.platformRole === "SUPER_ADMIN"
       ? "/platform-admin"
-      : "/setup/platform-admin-mfa"
-    : "/agent/cases";
+      : operationalLanding(activeMembership!.role);
 
   return setAgentSessionCookie(NextResponse.json({ ok: true, redirectTo }), token);
 }

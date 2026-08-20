@@ -18,7 +18,15 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
     ? (/^state:\s*(\S+)\s*$/m.exec(fs.readFileSync(missionYamlPath, "utf8"))?.[1] ?? "")
     : "";
   const KNOWN_STATES = new Set([
-    "PLANNED", "CONTRACT_LOCKED", "IMPLEMENTATION_VERIFIED", "MISSION_RELEASE_READY", "RELEASED",
+    "PLANNED",
+    "CONTRACT_LOCKED",
+    "IMPLEMENTATION_VERIFIED",
+    "MISSION_RELEASE_READY",
+    "BLOCKED_AUTHORITY",
+    "BLOCKED_EXTERNAL_ACCESS",
+    "BLOCKED_SAFETY",
+    "BLOCKED_HUMAN_JUDGMENT",
+    "RELEASED",
   ]);
   if (!KNOWN_STATES.has(missionState)) {
     // Fail closed: an absent, misspelled or comment-suffixed state used to silently disable

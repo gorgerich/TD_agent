@@ -10,6 +10,12 @@ import {
   type CaseTransitionPayload,
 } from "@/lib/caseDomain";
 import { projectCaseEventInTransaction } from "@/lib/operationsProjection";
+import {
+  lockDocumentRequirementPolicyScenario,
+  materializeCaseRequirementsInTransaction,
+  refreshCaseRequirementApplicabilityInTransaction,
+} from "@/lib/documentRequirementService";
+import { deriveCaseDocumentTruth, deriveLedgerSummary } from "@/lib/m3Domain";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -18,6 +24,7 @@ export type CaseCommandContext = {
   membershipId: string;
   agentId: number;
   actorId: number;
+  actorType?: string;
   idempotencyKey: string;
   correlationId: string;
   causationId?: string;
@@ -37,7 +44,6 @@ export type CaseCommandResult = {
 export type CaseIntakeUpdate = {
   ceremonyType: string | null;
   budget: string | null;
-  religion: string | null;
   needs: string | null;
   deceasedName: string | null;
   deceasedDate: Date | null;
@@ -139,7 +145,7 @@ export async function transitionCase(input: {
   const payload = input.payload ?? {};
 
   try {
-    return await runSerializableTransaction((tx) => transitionCaseInTransaction(tx, { ...input, payload }));
+    return await runCaseTransaction((tx) => transitionCaseInTransaction(tx, { ...input, payload }));
   } catch (error) {
     if (isUniqueConstraint(error)) {
       return replayAfterUniqueRace({
@@ -164,7 +170,13 @@ export async function saveCaseIntake(input: {
   const eventType = "case.intake_saved.v1";
 
   try {
-    return await runSerializableTransaction(async (tx) => {
+    return await runCaseTransaction(async (tx) => {
+      const lockedCaseId = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
+      if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+      const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
+      if (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1") {
+        await lockDocumentRequirementPolicyScenario(tx, requestedScenario);
+      }
       let aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
       if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
 
@@ -195,6 +207,13 @@ export async function saveCaseIntake(input: {
         if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден после выбора сценария");
       }
 
+      await refreshCaseRequirementApplicabilityInTransaction(
+        tx,
+        { organizationId: tenantId, membershipId: input.context.membershipId },
+        aggregate.id,
+        { idempotencyKey: input.context.idempotencyKey, correlationId: input.context.correlationId },
+      );
+
       const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
       const result = caseResult(aggregate, eventId, false);
       const snapshot = caseSnapshot(aggregate);
@@ -204,6 +223,7 @@ export async function saveCaseIntake(input: {
           caseId: aggregate.id,
           tenantId,
           actorId: input.context.actorId,
+          actorType: input.context.actorType ?? "agent",
           eventType,
           idempotencyKey: input.context.idempotencyKey,
           correlationId: input.context.correlationId,
@@ -242,6 +262,14 @@ export async function transitionCaseInTransaction(
   },
 ): Promise<CaseCommandResult> {
   const tenantId = input.context.organizationId;
+  const lockedCaseId = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
+  if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+  if (
+    input.eventType === "scenario.selected.v1"
+    && (input.payload.scenarioId === "CREMATION_V1" || input.payload.scenarioId === "FAMILY_PLOT_BURIAL_V1")
+  ) {
+    await lockDocumentRequirementPolicyScenario(tx, input.payload.scenarioId);
+  }
   const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
   if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
 
@@ -261,6 +289,10 @@ export async function transitionCaseInTransaction(
   const guardState = normalizedGuardState(aggregate.guardState);
   if (input.eventType === "contract.signed.v1") guardState.contract_signed = true;
   if (input.eventType === "payment.requirement_satisfied.v1") guardState.payment_satisfied = true;
+  if (input.eventType === "execution.confirmed.v1") {
+    if (aggregate.scenarioId === "CREMATION_V1") guardState.crematorium_confirmed = true;
+    if (aggregate.scenarioId === "FAMILY_PLOT_BURIAL_V1") guardState.cemetery_confirmed = true;
+  }
   const before = caseSnapshot(aggregate);
   const after = {
     stage: evaluated.toStage,
@@ -288,6 +320,7 @@ export async function transitionCaseInTransaction(
       caseId: aggregate.id,
       tenantId,
       actorId: input.context.actorId,
+      actorType: input.context.actorType ?? "agent",
       eventType: input.eventType,
       idempotencyKey: input.context.idempotencyKey,
       correlationId: input.context.correlationId,
@@ -300,6 +333,18 @@ export async function transitionCaseInTransaction(
       result: jsonValue(result),
     },
   });
+  if (input.eventType === "scenario.selected.v1") {
+    await materializeCaseRequirementsInTransaction(
+      tx,
+      { organizationId: tenantId, membershipId: input.context.membershipId },
+      aggregate.id,
+      nextScenario,
+      {
+        idempotencyKey: input.context.idempotencyKey,
+        correlationId: input.context.correlationId,
+      },
+    );
+  }
   await projectCaseEventInTransaction(tx, input.context, {
     eventId,
     eventType: input.eventType,
@@ -346,13 +391,13 @@ function derivedContext(context: CaseCommandContext, suffix: string): CaseComman
   return { ...context, idempotencyKey: `${context.idempotencyKey}:${suffix}`, causationId: context.idempotencyKey };
 }
 
-async function runSerializableTransaction<T>(
+async function runCaseTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
   maxAttempts = 5,
 ): Promise<T> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return await prisma.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
     } catch (error) {
       if (!isTransactionConflict(error)) throw error;
       if (attempt === maxAttempts) {
@@ -361,7 +406,7 @@ async function runSerializableTransaction<T>(
       await delay(10 * 2 ** (attempt - 1));
     }
   }
-  throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Не удалось сериализовать команду кейса");
+  throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Не удалось завершить команду кейса");
 }
 
 function delay(milliseconds: number) {
@@ -386,28 +431,125 @@ async function loadAggregate(tx: Prisma.TransactionClient, leadId: number, tenan
           payments: { select: { amountKopecks: true } },
         },
       },
+      documentRequirements: {
+        select: {
+          stableKey: true,
+          blockingStage: true,
+          isApplicable: true,
+          satisfactionStatus: true,
+          document: {
+            select: {
+              versions: {
+                select: { versionNumber: true, status: true, scanStatus: true, expiresAt: true },
+              },
+            },
+          },
+        },
+      },
+      contract: {
+        select: {
+          versions: {
+            select: {
+              id: true,
+              status: true,
+              validUntil: true,
+              quoteVersionId: true,
+              supersededBy: { select: { id: true } },
+            },
+          },
+        },
+      },
+      paymentObligations: {
+        select: {
+          contractVersionId: true,
+          currency: true,
+          ledgerEntries: {
+            select: {
+              id: true,
+              type: true,
+              direction: true,
+              amountKopecks: true,
+              relatedEntryId: true,
+              approvalRequired: true,
+              approval: { select: { decision: true } },
+            },
+          },
+        },
+      },
     },
   });
+}
+
+async function lockCaseForCommand(
+  tx: Prisma.TransactionClient,
+  leadId: number,
+  tenantId: string,
+  ownerId: number,
+): Promise<string | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "Case"
+    WHERE "leadId" = ${leadId}
+      AND "tenantId" = ${tenantId}
+      AND "ownerId" = ${ownerId}
+    LIMIT 1
+    FOR UPDATE
+  `;
+  return rows[0]?.id ?? null;
 }
 
 type LoadedAggregate = NonNullable<Awaited<ReturnType<typeof loadAggregate>>>;
 
 function transitionFacts(aggregate: LoadedAggregate): CaseTransitionFacts {
-  const orders = aggregate.lead.meetings.flatMap((meeting) => meeting.orders);
   const availableQuoteVersionIds = aggregate.lead.meetings.flatMap((meeting) =>
     meeting.quotes.flatMap((quote) => quote.versions.map((version) => version.id)),
   );
-  const paidKopecks = aggregate.lead.payments.reduce((sum, payment) => sum + payment.amountKopecks, 0);
-  const obligation = orders.reduce((max, order) => Math.max(max, order.totalAmount), 0);
-  const paidByOrderState = orders.some((order) => ["PAID", "COMPLETED"].includes(order.status.toUpperCase()));
+  const now = new Date();
+  const signedContract = aggregate.contract?.versions.find((version) =>
+    version.status === "SIGNED"
+    && version.supersededBy == null
+    && (version.validUntil == null || version.validUntil > now)
+    && version.quoteVersionId === aggregate.publishedQuoteVersionId,
+  ) ?? null;
+  const obligation = signedContract
+    ? aggregate.paymentObligations.find((candidate) => candidate.contractVersionId === signedContract.id)
+    : null;
+  const ledgerSummary = obligation
+    ? deriveLedgerSummary(
+        obligation.ledgerEntries.map((entry) => ({
+          id: entry.id,
+          type: entry.type,
+          direction: entry.direction,
+          amountKopecks: entry.amountKopecks,
+          relatedEntryId: entry.relatedEntryId,
+          effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
+        })),
+        obligation.currency,
+      )
+    : null;
+  const pendingFinancialAdjustments = obligation?.ledgerEntries.filter((entry) => (
+    entry.approvalRequired && entry.approval?.decision == null
+  )).length ?? 0;
+  const documentTruth = deriveCaseDocumentTruth(aggregate.documentRequirements.filter((requirement) => requirement.isApplicable).map((requirement) => ({
+    stableKey: requirement.stableKey,
+    blockingStage: requirement.blockingStage,
+    versions: requirement.document?.versions ?? [],
+  })), now);
+  const guardState = normalizedGuardState(aggregate.guardState);
+  Object.assign(guardState, documentTruth.guardState);
+  guardState.contract_signed = signedContract != null;
+  const paymentSatisfied = pendingFinancialAdjustments === 0
+    && (ledgerSummary?.status === "PAID" || ledgerSummary?.status === "OVERPAID");
+  guardState.payment_satisfied = paymentSatisfied;
 
   return {
     intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(aggregate.lead.deceasedName),
     availableQuoteVersionIds,
     publishedQuoteVersionId: aggregate.publishedQuoteVersionId,
-    contractSigned: orders.some((order) => ["SIGNED", "PAID", "COMPLETED"].includes(order.status.toUpperCase())),
-    paymentSatisfied: paidByOrderState || (obligation > 0 && paidKopecks >= obligation),
-    guardState: normalizedGuardState(aggregate.guardState),
+    contractSigned: signedContract != null,
+    paymentSatisfied,
+    documentsReadyForExecution: documentTruth.readyForExecution,
+    guardState,
   };
 }
 

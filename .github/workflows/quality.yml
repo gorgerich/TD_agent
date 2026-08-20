@@ -41,13 +41,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run evidence:validate
-        env:
-          REQUIRED_MISSION_EVIDENCE: M1-RBAC-HARDENING
-          # On a pull_request the checkout leaves HEAD at the merge ref, so the evidence
-          # gate would compare the certified SHA against base-merged-into-branch and fail
-          # the moment an unrelated commit lands on main. Give it the real PR head.
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       - name: Verify Week 2 and M1 legacy backfill fixtures
         run: |
           set -euo pipefail
@@ -73,6 +66,9 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m2-commercial-fixtures.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260729170000_m2_commercial_trust_loop/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m2-commercial-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-fixtures.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260811172829_m3_fulfilment_money_trust/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-assertions.sql
       - name: Configure SSI predicate lock granularity
         # Every operational command runs at SERIALIZABLE. With the Postgres default of
         # max_pred_locks_per_page=2, per-tuple predicate locks collapse into a page-level
@@ -100,6 +96,15 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run test:integration
+      - name: Repeat M3 concurrency and policy gates five times
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "M3 targeted repeat $attempt/5"
+            npm run test:integration -- \
+              tests/integration/m3Fulfilment.itest.ts \
+              tests/integration/m3PolicyActivation.itest.ts
+          done
       - name: Provision isolated M1 browser UAT fixture
         run: |
           set -euo pipefail
@@ -160,10 +165,40 @@ jobs:
           M2_UAT_RECOVERY_TOKEN="$recovery_token" \
           M2_UAT_MFA_SECRET="$mfa_secret" \
           npx tsx tests/e2e/m2-fixture.ts provision
+      - name: Provision isolated M3 browser UAT fixture
+        run: |
+          set -euo pipefail
+          password="$(openssl rand -base64 36 | tr -d '\n')!Aa9"
+          webhook_secret="$(openssl rand -hex 32)"
+          mfa_secret="$M2_UAT_MFA_SECRET"
+          printf '::add-mask::%s\n' "$password"
+          printf '::add-mask::%s\n' "$webhook_secret"
+          printf '::add-mask::%s\n' "$mfa_secret"
+          {
+            printf 'M3_UAT_FIXTURE=1\n'
+            printf 'M3_UAT_RUN_ID=ci-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'M3_UAT_PASSWORD=%s\n' "$password"
+            printf 'M3_PAYMENT_WEBHOOK_SECRET=%s\n' "$webhook_secret"
+            printf 'M3_UAT_MFA_SECRET=%s\n' "$mfa_secret"
+          } >> "$GITHUB_ENV"
+          touch "$RUNNER_TEMP/m3-uat-ready"
+          EXPECTED_DATABASE_FINGERPRINT="$EXPECTED_DATABASE_FINGERPRINT" \
+          M3_UAT_FIXTURE=1 \
+          M3_UAT_RUN_ID="ci-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+          M3_UAT_PASSWORD="$password" \
+          M3_UAT_MFA_SECRET="$mfa_secret" \
+          npx tsx tests/e2e/m3-fixture.ts provision
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start production server
-        run: npm run start > /tmp/td-agent-next.log 2>&1 &
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.m3-private-storage"
+          M3_DOCUMENT_STORAGE=isolated-filesystem \
+          M3_DOCUMENT_SCANNER=synthetic-preview \
+          PREVIEW_DB_ISOLATION=PASS \
+          VERCEL_ENV=preview \
+          ALLOW_DB_TESTS=1 \
+          npm run start > /tmp/td-agent-next.log 2>&1 &
       - name: Wait for server
         run: |
           for attempt in {1..30}; do
@@ -176,6 +211,13 @@ jobs:
       - name: Show server diagnostics after an E2E failure
         if: failure()
         run: tail -n 200 /tmp/td-agent-next.log
+      - name: Cleanup isolated M3 browser UAT fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/m3-uat-ready" ]; then
+            npx tsx tests/e2e/m3-fixture.ts cleanup
+            rm -rf "$GITHUB_WORKSPACE/.m3-private-storage"
+          fi
       - name: Cleanup isolated M1 browser UAT fixture
         if: always()
         run: |
@@ -188,3 +230,11 @@ jobs:
           if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
             npx tsx tests/e2e/m2-fixture.ts cleanup
           fi
+      - name: Validate authoritative mission evidence
+        run: npm run evidence:validate
+        env:
+          REQUIRED_MISSION_EVIDENCE: M3
+          # On a pull_request the checkout leaves HEAD at the merge ref, so the evidence
+          # gate would compare the certified SHA against base-merged-into-branch and fail
+          # the moment an unrelated commit lands on main. Give it the real PR head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

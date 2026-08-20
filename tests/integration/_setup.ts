@@ -99,6 +99,9 @@ export type IntegrationFixtureContext = {
   makeMember(tag: string, options?: { organizationId?: string; role?: MembershipRole }): Promise<FixtureMember>;
   makeAgent(tag: string): Promise<FixtureMember>;
   makeCase(owner: FixtureMember, tag: string, options?: { ceremonyAt?: Date | null }): Promise<FixtureCase>;
+  trackDocumentPolicy(id: string): void;
+  trackDocumentType(id: string): void;
+  trackSigningPolicy(id: string): void;
   trackUser(userId: number): void;
   cleanup(): Promise<void>;
   assertNoResidue(): Promise<void>;
@@ -116,6 +119,9 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
   const createdMembershipIds = new Set<string>();
   const createdUserIds = new Set<number>();
   const createdAgentIds = new Set<number>();
+  const documentPolicyIds = new Set<string>();
+  const documentTypeIds = new Set<string>();
+  const signingPolicyIds = new Set<string>();
   let organizationSequence = 0;
   let memberSequence = 0;
   let caseSequence = 0;
@@ -273,7 +279,26 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       const orderIds = orders.map((item) => item.id);
 
       if (caseIds.length) await tx.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
+      if (caseIds.length) {
+        await tx.caseDocumentRequirement.updateMany({
+          where: { caseId: { in: caseIds } },
+          data: { satisfactionStatus: "NOT_SATISFIED", satisfiedByVersionId: null },
+        });
+        await tx.documentAccessEvent.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentWebhookReceipt.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentLedgerApproval.deleteMany({ where: { ledgerEntry: { caseId: { in: caseIds } } } });
+        await tx.paymentLedgerEntry.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentObligation.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.contractVersion.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.contract.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocumentVersion.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocument.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocumentRequirement.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.casePartyRoleAssignment.deleteMany({ where: { caseParty: { caseId: { in: caseIds } } } });
+        await tx.caseParty.deleteMany({ where: { caseId: { in: caseIds } } });
+      }
       if (ownOrganizationIds.length) {
+        await tx.financialControlPolicy.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.projectionReceipt.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.savedOperationalView.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
@@ -340,6 +365,16 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       if (ownAgentIds.length) await tx.agent.deleteMany({ where: { id: { in: ownAgentIds } } });
       if (ownUserIds.length) await tx.user.deleteMany({ where: { id: { in: ownUserIds } } });
       if (ownOrganizationIds.length) await tx.organization.deleteMany({ where: { id: { in: ownOrganizationIds } } });
+      if (documentPolicyIds.size) {
+        await tx.documentRequirementRule.deleteMany({ where: { policyId: { in: [...documentPolicyIds] } } });
+        await tx.documentRequirementPolicy.deleteMany({ where: { id: { in: [...documentPolicyIds] } } });
+      }
+      if (documentTypeIds.size) {
+        await tx.documentTypeDefinition.deleteMany({ where: { id: { in: [...documentTypeIds] } } });
+      }
+      if (signingPolicyIds.size) {
+        await tx.contractSigningPolicy.deleteMany({ where: { id: { in: [...signingPolicyIds] } } });
+      }
     });
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -388,6 +423,22 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.quoteClientLink.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
       () => db.quoteClientDecision.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
       () => db.quotePresentationSession.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
+      () => db.caseParty.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.casePartyRoleAssignment.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocumentRequirement.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocument.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocumentVersion.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.documentAccessEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.contract.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.contractVersion.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentObligation.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentLedgerEntry.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentLedgerApproval.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.financialControlPolicy.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentWebhookReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.documentRequirementPolicy.count({ where: { id: { in: [...documentPolicyIds] } } }),
+      () => db.documentTypeDefinition.count({ where: { id: { in: [...documentTypeIds] } } }),
+      () => db.contractSigningPolicy.count({ where: { id: { in: [...signingPolicyIds] } } }),
     ];
     let total = 0;
     for (const count of counts) total += await count();
@@ -407,6 +458,16 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
            LEFT JOIN "Quote" q ON q.id = s."quoteId" WHERE q.id IS NULL)
       + (SELECT count(*) FROM "QuoteVersion" v
            LEFT JOIN "Quote" q ON q.id = v."quoteId" WHERE q.id IS NULL)
+      + (SELECT count(*) FROM "CasePartyRoleAssignment" r
+           LEFT JOIN "CaseParty" p ON p.id = r."casePartyId" WHERE p.id IS NULL)
+      + (SELECT count(*) FROM "CaseDocumentVersion" v
+           LEFT JOIN "CaseDocument" d ON d.id = v."documentId" WHERE d.id IS NULL)
+      + (SELECT count(*) FROM "PaymentLedgerEntry" e
+           LEFT JOIN "PaymentObligation" o ON o.id = e."obligationId" WHERE o.id IS NULL)
+      + (SELECT count(*) FROM "PaymentLedgerApproval" a
+           LEFT JOIN "PaymentLedgerEntry" e ON e.id = a."ledgerEntryId" WHERE e.id IS NULL)
+      + (SELECT count(*) FROM "PaymentWebhookReceipt" r
+           LEFT JOIN "Case" c ON c.id = r."caseId" WHERE c.id IS NULL)
       AS count
     `;
     if (Number(orphans.count) !== 0) {
@@ -423,6 +484,9 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     makeMember,
     makeAgent: (tag) => makeMember(tag, { role: "AGENT" }),
     makeCase,
+    trackDocumentPolicy: (id) => documentPolicyIds.add(id),
+    trackDocumentType: (id) => documentTypeIds.add(id),
+    trackSigningPolicy: (id) => signingPolicyIds.add(id),
     trackUser: (userId) => {
       userIds.add(userId);
       createdUserIds.add(userId);

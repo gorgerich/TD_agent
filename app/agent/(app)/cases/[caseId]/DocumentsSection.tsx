@@ -1,239 +1,276 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import {
-  ArrowSquareOut,
-  CheckCircle,
-  FileArrowUp,
-  FileImage,
-  FilePdf,
-  Files,
-  Trash,
-  WarningCircle,
-} from "@phosphor-icons/react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { ArrowSquareOut, FileArrowUp, LockKey, WarningCircle } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
-import { dateLong } from "@/lib/format";
 
-type Doc = {
-  id: number;
-  name: string;
-  category: string;
-  url: string;
-  mimeType: string;
-  size: number;
-  createdAt: string;
+export type CanonicalDocumentRequirement = {
+  id: string;
+  stableKey: string;
+  policyStatus: "DRAFT_POLICY" | "APPROVED" | "RETIRED";
+  policyVersion: number;
+  scenario: string;
+  kind: "REQUIRED" | "CONDITIONAL";
+  conditionExplanation: string | null;
+  isApplicable: boolean;
+  applicabilityEvaluatedAt: string;
+  dueAt: string | null;
+  ownerRole: string;
+  blockingStage: string;
+  acceptedDocumentTypeCodes: string[];
+  derivedSatisfactionStatus: "NOT_SATISFIED" | "SATISFIED";
+  document: {
+    id: string;
+    status: string;
+    documentType: { code: string; name: string; version: number };
+    versions: Array<{
+      id: string;
+      versionNumber: number;
+      status: string;
+      scanStatus: string;
+      expiresAt: string | null;
+      rejectionReason: string | null;
+      createdAt: string;
+    }>;
+  } | null;
 };
 
-const CATEGORIES = ["Свидетельство о смерти", "Паспорт", "Договор", "Доверенность", "Прочее"] as const;
+const STATUS_LABELS: Record<string, string> = {
+  REQUIRED: "Требуется",
+  UPLOADED: "Загружен, ожидает проверки",
+  QUARANTINED: "Карантин",
+  IN_REVIEW: "На проверке",
+  VERIFIED: "Проверен",
+  REJECTED: "Отклонён",
+  EXPIRED: "Срок истёк",
+  SUPERSEDED: "Заменён новой версией",
+};
 
-const REQUIRED_DOCUMENTS = [
-  {
-    category: "Свидетельство о смерти",
-    title: "Свидетельство о смерти",
-    hint: "Нужно для договора и запуска оформления.",
-  },
-  {
-    category: "Паспорт",
-    title: "Паспорт заявителя",
-    hint: "Проверка данных плательщика и договора.",
-  },
-  {
-    category: "Договор",
-    title: "Договор",
-    hint: "Фиксирует состав услуг и оплату.",
-  },
-  {
-    category: "Доверенность",
-    title: "Доверенность",
-    hint: "Нужна, если агент действует от имени семьи.",
-  },
-] as const;
+const REQUIREMENT_LABELS: Record<string, string> = {
+  "identity-record": "Документ, удостоверяющий личность",
+  "death-record": "Документ о смерти",
+  "cremation-authorization": "Основание для кремации",
+  "plot-entitlement": "Право на родственный участок",
+  "relationship-evidence": "Подтверждение родства",
+};
 
-function fmtSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
-}
+const OWNER_LABELS: Record<string, string> = {
+  AGENT: "Агент",
+  FAMILY: "Семья",
+  DOCUMENT_REVIEWER: "Проверяющий документов",
+  MANAGER: "Менеджер",
+};
 
-export function DocumentsSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: Doc[]; timezone: string; canMutate?: boolean }) {
-  const [docs, setDocs] = useState<Doc[]>(initial);
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
-  const [busy, setBusy] = useState(false);
+export function DocumentsSection({
+  caseId,
+  timezone,
+  requirements,
+  legacyCount,
+  canMutate = true,
+}: {
+  caseId: number;
+  timezone: string;
+  requirements: CanonicalDocumentRequirement[];
+  legacyCount: number;
+  canMutate?: boolean;
+}) {
+  const router = useRouter();
+  const [confirmedRequirements, setConfirmedRequirements] = useState<CanonicalDocumentRequirement[] | null>(null);
+  const [busyRequirementId, setBusyRequirementId] = useState<string | null>(null);
+  const [openingVersionId, setOpeningVersionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [, startTransition] = useTransition();
+  const [refreshing, startRefresh] = useTransition();
+  const visibleRequirements = confirmedRequirements ?? requirements;
+  const applicableRequirements = visibleRequirements.filter((item) => item.isApplicable);
+  const verified = applicableRequirements.filter((item) => item.derivedSatisfactionStatus === "SATISFIED").length;
 
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function upload(requirement: CanonicalDocumentRequirement, file: File) {
+    const documentTypeCode = requirement.acceptedDocumentTypeCodes[0];
+    if (!documentTypeCode) {
+      setError("Для требования не настроен допустимый тип документа.");
+      return;
+    }
+    const commandId = crypto.randomUUID();
+    const body = new FormData();
+    body.set("file", file);
+    body.set("requirementId", requirement.id);
+    body.set("documentTypeCode", documentTypeCode);
+    setBusyRequirementId(requirement.id);
     setError(null);
-    setBusy(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("category", category);
-      const res = await fetch(`/api/agent/cases/${caseId}/documents`, { method: "POST", body: formData });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? "Не удалось загрузить файл. Попробуйте снова.");
-        return;
+      const response = await fetch(`/api/agent/cases/${caseId}/documents`, {
+        method: "POST",
+        headers: {
+          "Idempotency-Key": `document-upload:${commandId}`,
+          "X-Correlation-Id": commandId,
+        },
+        body,
+      });
+      const result = await response.json().catch(() => null) as { error?: string } | null;
+      if (!response.ok) throw new Error(result?.error || "Документ не загружен");
+      const readBack = await fetch(`/api/agent/cases/${caseId}/documents`, { cache: "no-store" });
+      const canonical = await readBack.json().catch(() => null) as { requirements?: CanonicalDocumentRequirement[]; error?: string } | null;
+      if (!readBack.ok || !Array.isArray(canonical?.requirements)) {
+        setError(canonical?.error || "Документ загружен, но список не обновлён. Обновите страницу.");
+      } else {
+        setConfirmedRequirements(canonical.requirements);
       }
-      setDocs((prev) => [{ ...data.document, createdAt: new Date(data.document.createdAt).toISOString() }, ...prev]);
-    } catch {
-      setError("Нет связи. Проверьте интернет и попробуйте снова.");
+      startRefresh(() => router.refresh());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Документ не загружен");
     } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = "";
+      setBusyRequirementId(null);
     }
   }
 
-  function remove(id: number) {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/agent/cases/${caseId}/documents/${id}`, { method: "DELETE" });
-        if (res.ok) {
-          setDocs((prev) => prev.filter((doc) => doc.id !== id));
-          setError(null);
-          return;
-        }
-        setError("Не удалось удалить файл. Попробуйте снова.");
-      } catch {
-        setError("Нет связи. Файл не удалён.");
+  async function openVersion(versionId: string) {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      setError("Браузер заблокировал новое окно. Разрешите открытие и повторите действие.");
+      return;
+    }
+    popup.opener = null;
+    const correlationId = crypto.randomUUID();
+    setOpeningVersionId(versionId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/agent/cases/${caseId}/documents/${versionId}`, {
+        headers: {
+          "X-Correlation-Id": correlationId,
+        },
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(result?.error || "Файл недоступен");
       }
-    });
+      const objectUrl = URL.createObjectURL(await response.blob());
+      popup.location.replace(objectUrl);
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (cause) {
+      popup.close();
+      setError(cause instanceof Error ? cause.message : "Файл недоступен");
+    } finally {
+      setOpeningVersionId(null);
+    }
   }
-
-  const docsByCategory = new Map<string, Doc>();
-  for (const doc of docs) {
-    if (!docsByCategory.has(doc.category)) docsByCategory.set(doc.category, doc);
-  }
-  const readyCount = REQUIRED_DOCUMENTS.filter((item) => docsByCategory.has(item.category)).length;
-  const primaryDocumentIds = new Set([...docsByCategory.values()].map((doc) => doc.id));
-  const extraDocs = docs.filter((doc) => !primaryDocumentIds.has(doc.id));
 
   return (
-    <div className="space-y-5">
-      <div className="td-work-kicker">
-        <span><strong>{readyCount} из {REQUIRED_DOCUMENTS.length}</strong> обязательных документов готовы</span>
-        {readyCount < REQUIRED_DOCUMENTS.length && <span className="font-semibold text-warning">Нужно собрать ещё {REQUIRED_DOCUMENTS.length - readyCount}</span>}
+    <div
+      aria-label="Сценарные документы"
+      aria-busy={busyRequirementId != null || refreshing}
+      className="space-y-4"
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-3">
+        <p className="text-[13px] text-ink-2">
+          Проверено <strong className="tnum text-ink">{verified} из {applicableRequirements.length}</strong>
+        </p>
+        <p className="inline-flex items-center gap-1.5 text-[12px] text-ink-3">
+          <LockKey size={14} weight="bold" /> Файлы выдаются только после серверной проверки доступа
+        </p>
       </div>
 
-      {canMutate && <div className="td-upload-surface">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-accent-soft text-accent shadow-[var(--shadow-xs)]">
-            <FileArrowUp size={19} weight="fill" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold text-ink">Добавить документ</span>
-            <span className="mt-0.5 block text-[12px] leading-relaxed text-ink-3">Выберите тип, затем файл. Он сразу попадёт в историю кейса.</span>
-          </span>
-        </div>
-        <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <label className="min-w-0">
-            <span className="sr-only">Тип документа</span>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className="td-field">
-              {CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </label>
-          <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" onChange={onPick} className="hidden" />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-            className={buttonClasses({ size: "sm", className: "w-full sm:w-auto" })}
-          >
-            <FileArrowUp size={15} weight="bold" /> {busy ? "Загружаю..." : "Выбрать файл"}
-          </button>
-        </div>
-        <p className="text-[12px] text-ink-3">PDF, JPG, PNG - до 10 МБ</p>
-      </div>}
+      {legacyCount > 0 && (
+        <p role="status" className="flex gap-2 border-l-4 border-warning bg-warning-soft px-3 py-2 text-[12px] leading-relaxed text-warning">
+          <WarningCircle size={17} weight="fill" className="mt-0.5 shrink-0" />
+          {legacyCount} legacy-файл не считается проверенным и требует явной миграции в сценарное требование.
+        </p>
+      )}
+      {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
 
-      {error && <p role="alert" className="rounded-[10px] bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
-
-      <section aria-label="Обязательные документы">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h4 className="text-[13px] font-semibold text-ink">Обязательные документы</h4>
-          <span className="tnum text-[12px] text-ink-3">{readyCount}/{REQUIRED_DOCUMENTS.length}</span>
+      {visibleRequirements.length === 0 ? (
+        <div className="py-8 text-center">
+          <p className="font-medium text-ink">Checklist ещё не утверждён или сценарий не выбран</p>
+          <p className="mt-1 text-[12px] text-ink-3">Документы не будут названы обязательными без утверждённой policy.</p>
         </div>
-        <ul className="td-work-list">
-          {REQUIRED_DOCUMENTS.map((item) => {
-            const uploaded = docsByCategory.get(item.category);
+      ) : (
+        <ul className="divide-y divide-line" aria-label="Сценарные требования документов">
+          {visibleRequirements.map((requirement) => {
+            const latest = requirement.document?.versions[0] ?? null;
+            const satisfied = requirement.derivedSatisfactionStatus === "SATISFIED";
+            const effectiveStatus = latest?.status === "VERIFIED" && latest.expiresAt && new Date(latest.expiresAt) <= new Date()
+              ? "EXPIRED"
+              : latest?.status ?? "REQUIRED";
+            const canOpen = latest && latest.scanStatus === "CLEAN" && latest.status !== "QUARANTINED";
             return (
-              <li key={item.category} className="td-work-row">
-                <div className="flex min-w-0 items-center gap-3 px-1 py-2.5 sm:px-2">
-                  <span className={`grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] shadow-[var(--shadow-xs)] ${uploaded ? "bg-success-soft text-success" : "bg-warning-soft text-warning"}`}>
-                    {uploaded ? <CheckCircle size={19} weight="fill" /> : <WarningCircle size={19} weight="fill" />}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] font-semibold text-ink">{item.title}</span>
-                    <span className="mt-1 block truncate text-[12px] text-ink-3">
-                      {uploaded ? `${uploaded.name} - ${fmtSize(uploaded.size)} - ${dateLong(uploaded.createdAt, timezone)}` : item.hint}
-                    </span>
-                  </span>
-                  {uploaded ? (
-                    <span className="flex flex-shrink-0 items-center gap-1">
-                      <a href={uploaded.url} target="_blank" rel="noopener" className="td-icon-button h-10 w-10" aria-label={`Открыть ${item.title}`}>
-                        <ArrowSquareOut size={17} weight="bold" />
-                      </a>
-                      {canMutate && (
-                        <button type="button" onClick={() => remove(uploaded.id)} className="td-icon-button h-10 w-10 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${item.title}`}>
-                          <Trash size={16} weight="bold" />
-                        </button>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="flex-shrink-0 text-[12px] font-semibold text-warning">Нужно</span>
-                  )}
+              <li key={requirement.id} className="py-4 first:pt-0 last:pb-0">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <h4 className="text-[14px] font-semibold text-ink">{REQUIREMENT_LABELS[requirement.stableKey] ?? requirement.stableKey}</h4>
+                      <span className={`text-[12px] font-semibold ${satisfied ? "text-success" : effectiveStatus === "REJECTED" ? "text-danger" : "text-warning"}`}>
+                        {!requirement.isApplicable ? "Не применяется" : satisfied ? "Проверен" : STATUS_LABELS[effectiveStatus] ?? effectiveStatus}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[12px] leading-relaxed text-ink-3">Policy v{requirement.policyVersion} · блокирует этап {requirement.blockingStage}</p>
+                    <dl className="mt-2 grid gap-1 text-[12px] text-ink-2 sm:grid-cols-2">
+                      <div className="flex gap-2"><dt className="text-ink-3">Ответственный:</dt><dd>{OWNER_LABELS[requirement.ownerRole] ?? requirement.ownerRole}</dd></div>
+                      <div className="flex gap-2"><dt className="text-ink-3">Срок:</dt><dd>{requirement.dueAt ? formatDate(requirement.dueAt, timezone) : "не назначен policy"}</dd></div>
+                    </dl>
+                    {latest?.rejectionReason && (
+                      <p className="mt-2 text-[12px] font-medium text-danger">Причина: {latest.rejectionReason}</p>
+                    )}
+                    {requirement.conditionExplanation && (
+                      <p className="mt-2 text-[12px] text-ink-2">Условие: {requirement.conditionExplanation}</p>
+                    )}
+                    {requirement.isApplicable && !satisfied && <p className="mt-2 text-[12px] font-medium text-warning">Следующее действие: {nextDocumentAction(effectiveStatus)}</p>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    {canOpen && (
+                      <button
+                        type="button"
+                        onClick={() => openVersion(latest.id)}
+                        disabled={openingVersionId === latest.id}
+                        className={buttonClasses({ variant: "secondary", size: "sm" })}
+                      >
+                        <ArrowSquareOut size={15} weight="bold" />
+                        {openingVersionId === latest.id ? "Открываю..." : `Открыть v${latest.versionNumber}`}
+                      </button>
+                    )}
+                    {canMutate && requirement.isApplicable && requirement.policyStatus !== "DRAFT_POLICY" && (
+                      <label className={buttonClasses({ size: "sm", className: "cursor-pointer" })}>
+                        <FileArrowUp size={15} weight="bold" />
+                        {busyRequirementId === requirement.id ? "Загрузка..." : latest ? "Заменить" : "Загрузить"}
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+                          className="sr-only"
+                          disabled={busyRequirementId != null || refreshing}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void upload(requirement, file);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </li>
             );
           })}
         </ul>
-      </section>
-
-      {extraDocs.length > 0 && (
-        <section aria-label="Другие файлы">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h4 className="text-[13px] font-semibold text-ink">Другие файлы</h4>
-            <span className="tnum text-[12px] text-ink-3">{extraDocs.length}</span>
-          </div>
-          <ul className="td-work-list">
-            {extraDocs.map((doc) => {
-              const isPdf = doc.mimeType === "application/pdf";
-              return (
-                <li key={doc.id} className="td-work-row">
-                  <div className="flex min-w-0 items-center gap-3 px-1 py-2.5 sm:px-2">
-                    <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-surface-2 text-ink-2 shadow-[var(--shadow-xs)]">
-                      {isPdf ? <FilePdf size={20} weight="fill" className="text-danger" /> : <FileImage size={20} weight="fill" className="text-info" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold text-ink">{doc.name}</span>
-                      <span className="mt-1 block truncate text-[12px] text-ink-3">{doc.category} - {fmtSize(doc.size)} - {dateLong(doc.createdAt, timezone)}</span>
-                    </span>
-                    <a href={doc.url} target="_blank" rel="noopener" className="td-icon-button h-10 w-10 flex-shrink-0" aria-label={`Открыть ${doc.name}`}>
-                      <ArrowSquareOut size={17} weight="bold" />
-                    </a>
-                    {canMutate && (
-                      <button type="button" onClick={() => remove(doc.id)} className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger" aria-label={`Удалить ${doc.name}`}>
-                        <Trash size={16} weight="bold" />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
       )}
-
-      {docs.length === 0 && (
-        <div className="flex items-center gap-2 text-[12px] text-ink-3">
-          <Files size={15} weight="fill" /> Начните с документа, который сейчас есть у клиента.
-        </div>
-      )}
-      {!canMutate && <p className="text-[12px] text-ink-3">Документы доступны для просмотра. Загружает и удаляет их владелец кейса.</p>}
     </div>
   );
+}
+
+function formatDate(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+function nextDocumentAction(status: string) {
+  if (status === "REJECTED") return "исправить указанную причину и загрузить новую версию";
+  if (status === "EXPIRED") return "загрузить действующую версию";
+  if (status === "QUARANTINED") return "дождаться безопасного результата сканирования; stage остаётся закрыт";
+  if (status === "UPLOADED") return "передать чистую версию проверяющему";
+  if (status === "IN_REVIEW") return "дождаться явного решения проверяющего";
+  if (status === "SUPERSEDED") return "проверить последнюю применимую версию";
+  return "загрузить допустимый файл для этого требования";
 }
 
 export default DocumentsSection;

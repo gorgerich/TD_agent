@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:unit": "node --import tsx --test tests/*.test.ts",
-    "test:integration": "ALLOW_DB_TESTS=1 DATABASE_URL=\"$TEST_DATABASE_URL\" DATABASE_URL_UNPOOLED=\"$TEST_DATABASE_URL\" node --import tsx --test tests/integration/*.itest.ts",
-    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/m1-operations.mjs && node tests/e2e/m2-admin.mjs && node tests/e2e/m2-commercial.mjs",
+    "test:integration": "node scripts/run-integration-tests.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/m1-operations.mjs && node tests/e2e/m2-admin.mjs && node tests/e2e/m2-commercial.mjs && node tests/e2e/m3-fulfilment.mjs",
     "evidence:validate": "node scripts/validate-mission-evidence.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name b2b_platform_init",
@@ -22,6 +22,7 @@
     "ops:bootstrap-platform-super-admin": "tsx scripts/ops/bootstrap-platform-super-admin.ts",
     "ops:issue-platform-owner-recovery": "tsx scripts/ops/issue-platform-owner-recovery.ts",
     "ops:verify-migration-target": "tsx scripts/ops/verify-migration-target.ts",
+    "ops:apply-m3-approved-policies": "tsx scripts/ops/apply-m3-approved-policies.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

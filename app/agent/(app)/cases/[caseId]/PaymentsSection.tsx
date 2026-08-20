@@ -1,167 +1,195 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { CurrencyRub, Plus, Trash, Warning } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/Button";
-import { dateTime, moneyFromKopecks } from "@/lib/format";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { FilePlus, SealCheck, WarningCircle } from "@phosphor-icons/react";
+import { Button, buttonClasses } from "@/components/ui/Button";
+import { moneyFromKopecks } from "@/lib/format";
 
-export type PaymentItem = {
-  id: number;
-  amountKopecks: number;
-  kind: string;
-  method: string;
-  note: string | null;
-  paidAt: string;
+export type ContractLedgerVersion = {
+  id: string;
+  versionNumber: number;
+  status: string;
+  totalObligationKopecks: number;
+  currency: string;
+  issuedAt: string | null;
+  signedAt: string | null;
+  validUntil: string | null;
+  quoteVersionId: number;
+  obligation: { id: string } | null;
+  payment: {
+    state: "KNOWN" | "LEGACY_INCOMPLETE";
+    status: string | null;
+    currency: string;
+    obligationKopecks: number | null;
+    paidKopecks: number | null;
+    refundedKopecks: number | null;
+    balanceKopecks: number | null;
+  } | null;
 };
 
-const KINDS = ["аванс", "остаток", "полная"] as const;
-const METHODS = ["наличные", "карта", "счёт"] as const;
+export type ContractPayer = { id: string; name: string; roles: string[] };
 
-export function PaymentsSection({ caseId, initial, timezone, canMutate = true }: { caseId: number; initial: PaymentItem[]; timezone: string; canMutate?: boolean }) {
-  const [items, setItems] = useState<PaymentItem[]>(initial);
-  const [amount, setAmount] = useState("");
-  const [kind, setKind] = useState<string>(KINDS[0]);
-  const [method, setMethod] = useState<string>(METHODS[0]);
+const CONTRACT_STATUS: Record<string, string> = {
+  DRAFT: "Черновик",
+  ISSUED: "Выдан",
+  SIGNED: "Подписан",
+  CANCELLED: "Отменён",
+  SUPERSEDED: "Заменён",
+};
+
+const PAYMENT_STATUS: Record<string, string> = {
+  UNPAID: "Не оплачен",
+  PARTIALLY_PAID: "Частично оплачен",
+  PAID: "Оплачен",
+  OVERPAID: "Переплата",
+  PARTIALLY_REFUNDED: "Частичный возврат",
+  REFUNDED: "Возвращён",
+};
+
+export function PaymentsSection({
+  caseId,
+  versions,
+  legacyCount,
+  parties,
+  canMutate,
+}: {
+  caseId: number;
+  versions: ContractLedgerVersion[];
+  legacyCount: number;
+  parties: ContractPayer[];
+  canMutate: boolean;
+}) {
+  const router = useRouter();
+  const [mode, setMode] = useState<"CREATE" | "SIGN" | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const current = versions[0] ?? null;
+  const summary = current?.payment ?? null;
+  const payers = parties.filter((party) => party.roles.includes("PAYER"));
 
-  const total = items.reduce((sum, item) => sum + item.amountKopecks, 0);
+  async function command(body: unknown) {
+    const commandId = crypto.randomUUID();
+    const response = await fetch(`/api/agent/cases/${caseId}/contract`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": `contract:${commandId}`,
+        "X-Correlation-Id": commandId,
+      },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json().catch(() => null) as { error?: string } | null;
+    if (!response.ok) throw new Error(result?.error || "Команда договора не выполнена");
+  }
 
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    const rub = Number(amount.replace(/\D/g, ""));
-    if (!rub) return;
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
     setBusy(true);
-    setErr(null);
+    setError(null);
     try {
-      const res = await fetch(`/api/agent/cases/${caseId}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amountRub: rub, kind, method }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setErr(data.error ?? "Не удалось сохранить оплату. Попробуйте снова.");
-        return;
+      if (mode === "CREATE") {
+        await command({
+          action: "CREATE",
+          payerPartyId: form.get("payerPartyId"),
+          paymentTerms: { description: form.get("paymentTerms") },
+          validUntil: form.get("validUntil") ? new Date(String(form.get("validUntil"))).toISOString() : null,
+        });
+      } else if (mode === "SIGN" && current) {
+        await command({
+          action: "SIGN",
+          contractVersionId: current.id,
+          signatureEvidence: { type: form.get("evidenceType"), reference: form.get("evidenceReference") },
+          signaturePolicyVersion: form.get("signaturePolicyVersion"),
+        });
       }
-      setItems((prev) => [{ ...data.payment, paidAt: new Date(data.payment.paidAt).toISOString() }, ...prev]);
-      setAmount("");
-    } catch {
-      setErr("Нет связи. Проверьте интернет и попробуйте снова.");
+      setMode(null);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Команда договора не выполнена");
     } finally {
       setBusy(false);
     }
   }
 
-  function remove(id: number) {
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/api/agent/cases/${caseId}/payments?id=${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          setErr("Не удалось удалить оплату. Попробуйте снова.");
-          return;
-        }
-        setItems((prev) => prev.filter((item) => item.id !== id));
-      } catch {
-        setErr("Нет связи. Оплата не удалена.");
-      }
-    });
+  async function issue() {
+    if (!current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await command({ action: "ISSUE", contractVersionId: current.id });
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Договор не выдан");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="space-y-5">
-      <div className="td-money-summary">
-        <span>
-          <span className="td-money-summary-label">Получено по кейсу</span>
-          <span className="mt-1 block text-[12px] text-ink-3">{items.length > 0 ? `${items.length} ${items.length === 1 ? "запись" : "записи"}` : "Платежей пока нет"}</span>
-        </span>
-        <span className="td-money-summary-value tnum">{moneyFromKopecks(total)}</span>
-      </div>
+    <div className="space-y-4">
+      {legacyCount > 0 && (
+        <p role="status" className="flex gap-2 border-l-4 border-warning bg-warning-soft px-3 py-2 text-[12px] leading-relaxed text-warning">
+          <WarningCircle size={17} weight="fill" className="mt-0.5 shrink-0" />
+          {legacyCount} legacy-запись оплаты не является подтверждённой записью ledger и не влияет на статус.
+        </p>
+      )}
+      {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
 
-      {items.length > 0 && (
-        <ul className="td-work-list" aria-label="История оплат">
-          {items.map((payment) => (
-            <li key={payment.id} className="td-work-row">
-              <div className="flex min-w-0 items-center gap-3 px-1 py-2.5 sm:px-2">
-                <span className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[14px] bg-gold-soft text-gold shadow-[var(--shadow-xs)]">
-                  <CurrencyRub size={19} weight="bold" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="tnum block text-[14px] font-semibold text-ink">{moneyFromKopecks(payment.amountKopecks)}</span>
-                  <span className="mt-1 block text-[12px] text-ink-3">{payment.kind} - {payment.method} - {dateTime(payment.paidAt, timezone)}</span>
-                </span>
-                {canMutate && (
-                  <button
-                    type="button"
-                    onClick={() => remove(payment.id)}
-                    className="td-icon-button h-10 w-10 flex-shrink-0 hover:bg-danger-soft hover:text-danger"
-                    aria-label={`Удалить оплату ${moneyFromKopecks(payment.amountKopecks)}`}
-                  >
-                    <Trash size={16} weight="bold" />
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+      {!current ? (
+        <div className="py-7 text-center">
+          <p className="font-medium text-ink">Обязательство ещё не создано</p>
+          <p className="mx-auto mt-1 max-w-[60ch] text-[12px] leading-relaxed text-ink-3">Договор создаётся только из принятой immutable QuoteVersion и действующего участника с ролью «Плательщик».</p>
+          {canMutate && payers.length > 0 && <Button type="button" size="sm" className="mt-4" onClick={() => setMode("CREATE")}><FilePlus size={15} /> Создать черновик договора</Button>}
+          {canMutate && payers.length === 0 && <p className="mt-3 text-[12px] font-medium text-warning">Следующее действие: добавьте в разделе «Семья» участника с ролью «Плательщик».</p>}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid gap-4 border-b border-line pb-4 sm:grid-cols-3">
+            <TruthValue label="Договор" value={`v${current.versionNumber} · ${CONTRACT_STATUS[current.status] ?? current.status}`} />
+            <TruthValue label="Обязательство" value={summary?.obligationKopecks == null ? "Не подтверждено" : moneyFromKopecks(summary.obligationKopecks)} />
+            <TruthValue label="Статус оплаты" value={summary?.status ? PAYMENT_STATUS[summary.status] ?? summary.status : "Недостаточно данных"} tone={summary?.status === "PAID" || summary?.status === "OVERPAID" ? "success" : "warning"} />
+          </div>
+          <dl className="grid gap-x-8 gap-y-3 text-[13px] sm:grid-cols-2">
+            <MoneyRow label="Получено" value={summary?.paidKopecks} />
+            <MoneyRow label="Возвращено" value={summary?.refundedKopecks} />
+            <MoneyRow label="Остаток" value={summary?.balanceKopecks} emphasize />
+            <div className="flex justify-between gap-4"><dt className="text-ink-3">Источник</dt><dd className="text-right font-medium text-ink">QuoteVersion #{current.quoteVersionId}</dd></div>
+          </dl>
+          {canMutate && current.status === "DRAFT" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Следующее действие: проверить snapshot и выдать эту версию.</p><Button type="button" size="sm" onClick={issue} loading={busy}>Выдать договор</Button></div>}
+          {canMutate && current.status === "ISSUED" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Подписание доступно только по утверждённой Legal policy и подтверждению.</p><Button type="button" size="sm" onClick={() => setMode("SIGN")}><SealCheck size={15} /> Зафиксировать подписание</Button></div>}
+          <p className="text-[12px] leading-relaxed text-ink-3">Статус вычисляется только из immutable obligation и append-only ledger. Удаление записей и ручная установка PAID отсутствуют.</p>
+        </div>
       )}
 
-      {items.length === 0 && (
-        <p className="text-[12px] leading-relaxed text-ink-3">Зафиксируйте аванс сразу после договорённости с семьёй. Это не заменяет платёжный документ.</p>
+      {mode === "CREATE" && (
+        <form onSubmit={submit} className="grid gap-3 bg-surface-2 p-4" aria-label="Создать черновик договора">
+          <label><span className="td-field-label">Плательщик</span><select name="payerPartyId" className="td-field" required>{payers.map((payer) => <option key={payer.id} value={payer.id}>{payer.name}</option>)}</select></label>
+          <label><span className="td-field-label">Условия оплаты</span><textarea name="paymentTerms" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required /></label>
+          <label><span className="td-field-label">Действителен до</span><input name="validUntil" type="date" className="td-field" /></label>
+          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => setMode(null)}>Отмена</button><Button type="submit" size="sm" loading={busy}>Создать</Button></div>
+        </form>
       )}
-
-      {canMutate && <form onSubmit={add} className="td-form-surface grid gap-4" aria-label="Записать оплату">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-9 w-9 place-items-center rounded-[13px] bg-surface text-accent shadow-[var(--shadow-xs)]">
-            <Plus size={18} weight="bold" />
-          </span>
-          <span>
-            <span className="block text-[13px] font-semibold text-ink">Новая оплата</span>
-            <span className="mt-0.5 block text-[12px] text-ink-3">Запись остаётся в истории кейса.</span>
-          </span>
-        </div>
-        <label className="block">
-          <span className="td-field-label">Сумма</span>
-          <input
-            aria-label="Сумма оплаты"
-            className="td-field tnum text-[16px] font-semibold"
-            placeholder="0 ₽"
-            inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </label>
-        <div className="grid gap-3">
-          <div>
-            <span className="td-field-label">Тип оплаты</span>
-            <div className="td-segmented">
-              {KINDS.map((item) => (
-                <button key={item} type="button" className="td-segment min-h-10 flex-1 capitalize" data-active={kind === item ? "true" : undefined} onClick={() => setKind(item)}>
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <span className="td-field-label">Способ</span>
-            <div className="td-segmented">
-              {METHODS.map((item) => (
-                <button key={item} type="button" className="td-segment min-h-10 flex-1 capitalize" data-active={method === item ? "true" : undefined} onClick={() => setMethod(item)}>
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <Button type="submit" size="sm" loading={busy} disabled={!amount}>Записать оплату</Button>
-          {err && <span role="alert" className="inline-flex items-center gap-1.5 text-[12px] font-medium text-danger"><Warning size={15} weight="fill" /> {err}</span>}
-        </div>
-      </form>}
-      {!canMutate && <p className="text-[12px] text-ink-3">Оплаты доступны для контекста. Записи ведёт владелец кейса.</p>}
+      {mode === "SIGN" && current && (
+        <form onSubmit={submit} className="grid gap-3 bg-surface-2 p-4" aria-label="Зафиксировать подписание договора">
+          <p className="text-[12px] leading-relaxed text-ink-2">Техническая запись не заменяет юридическое подтверждение. Сервер примет только тип evidence из действующей утверждённой policy.</p>
+          <label><span className="td-field-label">Тип подтверждения</span><input name="evidenceType" className="td-field" minLength={1} maxLength={80} required /></label>
+          <label><span className="td-field-label">Ссылка или реестр подтверждения</span><input name="evidenceReference" className="td-field" minLength={3} maxLength={240} required /></label>
+          <label><span className="td-field-label">Версия Legal policy</span><input name="signaturePolicyVersion" className="td-field" minLength={1} maxLength={80} required /></label>
+          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => setMode(null)}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить immutable evidence</Button></div>
+        </form>
+      )}
     </div>
   );
+}
+
+function TruthValue({ label, value, tone }: { label: string; value: string; tone?: "success" | "warning" }) {
+  return <div><p className="text-[11px] font-medium text-ink-3">{label}</p><p className={`mt-1 text-[14px] font-semibold ${tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-ink"}`}>{value}</p></div>;
+}
+
+function MoneyRow({ label, value, emphasize = false }: { label: string; value: number | null | undefined; emphasize?: boolean }) {
+  return <div className="flex justify-between gap-4"><dt className="text-ink-3">{label}</dt><dd className={`tnum text-right ${emphasize ? "font-semibold text-ink" : "text-ink-2"}`}>{value == null ? "Не рассчитан" : moneyFromKopecks(value)}</dd></div>;
 }
 
 export default PaymentsSection;
