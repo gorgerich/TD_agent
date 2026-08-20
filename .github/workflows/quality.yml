@@ -188,6 +188,70 @@ jobs:
           M3_UAT_PASSWORD="$password" \
           M3_UAT_MFA_SECRET="$mfa_secret" \
           npx tsx tests/e2e/m3-fixture.ts provision
+      - name: Verify encrypted production-like backup and real restore
+        run: |
+          set -euo pipefail
+          umask 077
+
+          RESTORE_DB=td_agent_encrypted_restore_test
+          ADMIN_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          RESTORE_URL=postgresql://postgres:postgres@127.0.0.1:5432/$RESTORE_DB
+          plain_dump="$RUNNER_TEMP/m3-production-like.dump"
+          encrypted_dump="$RUNNER_TEMP/m3-production-like.dump.enc"
+          restored_dump="$RUNNER_TEMP/m3-production-like.restore.dump"
+          source_counts="$RUNNER_TEMP/m3-source-counts.txt"
+          restore_counts="$RUNNER_TEMP/m3-restore-counts.txt"
+
+          cleanup() {
+            rm -f "$plain_dump" "$encrypted_dump" "$restored_dump" "$source_counts" "$restore_counts"
+            psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $RESTORE_DB WITH (FORCE);" >/dev/null
+          }
+          trap cleanup EXIT
+
+          aggregate_counts() {
+            local url="$1"
+            while IFS= read -r table_name; do
+              local row_count
+              row_count="$(psql "$url" -v ON_ERROR_STOP=1 -v table_name="$table_name" -At <<'SQL'
+          SELECT count(*) FROM public.:"table_name";
+          SQL
+              )"
+              printf '%s=%s\n' "$table_name" "$row_count"
+            done < <(psql "$url" -v ON_ERROR_STOP=1 -Atc "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")
+          }
+
+          backup_key="$(openssl rand -base64 48 | tr -d '\n')"
+          printf '::add-mask::%s\n' "$backup_key"
+
+          pg_dump --format=custom --no-owner --no-privileges --file="$plain_dump" "$DATABASE_URL_UNPOOLED"
+          chmod 600 "$plain_dump"
+          pg_restore --list "$plain_dump" >/dev/null
+          aggregate_counts "$DATABASE_URL_UNPOOLED" > "$source_counts"
+
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in "$plain_dump" -out "$encrypted_dump" -pass stdin <<<"$backup_key"
+          chmod 600 "$encrypted_dump"
+          rm -f "$plain_dump"
+
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in "$encrypted_dump" -out "$restored_dump" -pass stdin <<<"$backup_key"
+          chmod 600 "$restored_dump"
+          pg_restore --list "$restored_dump" >/dev/null
+
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $RESTORE_DB WITH (FORCE);" >/dev/null
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE $RESTORE_DB" >/dev/null
+          pg_restore --exit-on-error --no-owner --no-privileges --dbname="$RESTORE_URL" "$restored_dump"
+          rm -f "$restored_dump"
+
+          aggregate_counts "$RESTORE_URL" > "$restore_counts"
+          diff -u "$source_counts" "$restore_counts"
+          DATABASE_URL="$RESTORE_URL" DATABASE_URL_UNPOOLED="$RESTORE_URL" \
+            npx prisma migrate diff --from-url "$RESTORE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+          test -s "$encrypted_dump"
+          test ! -e "$plain_dump"
+          test ! -e "$restored_dump"
+          echo "Encrypted backup restore, aggregate-count parity, and schema parity: PASS"
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start production server
