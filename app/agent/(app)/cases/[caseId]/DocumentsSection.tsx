@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { ArrowSquareOut, FileArrowUp, LockKey, WarningCircle } from "@phosphor-icons/react";
 import { buttonClasses } from "@/components/ui/Button";
 
@@ -80,7 +80,6 @@ export function DocumentsSection({
   const [busyRequirementId, setBusyRequirementId] = useState<string | null>(null);
   const [openingVersionId, setOpeningVersionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, startRefresh] = useTransition();
   const visibleRequirements = confirmedRequirements ?? requirements;
   const applicableRequirements = visibleRequirements.filter((item) => item.isApplicable);
   const verified = applicableRequirements.filter((item) => item.derivedSatisfactionStatus === "SATISFIED").length;
@@ -116,7 +115,7 @@ export function DocumentsSection({
       } else {
         setConfirmedRequirements(canonical.requirements);
       }
-      startRefresh(() => router.refresh());
+      router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Документ не загружен");
     } finally {
@@ -158,7 +157,7 @@ export function DocumentsSection({
   return (
     <div
       aria-label="Сценарные документы"
-      aria-busy={busyRequirementId != null || refreshing}
+      aria-busy={busyRequirementId != null}
       className="space-y-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-3">
@@ -235,7 +234,7 @@ export function DocumentsSection({
                           type="file"
                           accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
                           className="sr-only"
-                          disabled={busyRequirementId != null || refreshing}
+                          disabled={busyRequirementId != null}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             if (file) void upload(requirement, file);

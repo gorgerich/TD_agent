@@ -200,7 +200,7 @@ export async function lockDocumentRequirementPolicyScenario(
   return rows[0]?.id ?? null;
 }
 
-type RequirementFacts = {
+export type RequirementFacts = {
   lead: { ceremonyAt: Date | null };
   parties: Array<{ roles: Array<{ role: string }> }>;
 };

@@ -15,6 +15,7 @@ import {
 import {
   deriveLedgerSummary,
   remainingRefundableKopecks,
+  remainingSourceCapacityKopecks,
   requiresFourEyesApproval,
   type LedgerProjectionEntry,
   type LedgerSummary,
@@ -116,9 +117,6 @@ export async function createContractVersion(
       orderBy: { versionNumber: "desc" },
       select: { id: true, versionNumber: true, status: true },
     });
-    if (previous && previous.status !== "SUPERSEDED" && previous.status !== "CANCELLED") {
-      await tx.contractVersion.update({ where: { id: previous.id }, data: { status: "SUPERSEDED" } });
-    }
     const versionNumber = (previous?.versionNumber ?? 0) + 1;
     const snapshot = {
       schemaVersion: 1,
@@ -246,16 +244,79 @@ export async function signContractVersion(
     ) {
       throw new OperationalCommandError(422, "Политика и тип подтверждения подписания не утверждены Legal");
     }
-    const version = await tx.contractVersion.findFirst({
+    let version = await tx.contractVersion.findFirst({
       where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED" },
       select: {
-        id: true, caseId: true, payerPartyId: true, totalObligationKopecks: true, currency: true, validUntil: true,
+        id: true,
+        contractId: true,
+        caseId: true,
+        quoteVersionId: true,
+        supersedesVersionId: true,
+        payerPartyId: true,
+        totalObligationKopecks: true,
+        currency: true,
+        validUntil: true,
       },
     });
     if (!version) throw new OperationalCommandError(404, "Выданная версия договора не найдена");
+    await lockContract(tx, version.contractId);
+    version = await tx.contractVersion.findFirst({
+      where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED" },
+      select: {
+        id: true,
+        contractId: true,
+        caseId: true,
+        quoteVersionId: true,
+        supersedesVersionId: true,
+        payerPartyId: true,
+        totalObligationKopecks: true,
+        currency: true,
+        validUntil: true,
+      },
+    });
+    if (!version) throw new OperationalCommandError(409, "Версия договора уже изменилась");
     if (version.validUntil && version.validUntil <= new Date()) throw new OperationalCommandError(409, "Срок договора истёк");
-    await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
+    const caseRecord = await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
+    if (caseRecord.publishedQuoteVersionId !== version.quoteVersionId) {
+      throw new OperationalCommandError(409, "Подписать можно только договор текущей принятой версии сметы");
+    }
+    const latestVersion = await tx.contractVersion.findFirst({
+      where: { contractId: version.contractId },
+      orderBy: { versionNumber: "desc" },
+      select: { id: true },
+    });
+    if (latestVersion?.id !== version.id) {
+      throw new OperationalCommandError(409, "Подписать можно только последнюю версию договора");
+    }
+    const activeSigned = await tx.contractVersion.findMany({
+      where: { contractId: version.contractId, status: "SIGNED", id: { not: version.id } },
+      select: { id: true },
+    });
+    if (activeSigned.length > 1) {
+      throw new OperationalCommandError(409, "Обнаружено несколько действующих подписанных договоров");
+    }
+    if (activeSigned[0] && version.supersedesVersionId !== activeSigned[0].id) {
+      throw new OperationalCommandError(409, "Замещаемая подписанная версия договора не совпадает с текущей");
+    }
     const signedAt = new Date();
+    if (activeSigned[0]) {
+      await tx.contractVersion.update({
+        where: { id: activeSigned[0].id },
+        data: { status: "SUPERSEDED" },
+      });
+      await appendOperationalAudit(tx, context, {
+        entityType: "contract_version",
+        entityId: activeSigned[0].id,
+        action: "contract.superseded.v1",
+        before: prismaJson({ status: "SIGNED" }),
+        after: prismaJson({ status: "SUPERSEDED", supersededByVersionId: version.id }),
+        correlationId: meta.correlationId,
+        causationId: version.id,
+        idempotencyKey: `${meta.idempotencyKey}:supersede`,
+        reason: meta.reason,
+        result: prismaJson({ contractVersionId: activeSigned[0].id, supersededByVersionId: version.id }),
+      });
+    }
     await tx.contractVersion.update({
       where: { id: version.id },
       data: {
@@ -448,12 +509,22 @@ export async function recordRefund(
     if (replay) return { ...replay, replayed: true };
     const payment = await tx.paymentLedgerEntry.findFirst({
       where: { id: input.paymentEntryId, organizationId: context.organizationId, type: "PAYMENT" },
+      select: {
+        id: true,
+        organizationId: true,
+        caseId: true,
+        obligationId: true,
+        payerPartyId: true,
+        type: true,
+        direction: true,
+        amountKopecks: true,
+        currency: true,
+        approvalRequired: true,
+        approval: { select: { decision: true } },
+      },
     });
     if (!payment) throw new OperationalCommandError(404, "Исходная оплата не найдена");
-    const alreadyRefunded = await effectiveRefundedAmountForPayment(tx, payment.obligationId, payment.id);
-    if (alreadyRefunded + input.amountKopecks > payment.amountKopecks) {
-      throw new OperationalCommandError(422, "Возврат превышает остаток исходной оплаты");
-    }
+    await assertSourceCapacity(tx, payment, input.amountKopecks);
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -530,7 +601,7 @@ export async function requestLedgerAdjustment(
     if (input.type === "REVERSAL" && input.direction === related.direction) {
       throw new OperationalCommandError(422, "Сторно должно иметь противоположное направление");
     }
-    await assertAdjustmentWithinSource(tx, related.id, related.amountKopecks, input.amountKopecks);
+    await assertSourceCapacity(tx, related, input.amountKopecks);
     const policy = await tx.financialControlPolicy.findFirst({
       where: { organizationId: context.organizationId, status: "APPROVED" },
       orderBy: { version: "desc" },
@@ -625,10 +696,18 @@ export async function decideLedgerAdjustment(
       await lockLedgerEntry(tx, context.organizationId, entry.relatedEntryId);
       const related = await tx.paymentLedgerEntry.findFirst({
         where: { id: entry.relatedEntryId, organizationId: context.organizationId },
-        select: { amountKopecks: true },
+        select: {
+          id: true,
+          obligationId: true,
+          type: true,
+          direction: true,
+          amountKopecks: true,
+          approvalRequired: true,
+          approval: { select: { decision: true } },
+        },
       });
       if (!related) throw new OperationalCommandError(409, "Исходная запись ledger недоступна");
-      await assertAdjustmentWithinSource(tx, entry.relatedEntryId, related.amountKopecks, entry.amountKopecks, entry.id, false);
+      await assertSourceCapacity(tx, related, entry.amountKopecks, entry.id);
     }
     const decided = await tx.paymentLedgerApproval.updateMany({
       where: { id: entry.approval.id, decision: null, decidedByMembershipId: null, decidedAt: null },
@@ -970,7 +1049,15 @@ async function derivePaymentSummaryInTransaction(
     amountKopecks: entry.amountKopecks,
     relatedEntryId: entry.relatedEntryId,
     effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
+    reserved: entry.approvalRequired && entry.approval?.decision == null,
   })), obligation.currency);
+}
+
+async function lockContract(tx: Prisma.TransactionClient, contractId: string): Promise<void> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "Contract" WHERE "id" = ${contractId} FOR UPDATE
+  `;
+  if (rows.length !== 1) throw new OperationalCommandError(404, "Договор не найден");
 }
 
 async function lockLedgerEntry(tx: Prisma.TransactionClient, organizationId: string, entryId: string): Promise<void> {
@@ -983,44 +1070,22 @@ async function lockLedgerEntry(tx: Prisma.TransactionClient, organizationId: str
   if (rows.length !== 1) throw new OperationalCommandError(404, "Запись ledger не найдена");
 }
 
-async function assertAdjustmentWithinSource(
+async function assertSourceCapacity(
   tx: Prisma.TransactionClient,
-  relatedEntryId: string,
-  sourceAmountKopecks: number,
+  source: {
+    id: string;
+    obligationId: string;
+    type: PaymentLedgerEntryType;
+    direction: LedgerDirection;
+    amountKopecks: number;
+    approvalRequired: boolean;
+    approval: { decision: string | null } | null;
+  },
   requestedAmountKopecks: number,
   excludeEntryId?: string,
-  includePending = true,
 ): Promise<void> {
-  const existing = await tx.paymentLedgerEntry.findMany({
-    where: {
-      relatedEntryId,
-      type: { in: ["CORRECTION", "REVERSAL"] },
-      ...(excludeEntryId ? { id: { not: excludeEntryId } } : {}),
-      ...(includePending
-        ? {
-            OR: [
-              { approvalRequired: false },
-              { approval: { is: { decision: null } } },
-              { approval: { is: { decision: "APPROVED" } } },
-            ],
-          }
-        : { OR: [{ approvalRequired: false }, { approval: { is: { decision: "APPROVED" } } }] }),
-    },
-    select: { amountKopecks: true },
-  });
-  const reserved = existing.reduce((sum, entry) => sum + entry.amountKopecks, 0);
-  if (!Number.isSafeInteger(reserved) || reserved + requestedAmountKopecks > sourceAmountKopecks) {
-    throw new OperationalCommandError(422, "Коррекция превышает остаток исходной записи ledger");
-  }
-}
-
-async function effectiveRefundedAmountForPayment(
-  tx: Prisma.TransactionClient,
-  obligationId: string,
-  paymentEntryId: string,
-): Promise<number> {
   const entries = await tx.paymentLedgerEntry.findMany({
-    where: { obligationId },
+    where: { obligationId: source.obligationId, ...(excludeEntryId ? { id: { not: excludeEntryId } } : {}) },
     select: {
       id: true,
       type: true,
@@ -1031,13 +1096,18 @@ async function effectiveRefundedAmountForPayment(
       approval: { select: { decision: true } },
     },
   });
+  const projectionEntries = entries.map(toLedgerProjectionEntry);
+  if (!projectionEntries.some((entry) => entry.id === source.id)) {
+    projectionEntries.push(toLedgerProjectionEntry({ ...source, relatedEntryId: null }));
+  }
+  let remaining: number;
   try {
-    const projectionEntries = entries.map(toLedgerProjectionEntry);
-    const payment = projectionEntries.find((entry) => entry.id === paymentEntryId);
-    if (!payment) throw new Error("Payment entry is missing");
-    return payment.amountKopecks - remainingRefundableKopecks(projectionEntries, paymentEntryId);
+    remaining = remainingSourceCapacityKopecks(projectionEntries, source.id);
   } catch {
-    throw new OperationalCommandError(409, "Refund ledger исходной оплаты не согласован");
+    throw new OperationalCommandError(409, "Ledger исходной записи не согласован");
+  }
+  if (requestedAmountKopecks > remaining) {
+    throw new OperationalCommandError(422, "Коррекция превышает остаток исходной записи ledger");
   }
 }
 
@@ -1057,6 +1127,7 @@ function toLedgerProjectionEntry(entry: {
     amountKopecks: entry.amountKopecks,
     relatedEntryId: entry.relatedEntryId,
     effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
+    reserved: entry.approvalRequired && entry.approval?.decision == null,
   };
 }
 

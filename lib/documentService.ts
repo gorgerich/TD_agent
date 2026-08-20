@@ -16,6 +16,7 @@ import {
   validateM3CommandMeta,
 } from "@/lib/m3Command";
 import { advanceCaseFulfilmentInTransaction } from "@/lib/caseFulfilment";
+import { refreshCaseRequirementApplicabilityInTransaction } from "@/lib/documentRequirementService";
 
 const MAX_ABSOLUTE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -84,15 +85,19 @@ export async function uploadCaseDocument(
       }
 
       await requireTenantCase(tx, context, input.caseId, { requireOwnerForAgent: true });
+      await refreshCaseRequirementApplicabilityInTransaction(tx, context, input.caseId, meta);
       const requirement = await tx.caseDocumentRequirement.findFirst({
         where: {
           id: input.requirementId,
           caseId: input.caseId,
           organizationId: context.organizationId,
         },
-        select: { id: true },
+        select: { id: true, isApplicable: true },
       });
       if (!requirement) throw new OperationalCommandError(404, "Требование документа не найдено");
+      if (!requirement.isApplicable) {
+        throw new OperationalCommandError(409, "Требование документа больше не применимо к текущим данным кейса");
+      }
 
       const document = await tx.caseDocument.upsert({
         where: { requirementId: prerequisite.requirementId },

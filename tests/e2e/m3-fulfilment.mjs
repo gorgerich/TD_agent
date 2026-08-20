@@ -234,6 +234,16 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   await target.waitForLoadState("networkidle");
   row = reviewRow(target, publicRef, typeName);
   await row.getByText("Назначен вам", { exact: true }).waitFor();
+  const popupPromise = target.waitForEvent("popup");
+  const documentResponsePromise = target.waitForResponse((response) => (
+    response.url().includes("/documents/") && response.request().method() === "GET"
+  ));
+  await row.getByRole("button", { name: "Открыть" }).click();
+  const [popup, documentResponse] = await Promise.all([popupPromise, documentResponsePromise]);
+  assert.equal(documentResponse.status(), 200);
+  assert.match(documentResponse.headers()["content-type"] ?? "", /^application\/pdf/);
+  await popup.waitForURL(/^blob:/);
+  await popup.close();
   if (decision === "REJECT") {
     await row.getByRole("button", { name: "Отклонить" }).click();
     await row.getByLabel("Причина отклонения").fill("Synthetic UAT: требуется новая читаемая версия");

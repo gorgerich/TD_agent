@@ -7,6 +7,7 @@ import {
   evaluateFulfilmentGuards,
   getDraftScenarioRequirementBlueprints,
   remainingRefundableKopecks,
+  remainingSourceCapacityKopecks,
   requiresFourEyesApproval,
   type LedgerProjectionEntry,
 } from "../lib/m3Domain";
@@ -170,6 +171,27 @@ test("M3-W6: an approved refund reversal reopens only the truthful payment refun
 
   entries.push({ id: "r2", type: "REFUND", direction: "DEBIT", amountKopecks: 3_500, effective: true, relatedEntryId: "p" });
   assert.equal(remainingRefundableKopecks(entries, "p"), 6_500);
+});
+
+test("M3-W6: refunds and finance adjustments share one immutable source capacity", () => {
+  const entries: LedgerProjectionEntry[] = [
+    { id: "p", type: "PAYMENT", direction: "CREDIT", amountKopecks: 10_000, effective: true },
+    { id: "pending", type: "REVERSAL", direction: "DEBIT", amountKopecks: 2_000, effective: false, reserved: true, relatedEntryId: "p" },
+    { id: "refund", type: "REFUND", direction: "DEBIT", amountKopecks: 8_000, effective: true, relatedEntryId: "p" },
+  ];
+  assert.equal(remainingSourceCapacityKopecks(entries, "p"), 0);
+  entries.push({ id: "over", type: "REFUND", direction: "DEBIT", amountKopecks: 1, effective: true, relatedEntryId: "p" });
+  assert.throws(() => remainingSourceCapacityKopecks(entries, "p"), /exceed the source entry amount/);
+});
+
+test("M3-W6: reversing an adjustment reopens only its outstanding source capacity", () => {
+  const entries: LedgerProjectionEntry[] = [
+    { id: "p", type: "PAYMENT", direction: "CREDIT", amountKopecks: 10_000, effective: true },
+    { id: "correction", type: "CORRECTION", direction: "DEBIT", amountKopecks: 4_000, effective: true, relatedEntryId: "p" },
+    { id: "reversal", type: "REVERSAL", direction: "CREDIT", amountKopecks: 1_500, effective: true, relatedEntryId: "correction" },
+  ];
+  assert.equal(remainingSourceCapacityKopecks(entries, "p"), 7_500);
+  assert.equal(remainingSourceCapacityKopecks(entries, "correction"), 2_500);
 });
 
 test("M3-W6: refund over-reversal fails closed", () => {

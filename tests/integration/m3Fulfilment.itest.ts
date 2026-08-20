@@ -130,7 +130,7 @@ async function createAcceptedQuote(caseFixture: FixtureCase) {
       organizationId: caseFixture.owner.organizationId,
       caseId: caseFixture.id,
       ownerMembershipId: caseFixture.owner.membershipId,
-      idempotencyKey: `${fixtures.runId}:meeting`,
+      idempotencyKey: `${fixtures.runId}:${caseFixture.id}:meeting`,
     },
     select: { id: true },
   });
@@ -163,8 +163,8 @@ async function createAcceptedQuote(caseFixture: FixtureCase) {
       publishedAt: new Date(),
       publishReason: "Synthetic M3 integration",
       publishChannel: "integration",
-      idempotencyKey: `${fixtures.runId}:quote-publish`,
-      correlationId: `${fixtures.runId}:quote-publish:correlation`,
+      idempotencyKey: `${fixtures.runId}:${caseFixture.id}:quote-publish`,
+      correlationId: `${fixtures.runId}:${caseFixture.id}:quote-publish:correlation`,
     },
     select: { id: true },
   });
@@ -572,6 +572,14 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     reason: "Prove pending four-eyes adjustment blocks stage advancement",
   }, meta("pending-before-execution"));
   assert.equal(pendingBeforeExecution.approvalRequired, true);
+  await expectCommandError(recordRefund(financeOne.context, {
+    paymentEntryId: half.ledgerEntryId,
+    amountKopecks: 8_800_000,
+    occurredAt: new Date("2026-08-11T12:46:00Z"),
+    method: "BANK_TRANSFER",
+    evidenceReference: "synthetic-mixed-capacity-refund",
+    reason: "Pending adjustment and refund must share one source capacity",
+  }, meta("mixed-capacity-refund")), 422, /исходной записи/);
 
   await assert.rejects(
     transitionCase({
@@ -626,6 +634,13 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   await assert.rejects(
     db.contractVersion.update({ where: { id: contract.contractVersionId }, data: { totalObligationKopecks: 1 } }),
     /immutable/i,
+  );
+  await assert.rejects(
+    db.contractVersion.update({
+      where: { id: contract.contractVersionId },
+      data: { signatureEvidence: { type: "tampered", reference: "tampered" } },
+    }),
+    /signed proof|immutable/i,
   );
   await assert.rejects(
     db.paymentObligation.update({ where: { id: signed.obligationId }, data: { amountKopecks: 1 } }),
@@ -816,6 +831,13 @@ test("M3: cremation and relative-burial policies remain distinct", opts, async (
   });
   assert.equal(applicable.isApplicable, true);
   assert.equal(applicable.applicabilityEvaluatedAt >= conditional.applicabilityEvaluatedAt, true);
+  await db.caseDocumentRequirement.update({ where: { id: conditional.id }, data: { isApplicable: false } });
+  const applicabilityDrift = await reconcileM3Case(manager.context, burialCase.id);
+  assert.equal(
+    applicabilityDrift.discrepancies.some((item) => item.code === "DOCUMENT_APPLICABILITY_MISMATCH"),
+    true,
+  );
+  await db.caseDocumentRequirement.update({ where: { id: conditional.id }, data: { isApplicable: true } });
   await updateCaseParty(agent.context, burialCase.id, responsible.partyId, {
     name: "Синтетический ответственный",
     roles: ["ADDITIONAL_CONTACT"],
@@ -840,6 +862,150 @@ test("M3: cremation and relative-burial policies remain distinct", opts, async (
     paidKopecks: null,
     balanceKopecks: null,
   });
+});
+
+test("M3: replacement draft preserves signed truth until replacement signing is atomic", opts, async () => {
+  const replacementCase = await fixtures.makeCase(agent, "contract-replacement");
+  const payer = await createCaseParty(agent.context, replacementCase.id, {
+    name: "Синтетический плательщик замены договора",
+    roles: ["PAYER"],
+    preferredChannel: "EMAIL",
+    consentStatus: "NOT_REQUESTED",
+    visibilityPolicy: "FINANCE_LIMITED",
+  }, meta("contract-replacement-payer"));
+  const firstQuoteVersion = await createAcceptedQuote(replacementCase);
+  const replacementPolicyVersion = `SYNTHETIC_REPLACEMENT_${fixtures.runId}`;
+  const replacementPolicy = await db.contractSigningPolicy.create({
+    data: {
+      organizationId: agent.organizationId,
+      version: replacementPolicyVersion,
+      status: "APPROVED",
+      allowedEvidenceTypes: ["SYNTHETIC_TEST_ONLY"],
+      source: "SYNTHETIC_TEST_ONLY_NOT_A_LEGAL_VERDICT",
+      approvedByUserId: manager.userId,
+      approvedAt: new Date(),
+      effectiveFrom: new Date(Date.now() - 60_000),
+    },
+    select: { id: true },
+  });
+  fixtures.trackSigningPolicy(replacementPolicy.id);
+
+  const firstContract = await createContractVersion(agent.context, {
+    caseId: replacementCase.id,
+    payerPartyId: payer.partyId,
+    paymentTerms: { mode: "synthetic-first" },
+  }, meta("contract-replacement-v1-create"));
+  await issueContractVersion(agent.context, firstContract.contractVersionId, meta("contract-replacement-v1-issue"));
+  await signContractVersion(agent.context, {
+    contractVersionId: firstContract.contractVersionId,
+    signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-replacement-v1" },
+    signaturePolicyVersion: replacementPolicyVersion,
+  }, meta("contract-replacement-v1-sign"));
+
+  const firstVersion = await db.quoteVersion.findUniqueOrThrow({
+    where: { id: firstQuoteVersion.id },
+    select: { quoteId: true },
+  });
+  const secondQuoteVersion = await db.quoteVersion.create({
+    data: {
+      quoteId: firstVersion.quoteId,
+      versionNumber: 2,
+      state: "PUBLISHED",
+      payload: JSON.stringify({ schemaVersion: 1, total: 18_000_000, synthetic: true }),
+      subtotal: 18_000_000,
+      discountTotal: 0,
+      total: 18_000_000,
+      totalState: "KNOWN",
+      currency: "RUB",
+      snapshotChecksum: "b".repeat(64),
+      catalogSourceVersion: "synthetic-integration-v2",
+      publishedByMembershipId: agent.membershipId,
+      publishedAt: new Date(),
+      publishReason: "Synthetic replacement contract regression",
+      publishChannel: "integration",
+      idempotencyKey: `${fixtures.runId}:${replacementCase.id}:quote-publish-v2`,
+      correlationId: `${fixtures.runId}:${replacementCase.id}:quote-publish-v2:correlation`,
+    },
+    select: { id: true },
+  });
+  await db.quote.update({
+    where: { id: firstVersion.quoteId },
+    data: { latestPublishedVersionId: secondQuoteVersion.id },
+  });
+  await db.case.update({
+    where: { id: replacementCase.id },
+    data: { publishedQuoteVersionId: secondQuoteVersion.id },
+  });
+
+  const secondContract = await createContractVersion(agent.context, {
+    caseId: replacementCase.id,
+    payerPartyId: payer.partyId,
+    paymentTerms: { mode: "synthetic-replacement" },
+  }, meta("contract-replacement-v2-create"));
+  assert.equal((await db.contractVersion.findUniqueOrThrow({
+    where: { id: firstContract.contractVersionId },
+    select: { status: true },
+  })).status, "SIGNED");
+
+  await issueContractVersion(agent.context, secondContract.contractVersionId, meta("contract-replacement-v2-issue"));
+  await signContractVersion(agent.context, {
+    contractVersionId: secondContract.contractVersionId,
+    signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-replacement-v2" },
+    signaturePolicyVersion: replacementPolicyVersion,
+  }, meta("contract-replacement-v2-sign"));
+  assert.deepEqual(await db.contractVersion.findMany({
+    where: { id: { in: [firstContract.contractVersionId, secondContract.contractVersionId] } },
+    orderBy: { versionNumber: "asc" },
+    select: { status: true },
+  }), [{ status: "SUPERSEDED" }, { status: "SIGNED" }]);
+  await assert.rejects(
+    db.contractVersion.update({ where: { id: firstContract.contractVersionId }, data: { status: "SIGNED" } }),
+    /only one active SIGNED|signed/i,
+  );
+});
+
+test("M3: upload rechecks conditional applicability after storage and scan", opts, async () => {
+  const raceCase = await fixtures.makeCase(agent, "upload-applicability-race");
+  await db.case.update({ where: { id: raceCase.id }, data: { scenarioId: "FAMILY_PLOT_BURIAL_V1" } });
+  await materializeCaseRequirements(agent.context, raceCase.id, meta("upload-race-requirements"));
+  const responsible = await createCaseParty(agent.context, raceCase.id, {
+    name: "Синтетический ответственный race",
+    roles: ["RESPONSIBLE_FOR_BURIAL"],
+    preferredChannel: "EMAIL",
+    consentStatus: "NOT_REQUESTED",
+    visibilityPolicy: "CASE_TEAM",
+  }, meta("upload-race-responsible"));
+  const requirement = await db.caseDocumentRequirement.findFirstOrThrow({
+    where: { caseId: raceCase.id, stableKey: "responsible-for-burial-confirmation" },
+    select: { id: true, isApplicable: true, acceptedDocumentTypeCodes: true },
+  });
+  assert.equal(requirement.isApplicable, true);
+  const documentTypeCode = Array.isArray(requirement.acceptedDocumentTypeCodes)
+    ? requirement.acceptedDocumentTypeCodes.find((value): value is string => typeof value === "string")
+    : null;
+  assert.ok(documentTypeCode);
+  const raceStorage = new InMemoryTestStorage();
+  const invalidatingScanner: DocumentScanner = {
+    isOperational: () => true,
+    async scan() {
+      await updateCaseParty(agent.context, raceCase.id, responsible.partyId, {
+        name: "Синтетический ответственный race",
+        roles: ["ADDITIONAL_CONTACT"],
+        preferredChannel: "EMAIL",
+        consentStatus: "NOT_REQUESTED",
+        visibilityPolicy: "CASE_TEAM",
+      }, meta("upload-race-role-remove"));
+      return { status: "CLEAN", provider: "synthetic-race-scanner", resultCode: "CLEAN" };
+    },
+  };
+  await expectCommandError(uploadCaseDocument(agent.context, {
+    caseId: raceCase.id,
+    requirementId: requirement.id,
+    documentTypeCode,
+    file: new File(["synthetic applicability race"], "race.pdf", { type: "application/pdf" }),
+  }, meta("upload-race"), { storage: raceStorage, scanner: invalidatingScanner }), 409, /не применимо/);
+  assert.equal(await db.caseDocumentVersion.count({ where: { caseId: raceCase.id } }), 0);
+  assert.equal(raceStorage.size, 0);
 });
 
 test("M3: rejected upload fails closed when orphan cleanup cannot be proved", opts, async () => {

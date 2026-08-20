@@ -907,6 +907,26 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ContractVersion snapshot is immutable';
   END IF;
+  IF OLD."status" IN ('SIGNED', 'SUPERSEDED') AND ROW(
+    NEW."issuedAt", NEW."signedByMembershipId", NEW."signedAt", NEW."signatureEvidence",
+    NEW."signaturePolicyId", NEW."signaturePolicyVersion"
+  ) IS DISTINCT FROM ROW(
+    OLD."issuedAt", OLD."signedByMembershipId", OLD."signedAt", OLD."signatureEvidence",
+    OLD."signaturePolicyId", OLD."signaturePolicyVersion"
+  ) THEN
+    RAISE EXCEPTION 'ContractVersion signed proof is immutable';
+  END IF;
+  IF NEW."status" = 'SIGNED' AND OLD."status" IS DISTINCT FROM 'SIGNED' THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(NEW."contractId", 0));
+    IF EXISTS (
+      SELECT 1 FROM "ContractVersion"
+      WHERE "contractId" = NEW."contractId"
+        AND "id" <> NEW."id"
+        AND "status" = 'SIGNED'
+    ) THEN
+      RAISE EXCEPTION 'Contract may have only one active SIGNED version';
+    END IF;
+  END IF;
   RETURN NEW;
 END;
 $$;

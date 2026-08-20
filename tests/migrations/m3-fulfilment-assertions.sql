@@ -60,6 +60,17 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1
+    FROM pg_proc
+    WHERE proname = 'protect_contract_version_history'
+      AND pg_get_functiondef(oid) LIKE '%ContractVersion signed proof is immutable%'
+      AND pg_get_functiondef(oid) LIKE '%pg_advisory_xact_lock%'
+      AND pg_get_functiondef(oid) LIKE '%only one active SIGNED version%'
+  ) THEN
+    RAISE EXCEPTION 'Contract signed-proof or single-active-version guard is incomplete';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
     FROM information_schema.columns AS columns_metadata
     WHERE columns_metadata.table_schema = 'public'
       AND columns_metadata.table_name = 'CaseDocumentRequirement'

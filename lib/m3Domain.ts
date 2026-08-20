@@ -191,6 +191,7 @@ export type LedgerProjectionEntry = {
   direction: "DEBIT" | "CREDIT";
   amountKopecks: number;
   effective: boolean;
+  reserved?: boolean;
   relatedEntryId?: string | null;
 };
 
@@ -297,41 +298,55 @@ export function remainingRefundableKopecks(
   entries: readonly LedgerProjectionEntry[],
   paymentEntryId: string,
 ): number {
-  const effective = entries.filter((entry) => entry.effective);
+  const payment = entries.find((entry) => entry.id === paymentEntryId);
+  if (!payment?.effective || payment.type !== "PAYMENT" || payment.direction !== "CREDIT") {
+    throw new Error("Refund capacity requires an effective payment");
+  }
+  return remainingSourceCapacityKopecks(entries, paymentEntryId);
+}
+
+export function remainingSourceCapacityKopecks(
+  entries: readonly LedgerProjectionEntry[],
+  sourceEntryId: string,
+): number {
   const entriesById = new Map<string, LedgerProjectionEntry>();
   for (const entry of entries) {
     if (entriesById.has(entry.id)) throw new Error("Ledger entry IDs must be unique");
     entriesById.set(entry.id, entry);
   }
 
-  const payment = entriesById.get(paymentEntryId);
-  if (!payment?.effective || payment.type !== "PAYMENT" || payment.direction !== "CREDIT") {
-    throw new Error("Refund capacity requires an effective payment");
+  const source = entriesById.get(sourceEntryId);
+  if (!source?.effective || source.type === "OBLIGATION") {
+    throw new Error("Adjustment capacity requires an effective non-obligation source");
   }
-  if (!Number.isSafeInteger(payment.amountKopecks) || payment.amountKopecks <= 0) {
-    throw new Error("Ledger amounts must be positive safe integers in minor units");
-  }
+  assertPositiveLedgerAmount(source.amountKopecks);
 
-  const refundRoots = effective.filter((entry) => {
-    if (entry.type !== "REFUND" || entry.relatedEntryId !== paymentEntryId) return false;
-    if (entry.direction !== "DEBIT") throw new Error("Refund entries must use DEBIT direction");
-    return true;
-  });
-  let refundedKopecks = 0;
-  for (const entry of effective) {
-    const belongsToPaymentRefund = refundRoots.some((refund) => (
-      entry.id === refund.id || ledgerEntryDescendsFrom(entry, refund.id, entriesById)
-    ));
-    if (!belongsToPaymentRefund) continue;
-    refundedKopecks = safeAdd(
-      refundedKopecks,
-      entry.direction === "DEBIT" ? entry.amountKopecks : -entry.amountKopecks,
-    );
+  const participating = entries.filter((entry) => entry.effective || entry.reserved);
+  for (const entry of participating) assertPositiveLedgerAmount(entry.amountKopecks);
+  const directRoots = participating.filter((entry) => (
+    entry.relatedEntryId === sourceEntryId
+    && (entry.type === "REFUND" || entry.type === "CORRECTION" || entry.type === "REVERSAL")
+  ));
+
+  let used = 0;
+  for (const root of directRoots) {
+    let outstanding = 0;
+    for (const entry of participating) {
+      if (entry.id !== root.id && !ledgerEntryDescendsFrom(entry, root.id, entriesById, true)) continue;
+      outstanding = safeAdd(
+        outstanding,
+        entry.direction === root.direction ? entry.amountKopecks : -entry.amountKopecks,
+      );
+    }
+    if (outstanding < 0 || outstanding > root.amountKopecks) {
+      throw new Error("Ledger adjustment tree exceeds its immutable root amount");
+    }
+    used = safeAdd(used, outstanding);
   }
-  if (refundedKopecks < 0 || refundedKopecks > payment.amountKopecks) {
-    throw new Error("Refund ledger exceeds the effective payment amount");
+  if (used > source.amountKopecks) {
+    throw new Error("Ledger adjustments exceed the source entry amount");
   }
-  return payment.amountKopecks - refundedKopecks;
+  return source.amountKopecks - used;
 }
 
 function adjustmentDescendsFromRefund(
@@ -360,6 +375,7 @@ function ledgerEntryDescendsFrom(
   entry: LedgerProjectionEntry,
   ancestorId: string,
   entriesById: ReadonlyMap<string, LedgerProjectionEntry>,
+  allowReserved = false,
 ): boolean {
   const visited = new Set<string>([entry.id]);
   let relatedId: string | null | undefined = entry.relatedEntryId;
@@ -369,10 +385,18 @@ function ledgerEntryDescendsFrom(
     visited.add(relatedId);
     const related = entriesById.get(relatedId);
     if (!related) throw new Error("Ledger adjustment references an unknown entry");
-    if (!related.effective) throw new Error("Ledger adjustment cannot depend on an ineffective entry");
+    if (!related.effective && !(allowReserved && related.reserved)) {
+      throw new Error("Ledger adjustment cannot depend on an ineffective entry");
+    }
     relatedId = related.relatedEntryId;
   }
   return false;
+}
+
+function assertPositiveLedgerAmount(amountKopecks: number): void {
+  if (!Number.isSafeInteger(amountKopecks) || amountKopecks <= 0) {
+    throw new Error("Ledger amounts must be positive safe integers in minor units");
+  }
 }
 
 function safeAdd(left: number, right: number): number {
