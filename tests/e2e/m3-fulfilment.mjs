@@ -303,6 +303,8 @@ async function completeContract(target, caseFixture, leadId) {
     issueButton.click(),
   ]);
   assert.equal(issueResponse.status(), 200);
+  await target.goto(`${baseUrl}/agent/cases/${leadId}`, { waitUntil: "networkidle" });
+  await target.getByText(/v\d+ · Выдан/).waitFor();
   await target.getByRole("button", { name: "Зафиксировать подписание" }).click();
   await target.getByLabel("Тип подтверждения").fill("SYNTHETIC_UAT_ACK");
   await target.getByLabel("Ссылка или реестр подтверждения").fill(`synthetic-evidence:${caseFixture.canonicalId}`);
