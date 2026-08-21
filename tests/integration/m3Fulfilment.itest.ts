@@ -446,6 +446,13 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   }, meta("scenario-replacement"), { storage, scanner: cleanScanner });
   assert.equal(replacement.versionNumber, 3);
   assert.equal((await db.caseDocumentVersion.findUniqueOrThrow({ where: { id: infected.versionId } })).status, "SUPERSEDED");
+  assert.equal(await db.operationalAuditEvent.count({
+    where: {
+      entityType: "document_version",
+      entityId: { in: [infected.versionId, scanFailure.versionId] },
+      action: "document.version_superseded.v1",
+    },
+  }), 2);
   await beginDocumentReview(reviewerOne.context, replacement.versionId, meta("scenario-review-start"));
 
   const published = await createAcceptedQuote(caseRecord);
@@ -640,6 +647,10 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     /immutable/i,
   );
   await assert.rejects(
+    db.caseDocumentVersion.update({ where: { id: identityUpload.versionId }, data: { status: "REJECTED", rejectionReason: "forged" } }),
+    /lifecycle transition requires canonical command/i,
+  );
+  await assert.rejects(
     db.caseDocumentVersion.delete({ where: { id: identityUpload.versionId } }),
     /cannot be deleted|history/i,
   );
@@ -653,6 +664,10 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
       data: { signatureEvidence: { type: "tampered", reference: "tampered" } },
     }),
     /signed proof|immutable/i,
+  );
+  await assert.rejects(
+    db.contractVersion.update({ where: { id: contract.contractVersionId }, data: { status: "DRAFT" } }),
+    /lifecycle transition requires canonical command/i,
   );
   await assert.rejects(
     db.paymentObligation.update({ where: { id: signed.obligationId }, data: { amountKopecks: 1 } }),
@@ -1023,7 +1038,7 @@ test("M3: replacement draft preserves signed truth until replacement signing is 
   }), [{ status: "SUPERSEDED" }, { status: "SIGNED" }]);
   await assert.rejects(
     db.contractVersion.update({ where: { id: firstContract.contractVersionId }, data: { status: "SIGNED" } }),
-    /only one active SIGNED|signed/i,
+    /lifecycle transition requires canonical command/i,
   );
 });
 

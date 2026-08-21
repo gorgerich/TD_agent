@@ -117,6 +117,7 @@ export async function uploadCaseDocument(
         select: { id: true, versionNumber: true, status: true },
       });
       if (previous && previous.status !== "SUPERSEDED") {
+        await authorizeDocumentTransition(tx, "supersede");
         await tx.caseDocumentVersion.update({ where: { id: previous.id }, data: { status: "SUPERSEDED" } });
       }
       const version = await tx.caseDocumentVersion.create({
@@ -153,6 +154,20 @@ export async function uploadCaseDocument(
         status,
         scanStatus: scan.status,
       } satisfies Omit<UploadedDocumentResult, "replayed">;
+      if (previous && previous.status !== "SUPERSEDED") {
+        await appendOperationalAudit(tx, context, {
+          entityType: "document_version",
+          entityId: previous.id,
+          action: "document.version_superseded.v1",
+          before: prismaJson({ status: previous.status }),
+          after: prismaJson({ status: "SUPERSEDED", supersededByVersionId: version.id }),
+          correlationId: meta.correlationId,
+          causationId: version.id,
+          idempotencyKey: `${meta.idempotencyKey}:supersede:${previous.id}`,
+          reason: meta.reason,
+          result: prismaJson({ supersededVersionId: previous.id, supersededByVersionId: version.id }),
+        });
+      }
       await appendOperationalAudit(tx, context, {
         entityType: "document_version",
         entityId: version.id,
@@ -216,6 +231,7 @@ export async function beginDocumentReview(
     if (version.scanStatus !== "CLEAN" || version.status !== "UPLOADED") {
       throw new OperationalCommandError(409, "В проверку можно взять только чистую загруженную версию");
     }
+    await authorizeDocumentTransition(tx, "begin-review");
     const claimed = await tx.caseDocumentVersion.updateMany({
       where: {
         id: version.id,
@@ -323,6 +339,7 @@ export async function decideDocumentReview(
     if (version.status !== "IN_REVIEW" || version.scanStatus !== "CLEAN") {
       throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
     }
+    await authorizeDocumentTransition(tx, "review-decision");
     if (input.decision === "VERIFIED") {
       if (!verifiedStorageIdentity || !sameStorageIdentity(version, verifiedStorageIdentity)) {
         throw new OperationalCommandError(409, "Файловая версия изменилась во время проверки", "DOCUMENT_INTEGRITY_MISMATCH");
@@ -426,6 +443,13 @@ export async function decideDocumentReview(
     }
     return { versionId: version.id, decision: input.decision, replayed: false };
   });
+}
+
+async function authorizeDocumentTransition(
+  tx: Prisma.TransactionClient,
+  command: "supersede" | "begin-review" | "review-decision",
+): Promise<void> {
+  await tx.$queryRaw`SELECT set_config('td_agent.m3_document_transition', ${command}, true)`;
 }
 
 export async function escalateDocumentReview(

@@ -248,8 +248,12 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   await assertFocused(target, viewer.getByRole("button", { name: "Закрыть документ" }), "document viewer close");
   const viewerSource = await viewer.locator("iframe").getAttribute("src");
   assert.match(viewerSource ?? "", /^blob:/, "Protected viewer must render an in-memory blob URL");
+  await target.keyboard.press("Shift+Tab");
+  assert.equal(await viewer.evaluate((dialog) => dialog.contains(document.activeElement)), true, "Document viewer must trap keyboard focus");
+  await viewer.getByRole("button", { name: "Закрыть документ" }).focus();
   await target.keyboard.press("Escape");
   await viewer.waitFor({ state: "hidden" });
+  await assertFocused(target, openButton, "document viewer invoking button");
   if (decision === "REJECT") {
     await row.getByRole("button", { name: "Отклонить" }).click();
     await row.getByLabel("Причина отклонения").fill("Synthetic UAT: требуется новая читаемая версия");
@@ -283,9 +287,15 @@ async function completeContract(target, caseFixture, leadId) {
   await target.getByLabel("Условия оплаты").fill("Synthetic isolated UAT: оплата по подтверждённому ledger");
   let responsePromise = target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST");
   await target.getByRole("button", { name: "Создать", exact: true }).click();
-  assert.equal((await responsePromise).status(), 200);
+  const createResponse = await responsePromise;
+  assert.equal(createResponse.status(), 200);
+  const created = await createResponse.json();
+  assert.equal(created.status, "DRAFT");
+  assert.equal(created.replayed, false);
+  assert.equal(typeof created.contractVersionId, "string");
+  assert.ok(created.contractVersionId.length > 0);
+  await target.goto(`${baseUrl}/agent/cases/${leadId}`, { waitUntil: "networkidle" });
   await target.getByText(/v\d+ · Черновик/).waitFor();
-  await target.waitForLoadState("networkidle");
   const issueButton = target.getByRole("button", { name: "Выдать договор" });
   assert.equal(await issueButton.isEnabled(), true, "Issue action must be enabled after the canonical draft refresh");
   const [issueResponse] = await Promise.all([

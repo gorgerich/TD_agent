@@ -900,6 +900,8 @@ CREATE FUNCTION "protect_case_document_version_history"()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  transition_command text := current_setting('td_agent.m3_document_transition', true);
 BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'CaseDocumentVersion history cannot be deleted';
@@ -915,7 +917,52 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'CaseDocumentVersion file identity is immutable';
   END IF;
-  RETURN NEW;
+  IF transition_command = 'supersede'
+    AND OLD."status" <> 'SUPERSEDED'
+    AND NEW."status" = 'SUPERSEDED'
+    AND ROW(
+      NEW."scanStatus", NEW."scanProvider", NEW."scanResultCode", NEW."assignedReviewerMembershipId",
+      NEW."reviewedByMembershipId", NEW."reviewedAt", NEW."reviewChecklist", NEW."rejectionReason", NEW."expiresAt"
+    ) IS NOT DISTINCT FROM ROW(
+      OLD."scanStatus", OLD."scanProvider", OLD."scanResultCode", OLD."assignedReviewerMembershipId",
+      OLD."reviewedByMembershipId", OLD."reviewedAt", OLD."reviewChecklist", OLD."rejectionReason", OLD."expiresAt"
+    ) THEN
+    RETURN NEW;
+  END IF;
+  IF transition_command = 'begin-review'
+    AND OLD."status" = 'UPLOADED'
+    AND NEW."status" = 'IN_REVIEW'
+    AND OLD."assignedReviewerMembershipId" IS NULL
+    AND NEW."assignedReviewerMembershipId" IS NOT NULL
+    AND NEW."scanStatus" = 'CLEAN'
+    AND ROW(
+      NEW."scanStatus", NEW."scanProvider", NEW."scanResultCode", NEW."reviewedByMembershipId",
+      NEW."reviewedAt", NEW."reviewChecklist", NEW."rejectionReason", NEW."expiresAt"
+    ) IS NOT DISTINCT FROM ROW(
+      OLD."scanStatus", OLD."scanProvider", OLD."scanResultCode", OLD."reviewedByMembershipId",
+      OLD."reviewedAt", OLD."reviewChecklist", OLD."rejectionReason", OLD."expiresAt"
+    ) THEN
+    RETURN NEW;
+  END IF;
+  IF transition_command = 'review-decision'
+    AND OLD."status" = 'IN_REVIEW'
+    AND NEW."status" IN ('VERIFIED', 'REJECTED')
+    AND OLD."assignedReviewerMembershipId" IS NOT NULL
+    AND NEW."assignedReviewerMembershipId" = OLD."assignedReviewerMembershipId"
+    AND NEW."reviewedByMembershipId" = OLD."assignedReviewerMembershipId"
+    AND NEW."reviewedAt" IS NOT NULL
+    AND NEW."reviewChecklist" IS NOT NULL
+    AND NEW."scanStatus" = 'CLEAN'
+    AND ROW(NEW."scanStatus", NEW."scanProvider", NEW."scanResultCode")
+      IS NOT DISTINCT FROM ROW(OLD."scanStatus", OLD."scanProvider", OLD."scanResultCode")
+    AND (
+      (NEW."status" = 'VERIFIED' AND NEW."rejectionReason" IS NULL)
+      OR
+      (NEW."status" = 'REJECTED' AND length(trim(NEW."rejectionReason")) >= 3 AND NEW."expiresAt" IS NOT DISTINCT FROM OLD."expiresAt")
+    ) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'CaseDocumentVersion lifecycle transition requires canonical command';
 END;
 $$;
 
@@ -927,6 +974,8 @@ CREATE FUNCTION "protect_contract_version_history"()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  transition_command text := current_setting('td_agent.m3_contract_transition', true);
 BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'ContractVersion history cannot be deleted';
@@ -952,6 +1001,47 @@ BEGIN
     OLD."signaturePolicyId", OLD."signaturePolicyVersion"
   ) THEN
     RAISE EXCEPTION 'ContractVersion signed proof is immutable';
+  END IF;
+  IF transition_command = 'issue'
+    AND OLD."status" = 'DRAFT'
+    AND NEW."status" = 'ISSUED'
+    AND OLD."issuedAt" IS NULL
+    AND NEW."issuedAt" IS NOT NULL
+    AND ROW(
+      NEW."signedByMembershipId", NEW."signedAt", NEW."signatureEvidence", NEW."signaturePolicyId", NEW."signaturePolicyVersion"
+    ) IS NOT DISTINCT FROM ROW(
+      OLD."signedByMembershipId", OLD."signedAt", OLD."signatureEvidence", OLD."signaturePolicyId", OLD."signaturePolicyVersion"
+    ) THEN
+    RETURN NEW;
+  END IF;
+  IF transition_command = 'sign'
+    AND OLD."status" = 'SIGNED'
+    AND NEW."status" = 'SUPERSEDED'
+    AND ROW(
+      NEW."issuedAt", NEW."signedByMembershipId", NEW."signedAt", NEW."signatureEvidence", NEW."signaturePolicyId", NEW."signaturePolicyVersion"
+    ) IS NOT DISTINCT FROM ROW(
+      OLD."issuedAt", OLD."signedByMembershipId", OLD."signedAt", OLD."signatureEvidence", OLD."signaturePolicyId", OLD."signaturePolicyVersion"
+    ) THEN
+    RETURN NEW;
+  END IF;
+  IF NOT (
+    transition_command = 'sign'
+    AND OLD."status" = 'ISSUED'
+    AND NEW."status" = 'SIGNED'
+    AND NEW."issuedAt" IS NOT NULL
+    AND NEW."issuedAt" IS NOT DISTINCT FROM OLD."issuedAt"
+    AND OLD."signedByMembershipId" IS NULL
+    AND OLD."signedAt" IS NULL
+    AND OLD."signatureEvidence" IS NULL
+    AND OLD."signaturePolicyId" IS NULL
+    AND OLD."signaturePolicyVersion" IS NULL
+    AND NEW."signedByMembershipId" IS NOT NULL
+    AND NEW."signedAt" IS NOT NULL
+    AND NEW."signatureEvidence" IS NOT NULL
+    AND NEW."signaturePolicyId" IS NOT NULL
+    AND NEW."signaturePolicyVersion" IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'ContractVersion lifecycle transition requires canonical command';
   END IF;
   IF NEW."status" = 'SIGNED' AND OLD."status" IS DISTINCT FROM 'SIGNED' THEN
     PERFORM pg_advisory_xact_lock(hashtextextended(NEW."contractId", 0));

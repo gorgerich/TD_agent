@@ -44,7 +44,9 @@ export function DocumentReviewClient({
   const [checks, setChecks] = useState<Record<string, Record<string, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ objectUrl: string; title: string } | null>(null);
+  const viewerDialogRef = useRef<HTMLDivElement>(null);
   const viewerCloseRef = useRef<HTMLButtonElement>(null);
+  const viewerReturnFocusRef = useRef<HTMLElement | null>(null);
   const rows = useMemo(() => initial.filter((item) => {
     if (filter === "available") return item.status === "UPLOADED" && item.assignedReviewerMembershipId == null;
     if (filter === "mine") return item.assignedReviewerMembershipId === membershipId;
@@ -57,13 +59,37 @@ export function DocumentReviewClient({
     document.body.style.overflow = "hidden";
     viewerCloseRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setViewer(null);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setViewer(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(viewerDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), iframe, [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        viewerCloseRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !viewerDialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !viewerDialogRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
       URL.revokeObjectURL(viewer.objectUrl);
+      if (viewerReturnFocusRef.current?.isConnected) viewerReturnFocusRef.current.focus();
+      viewerReturnFocusRef.current = null;
     };
   }, [viewer]);
 
@@ -131,6 +157,7 @@ export function DocumentReviewClient({
   }
 
   async function open(item: QueueItem) {
+    viewerReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setBusyId(item.id);
     setError(null);
     try {
@@ -268,7 +295,7 @@ export function DocumentReviewClient({
         </div>
       )}
       {viewer && (
-        <div className="fixed inset-0 z-[1000] flex flex-col bg-surface" role="dialog" aria-modal="true" aria-labelledby="document-viewer-title">
+        <div ref={viewerDialogRef} className="fixed inset-0 z-[1000] flex flex-col bg-surface" role="dialog" aria-modal="true" aria-labelledby="document-viewer-title">
           <div className="flex min-h-14 items-center justify-between gap-4 border-b border-line px-4 sm:px-6">
             <h2 id="document-viewer-title" className="min-w-0 truncate text-[15px] font-semibold text-ink">
               {viewer.title}

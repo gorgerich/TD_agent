@@ -189,6 +189,7 @@ export async function issueContractVersion(
     if (!version) throw new OperationalCommandError(404, "Черновик договора не найден");
     if (version.validUntil && version.validUntil <= new Date()) throw new OperationalCommandError(409, "Срок договора истёк");
     await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
+    await authorizeContractTransition(tx, "issue");
     await tx.contractVersion.update({ where: { id: version.id }, data: { status: "ISSUED", issuedAt: new Date() } });
     const data = { contractVersionId: version.id, status: "ISSUED" as const };
     await appendOperationalAudit(tx, context, {
@@ -299,6 +300,7 @@ export async function signContractVersion(
       throw new OperationalCommandError(409, "Замещаемая подписанная версия договора не совпадает с текущей");
     }
     const signedAt = new Date();
+    await authorizeContractTransition(tx, "sign");
     if (activeSigned[0]) {
       await tx.contractVersion.update({
         where: { id: activeSigned[0].id },
@@ -1095,6 +1097,13 @@ async function lockContract(tx: Prisma.TransactionClient, contractId: string): P
     SELECT "id" FROM "Contract" WHERE "id" = ${contractId} FOR UPDATE
   `;
   if (rows.length !== 1) throw new OperationalCommandError(404, "Договор не найден");
+}
+
+async function authorizeContractTransition(
+  tx: Prisma.TransactionClient,
+  command: "issue" | "sign",
+): Promise<void> {
+  await tx.$queryRaw`SELECT set_config('td_agent.m3_contract_transition', ${command}, true)`;
 }
 
 async function assertSourceCapacity(

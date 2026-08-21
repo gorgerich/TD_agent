@@ -43,6 +43,8 @@ export async function reconcileM3Case(
         select: {
           id: true,
           organizationId: true,
+          createdAt: true,
+          updatedAt: true,
           roles: { select: { organizationId: true, role: true, validFrom: true, validUntil: true } },
         },
       },
@@ -73,6 +75,8 @@ export async function reconcileM3Case(
                   scanStatus: true,
                   expiresAt: true,
                   rejectionReason: true,
+                  assignedReviewerMembershipId: true,
+                  reviewedAt: true,
                 },
               },
             },
@@ -332,12 +336,18 @@ export async function reconcileM3Case(
   }
 
   const auditableEntities = [
-    ...record.parties.map((entity) => ({ entityType: "case_party", id: entity.id, actions: ["case_party.created.v1"] })),
+    ...record.parties.map((entity) => ({
+      entityType: "case_party",
+      id: entity.id,
+      actions: entity.updatedAt > entity.createdAt
+        ? ["case_party.created.v1", "case_party.updated.v1"]
+        : ["case_party.created.v1"],
+    })),
     ...record.documentRequirements.flatMap((requirement) =>
       (requirement.document?.versions ?? []).map((entity) => ({
         entityType: "document_version",
         id: entity.id,
-        actions: documentAuditActions(entity.status),
+        actions: documentAuditActions(entity),
       }))),
     ...record.contractVersions.map((entity) => ({
       entityType: "contract_version",
@@ -401,13 +411,19 @@ export async function reconcileM3Case(
   };
 }
 
-function documentAuditActions(status: string): string[] {
+function documentAuditActions(version: {
+  status: string;
+  assignedReviewerMembershipId: string | null;
+  reviewedAt: Date | null;
+  rejectionReason: string | null;
+}): string[] {
   const actions = ["document.version_uploaded.v1"];
-  if (status === "IN_REVIEW" || status === "VERIFIED" || status === "REJECTED") {
+  if (version.assignedReviewerMembershipId != null) {
     actions.push("document.review_started.v1");
   }
-  if (status === "VERIFIED") actions.push("document.verified.v1");
-  if (status === "REJECTED") actions.push("document.rejected.v1");
+  if (version.reviewedAt != null && version.rejectionReason == null) actions.push("document.verified.v1");
+  if (version.reviewedAt != null && version.rejectionReason != null) actions.push("document.rejected.v1");
+  if (version.status === "SUPERSEDED") actions.push("document.version_superseded.v1");
   return actions;
 }
 
