@@ -571,6 +571,11 @@ async function login(target, email, identityPassword, landing) {
       responsePromise = target.waitForResponse((next) => next.url().includes("/api/agent/auth/login") && next.request().method() === "POST");
       await target.locator('form button[type="submit"]').click();
       response = await responsePromise;
+      if (response.status() === 429 && attempt < 3) {
+        const retryAfter = Number(response.headers()["retry-after"] ?? 60);
+        await target.waitForTimeout((Number.isFinite(retryAfter) ? retryAfter : 60) * 1000 + 1_000);
+        continue;
+      }
     }
     assert.equal(response.status(), 200, `Login ${email}: ${response.status()}`);
     await target.waitForURL(landing);
