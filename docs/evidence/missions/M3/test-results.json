@@ -1,0 +1,165 @@
+{
+  "mission": "M3-FULFILMENT-MONEY-TRUST",
+  "state": "BLOCKED_HUMAN_JUDGMENT",
+  "implementationSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/32782050582",
+  "previewDeploymentId": "dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f",
+  "checks": {
+    "sourceCi": {
+      "status": "PASS_CODE_GATES_EVIDENCE_ABSENT",
+      "runId": 32782050582,
+      "headSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+      "testSkipped": 0,
+      "note": "Every code, migration, restore, build, unit, integration, targeted-repeat and E2E gate passed. The run concluded failure only because the authoritative M3 evidence directory had not yet been committed; the evidence-head run is recorded after this packet is pushed."
+    },
+    "gitDiffCheck": "PASS",
+    "prismaGenerate": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "files": 16,
+      "passed": 122,
+      "skipped": 0
+    },
+    "integration": {
+      "status": "PASS",
+      "files": 12,
+      "passed": 55,
+      "skipped": 0,
+      "parallelism": "one ordinary node --test invocation with default file concurrency",
+      "residue": 0
+    },
+    "targetedRecovery": {
+      "status": "PASS",
+      "testsPerRun": 4,
+      "consecutiveRuns": 5,
+      "skipped": 0,
+      "contract": "exact command envelope, truthful uncertainty state, single-flight, 4xx unlock"
+    },
+    "e2e": {
+      "status": "PASS",
+      "scripts": 5,
+      "legacySmoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "m2Commercial": "PASS",
+      "m3Fulfilment": "PASS",
+      "skipped": 0
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "migrationCount": 11,
+      "m3Checksum": "bf5ad4fa4330e922cd4389e30f13022582d4712b76de0be37402e355d6523d11",
+      "historicalMigrationChecksums": "MATCH",
+      "encryptedBackup": "PASS",
+      "realRestore": "PASS",
+      "initialDeployWallClock": "2 seconds in CI step timing",
+      "repeatedDeploy": "NO_OP",
+      "repeatedDeployWallClock": "1 second in CI step timing",
+      "legacyCounts": "MATCH",
+      "orphans": 0,
+      "duplicates": 0,
+      "tenantMismatches": 0
+    },
+    "schemaParity": "PASS",
+    "documentTruth": {
+      "status": "PASS",
+      "uploadedAsVerified": 0,
+      "permanentFileUrls": 0,
+      "crossTenantAccess": 0,
+      "unexplainedReconciliation": 0
+    },
+    "financeTruth": {
+      "status": "PASS",
+      "manualPaidPaths": 0,
+      "destructiveDeletePaths": 0,
+      "unknownAmountAsZero": 0,
+      "duplicateLedgerEntries": 0,
+      "partialPaymentReference": "176000 obligation / 88000 payment = PARTIALLY_PAID / 88000 balance",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "originalResponses": 1,
+        "replayedResponses": 4
+      },
+      "unexplainedReconciliation": 0
+    },
+    "stageGuards": "PASS",
+    "tenantRbac": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0,
+      "keyboard": "PASS",
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "horizontalOverflow": 0
+    },
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f",
+      "deploymentSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+      "previewUrl": "https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app",
+      "databaseFingerprint": "646addef2eb61519",
+      "productionFingerprint": "0257665af2dd90a4",
+      "storageId": "store_Ov8erHstuvfJ52Og",
+      "storageAccess": "private",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "documentQuarantineReviewReplacement": "PASS",
+      "contractObligation": "PASS",
+      "partialFullRefundReversal": "PASS",
+      "webhookReplayFive": "PASS_ONE_ENTRY",
+      "lostResponseRecovery": "PASS_SAME_COMMAND_ENVELOPE_ONE_ENTRY",
+      "financeVisibility": "PASS",
+      "reviewerVisibility": "PASS",
+      "stageGuards": "PASS",
+      "crossTenant": "PASS",
+      "reconciliationDiscrepancies": 0,
+      "accessibilityCriticalSerious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "unexpected5xx": 0,
+      "skipped": 0,
+      "syntheticOrganizations": 2,
+      "syntheticUsers": 6,
+      "syntheticCases": 2
+    },
+    "independentReview": {
+      "status": "PASS",
+      "reviewedSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "reviewer": "independent reviewer agent Huygens"
+    },
+    "evidenceSchema": "PASS",
+    "discoveryParity": {
+      "status": "PASS",
+      "localIntegrationFiles": 12,
+      "ciIntegrationFiles": 12,
+      "localIntegrationTests": 55,
+      "ciIntegrationTests": 55
+    },
+    "skipped": 0,
+    "notRun": 0
+  },
+  "humanGates": {
+    "financeAccounting": "AWAITING_HUMAN_VERDICT",
+    "legalPrivacy": "AWAITING_HUMAN_VERDICT",
+    "ritualOperationsSme": "AWAITING_HUMAN_VERDICT"
+  },
+  "production": {
+    "writes": "NONE",
+    "databaseSchemaChanges": "NONE",
+    "environmentChanges": "NONE",
+    "deployment": "UNCHANGED",
+    "deploymentId": "dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g",
+    "databaseFingerprint": "0257665af2dd90a4"
+  }
+}
