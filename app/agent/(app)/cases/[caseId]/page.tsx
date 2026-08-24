@@ -244,7 +244,7 @@ export default async function CasePage({
         <div className="min-w-0">
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <span className="td-eyebrow">Кейс · #{id}</span>
-            <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
+            <h1 className="td-display mt-2 min-w-0 text-[30px] text-ink [overflow-wrap:anywhere] sm:text-[38px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13px] text-ink-2">
               <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1.5 font-semibold text-ink transition-colors hover:text-accent">
                 <Phone size={15} weight="fill" />

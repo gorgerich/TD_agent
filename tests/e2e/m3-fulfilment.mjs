@@ -514,11 +514,19 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await assertA11y(target, "case documents mobile");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "case documents 200 percent zoom");
+  await assertTextFullyVisible(
+    target,
+    target.getByRole("heading", { name: cases.cremation.name, level: 1 }),
+    "case title 200 percent zoom",
+  );
   await target.setViewportSize({ width: 390, height: 844 });
   await context.clearCookies();
   await login(target, identities.financeA, password, /\/agent\/finance/);
   await assertNoOverflow(target, "finance mobile");
   await assertA11y(target, "finance mobile");
+  const finalFinanceRecord = target.locator('ul[aria-label="Финансовые обязательства"] > li').last();
+  await finalFinanceRecord.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await assertClearOfMobileDock(target, finalFinanceRecord, "final Finance record");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "finance 200 percent zoom");
   await assertA11y(target, "finance 200 percent zoom");
@@ -550,6 +558,34 @@ async function assertA11y(target, label) {
 async function assertNoOverflow(target, label) {
   const overflow = await target.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
   assert.ok(overflow.scroll <= overflow.width + 1, `${label} overflow ${overflow.scroll}/${overflow.width}`);
+}
+
+async function assertTextFullyVisible(target, locator, label) {
+  const metrics = await locator.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const text = range.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      boxLeft: box.left,
+      boxRight: box.right,
+      textLeft: text.left,
+      textRight: text.right,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    };
+  });
+  assert.ok(metrics.boxLeft >= -1 && metrics.boxRight <= metrics.viewportWidth + 1, `${label} box clipped`);
+  assert.ok(metrics.textLeft >= -1 && metrics.textRight <= metrics.viewportWidth + 1, `${label} text clipped`);
+  assert.ok(metrics.scrollWidth <= metrics.clientWidth + 1, `${label} internal overflow ${metrics.scrollWidth}/${metrics.clientWidth}`);
+}
+
+async function assertClearOfMobileDock(target, locator, label) {
+  const record = await locator.boundingBox();
+  const dock = await target.getByRole("navigation", { name: "Основная навигация" }).boundingBox();
+  assert.ok(record && dock, `${label} or mobile dock missing`);
+  assert.ok(record.y + record.height <= dock.y - 8, `${label} remains obscured by the mobile dock`);
 }
 
 async function login(target, email, identityPassword, landing) {
