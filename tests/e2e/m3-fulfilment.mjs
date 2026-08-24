@@ -525,7 +525,7 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await assertNoOverflow(target, "finance mobile");
   await assertA11y(target, "finance mobile");
   const finalFinanceRecord = target.locator('ul[aria-label="Финансовые обязательства"] > li').last();
-  await finalFinanceRecord.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await finalFinanceRecord.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
   await assertClearOfMobileDock(target, finalFinanceRecord, "final Finance record");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "finance 200 percent zoom");
