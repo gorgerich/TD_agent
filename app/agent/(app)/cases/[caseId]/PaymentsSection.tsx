@@ -7,7 +7,8 @@ import { Button, buttonClasses } from "@/components/ui/Button";
 import { clearCommandId, type ClientCommandIdentity } from "@/lib/clientCommandId";
 import {
   commandEnvelopeFor,
-  shouldRetainCommandForRetry,
+  recoveryForResponse,
+  recoveryForTransport,
   type RecoverableClientCommand,
 } from "@/lib/clientCommandRecovery";
 import { moneyFromKopecks } from "@/lib/format";
@@ -71,10 +72,16 @@ export function PaymentsSection({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<RecoverableClientCommand | null>(null);
+  const recoveryRef = useRef<RecoverableClientCommand | null>(null);
   const commandIdentity = useRef<ClientCommandIdentity | null>(null);
   const current = versions[0] ?? null;
   const summary = current?.payment ?? null;
   const payers = parties.filter((party) => party.roles.includes("PAYER"));
+
+  function applyRecovery(next: RecoverableClientCommand | null) {
+    recoveryRef.current = next;
+    setRecovery(next);
+  }
 
   async function sendCommand(envelope: RecoverableClientCommand) {
     let response: Response;
@@ -89,15 +96,17 @@ export function PaymentsSection({
         body: envelope.serializedBody,
       });
     } catch {
-      setRecovery(envelope);
+      applyRecovery(recoveryForTransport(envelope));
       throw new Error("Результат команды не подтверждён. Повторите синхронизацию с теми же данными");
     }
     const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
-    if (shouldRetainCommandForRetry(response.status, result?.code)) {
-      setRecovery(envelope);
+    const retained = recoveryForResponse(envelope, response.status, result?.code);
+    applyRecovery(retained);
+    if (!response.ok) {
+      if (!retained) clearCommandId(commandIdentity);
+      throw new Error(result?.error || "Команда договора не выполнена");
     }
-    if (!response.ok) throw new Error(result?.error || "Команда договора не выполнена");
-    setRecovery(null);
+    applyRecovery(null);
     clearCommandId(commandIdentity);
   }
 
@@ -105,16 +114,17 @@ export function PaymentsSection({
     const envelope = commandEnvelopeFor(commandIdentity, {
       path: `/api/agent/cases/${caseId}/contract`,
       serializedBody: JSON.stringify(body),
-    }, recovery);
+    }, recoveryRef.current);
     await sendCommand(envelope);
   }
 
   async function retryRecovery() {
-    if (!recovery) return;
+    const pending = recoveryRef.current;
+    if (!pending) return;
     setBusy(true);
     setError(null);
     try {
-      await sendCommand(recovery);
+      await sendCommand(pending);
       setMode(null);
       router.refresh();
     } catch (cause) {
@@ -179,7 +189,11 @@ export function PaymentsSection({
       {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
       {recovery && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 bg-warning-soft px-3 py-3 text-[12px] text-warning">
-          <p className="max-w-[68ch] leading-relaxed">Команда уже сохранена. Данные зафиксированы до завершения синхронизации; повтор использует тот же ключ и payload.</p>
+          <p className="max-w-[68ch] leading-relaxed">
+            {recovery.durability === "CONFIRMED_COMMIT"
+              ? "Команда сохранена, синхронизация не завершена. Данные и ключ зафиксированы для безопасного повтора."
+              : "Результат команды не подтверждён. Данные и ключ сохранены для безопасного повтора без дублирования."}
+          </p>
           <Button type="button" size="sm" onClick={retryRecovery} loading={busy}>Повторить синхронизацию</Button>
         </div>
       )}
@@ -188,7 +202,7 @@ export function PaymentsSection({
         <div className="py-7 text-center">
           <p className="font-medium text-ink">Обязательство ещё не создано</p>
           <p className="mx-auto mt-1 max-w-[60ch] text-[12px] leading-relaxed text-ink-3">Договор создаётся только из принятой immutable QuoteVersion и действующего участника с ролью «Плательщик».</p>
-          {canMutate && payers.length > 0 && <Button type="button" size="sm" className="mt-4" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("CREATE"); }}><FilePlus size={15} /> Создать черновик договора</Button>}
+          {canMutate && payers.length > 0 && <Button type="button" size="sm" className="mt-4" disabled={busy || recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("CREATE"); }}><FilePlus size={15} /> Создать черновик договора</Button>}
           {canMutate && payers.length === 0 && <p className="mt-3 text-[12px] font-medium text-warning">Следующее действие: добавьте в разделе «Семья» участника с ролью «Плательщик».</p>}
         </div>
       ) : (
@@ -205,7 +219,7 @@ export function PaymentsSection({
             <div className="flex justify-between gap-4"><dt className="text-ink-3">Источник</dt><dd className="text-right font-medium text-ink">QuoteVersion #{current.quoteVersionId}</dd></div>
           </dl>
           {canMutate && current.status === "DRAFT" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Следующее действие: проверить snapshot и выдать эту версию.</p><Button type="button" size="sm" onClick={issue} loading={busy} disabled={recovery !== null}>Выдать договор</Button></div>}
-          {canMutate && current.status === "ISSUED" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Подписание доступно только по утверждённой Legal policy и подтверждению.</p><Button type="button" size="sm" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("SIGN"); }}><SealCheck size={15} /> Зафиксировать подписание</Button></div>}
+          {canMutate && current.status === "ISSUED" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Подписание доступно только по утверждённой Legal policy и подтверждению.</p><Button type="button" size="sm" disabled={busy || recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("SIGN"); }}><SealCheck size={15} /> Зафиксировать подписание</Button></div>}
           <p className="text-[12px] leading-relaxed text-ink-3">Статус вычисляется только из immutable obligation и append-only ledger. Удаление записей и ручная установка PAID отсутствуют.</p>
         </div>
       )}

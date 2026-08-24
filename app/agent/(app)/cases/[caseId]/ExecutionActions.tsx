@@ -7,7 +7,8 @@ import { Button, buttonClasses } from "@/components/ui/Button";
 import { clearCommandId, type ClientCommandIdentity } from "@/lib/clientCommandId";
 import {
   commandEnvelopeFor,
-  shouldRetainCommandForRetry,
+  recoveryForResponse,
+  recoveryForTransport,
   type RecoverableClientCommand,
 } from "@/lib/clientCommandRecovery";
 
@@ -23,8 +24,14 @@ export function ExecutionActions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<RecoverableClientCommand | null>(null);
+  const recoveryRef = useRef<RecoverableClientCommand | null>(null);
   const commandIdentity = useRef<ClientCommandIdentity | null>(null);
   const closing = executionConfirmed;
+
+  function applyRecovery(next: RecoverableClientCommand | null) {
+    recoveryRef.current = next;
+    setRecovery(next);
+  }
 
   async function sendCommand(envelope: RecoverableClientCommand) {
     let response: Response;
@@ -39,29 +46,24 @@ export function ExecutionActions({
         body: envelope.serializedBody,
       });
     } catch {
-      setRecovery(envelope);
+      applyRecovery(recoveryForTransport(envelope));
       throw new Error("Результат команды не подтверждён. Повторите синхронизацию с теми же данными");
     }
     const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
-    if (shouldRetainCommandForRetry(response.status, result?.code)) {
-      setRecovery(envelope);
+    const retained = recoveryForResponse(envelope, response.status, result?.code);
+    applyRecovery(retained);
+    if (!response.ok) {
+      if (!retained) clearCommandId(commandIdentity);
+      throw new Error(result?.error || "Команда исполнения не выполнена");
     }
-    if (!response.ok) throw new Error(result?.error || "Команда исполнения не выполнена");
-    setRecovery(null);
+    applyRecovery(null);
     clearCommandId(commandIdentity);
   }
 
-  async function submit() {
+  async function runCommand(envelope: RecoverableClientCommand) {
     setBusy(true);
     setError(null);
     try {
-      const body = closing
-        ? { eventType: "case.closure_requested.v1", payload: {} }
-        : { eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } };
-      const envelope = commandEnvelopeFor(commandIdentity, {
-        path: `/api/agent/cases/${caseId}/transition`,
-        serializedBody: JSON.stringify(body),
-      }, recovery);
       await sendCommand(envelope);
       setConfirming(false);
       router.refresh();
@@ -72,13 +74,33 @@ export function ExecutionActions({
     }
   }
 
+  async function submit() {
+    const body = closing
+      ? { eventType: "case.closure_requested.v1", payload: {} }
+      : { eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } };
+    const envelope = commandEnvelopeFor(commandIdentity, {
+      path: `/api/agent/cases/${caseId}/transition`,
+      serializedBody: JSON.stringify(body),
+    }, recoveryRef.current);
+    await runCommand(envelope);
+  }
+
+  async function retryRecovery() {
+    const pending = recoveryRef.current;
+    if (pending) await runCommand(pending);
+  }
+
   if (!confirming) {
     return (
       <button
         type="button"
         className={buttonClasses({ size: "sm" })}
-        onClick={() => { clearCommandId(commandIdentity); setConfirming(true); }}
-        disabled={recovery !== null}
+        onClick={() => {
+          if (recoveryRef.current) return;
+          clearCommandId(commandIdentity);
+          setConfirming(true);
+        }}
+        disabled={busy || recovery !== null}
       >
         {closing ? <LockSimple size={15} weight="bold" /> : <CheckCircle size={15} weight="bold" />}
         {closing ? "Закрыть кейс" : "Подтвердить исполнение"}
@@ -98,15 +120,25 @@ export function ExecutionActions({
           : "Подтвердите только фактически выполненный сценарий. Действие фиксируется в неизменяемой истории кейса."}
       </p>
       {error && <p className="mt-2 text-[12px] font-medium text-danger" role="alert">{error}</p>}
-      {recovery && <p className="mt-2 text-[12px] font-medium text-warning" role="status">Команда сохранена. Повтор использует тот же payload и ключ; отмена заблокирована до завершения синхронизации.</p>}
+      {recovery && (
+        <p className="mt-2 text-[12px] font-medium text-warning" role="status">
+          {recovery.durability === "CONFIRMED_COMMIT"
+            ? "Команда сохранена, синхронизация не завершена. Повтор использует тот же payload и ключ."
+            : "Результат команды не подтверждён. Повтор использует сохранённые payload и ключ без дублирования."}
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" size="sm" onClick={submit} loading={busy}>
+        <Button type="button" size="sm" onClick={recovery ? retryRecovery : submit} loading={busy}>
           {recovery ? "Повторить синхронизацию" : closing ? "Подтверждаю закрытие" : "Подтверждаю исполнение"}
         </Button>
         <button
           type="button"
           className={buttonClasses({ variant: "ghost", size: "sm" })}
-          onClick={() => { clearCommandId(commandIdentity); setConfirming(false); }}
+          onClick={() => {
+            if (recoveryRef.current) return;
+            clearCommandId(commandIdentity);
+            setConfirming(false);
+          }}
           disabled={busy || recovery !== null}
         >
           Отмена

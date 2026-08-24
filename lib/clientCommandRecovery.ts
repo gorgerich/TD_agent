@@ -6,6 +6,7 @@ export type RecoverableClientCommand = {
   path: string;
   serializedBody: string | null;
   commandId: string;
+  durability: "CONFIRMED_COMMIT" | "UNCONFIRMED";
 };
 
 export class ClientCommandRecoveryPendingError extends Error {
@@ -33,6 +34,7 @@ export function commandEnvelopeFor(
     path: input.path,
     serializedBody: input.serializedBody,
     commandId: commandIdFor(reference, signature),
+    durability: "UNCONFIRMED",
   };
 }
 
@@ -42,4 +44,20 @@ export function isCaseProjectionRetry(status: number, code: string | undefined) 
 
 export function shouldRetainCommandForRetry(status: number, code: string | undefined) {
   return isCaseProjectionRetry(status, code) || status >= 500;
+}
+
+export function recoveryForResponse(
+  envelope: RecoverableClientCommand,
+  status: number,
+  code: string | undefined,
+): RecoverableClientCommand | null {
+  if (!shouldRetainCommandForRetry(status, code)) return null;
+  return {
+    ...envelope,
+    durability: isCaseProjectionRetry(status, code) ? "CONFIRMED_COMMIT" : "UNCONFIRMED",
+  };
+}
+
+export function recoveryForTransport(envelope: RecoverableClientCommand): RecoverableClientCommand {
+  return { ...envelope, durability: "UNCONFIRMED" };
 }

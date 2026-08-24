@@ -5,6 +5,8 @@ import { type ClientCommandIdentity } from "../lib/clientCommandId";
 import {
   ClientCommandRecoveryPendingError,
   commandEnvelopeFor,
+  recoveryForResponse,
+  recoveryForTransport,
   shouldRetainCommandForRetry,
 } from "../lib/clientCommandRecovery";
 import { handleApiError } from "../lib/apiAuth";
@@ -39,6 +41,10 @@ test("M3 post-commit recovery locks the exact command key and payload", () => {
   assert.equal(shouldRetainCommandForRetry(503, "CASE_PROJECTION_RETRY"), true);
   assert.equal(shouldRetainCommandForRetry(502, undefined), true);
   assert.equal(shouldRetainCommandForRetry(409, "IDEMPOTENCY_CONFLICT"), false);
+  assert.equal(recoveryForResponse(first, 503, "CASE_PROJECTION_RETRY")?.durability, "CONFIRMED_COMMIT");
+  assert.equal(recoveryForResponse(first, 502, undefined)?.durability, "UNCONFIRMED");
+  assert.equal(recoveryForTransport(first).durability, "UNCONFIRMED");
+  assert.equal(recoveryForResponse(first, 409, "IDEMPOTENCY_CONFLICT"), null);
 });
 
 test("M3 projection contention is an explicit retryable service response", async () => {
@@ -68,11 +74,18 @@ test("M3 projection clients expose fixed-payload retry and lock destructive cont
   const execution = readFileSync(new URL("../app/agent/(app)/cases/[caseId]/ExecutionActions.tsx", import.meta.url), "utf8");
 
   for (const source of [payments, documents, execution]) {
-    assert.match(source, /setRecovery\(envelope\)/);
+    assert.match(source, /setRecovery\(/);
     assert.match(source, /recovery !== null/);
     assert.match(source, /Повторить синхронизацию/);
   }
-  assert.match(payments, /await sendCommand\(recovery\)/);
-  assert.match(documents, /await sendCommand\(recovery\)/);
-  assert.match(execution, /commandEnvelopeFor\([\s\S]*?, recovery\)/);
+  assert.match(payments, /await sendCommand\(pending\)/);
+  assert.match(documents, /sendCommand\(pending\)/);
+  assert.match(execution, /runCommand\(pending\)/);
+  assert.match(documents, /mutationInFlight\.current/);
+  assert.match(documents, /const mutationLocked = busyId !== null \|\| recovery !== null/);
+  for (const source of [payments, documents, execution]) {
+    assert.match(source, /recoveryRef\.current/);
+    assert.match(source, /recovery\.durability === "CONFIRMED_COMMIT"/);
+    assert.match(source, /if \(!retained\) clearCommandId\(commandIdentity\)/);
+  }
 });

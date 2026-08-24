@@ -7,7 +7,8 @@ import { Button, buttonClasses } from "@/components/ui/Button";
 import { clearCommandId, type ClientCommandIdentity } from "@/lib/clientCommandId";
 import {
   commandEnvelopeFor,
-  shouldRetainCommandForRetry,
+  recoveryForResponse,
+  recoveryForTransport,
   type RecoverableClientCommand,
 } from "@/lib/clientCommandRecovery";
 
@@ -44,22 +45,30 @@ export function DocumentReviewClient({
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "available" | "mine">("all");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [viewerBusyId, setViewerBusyId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [escalatingId, setEscalatingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [checks, setChecks] = useState<Record<string, Record<string, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<(RecoverableClientCommand & { itemId: string }) | null>(null);
+  const recoveryRef = useRef<(RecoverableClientCommand & { itemId: string }) | null>(null);
   const [viewer, setViewer] = useState<{ objectUrl: string; title: string } | null>(null);
   const viewerDialogRef = useRef<HTMLDivElement>(null);
   const viewerCloseRef = useRef<HTMLButtonElement>(null);
   const viewerReturnFocusRef = useRef<HTMLElement | null>(null);
   const commandIdentity = useRef<ClientCommandIdentity | null>(null);
+  const mutationInFlight = useRef(false);
   const rows = useMemo(() => initial.filter((item) => {
     if (filter === "available") return item.status === "UPLOADED" && item.assignedReviewerMembershipId == null;
     if (filter === "mine") return item.assignedReviewerMembershipId === membershipId;
     return true;
   }), [filter, initial, membershipId]);
+
+  function applyRecovery(next: (RecoverableClientCommand & { itemId: string }) | null) {
+    recoveryRef.current = next;
+    setRecovery(next);
+  }
 
   useEffect(() => {
     if (!viewer) return;
@@ -114,15 +123,17 @@ export function DocumentReviewClient({
         body: envelope.serializedBody ?? undefined,
       });
     } catch {
-      setRecovery(envelope);
+      applyRecovery({ ...recoveryForTransport(envelope), itemId: envelope.itemId });
       throw new Error("Результат решения не подтверждён. Повторите синхронизацию с теми же данными");
     }
     const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
-    if (shouldRetainCommandForRetry(response.status, result?.code)) {
-      setRecovery(envelope);
+    const retained = recoveryForResponse(envelope, response.status, result?.code);
+    applyRecovery(retained ? { ...retained, itemId: envelope.itemId } : null);
+    if (!response.ok) {
+      if (!retained) clearCommandId(commandIdentity);
+      throw new Error(result?.error || "Команда проверки не выполнена");
     }
-    if (!response.ok) throw new Error(result?.error || "Команда проверки не выполнена");
-    setRecovery(null);
+    applyRecovery(null);
     clearCommandId(commandIdentity);
   }
 
@@ -130,78 +141,79 @@ export function DocumentReviewClient({
     const envelope = commandEnvelopeFor(commandIdentity, {
       path,
       serializedBody: body === undefined ? null : JSON.stringify(body),
-    }, recovery);
+    }, recoveryRef.current);
     await sendCommand({ ...envelope, itemId });
   }
 
-  async function retryRecovery() {
-    if (!recovery) return;
-    setBusyId(recovery.itemId);
+  async function runMutation(itemId: string, operation: () => Promise<void>, fallback: string) {
+    if (mutationInFlight.current) {
+      setError("Дождитесь завершения текущей команды проверки");
+      return false;
+    }
+    mutationInFlight.current = true;
+    setBusyId(itemId);
     setError(null);
     try {
-      await sendCommand(recovery);
+      await operation();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : fallback);
+      return false;
+    } finally {
+      mutationInFlight.current = false;
+      setBusyId(null);
+    }
+  }
+
+  async function retryRecovery() {
+    const pending = recoveryRef.current;
+    if (!pending) return;
+    if (await runMutation(pending.itemId, () => sendCommand(pending), "Синхронизация решения не завершена")) {
       setRejectingId(null);
       setEscalatingId(null);
       setReason("");
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Синхронизация решения не завершена");
-    } finally {
-      setBusyId(null);
     }
   }
 
   async function start(item: QueueItem) {
-    setBusyId(item.id);
-    setError(null);
-    try {
-      await command(item.id, `/api/agent/document-review/${item.id}/start`);
+    if (await runMutation(
+      item.id,
+      () => command(item.id, `/api/agent/document-review/${item.id}/start`),
+      "Документ не взят в работу",
+    )) {
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Документ не взят в работу");
-    } finally {
-      setBusyId(null);
     }
   }
 
   async function decide(item: QueueItem, decision: "VERIFIED" | "REJECTED") {
-    setBusyId(item.id);
-    setError(null);
-    try {
-      await command(item.id, `/api/agent/document-review/${item.id}/decision`, {
+    if (await runMutation(item.id, () => command(item.id, `/api/agent/document-review/${item.id}/decision`, {
         decision,
         checklist: checks[item.id] ?? {},
         reason: decision === "REJECTED" ? reason : null,
         expiresAt: null,
-      });
+      }), "Решение не сохранено")) {
       setRejectingId(null);
       setReason("");
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Решение не сохранено");
-    } finally {
-      setBusyId(null);
     }
   }
 
   async function escalate(item: QueueItem) {
-    setBusyId(item.id);
-    setError(null);
-    try {
-      await command(item.id, `/api/agent/document-review/${item.id}/escalate`, { reason });
+    if (await runMutation(
+      item.id,
+      () => command(item.id, `/api/agent/document-review/${item.id}/escalate`, { reason }),
+      "Эскалация не сохранена",
+    )) {
       setEscalatingId(null);
       setReason("");
       router.refresh();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Эскалация не сохранена");
-    } finally {
-      setBusyId(null);
     }
   }
 
   async function open(item: QueueItem) {
     viewerReturnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setBusyId(item.id);
+    setViewerBusyId(item.id);
     setError(null);
     try {
       const response = await fetch(`/api/agent/cases/${item.case.leadId}/documents/${item.id}`, {
@@ -218,9 +230,11 @@ export function DocumentReviewClient({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Файл недоступен");
     } finally {
-      setBusyId(null);
+      setViewerBusyId(null);
     }
   }
+
+  const mutationLocked = busyId !== null || recovery !== null;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1180px] px-4 py-6 sm:px-7 sm:py-8">
@@ -240,7 +254,11 @@ export function DocumentReviewClient({
       {error && <p role="alert" className="mb-4 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
       {recovery && (
         <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-warning-soft px-3 py-3 text-[12px] text-warning">
-          <p className="max-w-[68ch] leading-relaxed">Решение уже сохранено. До завершения синхронизации payload зафиксирован; доступны просмотр и повтор той же команды.</p>
+          <p className="max-w-[68ch] leading-relaxed">
+            {recovery.durability === "CONFIRMED_COMMIT"
+              ? "Решение сохранено, синхронизация не завершена. Payload и ключ зафиксированы для безопасного повтора."
+              : "Результат решения не подтверждён. Payload и ключ сохранены для безопасного повтора без дублирования."}
+          </p>
           <Button type="button" size="sm" onClick={retryRecovery} loading={busyId === recovery.itemId}>Повторить синхронизацию</Button>
         </div>
       )}
@@ -278,7 +296,7 @@ export function DocumentReviewClient({
                                 type="checkbox"
                                 className="h-4 w-4"
                                 checked={checks[item.id]?.[key] === true}
-                                disabled={recovery !== null}
+                                disabled={mutationLocked}
                                 onChange={(event) => setChecks((current) => ({
                                   ...current,
                                   [item.id]: { ...current[item.id], [key]: event.target.checked },
@@ -292,22 +310,22 @@ export function DocumentReviewClient({
                     </div>
                     <div className="flex flex-wrap gap-2 lg:justify-end">
                       {mine && item.status === "IN_REVIEW" && (
-                        <button type="button" onClick={() => open(item)} className={buttonClasses({ variant: "secondary", size: "sm" })} disabled={busyId === item.id}>
+                        <button type="button" onClick={() => open(item)} className={buttonClasses({ variant: "secondary", size: "sm" })} disabled={viewerBusyId !== null}>
                           <ArrowSquareOut size={14} weight="bold" /> Открыть
                         </button>
                       )}
                       {item.status === "UPLOADED" && !item.assignedReviewerMembershipId && (
-                        <Button type="button" size="sm" onClick={() => start(item)} loading={busyId === item.id} disabled={recovery !== null}>Взять в работу</Button>
+                        <Button type="button" size="sm" onClick={() => start(item)} loading={busyId === item.id} disabled={mutationLocked}>Взять в работу</Button>
                       )}
                       {mine && item.status === "IN_REVIEW" && (
                         <>
-                          <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete || recovery !== null} loading={busyId === item.id}>
+                          <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete || mutationLocked} loading={busyId === item.id}>
                             <Check size={14} weight="bold" /> Проверено
                           </Button>
-                          <button type="button" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
+                          <button type="button" disabled={mutationLocked} onClick={() => { clearCommandId(commandIdentity); setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
                             <X size={14} weight="bold" /> Отклонить
                           </button>
-                          <button type="button" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
+                          <button type="button" disabled={mutationLocked} onClick={() => { clearCommandId(commandIdentity); setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
                             <Warning size={14} weight="bold" /> Эскалировать
                           </button>
                         </>
@@ -318,11 +336,11 @@ export function DocumentReviewClient({
                     <div className="mt-3 grid gap-2 bg-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <label>
                         <span className="td-field-label">Причина отклонения</span>
-                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={recovery !== null} />
+                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={mutationLocked} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setRejectingId(null); setReason(""); }}>Отмена</button>
-                        <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3 || recovery !== null} loading={busyId === item.id}>Сохранить решение</Button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={mutationLocked} onClick={() => { clearCommandId(commandIdentity); setRejectingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3 || mutationLocked} loading={busyId === item.id}>Сохранить решение</Button>
                       </div>
                     </div>
                   )}
@@ -330,11 +348,11 @@ export function DocumentReviewClient({
                     <div className="mt-3 grid gap-2 bg-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <label>
                         <span className="td-field-label">Причина и безопасное следующее действие</span>
-                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={recovery !== null} />
+                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={mutationLocked} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setEscalatingId(null); setReason(""); }}>Отмена</button>
-                        <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3 || recovery !== null} loading={busyId === item.id}>Передать владельцу кейса</Button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={mutationLocked} onClick={() => { clearCommandId(commandIdentity); setEscalatingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3 || mutationLocked} loading={busyId === item.id}>Передать владельцу кейса</Button>
                       </div>
                     </div>
                   )}
