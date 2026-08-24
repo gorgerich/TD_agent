@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowSquareOut, Check, FileMagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
-import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import { clearCommandId, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import {
+  commandEnvelopeFor,
+  shouldRetainCommandForRetry,
+  type RecoverableClientCommand,
+} from "@/lib/clientCommandRecovery";
 
 type QueueItem = {
   id: string;
@@ -44,6 +49,7 @@ export function DocumentReviewClient({
   const [reason, setReason] = useState("");
   const [checks, setChecks] = useState<Record<string, Record<string, boolean>>>({});
   const [error, setError] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<(RecoverableClientCommand & { itemId: string }) | null>(null);
   const [viewer, setViewer] = useState<{ objectUrl: string; title: string } | null>(null);
   const viewerDialogRef = useRef<HTMLDivElement>(null);
   const viewerCloseRef = useRef<HTMLButtonElement>(null);
@@ -95,28 +101,61 @@ export function DocumentReviewClient({
     };
   }, [viewer]);
 
-  async function command(path: string, body?: unknown) {
-    const serializedBody = body === undefined ? "" : JSON.stringify(body);
-    const commandId = commandIdFor(commandIdentity, `${path}\n${serializedBody}`);
-    const response = await fetch(path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `document-review:${commandId}`,
-        "X-Correlation-Id": commandId,
-      },
-      body: body === undefined ? undefined : serializedBody,
-    });
-    const result = await response.json().catch(() => null) as { error?: string } | null;
+  async function sendCommand(envelope: RecoverableClientCommand & { itemId: string }) {
+    let response: Response;
+    try {
+      response = await fetch(envelope.path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `document-review:${envelope.commandId}`,
+          "X-Correlation-Id": envelope.commandId,
+        },
+        body: envelope.serializedBody ?? undefined,
+      });
+    } catch {
+      setRecovery(envelope);
+      throw new Error("Результат решения не подтверждён. Повторите синхронизацию с теми же данными");
+    }
+    const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+    if (shouldRetainCommandForRetry(response.status, result?.code)) {
+      setRecovery(envelope);
+    }
     if (!response.ok) throw new Error(result?.error || "Команда проверки не выполнена");
+    setRecovery(null);
     clearCommandId(commandIdentity);
+  }
+
+  async function command(itemId: string, path: string, body?: unknown) {
+    const envelope = commandEnvelopeFor(commandIdentity, {
+      path,
+      serializedBody: body === undefined ? null : JSON.stringify(body),
+    }, recovery);
+    await sendCommand({ ...envelope, itemId });
+  }
+
+  async function retryRecovery() {
+    if (!recovery) return;
+    setBusyId(recovery.itemId);
+    setError(null);
+    try {
+      await sendCommand(recovery);
+      setRejectingId(null);
+      setEscalatingId(null);
+      setReason("");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Синхронизация решения не завершена");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function start(item: QueueItem) {
     setBusyId(item.id);
     setError(null);
     try {
-      await command(`/api/agent/document-review/${item.id}/start`);
+      await command(item.id, `/api/agent/document-review/${item.id}/start`);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Документ не взят в работу");
@@ -129,7 +168,7 @@ export function DocumentReviewClient({
     setBusyId(item.id);
     setError(null);
     try {
-      await command(`/api/agent/document-review/${item.id}/decision`, {
+      await command(item.id, `/api/agent/document-review/${item.id}/decision`, {
         decision,
         checklist: checks[item.id] ?? {},
         reason: decision === "REJECTED" ? reason : null,
@@ -149,7 +188,7 @@ export function DocumentReviewClient({
     setBusyId(item.id);
     setError(null);
     try {
-      await command(`/api/agent/document-review/${item.id}/escalate`, { reason });
+      await command(item.id, `/api/agent/document-review/${item.id}/escalate`, { reason });
       setEscalatingId(null);
       setReason("");
       router.refresh();
@@ -199,6 +238,12 @@ export function DocumentReviewClient({
         ))}
       </div>
       {error && <p role="alert" className="mb-4 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
+      {recovery && (
+        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-warning-soft px-3 py-3 text-[12px] text-warning">
+          <p className="max-w-[68ch] leading-relaxed">Решение уже сохранено. До завершения синхронизации payload зафиксирован; доступны просмотр и повтор той же команды.</p>
+          <Button type="button" size="sm" onClick={retryRecovery} loading={busyId === recovery.itemId}>Повторить синхронизацию</Button>
+        </div>
+      )}
       {rows.length === 0 ? (
         <div className="td-shell py-14 text-center">
           <FileMagnifyingGlass size={30} className="mx-auto text-ink-3" />
@@ -233,6 +278,7 @@ export function DocumentReviewClient({
                                 type="checkbox"
                                 className="h-4 w-4"
                                 checked={checks[item.id]?.[key] === true}
+                                disabled={recovery !== null}
                                 onChange={(event) => setChecks((current) => ({
                                   ...current,
                                   [item.id]: { ...current[item.id], [key]: event.target.checked },
@@ -251,17 +297,17 @@ export function DocumentReviewClient({
                         </button>
                       )}
                       {item.status === "UPLOADED" && !item.assignedReviewerMembershipId && (
-                        <Button type="button" size="sm" onClick={() => start(item)} loading={busyId === item.id}>Взять в работу</Button>
+                        <Button type="button" size="sm" onClick={() => start(item)} loading={busyId === item.id} disabled={recovery !== null}>Взять в работу</Button>
                       )}
                       {mine && item.status === "IN_REVIEW" && (
                         <>
-                          <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete} loading={busyId === item.id}>
+                          <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete || recovery !== null} loading={busyId === item.id}>
                             <Check size={14} weight="bold" /> Проверено
                           </Button>
-                          <button type="button" onClick={() => { clearCommandId(commandIdentity); setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
+                          <button type="button" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
                             <X size={14} weight="bold" /> Отклонить
                           </button>
-                          <button type="button" onClick={() => { clearCommandId(commandIdentity); setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
+                          <button type="button" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
                             <Warning size={14} weight="bold" /> Эскалировать
                           </button>
                         </>
@@ -272,11 +318,11 @@ export function DocumentReviewClient({
                     <div className="mt-3 grid gap-2 bg-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <label>
                         <span className="td-field-label">Причина отклонения</span>
-                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
+                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={recovery !== null} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setRejectingId(null); setReason(""); }}>Отмена</button>
-                        <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3} loading={busyId === item.id}>Сохранить решение</Button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setRejectingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3 || recovery !== null} loading={busyId === item.id}>Сохранить решение</Button>
                       </div>
                     </div>
                   )}
@@ -284,11 +330,11 @@ export function DocumentReviewClient({
                     <div className="mt-3 grid gap-2 bg-surface-2 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                       <label>
                         <span className="td-field-label">Причина и безопасное следующее действие</span>
-                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
+                        <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} disabled={recovery !== null} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setEscalatingId(null); setReason(""); }}>Отмена</button>
-                        <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3} loading={busyId === item.id}>Передать владельцу кейса</Button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setEscalatingId(null); setReason(""); }}>Отмена</button>
+                        <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3 || recovery !== null} loading={busyId === item.id}>Передать владельцу кейса</Button>
                       </div>
                     </div>
                   )}

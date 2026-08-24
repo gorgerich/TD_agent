@@ -1,20 +1,44 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "../lib/clientCommandId";
+import { type ClientCommandIdentity } from "../lib/clientCommandId";
+import {
+  ClientCommandRecoveryPendingError,
+  commandEnvelopeFor,
+  shouldRetainCommandForRetry,
+} from "../lib/clientCommandRecovery";
 import { handleApiError } from "../lib/apiAuth";
 import { OperationalCommandError } from "../lib/operationalTransaction";
 
-test("M3 retry keeps one client command identity until success or explicit cancellation", () => {
+test("M3 post-commit recovery locks the exact command key and payload", () => {
   const reference: { current: ClientCommandIdentity | null } = { current: null };
-  const first = commandIdFor(reference, "SIGN:contract-1:payload-a");
-  const retry = commandIdFor(reference, "SIGN:contract-1:payload-a");
-  const changedPayload = commandIdFor(reference, "SIGN:contract-1:payload-b");
+  const first = commandEnvelopeFor(reference, {
+    path: "/api/agent/cases/1/contract",
+    serializedBody: JSON.stringify({ action: "SIGN", evidence: "registry-1" }),
+  }, null);
+  const retry = commandEnvelopeFor(reference, {
+    path: first.path,
+    serializedBody: first.serializedBody,
+  }, first);
 
-  assert.equal(retry, first);
-  assert.notEqual(changedPayload, first);
-  clearCommandId(reference);
-  assert.notEqual(commandIdFor(reference, "SIGN:contract-1:payload-b"), changedPayload);
+  assert.deepEqual(retry, first);
+  assert.throws(
+    () => commandEnvelopeFor(reference, {
+      path: first.path,
+      serializedBody: JSON.stringify({ action: "SIGN", evidence: "registry-2" }),
+    }, first),
+    ClientCommandRecoveryPendingError,
+  );
+  assert.throws(
+    () => commandEnvelopeFor(reference, {
+      path: "/api/agent/cases/2/contract",
+      serializedBody: first.serializedBody,
+    }, first),
+    ClientCommandRecoveryPendingError,
+  );
+  assert.equal(shouldRetainCommandForRetry(503, "CASE_PROJECTION_RETRY"), true);
+  assert.equal(shouldRetainCommandForRetry(502, undefined), true);
+  assert.equal(shouldRetainCommandForRetry(409, "IDEMPOTENCY_CONFLICT"), false);
 });
 
 test("M3 projection contention is an explicit retryable service response", async () => {
@@ -36,4 +60,19 @@ test("M3 case projection producers cannot bypass the public advisory-lock wrappe
   const documentService = readFileSync(new URL("../lib/documentService.ts", import.meta.url), "utf8");
   assert.doesNotMatch(documentService, /advanceCaseFulfilmentInTransaction/);
   assert.match(documentService, /advanceCaseFulfilment\(/);
+});
+
+test("M3 projection clients expose fixed-payload retry and lock destructive controls", () => {
+  const payments = readFileSync(new URL("../app/agent/(app)/cases/[caseId]/PaymentsSection.tsx", import.meta.url), "utf8");
+  const documents = readFileSync(new URL("../app/agent/(app)/document-review/DocumentReviewClient.tsx", import.meta.url), "utf8");
+  const execution = readFileSync(new URL("../app/agent/(app)/cases/[caseId]/ExecutionActions.tsx", import.meta.url), "utf8");
+
+  for (const source of [payments, documents, execution]) {
+    assert.match(source, /setRecovery\(envelope\)/);
+    assert.match(source, /recovery !== null/);
+    assert.match(source, /Повторить синхронизацию/);
+  }
+  assert.match(payments, /await sendCommand\(recovery\)/);
+  assert.match(documents, /await sendCommand\(recovery\)/);
+  assert.match(execution, /commandEnvelopeFor\([\s\S]*?, recovery\)/);
 });

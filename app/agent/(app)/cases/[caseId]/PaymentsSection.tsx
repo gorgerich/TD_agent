@@ -4,7 +4,12 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { FilePlus, SealCheck, WarningCircle } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
-import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import { clearCommandId, type ClientCommandIdentity } from "@/lib/clientCommandId";
+import {
+  commandEnvelopeFor,
+  shouldRetainCommandForRetry,
+  type RecoverableClientCommand,
+} from "@/lib/clientCommandRecovery";
 import { moneyFromKopecks } from "@/lib/format";
 
 export type ContractLedgerVersion = {
@@ -65,26 +70,58 @@ export function PaymentsSection({
   const [mode, setMode] = useState<"CREATE" | "SIGN" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<RecoverableClientCommand | null>(null);
   const commandIdentity = useRef<ClientCommandIdentity | null>(null);
   const current = versions[0] ?? null;
   const summary = current?.payment ?? null;
   const payers = parties.filter((party) => party.roles.includes("PAYER"));
 
-  async function command(body: unknown) {
-    const serializedBody = JSON.stringify(body);
-    const commandId = commandIdFor(commandIdentity, serializedBody);
-    const response = await fetch(`/api/agent/cases/${caseId}/contract`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": `contract:${commandId}`,
-        "X-Correlation-Id": commandId,
-      },
-      body: serializedBody,
-    });
-    const result = await response.json().catch(() => null) as { error?: string } | null;
+  async function sendCommand(envelope: RecoverableClientCommand) {
+    let response: Response;
+    try {
+      response = await fetch(envelope.path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": `contract:${envelope.commandId}`,
+          "X-Correlation-Id": envelope.commandId,
+        },
+        body: envelope.serializedBody,
+      });
+    } catch {
+      setRecovery(envelope);
+      throw new Error("Результат команды не подтверждён. Повторите синхронизацию с теми же данными");
+    }
+    const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+    if (shouldRetainCommandForRetry(response.status, result?.code)) {
+      setRecovery(envelope);
+    }
     if (!response.ok) throw new Error(result?.error || "Команда договора не выполнена");
+    setRecovery(null);
     clearCommandId(commandIdentity);
+  }
+
+  async function command(body: unknown) {
+    const envelope = commandEnvelopeFor(commandIdentity, {
+      path: `/api/agent/cases/${caseId}/contract`,
+      serializedBody: JSON.stringify(body),
+    }, recovery);
+    await sendCommand(envelope);
+  }
+
+  async function retryRecovery() {
+    if (!recovery) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await sendCommand(recovery);
+      setMode(null);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Синхронизация договора не завершена");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -140,12 +177,18 @@ export function PaymentsSection({
         </p>
       )}
       {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
+      {recovery && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 bg-warning-soft px-3 py-3 text-[12px] text-warning">
+          <p className="max-w-[68ch] leading-relaxed">Команда уже сохранена. Данные зафиксированы до завершения синхронизации; повтор использует тот же ключ и payload.</p>
+          <Button type="button" size="sm" onClick={retryRecovery} loading={busy}>Повторить синхронизацию</Button>
+        </div>
+      )}
 
       {!current ? (
         <div className="py-7 text-center">
           <p className="font-medium text-ink">Обязательство ещё не создано</p>
           <p className="mx-auto mt-1 max-w-[60ch] text-[12px] leading-relaxed text-ink-3">Договор создаётся только из принятой immutable QuoteVersion и действующего участника с ролью «Плательщик».</p>
-          {canMutate && payers.length > 0 && <Button type="button" size="sm" className="mt-4" onClick={() => { clearCommandId(commandIdentity); setMode("CREATE"); }}><FilePlus size={15} /> Создать черновик договора</Button>}
+          {canMutate && payers.length > 0 && <Button type="button" size="sm" className="mt-4" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("CREATE"); }}><FilePlus size={15} /> Создать черновик договора</Button>}
           {canMutate && payers.length === 0 && <p className="mt-3 text-[12px] font-medium text-warning">Следующее действие: добавьте в разделе «Семья» участника с ролью «Плательщик».</p>}
         </div>
       ) : (
@@ -161,27 +204,27 @@ export function PaymentsSection({
             <MoneyRow label="Остаток" value={summary?.balanceKopecks} emphasize />
             <div className="flex justify-between gap-4"><dt className="text-ink-3">Источник</dt><dd className="text-right font-medium text-ink">QuoteVersion #{current.quoteVersionId}</dd></div>
           </dl>
-          {canMutate && current.status === "DRAFT" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Следующее действие: проверить snapshot и выдать эту версию.</p><Button type="button" size="sm" onClick={issue} loading={busy}>Выдать договор</Button></div>}
-          {canMutate && current.status === "ISSUED" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Подписание доступно только по утверждённой Legal policy и подтверждению.</p><Button type="button" size="sm" onClick={() => { clearCommandId(commandIdentity); setMode("SIGN"); }}><SealCheck size={15} /> Зафиксировать подписание</Button></div>}
+          {canMutate && current.status === "DRAFT" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Следующее действие: проверить snapshot и выдать эту версию.</p><Button type="button" size="sm" onClick={issue} loading={busy} disabled={recovery !== null}>Выдать договор</Button></div>}
+          {canMutate && current.status === "ISSUED" && <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-2 px-3 py-3"><p className="text-[12px] text-ink-2">Подписание доступно только по утверждённой Legal policy и подтверждению.</p><Button type="button" size="sm" disabled={recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode("SIGN"); }}><SealCheck size={15} /> Зафиксировать подписание</Button></div>}
           <p className="text-[12px] leading-relaxed text-ink-3">Статус вычисляется только из immutable obligation и append-only ledger. Удаление записей и ручная установка PAID отсутствуют.</p>
         </div>
       )}
 
       {mode === "CREATE" && (
         <form onSubmit={submit} className="grid gap-3 bg-surface-2 p-4" aria-label="Создать черновик договора">
-          <label><span className="td-field-label">Плательщик</span><select name="payerPartyId" className="td-field" required>{payers.map((payer) => <option key={payer.id} value={payer.id}>{payer.name}</option>)}</select></label>
-          <label><span className="td-field-label">Условия оплаты</span><textarea name="paymentTerms" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required /></label>
-          <label><span className="td-field-label">Действителен до</span><input name="validUntil" type="date" className="td-field" /></label>
-          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setMode(null); }}>Отмена</button><Button type="submit" size="sm" loading={busy}>Создать</Button></div>
+          <label><span className="td-field-label">Плательщик</span><select name="payerPartyId" className="td-field" required disabled={busy || recovery !== null}>{payers.map((payer) => <option key={payer.id} value={payer.id}>{payer.name}</option>)}</select></label>
+          <label><span className="td-field-label">Условия оплаты</span><textarea name="paymentTerms" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required disabled={busy || recovery !== null} /></label>
+          <label><span className="td-field-label">Действителен до</span><input name="validUntil" type="date" className="td-field" disabled={busy || recovery !== null} /></label>
+          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} disabled={busy || recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode(null); }}>Отмена</button><Button type="submit" size="sm" loading={busy} disabled={recovery !== null}>Создать</Button></div>
         </form>
       )}
       {mode === "SIGN" && current && (
         <form onSubmit={submit} className="grid gap-3 bg-surface-2 p-4" aria-label="Зафиксировать подписание договора">
           <p className="text-[12px] leading-relaxed text-ink-2">Техническая запись не заменяет юридическое подтверждение. Сервер примет только тип evidence из действующей утверждённой policy.</p>
-          <label><span className="td-field-label">Тип подтверждения</span><input name="evidenceType" className="td-field" minLength={1} maxLength={80} required /></label>
-          <label><span className="td-field-label">Ссылка или реестр подтверждения</span><input name="evidenceReference" className="td-field" minLength={3} maxLength={240} required /></label>
-          <label><span className="td-field-label">Версия Legal policy</span><input name="signaturePolicyVersion" className="td-field" minLength={1} maxLength={80} required /></label>
-          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setMode(null); }}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить immutable evidence</Button></div>
+          <label><span className="td-field-label">Тип подтверждения</span><input name="evidenceType" className="td-field" minLength={1} maxLength={80} required disabled={busy || recovery !== null} /></label>
+          <label><span className="td-field-label">Ссылка или реестр подтверждения</span><input name="evidenceReference" className="td-field" minLength={3} maxLength={240} required disabled={busy || recovery !== null} /></label>
+          <label><span className="td-field-label">Версия Legal policy</span><input name="signaturePolicyVersion" className="td-field" minLength={1} maxLength={80} required disabled={busy || recovery !== null} /></label>
+          <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} disabled={busy || recovery !== null} onClick={() => { clearCommandId(commandIdentity); setMode(null); }}>Отмена</button><Button type="submit" size="sm" loading={busy} disabled={recovery !== null}>Сохранить immutable evidence</Button></div>
         </form>
       )}
     </div>
