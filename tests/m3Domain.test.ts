@@ -312,6 +312,14 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
       rules: [{ ...policy.rules[0], acceptedDocumentTypeCodes: ["UNAPPROVED_TYPE"] }],
     } : policy),
   }), /unapproved document type/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    documentTypes: [
+      ...bundle.documentTypes,
+      { ...bundle.documentTypes[0], version: 2 },
+    ],
+  }), /Duplicate document type code/);
 });
 
 function validPolicyBundle() {

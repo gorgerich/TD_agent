@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
 import { POST as login } from "../../app/api/agent/auth/login/route";
 import {
+  activateM3ApprovedPoliciesAndMaterializeExistingCases,
   applyM3ApprovedPolicyBundle,
   parseM3ApprovedPolicyBundle,
   type M3ApprovedPolicyBundle,
@@ -77,6 +78,55 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       }), 1);
       throw new Error("ROLLBACK_M3_POLICY_ACTIVATION_TEST");
     }, { timeout: 20_000 }), /ROLLBACK_M3_POLICY_ACTIVATION_TEST/);
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
+test("M3 policy activation materializes requirements for existing pilot cases without duplicates", opts, async () => {
+  const fixtures = createFixtureContext("m3-policy-existing-case");
+  try {
+    const organizationId = await fixtures.makeOrganization("existing-case-policy");
+    const owner = await fixtures.makeMember("owner", { organizationId, role: "AGENT" });
+    const existingCase = await fixtures.makeCase(owner, "existing-case");
+    await db.case.update({ where: { id: existingCase.id }, data: { scenarioId: "CREMATION_V1" } });
+    const approver = await db.user.findUniqueOrThrow({
+      where: { email: "m3-policy-approver@synthetic.invalid" },
+      select: { id: true },
+    });
+
+    await assert.rejects(db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
+      const bundle = baselinePolicyBundle(organizationId, approver.id);
+      const first = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
+        tx, bundle, "synthetic-policy-run-0001", new Date("2026-08-13T10:00:00.000Z"),
+      );
+      assert.deepEqual(first.materialization, {
+        casesExamined: 1,
+        casesMaterialized: 1,
+        casesDeferredUntilPolicyEffective: 0,
+        requirementsCreated: 3,
+        requirementsExisting: 0,
+      });
+      assert.equal(await tx.caseDocumentRequirement.count({ where: { caseId: existingCase.id } }), 3);
+      const replay = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
+        tx, bundle, "synthetic-policy-run-0002", new Date("2026-08-13T10:00:00.000Z"),
+      );
+      assert.equal(replay.replayed, true);
+      assert.equal(replay.materialization.requirementsCreated, 0);
+      assert.equal(replay.materialization.requirementsExisting, 3);
+      assert.equal(await tx.caseDocumentRequirement.count({ where: { caseId: existingCase.id } }), 3);
+      assert.equal(await tx.operationalAuditEvent.count({
+        where: {
+          organizationId,
+          entityId: existingCase.id,
+          action: "document_requirements.materialized.v1",
+          actorType: "platform-policy-operator",
+        },
+      }), 1);
+      throw new Error("ROLLBACK_M3_EXISTING_CASE_POLICY_TEST");
+    }, { timeout: 20_000 }), /ROLLBACK_M3_EXISTING_CASE_POLICY_TEST/);
   } finally {
     await fixtures.cleanup();
     await fixtures.assertNoResidue();

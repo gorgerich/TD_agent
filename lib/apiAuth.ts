@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { OperationalAuthError, isCoreOperationalRole, type OperationalRole } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { CommercialQuoteError } from "@/lib/commercialQuote";
+import { EncryptedDataUnavailableError } from "@/lib/crypto";
 
 /**
  * Единые помощники для API-роутов агента: авторизация, проверка владения
@@ -148,6 +149,14 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
       );
     }
     return NextResponse.json({ error: err.message, code: err.code }, { status: 422 });
+  }
+
+  if (err instanceof EncryptedDataUnavailableError) {
+    console.error("[api]%s PII_DECRYPTION_UNAVAILABLE", context ? ` ${context}` : "");
+    return NextResponse.json(
+      { error: "Зашифрованные данные временно недоступны", code: err.code },
+      { status: 503 },
+    );
   }
 
   if (

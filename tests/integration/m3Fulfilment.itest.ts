@@ -32,6 +32,7 @@ import { transitionCase } from "../../lib/caseService";
 import { CaseDomainError } from "../../lib/caseDomain";
 import { getCanonicalCase } from "../../lib/caseReadModel";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
+import { EncryptedDataUnavailableError } from "../../lib/crypto";
 import { InMemoryTestStorage } from "../fixtures/testStorage";
 import {
   createFixtureContext,
@@ -240,6 +241,17 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   const listedParties = await listCaseParties(agent.context, caseRecord.id);
   assert.deepEqual(listedParties[0]?.roles.sort(), ["APPLICANT", "PAYER"]);
   assert.equal((await listCaseParties(outsider.context, caseRecord.id)).length, 0);
+  const previousEncryptionKey = process.env.APP_ENCRYPTION_KEY;
+  process.env.APP_ENCRYPTION_KEY = "synthetic-wrong-key-for-case-party-read";
+  try {
+    await assert.rejects(
+      listCaseParties(agent.context, caseRecord.id),
+      EncryptedDataUnavailableError,
+    );
+  } finally {
+    if (previousEncryptionKey === undefined) delete process.env.APP_ENCRYPTION_KEY;
+    else process.env.APP_ENCRYPTION_KEY = previousEncryptionKey;
+  }
 
   const materialized = await materializeCaseRequirements(agent.context, caseRecord.id, meta("requirements"));
   assert.equal(materialized.policyApproved, true);
@@ -741,15 +753,29 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     db.paymentObligation.update({ where: { id: signed.obligationId }, data: { amountKopecks: 1 } }),
     /immutable/i,
   );
-  const refund = await recordRefund(financeOne.context, {
+  const refundInput = {
     paymentEntryId: half.ledgerEntryId,
     amountKopecks: 8_800_000,
     occurredAt: new Date("2026-08-11T13:00:00Z"),
     method: "BANK_TRANSFER",
     evidenceReference: "synthetic-refund-evidence",
     reason: "Synthetic refund",
-  }, meta("refund"));
+  } as const;
+  const refunds = await Promise.all(Array.from({ length: 5 }, () => (
+    recordRefund(financeOne.context, refundInput, meta("refund"))
+  )));
+  assert.equal(refunds.filter((result) => !result.replayed).length, 1);
+  assert.equal(refunds.filter((result) => result.replayed).length, 4);
+  assert.equal(new Set(refunds.map((result) => result.ledgerEntryId)).size, 1);
+  const refund = refunds.find((result) => !result.replayed)!;
   assert.equal(refund.summary.status, "PARTIALLY_REFUNDED");
+  assert.equal(await db.paymentLedgerEntry.count({
+    where: { idempotencyKey: meta("refund").idempotencyKey, organizationId: financeOne.organizationId },
+  }), 1);
+  await expectCommandError(recordRefund(financeOne.context, {
+    ...refundInput,
+    amountKopecks: refundInput.amountKopecks - 1,
+  }, meta("refund")), 409, /другой командой/);
   assert.equal(await db.paymentLedgerEntry.count({ where: { id: half.ledgerEntryId } }), 1);
 
   const adjustment = await requestLedgerAdjustment(financeOne.context, {

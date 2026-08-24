@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
-import { applyM3ApprovedPolicyBundle, parseM3ApprovedPolicyBundle } from "../../lib/m3PolicyActivation";
+import {
+  activateM3ApprovedPoliciesAndMaterializeExistingCases,
+  parseM3ApprovedPolicyBundle,
+} from "../../lib/m3PolicyActivation";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 
 if (process.env.CI) throw new Error("M3 human-approved policy activation is blocked in CI");
@@ -21,7 +25,10 @@ async function main() {
     if (!identity || identity.database !== target.database || identity.readOnly !== "off") {
       throw new Error("M3 policy target is not writable or does not match reviewed endpoint");
     }
-    const result = await db.$transaction((tx) => applyM3ApprovedPolicyBundle(tx, bundle));
+    const commandRunId = randomUUID();
+    const result = await db.$transaction((tx) => (
+      activateM3ApprovedPoliciesAndMaterializeExistingCases(tx, bundle, commandRunId)
+    ));
     process.stdout.write(`${JSON.stringify({
       status: result.replayed ? "ALREADY_APPLIED" : "APPLIED",
       environment: process.env.NODE_ENV ?? "unknown",
@@ -29,6 +36,7 @@ async function main() {
       organizationId: bundle.organizationId,
       bundleFingerprint: result.bundleFingerprint,
       replayed: result.replayed,
+      materialization: result.materialization,
     })}\n`);
   } finally {
     await db.$disconnect();

@@ -6,23 +6,25 @@ import { prisma } from "../../lib/prisma";
 import type { OperationalContext } from "../../lib/operationalAuth";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
 import { backoffBeforeRetry } from "../../lib/serializationBackoff";
-import { isIsolatedTestDatabase } from "./testDatabaseSafety";
+import { isApprovedIntegrationDatabaseEnvironment } from "./testDatabaseSafety";
 
 /**
  * Integration-test harness. It can connect only to exact, local throwaway DBs
  * approved in testDatabaseSafety.ts. Every context owns a registry of exact IDs;
  * cleanup never discovers fixtures by prefix or removes another context's rows.
  */
-if (
-  process.env.ALLOW_DB_TESTS === "1" &&
-  process.env.TEST_DATABASE_URL &&
-  !isIsolatedTestDatabase(process.env.TEST_DATABASE_URL)
-) {
+const approvedIntegrationTarget = isApprovedIntegrationDatabaseEnvironment({
+  testDatabaseUrl: process.env.TEST_DATABASE_URL,
+  databaseUrl: process.env.DATABASE_URL,
+  directDatabaseUrl: process.env.DATABASE_URL_UNPOOLED,
+});
+
+if (process.env.ALLOW_DB_TESTS === "1" && !approvedIntegrationTarget) {
   throw new Error("Integration tests require an approved exact local throwaway database.");
 }
 
 export const dbTestsEnabled =
-  process.env.ALLOW_DB_TESTS === "1" && isIsolatedTestDatabase(process.env.TEST_DATABASE_URL);
+  process.env.ALLOW_DB_TESTS === "1" && approvedIntegrationTarget;
 
 export const skip = !dbTestsEnabled;
 export const db = prisma;

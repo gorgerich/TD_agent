@@ -5,7 +5,7 @@ import type {
   M3PartyVisibility,
   Prisma,
 } from "@prisma/client";
-import { encryptField, decryptField } from "@/lib/crypto";
+import { decryptFieldStrict, encryptField } from "@/lib/crypto";
 import {
   assertCapability,
   type OperationalContext,
@@ -209,9 +209,9 @@ export async function listCaseParties(context: OperationalContext, caseId: strin
   });
   return records.map((party) => ({
     id: party.id,
-    name: decryptField(party.nameEncrypted),
-    phone: decryptField(party.phoneEncrypted),
-    email: decryptField(party.emailEncrypted),
+    name: decryptFieldStrict(party.nameEncrypted),
+    phone: decryptFieldStrict(party.phoneEncrypted),
+    email: decryptFieldStrict(party.emailEncrypted),
     preferredChannel: party.preferredChannel,
     consentStatus: party.consentStatus,
     consentSource: party.consentSource,

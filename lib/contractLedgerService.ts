@@ -594,6 +594,10 @@ export async function recordRefund(
     });
     if (!payment) throw new OperationalCommandError(404, "Исходная оплата не найдена");
     await lockObligationLedger(tx, context.organizationId, payment.obligationId);
+    const replayAfterLock = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
+      tx, context.organizationId, meta.idempotencyKey, fingerprint,
+    );
+    if (replayAfterLock) return { ...replayAfterLock, replayed: true };
     await assertSourceCapacity(tx, payment.obligationId, {
       id: `candidate:${meta.idempotencyKey}`,
       type: "REFUND",

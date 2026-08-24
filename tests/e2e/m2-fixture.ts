@@ -235,6 +235,7 @@ async function cleanup() {
       await tx.organizationInvite.deleteMany({ where: { organizationId: { in: organizationIds } } });
     }
     if (platformUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: platformUserIds } } });
+    if (platformUserIds.length) await tx.platformAccountActivation.deleteMany({ where: { userId: { in: platformUserIds } } });
     if (memberships.length) await tx.membership.deleteMany({ where: { id: { in: memberships.map((membership) => membership.id) } } });
     if (agentIds.length) await tx.agent.deleteMany({ where: { id: { in: agentIds } } });
     if (userIds.length || platformUserIds.length) await tx.user.deleteMany({ where: { id: { in: [...userIds, ...platformUserIds] } } });
@@ -242,6 +243,16 @@ async function cleanup() {
     await tx.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: rateLimitKeys } } });
   }, { timeout: 120_000, maxWait: 30_000 });
   await db.agentTier.deleteMany({ where: { name: "M2 Synthetic UAT", agents: { none: {} } } });
+  const [organizationResidue, userResidue, activationResidue] = await Promise.all([
+    db.organization.count({ where: { id: { in: [organizationA, organizationB] } } }),
+    db.user.count({ where: { email: { in: Object.values(emails) } } }),
+    platformUserIds.length === 0
+      ? Promise.resolve(0)
+      : db.platformAccountActivation.count({ where: { userId: { in: platformUserIds } } }),
+  ]);
+  if (organizationResidue + userResidue + activationResidue !== 0) {
+    throw new Error("M2 UAT fixture residue remains after exact cleanup");
+  }
   process.stdout.write(`${JSON.stringify({ status: "CLEAN" })}\n`);
 }
 

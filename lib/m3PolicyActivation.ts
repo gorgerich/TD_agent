@@ -3,6 +3,7 @@ import { z } from "zod";
 import { appendPlatformAudit } from "@/lib/platformAudit";
 import { commandFingerprint, prismaJson } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { materializeCaseRequirementsInTransaction } from "@/lib/documentRequirementService";
 
 const Attestation = z.object({
   verdict: z.literal("PASS"),
@@ -70,6 +71,7 @@ export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBun
     throw new Error("Approved bundle must contain exactly both M3 pilot scenarios");
   }
   assertUnique(bundle.documentTypes.map((item) => `${item.code}:${item.version}`), "document type");
+  assertUnique(bundle.documentTypes.map((item) => item.code), "document type code");
   const availableCodes = new Set(bundle.documentTypes.map((item) => item.code));
   const scenarioKeys = new Map<string, Set<string>>();
   for (const policy of bundle.documentPolicies) {
@@ -278,6 +280,59 @@ export async function applyM3ApprovedPolicyBundle(
     },
   });
   return { replayed: false, bundleFingerprint: fingerprint };
+}
+
+export async function activateM3ApprovedPoliciesAndMaterializeExistingCases(
+  tx: Prisma.TransactionClient,
+  bundle: M3ApprovedPolicyBundle,
+  commandRunId: string,
+  now = new Date(),
+) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(commandRunId)) {
+    throw new OperationalCommandError(400, "Некорректный идентификатор запуска M3 policy activation");
+  }
+  const activation = await applyM3ApprovedPolicyBundle(tx, bundle);
+  const cases = await tx.case.findMany({
+    where: {
+      tenantId: bundle.organizationId,
+      scenarioId: { in: ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] },
+    },
+    orderBy: { id: "asc" },
+    select: { id: true, scenarioId: true },
+  });
+  const materialization = {
+    casesExamined: cases.length,
+    casesMaterialized: 0,
+    casesDeferredUntilPolicyEffective: 0,
+    requirementsCreated: 0,
+    requirementsExisting: 0,
+  };
+  for (const record of cases) {
+    const result = await materializeCaseRequirementsInTransaction(
+      tx,
+      {
+        organizationId: bundle.organizationId,
+        membershipId: null,
+        actorType: "platform-policy-operator",
+      },
+      record.id,
+      record.scenarioId,
+      {
+        idempotencyKey: `m3-policy-materialize:${commandRunId}:${record.id}`,
+        correlationId: `m3-policy-activation:${commandRunId}`,
+        reason: "Materialize approved M3 requirements for an existing case",
+      },
+      now,
+    );
+    if (!result.policyApproved) {
+      materialization.casesDeferredUntilPolicyEffective += 1;
+      continue;
+    }
+    materialization.casesMaterialized += 1;
+    materialization.requirementsCreated += result.created;
+    materialization.requirementsExisting += result.existing;
+  }
+  return { ...activation, materialization };
 }
 
 function ruleSnapshot(rule: Record<string, unknown>) {

@@ -1,5 +1,5 @@
 import { prisma } from "../../lib/prisma";
-import { isIsolatedTestDatabase } from "./testDatabaseSafety";
+import { isApprovedIntegrationDatabaseEnvironment } from "./testDatabaseSafety";
 
 const SOURCE = "SYNTHETIC_INTEGRATION_BASELINE_NOT_A_HUMAN_VERDICT";
 const APPROVER_EMAIL = "m3-policy-approver@synthetic.invalid";
@@ -49,7 +49,11 @@ const policyDefinitions = [
 ] as const;
 
 function assertIsolatedTarget() {
-  if (process.env.ALLOW_DB_TESTS !== "1" || !isIsolatedTestDatabase(process.env.TEST_DATABASE_URL)) {
+  if (process.env.ALLOW_DB_TESTS !== "1" || !isApprovedIntegrationDatabaseEnvironment({
+    testDatabaseUrl: process.env.TEST_DATABASE_URL,
+    databaseUrl: process.env.DATABASE_URL,
+    directDatabaseUrl: process.env.DATABASE_URL_UNPOOLED,
+  })) {
     throw new Error("M3 integration baseline requires an approved exact local throwaway database.");
   }
 }

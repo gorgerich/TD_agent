@@ -8,7 +8,8 @@ import { prismaJson, requireTenantCase, type M3CommandMeta, validateM3CommandMet
 
 type RequirementActor = {
   organizationId: string;
-  membershipId: string;
+  membershipId?: string | null;
+  actorType?: string;
 };
 
 export async function materializeCaseRequirements(
@@ -125,6 +126,7 @@ export async function materializeCaseRequirementsInTransaction(
       idempotencyKey: `${meta.idempotencyKey}:document-requirements`,
       reason: meta.reason,
       result: prismaJson({ created, existing, notApplicable, applicabilityChanged: applicabilityChanges.length, policyId: policy.id }),
+      actorType: actor.actorType,
     });
   }
   return {
@@ -177,6 +179,7 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
       idempotencyKey: `${meta.idempotencyKey}:document-requirements-applicability`,
       reason: meta.reason,
       result: prismaJson({ changed: changed.length }),
+      actorType: actor.actorType,
     });
   }
   return { changed: changed.length };
