@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { CaseDomainError, type CaseTransitionEvent } from "@/lib/caseDomain";
 import { transitionCaseInTransaction } from "@/lib/caseService";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { backoffBeforeRetry } from "@/lib/serializationBackoff";
 
 export type FulfilmentAdvanceResult = {
   stage: string;
@@ -12,11 +13,30 @@ export type FulfilmentAdvanceResult = {
 export async function advanceCaseFulfilment(
   input: Parameters<typeof advanceCaseFulfilmentInTransaction>[1],
 ): Promise<FulfilmentAdvanceResult> {
-  return runOperationalTransaction(
-    (tx) => advanceCaseFulfilmentInTransaction(tx, input),
-    { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
-  );
+  const maxAttempts = 40;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await runOperationalTransaction(async (tx) => {
+        const [lock] = await tx.$queryRaw<Array<{ acquired: boolean }>>`
+          SELECT pg_try_advisory_xact_lock(
+            hashtextextended(${`m3-case-projection:${input.organizationId}:${input.caseId}`}, 0)
+          ) AS "acquired"
+        `;
+        if (!lock?.acquired) throw new FulfilmentProjectionBusyError();
+        return advanceCaseFulfilmentInTransaction(tx, input);
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+    } catch (error) {
+      if (!(error instanceof FulfilmentProjectionBusyError)) throw error;
+      if (attempt === maxAttempts) {
+        throw new OperationalCommandError(409, "Проекция кейса занята параллельной командой. Повторите действие.");
+      }
+      await backoffBeforeRetry(attempt);
+    }
+  }
+  throw new OperationalCommandError(409, "Проекция кейса не выполнена после повторных попыток.");
 }
+
+class FulfilmentProjectionBusyError extends Error {}
 
 export async function advanceCaseFulfilmentInTransaction(
   tx: Prisma.TransactionClient,
