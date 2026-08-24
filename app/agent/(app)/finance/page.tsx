@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAgentSession } from "@/lib/auth";
 import { listFinanceWorkspace } from "@/lib/contractLedgerService";
 import { FinanceClient } from "./FinanceClient";
+
+export const metadata: Metadata = {
+  title: "Финансы | Тихий дом",
+};
 
 export default async function FinancePage() {
   const session = await getAgentSession();

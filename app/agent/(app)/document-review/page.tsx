@@ -1,7 +1,12 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAgentSession } from "@/lib/auth";
 import { listDocumentReviewQueue } from "@/lib/documentService";
 import { DocumentReviewClient } from "./DocumentReviewClient";
+
+export const metadata: Metadata = {
+  title: "Проверка документов | Тихий дом",
+};
 
 export default async function DocumentReviewPage() {
   const session = await getAgentSession();

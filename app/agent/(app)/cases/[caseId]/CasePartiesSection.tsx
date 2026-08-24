@@ -38,6 +38,7 @@ const CONSENT_LABELS: Record<string, string> = {
 export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: number; parties: CasePartyItem[]; canMutate: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [newPartyRoles, setNewPartyRoles] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const roles = form.getAll("roles").map(String);
+    const roles = newPartyRoles;
     const commandId = crypto.randomUUID();
     setBusy(true);
     setError(null);
@@ -72,6 +73,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
       const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(result?.error || "Участник не сохранён");
       event.currentTarget.reset();
+      setNewPartyRoles([]);
       setOpen(false);
       router.refresh();
     } catch (cause) {
@@ -162,7 +164,21 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
             <div className="grid gap-2 sm:grid-cols-2">
               {ROLE_OPTIONS.map(([value, label]) => (
                 <label key={value} className="flex min-h-11 items-center gap-2 bg-surface px-3 text-[13px] text-ink-2">
-                  <input type="checkbox" name="roles" value={value} className="h-4 w-4" /> {label}
+                  <input
+                    type="checkbox"
+                    name="roles"
+                    value={value}
+                    checked={newPartyRoles.includes(value)}
+                    onChange={(event) => {
+                      const checked = event.currentTarget.checked;
+                      setNewPartyRoles((current) => (
+                        checked
+                          ? [...new Set([...current, value])]
+                          : current.filter((role) => role !== value)
+                      ));
+                    }}
+                    className="h-4 w-4"
+                  /> {label}
                 </label>
               ))}
             </div>

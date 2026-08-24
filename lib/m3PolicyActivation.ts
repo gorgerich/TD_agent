@@ -3,7 +3,10 @@ import { z } from "zod";
 import { appendPlatformAudit } from "@/lib/platformAudit";
 import { commandFingerprint, prismaJson } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
-import { materializeCaseRequirementsInTransaction } from "@/lib/documentRequirementService";
+import {
+  checkCaseRequirementMaterializationParity,
+  materializeCaseRequirementsInTransaction,
+} from "@/lib/documentRequirementService";
 
 const Attestation = z.object({
   verdict: z.literal("PASS"),
@@ -298,16 +301,35 @@ export async function activateM3ApprovedPoliciesAndMaterializeExistingCases(
       scenarioId: { in: ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] },
     },
     orderBy: { id: "asc" },
-    select: { id: true, scenarioId: true },
+    select: {
+      id: true,
+      scenarioId: true,
+      _count: { select: { documentRequirements: true } },
+    },
   });
   const materialization = {
     casesExamined: cases.length,
     casesMaterialized: 0,
+    casesPinnedToExistingPolicy: 0,
     casesDeferredUntilPolicyEffective: 0,
     requirementsCreated: 0,
     requirementsExisting: 0,
   };
   for (const record of cases) {
+    if (record._count.documentRequirements > 0) {
+      const parity = await checkCaseRequirementMaterializationParity(
+        tx,
+        bundle.organizationId,
+        record.id,
+        record.scenarioId,
+      );
+      if (!parity.ok) {
+        throw new OperationalCommandError(409, `Existing Case ${record.id} requirement policy parity failed: ${parity.reason}`);
+      }
+      materialization.casesPinnedToExistingPolicy += 1;
+      materialization.requirementsExisting += record._count.documentRequirements;
+      continue;
+    }
     const result = await materializeCaseRequirementsInTransaction(
       tx,
       {

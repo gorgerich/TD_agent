@@ -8,6 +8,7 @@ import {
   parseM3ApprovedPolicyBundle,
   type M3ApprovedPolicyBundle,
 } from "../../lib/m3PolicyActivation";
+import { checkCaseRequirementMaterializationParity } from "../../lib/documentRequirementService";
 import { hashPassword } from "../../lib/password";
 import {
   encryptPlatformMfaSecret,
@@ -90,7 +91,9 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
     const organizationId = await fixtures.makeOrganization("existing-case-policy");
     const owner = await fixtures.makeMember("owner", { organizationId, role: "AGENT" });
     const existingCase = await fixtures.makeCase(owner, "existing-case");
+    const laterCase = await fixtures.makeCase(owner, "later-case");
     await db.case.update({ where: { id: existingCase.id }, data: { scenarioId: "CREMATION_V1" } });
+    await db.case.update({ where: { id: laterCase.id }, data: { scenarioId: "UNSELECTED" } });
     const approver = await db.user.findUniqueOrThrow({
       where: { email: "m3-policy-approver@synthetic.invalid" },
       select: { id: true },
@@ -105,6 +108,7 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       assert.deepEqual(first.materialization, {
         casesExamined: 1,
         casesMaterialized: 1,
+        casesPinnedToExistingPolicy: 0,
         casesDeferredUntilPolicyEffective: 0,
         requirementsCreated: 3,
         requirementsExisting: 0,
@@ -116,11 +120,78 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       assert.equal(replay.replayed, true);
       assert.equal(replay.materialization.requirementsCreated, 0);
       assert.equal(replay.materialization.requirementsExisting, 3);
+      assert.equal(replay.materialization.casesMaterialized, 0);
+      assert.equal(replay.materialization.casesPinnedToExistingPolicy, 1);
       assert.equal(await tx.caseDocumentRequirement.count({ where: { caseId: existingCase.id } }), 3);
+
+      await tx.case.update({ where: { id: laterCase.id }, data: { scenarioId: "CREMATION_V1" } });
+      const upgradedBundle = parseM3ApprovedPolicyBundle({
+        ...bundle,
+        approvedAt: "2026-08-13T11:00:00.000Z",
+        effectiveFrom: "2026-08-13T11:00:00.000Z",
+        documentPolicies: bundle.documentPolicies.map((policy) => ({
+          ...policy,
+          version: policy.version + 1,
+          source: `${policy.source}:UPGRADED`,
+        })),
+        signingPolicy: {
+          ...bundle.signingPolicy,
+          version: `${bundle.signingPolicy.version}-v2`,
+        },
+        financialPolicy: {
+          ...bundle.financialPolicy,
+          version: bundle.financialPolicy.version + 1,
+        },
+      });
+      const upgrade = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
+        tx, upgradedBundle, "synthetic-policy-run-0003", new Date("2026-08-13T11:00:01.000Z"),
+      );
+      assert.deepEqual(upgrade.materialization, {
+        casesExamined: 2,
+        casesMaterialized: 1,
+        casesPinnedToExistingPolicy: 1,
+        casesDeferredUntilPolicyEffective: 0,
+        requirementsCreated: 3,
+        requirementsExisting: 3,
+      });
+      const [existingRequirements, laterRequirements] = await Promise.all([
+        tx.caseDocumentRequirement.findMany({ where: { caseId: existingCase.id }, select: { policyVersion: true } }),
+        tx.caseDocumentRequirement.findMany({ where: { caseId: laterCase.id }, select: { policyVersion: true } }),
+      ]);
+      assert.deepEqual([...new Set(existingRequirements.map((item) => item.policyVersion))], [ACTIVATION_POLICY_VERSION]);
+      assert.deepEqual([...new Set(laterRequirements.map((item) => item.policyVersion))], [ACTIVATION_POLICY_VERSION + 1]);
+      assert.equal(existingRequirements.length, 3);
+      assert.equal(laterRequirements.length, 3);
+      assert.equal((await checkCaseRequirementMaterializationParity(
+        tx, organizationId, existingCase.id, "CREMATION_V1",
+      )).ok, true);
+      assert.equal((await checkCaseRequirementMaterializationParity(
+        tx, organizationId, laterCase.id, "CREMATION_V1",
+      )).ok, true);
+
+      const upgradeReplay = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
+        tx, upgradedBundle, "synthetic-policy-run-0004", new Date("2026-08-13T11:00:01.000Z"),
+      );
+      assert.equal(upgradeReplay.replayed, true);
+      assert.equal(upgradeReplay.materialization.casesMaterialized, 0);
+      assert.equal(upgradeReplay.materialization.casesPinnedToExistingPolicy, 2);
+      assert.equal(upgradeReplay.materialization.requirementsCreated, 0);
+      assert.equal(upgradeReplay.materialization.requirementsExisting, 6);
+      assert.equal(await tx.caseDocumentRequirement.count({
+        where: { caseId: { in: [existingCase.id, laterCase.id] } },
+      }), 6);
       assert.equal(await tx.operationalAuditEvent.count({
         where: {
           organizationId,
           entityId: existingCase.id,
+          action: "document_requirements.materialized.v1",
+          actorType: "platform-policy-operator",
+        },
+      }), 1);
+      assert.equal(await tx.operationalAuditEvent.count({
+        where: {
+          organizationId,
+          entityId: laterCase.id,
           action: "document_requirements.materialized.v1",
           actorType: "platform-policy-operator",
         },
