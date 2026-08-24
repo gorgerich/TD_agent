@@ -314,6 +314,7 @@ async function completeContract(target, caseFixture, leadId) {
   const signedResponse = await responsePromise;
   assert.equal(signedResponse.status(), 200);
   const signed = await signedResponse.json();
+  await target.goto(`${baseUrl}/agent/cases/${leadId}`, { waitUntil: "networkidle" });
   await target.getByText(/v\d+ · Подписан/).waitFor();
   await target.waitForLoadState("networkidle");
   await target.getByText("Ожидаем оплату", { exact: true }).first().waitFor();
