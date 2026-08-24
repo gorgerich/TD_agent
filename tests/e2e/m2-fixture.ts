@@ -224,16 +224,23 @@ async function cleanup() {
   });
   const platformUserIds = platformUsers.map((user) => user.id);
   const organizationIds = organizations.map((organization) => organization.id);
-  if (organizationIds.length) {
-    await db.operationalAuditEvent.deleteMany({ where: { organizationId: { in: organizationIds } } });
-    await db.organizationInvite.deleteMany({ where: { organizationId: { in: organizationIds } } });
+  if (!organizationIds.length && !platformUserIds.length) return;
+  if (!isLocalTarget(directUrl) && process.env.M2_ALLOW_REMOTE_FIXTURE_CLEANUP !== "YES") {
+    throw new Error("Remote M2 fixture cleanup requires deletion of the isolated database resource, not row cleanup");
   }
-  if (platformUserIds.length) await db.platformAuditEvent.deleteMany({ where: { actorUserId: { in: platformUserIds } } });
-  if (memberships.length) await db.membership.deleteMany({ where: { id: { in: memberships.map((membership) => membership.id) } } });
-  if (agentIds.length) await db.agent.deleteMany({ where: { id: { in: agentIds } } });
-  if (userIds.length || platformUserIds.length) await db.user.deleteMany({ where: { id: { in: [...userIds, ...platformUserIds] } } });
-  if (organizationIds.length) await db.organization.deleteMany({ where: { id: { in: organizationIds } } });
-  await db.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: rateLimitKeys } } });
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    if (organizationIds.length) {
+      await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: organizationIds } } });
+      await tx.organizationInvite.deleteMany({ where: { organizationId: { in: organizationIds } } });
+    }
+    if (platformUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: platformUserIds } } });
+    if (memberships.length) await tx.membership.deleteMany({ where: { id: { in: memberships.map((membership) => membership.id) } } });
+    if (agentIds.length) await tx.agent.deleteMany({ where: { id: { in: agentIds } } });
+    if (userIds.length || platformUserIds.length) await tx.user.deleteMany({ where: { id: { in: [...userIds, ...platformUserIds] } } });
+    if (organizationIds.length) await tx.organization.deleteMany({ where: { id: { in: organizationIds } } });
+    await tx.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: rateLimitKeys } } });
+  }, { timeout: 120_000, maxWait: 30_000 });
   await db.agentTier.deleteMany({ where: { name: "M2 Synthetic UAT", agents: { none: {} } } });
   process.stdout.write(`${JSON.stringify({ status: "CLEAN" })}\n`);
 }

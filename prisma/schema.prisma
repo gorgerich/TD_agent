@@ -184,6 +184,8 @@ model Organization {
   catalogItems             AgentCatalogItem[]
   catalogRevisions         CatalogItemRevision[]
   caseParties              CaseParty[]
+  documentTypeDefinitions  DocumentTypeDefinition[]
+  documentPolicies         DocumentRequirementPolicy[]
   documentRequirements     CaseDocumentRequirement[]
   caseDocuments            CaseDocument[]
   documentVersions         CaseDocumentVersion[]
@@ -910,6 +912,8 @@ model CasePartyRoleAssignment {
 
 model DocumentTypeDefinition {
   id               String         @id @default(cuid())
+  organizationId   String
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   code             String
   version          Int
   name             String
@@ -921,12 +925,14 @@ model DocumentTypeDefinition {
   documents        CaseDocument[]
   createdAt        DateTime       @default(now())
 
-  @@unique([code, version])
-  @@index([status, code])
+  @@unique([organizationId, code, version])
+  @@index([organizationId, status, code])
 }
 
 model DocumentRequirementPolicy {
   id               String                    @id @default(cuid())
+  organizationId   String
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   scenario         CaseScenario
   version          Int
   status           M3PolicyStatus            @default(DRAFT_POLICY)
@@ -940,8 +946,8 @@ model DocumentRequirementPolicy {
   requirements     CaseDocumentRequirement[]
   createdAt        DateTime                  @default(now())
 
-  @@unique([scenario, version])
-  @@index([scenario, status, effectiveFrom])
+  @@unique([organizationId, scenario, version])
+  @@index([organizationId, scenario, status, effectiveFrom])
 }
 
 model DocumentRequirementRule {
@@ -956,6 +962,7 @@ model DocumentRequirementRule {
   ownerRole                 MembershipRole
   blockingStage             CaseStage
   acceptedDocumentTypeCodes Json
+  acceptedDocumentTypeVersionIds Json
   reviewChecklist           Json
   source                    String
   requirements              CaseDocumentRequirement[]
@@ -985,6 +992,7 @@ model CaseDocumentRequirement {
   ownerRole                 MembershipRole
   blockingStage             CaseStage
   acceptedDocumentTypeCodes Json
+  acceptedDocumentTypeVersionIds Json
   reviewChecklist           Json
   isApplicable              Boolean                   @default(true)
   applicabilityEvaluatedAt  DateTime                  @default(now())

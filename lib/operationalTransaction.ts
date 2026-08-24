@@ -19,7 +19,7 @@ export async function runOperationalTransaction<T>(
         isolationLevel,
       });
     } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2034") {
+      if (!isRetryableOperationalRace(error)) {
         throw error;
       }
       if (attempt === maxAttempts) {
@@ -29,6 +29,11 @@ export async function runOperationalTransaction<T>(
     }
   }
   throw new OperationalCommandError(409, "Команда не была выполнена после повторных попыток.");
+}
+
+function isRetryableOperationalRace(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  return error.code === "P2034";
 }
 
 export class OperationalCommandError extends Error {

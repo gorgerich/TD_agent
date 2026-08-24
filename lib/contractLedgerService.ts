@@ -24,6 +24,21 @@ import { advanceCaseFulfilmentInTransaction } from "@/lib/caseFulfilment";
 
 type CommandResult<T> = T & { replayed: boolean };
 
+type LedgerInsertAuthorization = {
+  organizationId: string;
+  caseId: string;
+  obligationId: string;
+  payerPartyId: string | null;
+  type: PaymentLedgerEntryType;
+  direction: LedgerDirection;
+  amountKopecks: number;
+  currency: string;
+  source: string;
+  relatedEntryId: string | null;
+  externalTransactionId: string | null;
+  idempotencyKey: string;
+};
+
 export async function createContractVersion(
   context: OperationalContext,
   input: {
@@ -189,7 +204,12 @@ export async function issueContractVersion(
     if (!version) throw new OperationalCommandError(404, "Черновик договора не найден");
     if (version.validUntil && version.validUntil <= new Date()) throw new OperationalCommandError(409, "Срок договора истёк");
     await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
-    await authorizeContractTransition(tx, "issue");
+    await authorizeContractTransition(tx, context, meta, {
+      entityId: version.id,
+      command: "issue",
+      fromStatus: "DRAFT",
+      toStatus: "ISSUED",
+    });
     await tx.contractVersion.update({ where: { id: version.id }, data: { status: "ISSUED", issuedAt: new Date() } });
     const data = { contractVersionId: version.id, status: "ISSUED" as const };
     await appendOperationalAudit(tx, context, {
@@ -300,8 +320,13 @@ export async function signContractVersion(
       throw new OperationalCommandError(409, "Замещаемая подписанная версия договора не совпадает с текущей");
     }
     const signedAt = new Date();
-    await authorizeContractTransition(tx, "sign");
     if (activeSigned[0]) {
+      await authorizeContractTransition(tx, context, meta, {
+        entityId: activeSigned[0].id,
+        command: "supersede",
+        fromStatus: "SIGNED",
+        toStatus: "SUPERSEDED",
+      });
       await tx.contractVersion.update({
         where: { id: activeSigned[0].id },
         data: { status: "SUPERSEDED" },
@@ -319,6 +344,12 @@ export async function signContractVersion(
         result: prismaJson({ contractVersionId: activeSigned[0].id, supersededByVersionId: version.id }),
       });
     }
+    await authorizeContractTransition(tx, context, meta, {
+      entityId: version.id,
+      command: "sign",
+      fromStatus: "ISSUED",
+      toStatus: "SIGNED",
+    });
     await tx.contractVersion.update({
       where: { id: version.id },
       data: {
@@ -347,6 +378,20 @@ export async function signContractVersion(
       },
       select: { id: true },
     });
+    await authorizeLedgerInsert(tx, context, {
+      organizationId: context.organizationId,
+      caseId: version.caseId,
+      obligationId: obligation.id,
+      payerPartyId: version.payerPartyId,
+      type: "OBLIGATION",
+      direction: "DEBIT",
+      amountKopecks: version.totalObligationKopecks,
+      currency: version.currency,
+      source: "signed-contract",
+      relatedEntryId: null,
+      externalTransactionId: null,
+      idempotencyKey: `${meta.idempotencyKey}:ledger-obligation`,
+    }, meta);
     const ledger = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -415,6 +460,11 @@ export async function signContractVersion(
       causationId: ledger.id,
     });
     return { ...data, replayed: false };
+  }, {
+    // The contract row lock above is the concurrency boundary for signing. Using
+    // Serializable here creates cross-tenant predicate conflicts on shared audit
+    // indexes without strengthening the per-contract invariant.
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
 }
 
@@ -441,11 +491,30 @@ export async function recordManualPayment(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
     if (replay) return { ...replay, replayed: true };
+    await lockObligationLedger(tx, context.organizationId, input.obligationId);
+    const replayAfterLock = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
+      tx, context.organizationId, meta.idempotencyKey, fingerprint,
+    );
+    if (replayAfterLock) return { ...replayAfterLock, replayed: true };
     const obligation = await loadObligation(tx, context.organizationId, input.obligationId);
     if (obligation.currency !== input.currency) throw new OperationalCommandError(422, "Валюта оплаты не совпадает с обязательством");
     if (obligation.payerPartyId && obligation.payerPartyId !== input.payerPartyId) {
       throw new OperationalCommandError(422, "Плательщик не совпадает с обязательством");
     }
+    await authorizeLedgerInsert(tx, context, {
+      organizationId: context.organizationId,
+      caseId: obligation.caseId,
+      obligationId: obligation.id,
+      payerPartyId: input.payerPartyId,
+      type: "PAYMENT",
+      direction: "CREDIT",
+      amountKopecks: input.amountKopecks,
+      currency: input.currency,
+      source: "manual-finance",
+      relatedEntryId: null,
+      externalTransactionId: null,
+      idempotencyKey: meta.idempotencyKey,
+    }, meta);
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -479,6 +548,10 @@ export async function recordManualPayment(
       causationId: entry.id,
     });
     return { ...data, replayed: false };
+  }, {
+    // The obligation lock serializes the ledger mutation and lets waiting retries
+    // observe the committed replay envelope without cross-tenant predicate aborts.
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
 }
 
@@ -530,6 +603,20 @@ export async function recordRefund(
       effective: true,
       reserved: false,
     });
+    await authorizeLedgerInsert(tx, context, {
+      organizationId: context.organizationId,
+      caseId: payment.caseId,
+      obligationId: payment.obligationId,
+      payerPartyId: payment.payerPartyId,
+      type: "REFUND",
+      direction: "DEBIT",
+      amountKopecks: input.amountKopecks,
+      currency: payment.currency,
+      source: "manual-finance-refund",
+      relatedEntryId: payment.id,
+      externalTransactionId: null,
+      idempotencyKey: meta.idempotencyKey,
+    }, meta);
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -641,6 +728,20 @@ export async function requestLedgerAdjustment(
       effective: !approvalRequired,
       reserved: approvalRequired,
     });
+    await authorizeLedgerInsert(tx, context, {
+      organizationId: context.organizationId,
+      caseId: lockedRelated.caseId,
+      obligationId: lockedRelated.obligationId,
+      payerPartyId: lockedRelated.payerPartyId,
+      type: input.type,
+      direction: input.direction,
+      amountKopecks: input.amountKopecks,
+      currency: lockedRelated.currency,
+      source: "manual-finance-adjustment",
+      relatedEntryId: lockedRelated.id,
+      externalTransactionId: null,
+      idempotencyKey: meta.idempotencyKey,
+    }, meta);
     const entry = await tx.paymentLedgerEntry.create({
       data: {
         organizationId: context.organizationId,
@@ -957,6 +1058,37 @@ export async function processPaymentWebhook(
       if (duplicateTransaction) {
         throw new OperationalCommandError(409, "Webhook transaction уже зарегистрирована другим событием");
       }
+      const receipt = await tx.paymentWebhookReceipt.create({
+        data: {
+          organizationId: command.organizationId,
+          caseId: command.caseId,
+          provider,
+          externalEventId: command.externalEventId,
+          eventVersion: command.eventVersion,
+          payloadHash,
+          signatureVerified: true,
+        },
+        select: { id: true },
+      });
+      const webhookIdempotencyKey = `webhook:${provider}:${command.externalEventId}`;
+      await authorizeLedgerInsert(tx, { organizationId: command.organizationId }, {
+        organizationId: command.organizationId,
+        caseId: command.caseId,
+        obligationId: command.obligationId,
+        payerPartyId: command.payerPartyId,
+        type: "PAYMENT",
+        direction: "CREDIT",
+        amountKopecks: command.amountKopecks,
+        currency: command.currency,
+        source: `webhook:${provider}`,
+        relatedEntryId: null,
+        externalTransactionId: command.externalTransactionId,
+        idempotencyKey: webhookIdempotencyKey,
+      }, {
+        idempotencyKey: webhookIdempotencyKey,
+        correlationId: command.externalEventId,
+        reason: "Verified payment provider webhook",
+      }, "payment-provider");
       const entry = await tx.paymentLedgerEntry.create({
         data: {
           organizationId: command.organizationId,
@@ -973,23 +1105,14 @@ export async function processPaymentWebhook(
           externalTransactionId: command.externalTransactionId,
           evidenceReference: command.evidenceReference,
           actorType: "payment-provider",
-          idempotencyKey: `webhook:${provider}:${command.externalEventId}`,
+          idempotencyKey: webhookIdempotencyKey,
           correlationId: command.externalEventId,
         },
         select: { id: true },
       });
-      const receipt = await tx.paymentWebhookReceipt.create({
-        data: {
-          organizationId: command.organizationId,
-          caseId: command.caseId,
-          provider,
-          externalEventId: command.externalEventId,
-          eventVersion: command.eventVersion,
-          payloadHash,
-          signatureVerified: true,
-          ledgerEntryId: entry.id,
-        },
-        select: { id: true },
+      await tx.paymentWebhookReceipt.update({
+        where: { id: receipt.id },
+        data: { ledgerEntryId: entry.id },
       });
       await appendOperationalAudit(tx, { organizationId: command.organizationId }, {
         entityType: "payment_ledger_entry",
@@ -1092,6 +1215,28 @@ async function derivePaymentSummaryInTransaction(
   })), obligation.currency);
 }
 
+async function authorizeLedgerInsert(
+  tx: Prisma.TransactionClient,
+  actor: { organizationId: string; membershipId?: string | null },
+  command: LedgerInsertAuthorization,
+  meta: M3CommandMeta,
+  actorType = "member",
+): Promise<void> {
+  await appendOperationalAudit(tx, actor, {
+    entityType: "payment_obligation",
+    entityId: command.obligationId,
+    action: "m3.ledger_insert_authorized.v1",
+    before: prismaJson({}),
+    after: prismaJson(command),
+    correlationId: meta.correlationId,
+    causationId: meta.idempotencyKey,
+    idempotencyKey: `${meta.idempotencyKey}:db-auth:ledger`,
+    reason: meta.reason,
+    actorType,
+    result: prismaJson({ authorized: true }),
+  });
+}
+
 async function lockContract(tx: Prisma.TransactionClient, contractId: string): Promise<void> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id" FROM "Contract" WHERE "id" = ${contractId} FOR UPDATE
@@ -1101,9 +1246,27 @@ async function lockContract(tx: Prisma.TransactionClient, contractId: string): P
 
 async function authorizeContractTransition(
   tx: Prisma.TransactionClient,
-  command: "issue" | "sign",
+  context: OperationalContext,
+  meta: M3CommandMeta,
+  transition: {
+    entityId: string;
+    command: "issue" | "sign" | "supersede";
+    fromStatus: string;
+    toStatus: string;
+  },
 ): Promise<void> {
-  await tx.$queryRaw`SELECT set_config('td_agent.m3_contract_transition', ${command}, true)`;
+  await appendOperationalAudit(tx, context, {
+    entityType: "contract_version",
+    entityId: transition.entityId,
+    action: "m3.lifecycle_transition_authorized.v1",
+    before: prismaJson({ status: transition.fromStatus }),
+    after: prismaJson({ command: transition.command, status: transition.toStatus }),
+    correlationId: meta.correlationId,
+    causationId: meta.idempotencyKey,
+    idempotencyKey: `${meta.idempotencyKey}:db-auth:contract:${transition.entityId}:${transition.command}`,
+    reason: meta.reason,
+    result: prismaJson({ authorized: true }),
+  });
 }
 
 async function assertSourceCapacity(

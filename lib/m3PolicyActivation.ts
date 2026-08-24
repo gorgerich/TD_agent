@@ -114,11 +114,19 @@ export async function applyM3ApprovedPolicyBundle(
     return { replayed: true, bundleFingerprint: fingerprint };
   }
 
+  const documentTypeIdsByCode = new Map<string, string>();
   for (const item of bundle.documentTypes) {
     const existing = await tx.documentTypeDefinition.findUnique({
-      where: { code_version: { code: item.code, version: item.version } },
+      where: {
+        organizationId_code_version: {
+          organizationId: bundle.organizationId,
+          code: item.code,
+          version: item.version,
+        },
+      },
     });
     const expected = {
+      organizationId: bundle.organizationId,
       code: item.code,
       version: item.version,
       name: item.name,
@@ -128,22 +136,43 @@ export async function applyM3ApprovedPolicyBundle(
       status: "APPROVED" as const,
       source: item.source,
     };
-    if (existing) assertExactPolicy(existing, expected, `Document type ${item.code} v${item.version}`);
-    else {
+    if (existing) {
+      assertExactPolicy(existing, expected, `Document type ${item.code} v${item.version}`);
+      documentTypeIdsByCode.set(item.code, existing.id);
+    } else {
       await tx.documentTypeDefinition.updateMany({
-        where: { code: item.code, status: "APPROVED" },
+        where: { organizationId: bundle.organizationId, code: item.code, status: "APPROVED" },
         data: { status: "RETIRED" },
       });
-      await tx.documentTypeDefinition.create({ data: { ...expected, allowedMimeTypes: prismaJson(item.allowedMimeTypes) } });
+      const created = await tx.documentTypeDefinition.create({
+        data: { ...expected, allowedMimeTypes: prismaJson(item.allowedMimeTypes) },
+        select: { id: true },
+      });
+      documentTypeIdsByCode.set(item.code, created.id);
     }
   }
 
   for (const policy of bundle.documentPolicies) {
+    const rulesWithPinnedTypes = policy.rules.map((rule) => ({
+      ...rule,
+      acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeCodes.map((code) => {
+        const id = documentTypeIdsByCode.get(code);
+        if (!id) throw new OperationalCommandError(409, `Document type ${code} is not pinned for organization`);
+        return id;
+      }),
+    }));
     const existing = await tx.documentRequirementPolicy.findUnique({
-      where: { scenario_version: { scenario: policy.scenario as CaseScenario, version: policy.version } },
+      where: {
+        organizationId_scenario_version: {
+          organizationId: bundle.organizationId,
+          scenario: policy.scenario as CaseScenario,
+          version: policy.version,
+        },
+      },
       include: { rules: { orderBy: { stableKey: "asc" } } },
     });
     const policyExpected = {
+      organizationId: bundle.organizationId,
       scenario: policy.scenario,
       version: policy.version,
       status: "APPROVED" as const,
@@ -156,13 +185,17 @@ export async function applyM3ApprovedPolicyBundle(
     if (existing) {
       assertExactPolicy(existing, policyExpected, `${policy.scenario} policy v${policy.version}`);
       const existingRules = existing.rules.map(ruleSnapshot);
-      const expectedRules = policy.rules.map(ruleSnapshot).sort(compareStableKey);
+      const expectedRules = rulesWithPinnedTypes.map(ruleSnapshot).sort(compareStableKey);
       if (commandFingerprint(existingRules) !== commandFingerprint(expectedRules)) {
         throw new OperationalCommandError(409, `${policy.scenario} policy content conflicts with approved bundle`);
       }
     } else {
       await tx.documentRequirementPolicy.updateMany({
-        where: { scenario: policy.scenario as CaseScenario, status: "APPROVED" },
+        where: {
+          organizationId: bundle.organizationId,
+          scenario: policy.scenario as CaseScenario,
+          status: "APPROVED",
+        },
         data: { status: "RETIRED", retiredAt: new Date(bundle.approvedAt) },
       });
       await tx.documentRequirementPolicy.create({
@@ -170,10 +203,11 @@ export async function applyM3ApprovedPolicyBundle(
           ...policyExpected,
           scenario: policy.scenario as CaseScenario,
           rules: {
-            create: policy.rules.map((rule) => ({
+            create: rulesWithPinnedTypes.map((rule) => ({
               ...rule,
               ownerRole: rule.ownerRole as MembershipRole,
               acceptedDocumentTypeCodes: prismaJson(rule.acceptedDocumentTypeCodes),
+              acceptedDocumentTypeVersionIds: prismaJson(rule.acceptedDocumentTypeVersionIds),
               reviewChecklist: prismaJson(rule.reviewChecklist),
             })),
           },
@@ -256,6 +290,7 @@ function ruleSnapshot(rule: Record<string, unknown>) {
     ownerRole: rule.ownerRole,
     blockingStage: rule.blockingStage,
     acceptedDocumentTypeCodes: rule.acceptedDocumentTypeCodes,
+    acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeVersionIds,
     reviewChecklist: rule.reviewChecklist,
     source: rule.source,
   };

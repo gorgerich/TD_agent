@@ -176,7 +176,7 @@ export async function saveCaseIntake(input: {
       if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
       const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
       if (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1") {
-        await lockDocumentRequirementPolicyScenario(tx, requestedScenario);
+        await lockDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
       }
       let aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
       if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
@@ -269,7 +269,7 @@ export async function transitionCaseInTransaction(
     input.eventType === "scenario.selected.v1"
     && (input.payload.scenarioId === "CREMATION_V1" || input.payload.scenarioId === "FAMILY_PLOT_BURIAL_V1")
   ) {
-    await lockDocumentRequirementPolicyScenario(tx, input.payload.scenarioId);
+    await lockDocumentRequirementPolicyScenario(tx, tenantId, input.payload.scenarioId);
   }
   const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
   if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");

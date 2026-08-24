@@ -32,6 +32,15 @@ BEGIN
     WHERE tgname = 'PaymentLedgerEntry_append_only' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
+    WHERE tgname = 'PaymentLedgerEntry_insert_guard' AND tgenabled = 'O'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'PaymentWebhookReceipt_history_guard' AND tgenabled = 'O'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'OperationalAuditEvent_append_only' AND tgenabled = 'O'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
     WHERE tgname = 'CaseDocumentVersion_history_guard' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
@@ -84,6 +93,28 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'm3_has_lifecycle_authorization'
+      AND pg_get_functiondef(oid) LIKE '%OperationalAuditEvent%'
+      AND pg_get_functiondef(oid) LIKE '%txid_current()%'
+  ) OR EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname IN ('protect_contract_version_history', 'protect_case_document_version_history')
+      AND pg_get_functiondef(oid) LIKE '%current_setting%'
+  ) THEN
+    RAISE EXCEPTION 'M3 lifecycle guard still trusts caller-settable session state';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'validate_payment_ledger_insert'
+      AND pg_get_functiondef(oid) LIKE '%tenant-scoped obligation%'
+      AND pg_get_functiondef(oid) LIKE '%canonical authorization evidence%'
+  ) THEN
+    RAISE EXCEPTION 'M3 ledger insert authorization guard is incomplete';
+  END IF;
+
+  IF NOT EXISTS (
     SELECT 1
     FROM information_schema.columns AS columns_metadata
     WHERE columns_metadata.table_schema = 'public'
@@ -101,6 +132,24 @@ BEGIN
     WHERE columns_metadata.table_schema = 'public'
       AND columns_metadata.table_name = 'CaseDocumentRequirement'
       AND columns_metadata.column_name = 'isApplicable'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS columns_metadata
+    WHERE columns_metadata.table_schema = 'public'
+      AND columns_metadata.table_name = 'CaseDocumentRequirement'
+      AND columns_metadata.column_name = 'acceptedDocumentTypeVersionIds'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS columns_metadata
+    WHERE columns_metadata.table_schema = 'public'
+      AND columns_metadata.table_name = 'DocumentRequirementPolicy'
+      AND columns_metadata.column_name = 'organizationId'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns AS columns_metadata
+    WHERE columns_metadata.table_schema = 'public'
+      AND columns_metadata.table_name = 'DocumentTypeDefinition'
+      AND columns_metadata.column_name = 'organizationId'
   ) THEN
     RAISE EXCEPTION 'M3 materialized policy snapshot columns missing';
   END IF;

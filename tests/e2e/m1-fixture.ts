@@ -277,30 +277,35 @@ async function status() {
 async function cleanup() {
   const organization = await db.organization.findUnique({ where: { id: organizationId } });
   if (!organization) return;
-    const memberships = await db.membership.findMany({ where: { organizationId }, select: { id: true, userId: true, agentId: true } });
+  if (!isLocalTarget(directUrl) && process.env.M1_ALLOW_REMOTE_FIXTURE_CLEANUP !== "YES") {
+    throw new Error("Remote M1 fixture cleanup requires deletion of the isolated database resource, not row cleanup");
+  }
+  await db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    const memberships = await tx.membership.findMany({ where: { organizationId }, select: { id: true, userId: true, agentId: true } });
     const membershipIds = memberships.map((row) => row.id);
     const userIds = memberships.map((row) => row.userId);
     const agentIds = memberships.flatMap((row) => row.agentId == null ? [] : [row.agentId]);
-    const cases = await db.case.findMany({ where: { tenantId: organizationId }, select: { id: true, leadId: true } });
+    const cases = await tx.case.findMany({ where: { tenantId: organizationId }, select: { id: true, leadId: true } });
     const caseIds = cases.map((row) => row.id);
     const leadIds = cases.map((row) => row.leadId);
-    const meetings = await db.meeting.findMany({ where: { organizationId }, select: { id: true } });
+    const meetings = await tx.meeting.findMany({ where: { organizationId }, select: { id: true } });
     const meetingIds = meetings.map((row) => row.id);
     const quotes = meetingIds.length
-      ? await db.quote.findMany({ where: { meetingId: { in: meetingIds } }, select: { id: true } })
+      ? await tx.quote.findMany({ where: { meetingId: { in: meetingIds } }, select: { id: true } })
       : [];
     const quoteIds = quotes.map((row) => row.id);
 
-    if (caseIds.length) await db.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
-    await db.operationalAuditEvent.deleteMany({ where: { organizationId } });
-    await db.projectionReceipt.deleteMany({ where: { organizationId } });
-    await db.savedOperationalView.deleteMany({ where: { organizationId } });
-    await db.organizationInvite.deleteMany({ where: { organizationId } });
-    await db.task.deleteMany({ where: { organizationId } });
+    if (caseIds.length) await tx.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
+    await tx.operationalAuditEvent.deleteMany({ where: { organizationId } });
+    await tx.projectionReceipt.deleteMany({ where: { organizationId } });
+    await tx.savedOperationalView.deleteMany({ where: { organizationId } });
+    await tx.organizationInvite.deleteMany({ where: { organizationId } });
+    await tx.task.deleteMany({ where: { organizationId } });
     if (isLocalTarget(directUrl)) {
       const localIps = ["unknown", "127.0.0.1", "::1", "::ffff:127.0.0.1"];
       const commercialBuckets = ["commercial-client-view", "commercial-client-decision"];
-      await db.securityRateLimitBucket.deleteMany({
+      await tx.securityRateLimitBucket.deleteMany({
         where: {
           keyHash: {
             in: commercialBuckets.flatMap((bucket) =>
@@ -310,39 +315,37 @@ async function cleanup() {
       });
     }
     if (membershipIds.length) {
-      await db.quoteClientLink.deleteMany({ where: { createdByMembershipId: { in: membershipIds } } });
-      await db.quotePresentationSession.deleteMany({ where: { ownerMembershipId: { in: membershipIds } } });
+      await tx.quoteClientLink.deleteMany({ where: { createdByMembershipId: { in: membershipIds } } });
+      await tx.quotePresentationSession.deleteMany({ where: { ownerMembershipId: { in: membershipIds } } });
     }
-    if (caseIds.length) await db.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
-    if (meetingIds.length) await db.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
+    if (caseIds.length) await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
+    if (meetingIds.length) await tx.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
     if (quoteIds.length) {
-      await db.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
-        await tx.quote.updateMany({
-          where: { id: { in: quoteIds } },
-          data: { activeDraftVersionId: null, latestPublishedVersionId: null },
-        });
-        await tx.quotePresentationSession.deleteMany({ where: { quoteId: { in: quoteIds } } });
-        await tx.quoteClientDecision.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
-        await tx.quoteClientLink.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
-        await tx.quoteLineItem.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
-        await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
-        await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
+      await tx.quote.updateMany({
+        where: { id: { in: quoteIds } },
+        data: { activeDraftVersionId: null, latestPublishedVersionId: null },
       });
+      await tx.quotePresentationSession.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      await tx.quoteClientDecision.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+      await tx.quoteClientLink.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+      await tx.quoteLineItem.deleteMany({ where: { quoteVersion: { quoteId: { in: quoteIds } } } });
+      await tx.quoteVersion.deleteMany({ where: { quoteId: { in: quoteIds } } });
+      await tx.quote.deleteMany({ where: { id: { in: quoteIds } } });
     }
-    if (meetingIds.length) await db.meeting.deleteMany({ where: { id: { in: meetingIds } } });
-    if (caseIds.length) await db.case.deleteMany({ where: { id: { in: caseIds } } });
+    if (meetingIds.length) await tx.meeting.deleteMany({ where: { id: { in: meetingIds } } });
+    if (caseIds.length) await tx.case.deleteMany({ where: { id: { in: caseIds } } });
     if (leadIds.length) {
-      await db.document.deleteMany({ where: { leadId: { in: leadIds } } });
-      await db.casePayment.deleteMany({ where: { leadId: { in: leadIds } } });
-      await db.caseNote.deleteMany({ where: { leadId: { in: leadIds } } });
-      await db.clientLead.deleteMany({ where: { id: { in: leadIds } } });
+      await tx.document.deleteMany({ where: { leadId: { in: leadIds } } });
+      await tx.casePayment.deleteMany({ where: { leadId: { in: leadIds } } });
+      await tx.caseNote.deleteMany({ where: { leadId: { in: leadIds } } });
+      await tx.clientLead.deleteMany({ where: { id: { in: leadIds } } });
     }
-    if (membershipIds.length) await db.membership.deleteMany({ where: { id: { in: membershipIds } } });
-    if (agentIds.length) await db.agent.deleteMany({ where: { id: { in: agentIds } } });
-    if (userIds.length) await db.user.deleteMany({ where: { id: { in: userIds } } });
-    await db.organization.delete({ where: { id: organizationId } });
-    await db.agentTier.deleteMany({ where: { name: "M1 Synthetic UAT", agents: { none: {} } } });
+    if (membershipIds.length) await tx.membership.deleteMany({ where: { id: { in: membershipIds } } });
+    if (agentIds.length) await tx.agent.deleteMany({ where: { id: { in: agentIds } } });
+    if (userIds.length) await tx.user.deleteMany({ where: { id: { in: userIds } } });
+    await tx.organization.delete({ where: { id: organizationId } });
+  }, { timeout: 120_000, maxWait: 30_000 });
+  await db.agentTier.deleteMany({ where: { name: "M1 Synthetic UAT", agents: { none: {} } } });
 }
 
 function isLocalTarget(value: string | undefined) {

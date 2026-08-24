@@ -88,6 +88,7 @@ CREATE TABLE "CasePartyRoleAssignment" (
 -- CreateTable
 CREATE TABLE "DocumentTypeDefinition" (
     "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "version" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
@@ -104,6 +105,7 @@ CREATE TABLE "DocumentTypeDefinition" (
 -- CreateTable
 CREATE TABLE "DocumentRequirementPolicy" (
     "id" TEXT NOT NULL,
+    "organizationId" TEXT NOT NULL,
     "scenario" "CaseScenario" NOT NULL,
     "version" INTEGER NOT NULL,
     "status" "M3PolicyStatus" NOT NULL DEFAULT 'DRAFT_POLICY',
@@ -129,6 +131,7 @@ CREATE TABLE "DocumentRequirementRule" (
     "ownerRole" "MembershipRole" NOT NULL,
     "blockingStage" "CaseStage" NOT NULL,
     "acceptedDocumentTypeCodes" JSONB NOT NULL,
+    "acceptedDocumentTypeVersionIds" JSONB NOT NULL,
     "reviewChecklist" JSONB NOT NULL,
     "source" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -152,6 +155,7 @@ CREATE TABLE "CaseDocumentRequirement" (
     "ownerRole" "MembershipRole" NOT NULL,
     "blockingStage" "CaseStage" NOT NULL,
     "acceptedDocumentTypeCodes" JSONB NOT NULL,
+    "acceptedDocumentTypeVersionIds" JSONB NOT NULL,
     "reviewChecklist" JSONB NOT NULL,
     "isApplicable" BOOLEAN NOT NULL DEFAULT true,
     "applicabilityEvaluatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -391,16 +395,16 @@ CREATE INDEX "CasePartyRoleAssignment_organizationId_role_validUntil_idx" ON "Ca
 CREATE UNIQUE INDEX "CasePartyRoleAssignment_casePartyId_role_validFrom_key" ON "CasePartyRoleAssignment"("casePartyId", "role", "validFrom");
 
 -- CreateIndex
-CREATE INDEX "DocumentTypeDefinition_status_code_idx" ON "DocumentTypeDefinition"("status", "code");
+CREATE INDEX "DocumentTypeDefinition_organizationId_status_code_idx" ON "DocumentTypeDefinition"("organizationId", "status", "code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DocumentTypeDefinition_code_version_key" ON "DocumentTypeDefinition"("code", "version");
+CREATE UNIQUE INDEX "DocumentTypeDefinition_organizationId_code_version_key" ON "DocumentTypeDefinition"("organizationId", "code", "version");
 
 -- CreateIndex
-CREATE INDEX "DocumentRequirementPolicy_scenario_status_effectiveFrom_idx" ON "DocumentRequirementPolicy"("scenario", "status", "effectiveFrom");
+CREATE INDEX "DocumentRequirementPolicy_organizationId_scenario_status_ef_idx" ON "DocumentRequirementPolicy"("organizationId", "scenario", "status", "effectiveFrom");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DocumentRequirementPolicy_scenario_version_key" ON "DocumentRequirementPolicy"("scenario", "version");
+CREATE UNIQUE INDEX "DocumentRequirementPolicy_organizationId_scenario_version_key" ON "DocumentRequirementPolicy"("organizationId", "scenario", "version");
 
 -- CreateIndex
 CREATE INDEX "DocumentRequirementRule_policyId_blockingStage_idx" ON "DocumentRequirementRule"("policyId", "blockingStage");
@@ -541,7 +545,7 @@ CREATE UNIQUE INDEX "FinancialControlPolicy_organizationId_version_key" ON "Fina
 
 -- Only one active approved ruleset may define truth for a scenario or tenant.
 CREATE UNIQUE INDEX "DocumentRequirementPolicy_one_approved_per_scenario"
-ON "DocumentRequirementPolicy"("scenario")
+ON "DocumentRequirementPolicy"("organizationId", "scenario")
 WHERE "status" = 'APPROVED' AND "retiredAt" IS NULL;
 
 CREATE UNIQUE INDEX "FinancialControlPolicy_one_approved_per_org"
@@ -574,6 +578,12 @@ ALTER TABLE "CasePartyRoleAssignment" ADD CONSTRAINT "CasePartyRoleAssignment_ca
 
 -- AddForeignKey
 ALTER TABLE "CasePartyRoleAssignment" ADD CONSTRAINT "CasePartyRoleAssignment_createdByMembershipId_fkey" FOREIGN KEY ("createdByMembershipId") REFERENCES "Membership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DocumentTypeDefinition" ADD CONSTRAINT "DocumentTypeDefinition_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DocumentRequirementPolicy" ADD CONSTRAINT "DocumentRequirementPolicy_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "Organization"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "DocumentRequirementPolicy" ADD CONSTRAINT "DocumentRequirementPolicy_approvedByUserId_fkey" FOREIGN KEY ("approvedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -896,12 +906,221 @@ CREATE TRIGGER "PaymentLedgerEntry_append_only"
 BEFORE UPDATE OR DELETE ON "PaymentLedgerEntry"
 FOR EACH ROW EXECUTE FUNCTION "prevent_payment_ledger_mutation"();
 
-CREATE FUNCTION "protect_case_document_version_history"()
+CREATE FUNCTION "validate_payment_ledger_insert"()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  transition_command text := current_setting('td_agent.m3_document_transition', true);
+  obligation_record "PaymentObligation"%ROWTYPE;
+  required_roles text[];
+BEGIN
+  SELECT * INTO obligation_record
+  FROM "PaymentObligation"
+  WHERE "id" = NEW."obligationId"
+  FOR SHARE;
+  IF NOT FOUND
+    OR obligation_record."organizationId" <> NEW."organizationId"
+    OR obligation_record."caseId" <> NEW."caseId"
+    OR obligation_record."currency" <> NEW."currency"
+    OR obligation_record."payerPartyId" IS DISTINCT FROM NEW."payerPartyId" THEN
+    RAISE EXCEPTION 'Ledger entry must match its tenant-scoped obligation';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "Case"
+    WHERE "id" = NEW."caseId" AND "tenantId" = NEW."organizationId"
+  ) THEN
+    RAISE EXCEPTION 'Ledger case tenant mismatch';
+  END IF;
+  IF NEW."payerPartyId" IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM "CaseParty"
+    WHERE "id" = NEW."payerPartyId"
+      AND "organizationId" = NEW."organizationId"
+      AND "caseId" = NEW."caseId"
+  ) THEN
+    RAISE EXCEPTION 'Ledger payer tenant mismatch';
+  END IF;
+  IF NEW."relatedEntryId" IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM "PaymentLedgerEntry"
+    WHERE "id" = NEW."relatedEntryId"
+      AND "organizationId" = NEW."organizationId"
+      AND "caseId" = NEW."caseId"
+      AND "obligationId" = NEW."obligationId"
+      AND "currency" = NEW."currency"
+  ) THEN
+    RAISE EXCEPTION 'Ledger relation crosses obligation or tenant boundary';
+  END IF;
+
+  IF NEW."source" = 'signed-contract' THEN
+    required_roles := ARRAY['AGENT', 'MANAGER'];
+    IF NEW."type" <> 'OBLIGATION' OR NOT EXISTS (
+      SELECT 1 FROM "ContractVersion"
+      WHERE "id" = obligation_record."contractVersionId"
+        AND "organizationId" = NEW."organizationId"
+        AND "caseId" = NEW."caseId"
+        AND "status" = 'SIGNED'
+    ) THEN
+      RAISE EXCEPTION 'Obligation ledger source requires a signed contract';
+    END IF;
+  ELSIF NEW."source" LIKE 'manual-finance%' THEN
+    required_roles := ARRAY['FINANCE'];
+  ELSIF NEW."source" LIKE 'webhook:%' THEN
+    IF NEW."actorMembershipId" IS NOT NULL
+      OR NEW."actorType" <> 'payment-provider'
+      OR NEW."type" <> 'PAYMENT'
+      OR NEW."externalTransactionId" IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM "PaymentWebhookReceipt" receipt
+        WHERE receipt."organizationId" = NEW."organizationId"
+          AND receipt."caseId" = NEW."caseId"
+          AND receipt."provider" = substring(NEW."source" from 9)
+          AND receipt."signatureVerified" = true
+          AND receipt."ledgerEntryId" IS NULL
+          AND (receipt.xmin::text)::bigint = txid_current()
+      ) THEN
+      RAISE EXCEPTION 'Webhook ledger source lacks same-transaction verified receipt';
+    END IF;
+    required_roles := NULL;
+  ELSE
+    RAISE EXCEPTION 'Unapproved ledger source';
+  END IF;
+
+  IF required_roles IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM "Membership" membership
+    JOIN "Organization" organization ON organization."id" = membership."organizationId"
+    LEFT JOIN "Agent" agent ON agent."id" = membership."agentId"
+    WHERE membership."id" = NEW."actorMembershipId"
+      AND membership."organizationId" = NEW."organizationId"
+      AND membership."status" = 'ACTIVE'
+      AND membership."role"::text = ANY(required_roles)
+      AND organization."status" = 'ACTIVE'
+      AND (membership."agentId" IS NULL OR agent."status" = 'ACTIVE')
+  ) THEN
+    RAISE EXCEPTION 'Ledger actor lacks required tenant role';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM "OperationalAuditEvent" audit
+    WHERE audit."organizationId" = NEW."organizationId"
+      AND audit."actorMembershipId" IS NOT DISTINCT FROM NEW."actorMembershipId"
+      AND audit."actorType" = NEW."actorType"
+      AND audit."entityType" = 'payment_obligation'
+      AND audit."entityId" = NEW."obligationId"
+      AND audit."action" = 'm3.ledger_insert_authorized.v1'
+      AND audit."after"->>'organizationId' = NEW."organizationId"
+      AND audit."after"->>'caseId' = NEW."caseId"
+      AND audit."after"->>'obligationId' = NEW."obligationId"
+      AND audit."after"->>'payerPartyId' IS NOT DISTINCT FROM NEW."payerPartyId"
+      AND audit."after"->>'type' = NEW."type"::text
+      AND audit."after"->>'direction' = NEW."direction"::text
+      AND (audit."after"->>'amountKopecks')::integer = NEW."amountKopecks"
+      AND audit."after"->>'currency' = NEW."currency"
+      AND audit."after"->>'source' = NEW."source"
+      AND audit."after"->>'relatedEntryId' IS NOT DISTINCT FROM NEW."relatedEntryId"
+      AND audit."after"->>'externalTransactionId' IS NOT DISTINCT FROM NEW."externalTransactionId"
+      AND audit."after"->>'idempotencyKey' = NEW."idempotencyKey"
+      AND (audit.xmin::text)::bigint = txid_current()
+  ) THEN
+    RAISE EXCEPTION 'Ledger insert requires same-transaction canonical authorization evidence';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "PaymentLedgerEntry_insert_guard"
+BEFORE INSERT ON "PaymentLedgerEntry"
+FOR EACH ROW EXECUTE FUNCTION "validate_payment_ledger_insert"();
+
+CREATE FUNCTION "protect_payment_webhook_receipt_history"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'PaymentWebhookReceipt history cannot be deleted';
+  END IF;
+  IF OLD."ledgerEntryId" IS NOT NULL
+    OR NEW."ledgerEntryId" IS NULL
+    OR ROW(
+      NEW."organizationId", NEW."caseId", NEW."provider", NEW."externalEventId", NEW."eventVersion",
+      NEW."payloadHash", NEW."signatureVerified", NEW."rejectedReason", NEW."receivedAt"
+    ) IS DISTINCT FROM ROW(
+      OLD."organizationId", OLD."caseId", OLD."provider", OLD."externalEventId", OLD."eventVersion",
+      OLD."payloadHash", OLD."signatureVerified", OLD."rejectedReason", OLD."receivedAt"
+    )
+    OR NOT EXISTS (
+      SELECT 1 FROM "PaymentLedgerEntry" entry
+      WHERE entry."id" = NEW."ledgerEntryId"
+        AND entry."organizationId" = NEW."organizationId"
+        AND entry."caseId" = NEW."caseId"
+        AND entry."source" = 'webhook:' || NEW."provider"
+        AND (entry.xmin::text)::bigint = txid_current()
+    ) THEN
+    RAISE EXCEPTION 'PaymentWebhookReceipt allows only same-transaction ledger linkage';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER "PaymentWebhookReceipt_history_guard"
+BEFORE UPDATE OR DELETE ON "PaymentWebhookReceipt"
+FOR EACH ROW EXECUTE FUNCTION "protect_payment_webhook_receipt_history"();
+
+CREATE FUNCTION "prevent_operational_audit_mutation"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'OperationalAuditEvent is append-only';
+END;
+$$;
+
+CREATE TRIGGER "OperationalAuditEvent_append_only"
+BEFORE UPDATE OR DELETE ON "OperationalAuditEvent"
+FOR EACH ROW EXECUTE FUNCTION "prevent_operational_audit_mutation"();
+
+-- Canonical lifecycle transitions carry an immutable authorization event that
+-- was written by the same transaction. A caller-settable session GUC is not an
+-- authorization boundary.
+CREATE FUNCTION "m3_has_lifecycle_authorization"(
+  tenant_id text,
+  target_type text,
+  target_id text,
+  transition_command text,
+  from_status text,
+  to_status text,
+  allowed_roles text[]
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM "OperationalAuditEvent" audit
+    JOIN "Membership" membership ON membership."id" = audit."actorMembershipId"
+    JOIN "Organization" organization ON organization."id" = membership."organizationId"
+    LEFT JOIN "Agent" agent ON agent."id" = membership."agentId"
+    WHERE audit."organizationId" = tenant_id
+      AND audit."entityType" = target_type
+      AND audit."entityId" = target_id
+      AND audit."action" = 'm3.lifecycle_transition_authorized.v1'
+      AND audit."before"->>'status' = from_status
+      AND audit."after"->>'status' = to_status
+      AND audit."after"->>'command' = transition_command
+      AND (audit.xmin::text)::bigint = txid_current()
+      AND membership."organizationId" = tenant_id
+      AND membership."status" = 'ACTIVE'
+      AND membership."role"::text = ANY(allowed_roles)
+      AND organization."status" = 'ACTIVE'
+      AND (membership."agentId" IS NULL OR agent."status" = 'ACTIVE')
+  );
+$$;
+
+CREATE FUNCTION "protect_case_document_version_history"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'CaseDocumentVersion history cannot be deleted';
@@ -917,7 +1136,10 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'CaseDocumentVersion file identity is immutable';
   END IF;
-  IF transition_command = 'supersede'
+  IF "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'document_version', NEW."id", 'supersede', OLD."status"::text, 'SUPERSEDED',
+      ARRAY['AGENT', 'MANAGER']
+    )
     AND OLD."status" <> 'SUPERSEDED'
     AND NEW."status" = 'SUPERSEDED'
     AND ROW(
@@ -929,7 +1151,10 @@ BEGIN
     ) THEN
     RETURN NEW;
   END IF;
-  IF transition_command = 'begin-review'
+  IF "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'document_version', NEW."id", 'begin-review', 'UPLOADED', 'IN_REVIEW',
+      ARRAY['DOCUMENT_REVIEWER']
+    )
     AND OLD."status" = 'UPLOADED'
     AND NEW."status" = 'IN_REVIEW'
     AND OLD."assignedReviewerMembershipId" IS NULL
@@ -944,7 +1169,10 @@ BEGIN
     ) THEN
     RETURN NEW;
   END IF;
-  IF transition_command = 'review-decision'
+  IF "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'document_version', NEW."id", 'review-decision', 'IN_REVIEW', NEW."status"::text,
+      ARRAY['DOCUMENT_REVIEWER']
+    )
     AND OLD."status" = 'IN_REVIEW'
     AND NEW."status" IN ('VERIFIED', 'REJECTED')
     AND OLD."assignedReviewerMembershipId" IS NOT NULL
@@ -974,8 +1202,6 @@ CREATE FUNCTION "protect_contract_version_history"()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
-DECLARE
-  transition_command text := current_setting('td_agent.m3_contract_transition', true);
 BEGIN
   IF TG_OP = 'DELETE' THEN
     RAISE EXCEPTION 'ContractVersion history cannot be deleted';
@@ -1002,7 +1228,10 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ContractVersion signed proof is immutable';
   END IF;
-  IF transition_command = 'issue'
+  IF "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'contract_version', NEW."id", 'issue', 'DRAFT', 'ISSUED',
+      ARRAY['AGENT', 'MANAGER']
+    )
     AND OLD."status" = 'DRAFT'
     AND NEW."status" = 'ISSUED'
     AND OLD."issuedAt" IS NULL
@@ -1014,7 +1243,10 @@ BEGIN
     ) THEN
     RETURN NEW;
   END IF;
-  IF transition_command = 'sign'
+  IF "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'contract_version', NEW."id", 'supersede', 'SIGNED', 'SUPERSEDED',
+      ARRAY['AGENT', 'MANAGER']
+    )
     AND OLD."status" = 'SIGNED'
     AND NEW."status" = 'SUPERSEDED'
     AND ROW(
@@ -1025,7 +1257,10 @@ BEGIN
     RETURN NEW;
   END IF;
   IF NOT (
-    transition_command = 'sign'
+    "m3_has_lifecycle_authorization"(
+      NEW."organizationId", 'contract_version', NEW."id", 'sign', 'ISSUED', 'SIGNED',
+      ARRAY['AGENT', 'MANAGER']
+    )
     AND OLD."status" = 'ISSUED'
     AND NEW."status" = 'SIGNED'
     AND NEW."issuedAt" IS NOT NULL
@@ -1091,9 +1326,9 @@ BEGIN
   IF NEW."status" = 'RETIRED' AND NEW."retiredAt" IS NULL THEN
     RAISE EXCEPTION 'Retired DocumentRequirementPolicy requires retiredAt';
   END IF;
-  IF ROW(NEW."scenario", NEW."version", NEW."source", NEW."approvedByUserId", NEW."approvedAt", NEW."effectiveFrom", NEW."createdAt")
+  IF ROW(NEW."organizationId", NEW."scenario", NEW."version", NEW."source", NEW."approvedByUserId", NEW."approvedAt", NEW."effectiveFrom", NEW."createdAt")
     IS DISTINCT FROM
-     ROW(OLD."scenario", OLD."version", OLD."source", OLD."approvedByUserId", OLD."approvedAt", OLD."effectiveFrom", OLD."createdAt") THEN
+     ROW(OLD."organizationId", OLD."scenario", OLD."version", OLD."source", OLD."approvedByUserId", OLD."approvedAt", OLD."effectiveFrom", OLD."createdAt") THEN
     RAISE EXCEPTION 'DocumentRequirementPolicy approved content is immutable';
   END IF;
   RETURN NEW;

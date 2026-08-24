@@ -346,11 +346,11 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
       originalResult = await serverResponse.json();
       await route.abort("failed");
     }, { times: 1 });
-    await dialog.getByRole("button", { name: "Добавить в ledger" }).click();
+    await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     await target.getByRole("alert").getByText(/fetch|network|команд/i).waitFor();
     await target.unroute("**/api/agent/cases/*/payments");
     const replayPromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
-    await dialog.getByRole("button", { name: "Добавить в ledger" }).click();
+    await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     const replayResponse = await replayPromise;
     const replayRequest = {
       idempotencyKey: replayResponse.request().headers()["idempotency-key"],
@@ -366,7 +366,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
     retryEvidence = { original: false, replay: true, sameCommandEnvelope: true, oneLedgerEntry: true };
   } else {
     const responsePromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
-    await dialog.getByRole("button", { name: "Добавить в ledger" }).click();
+    await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     assert.equal((await responsePromise).status(), 201);
   }
   await dialog.waitFor({ state: "hidden" });
@@ -407,7 +407,7 @@ async function replayWebhookFiveTimes(requestContext, ids) {
 async function recordRefundAndReversal(target, publicRef) {
   let row = obligationRow(target, publicRef);
   await row.getByRole("button", { name: "Открыть ledger" }).click();
-  let ledgerDialog = target.getByRole("dialog", { name: new RegExp(`Ledger.*${publicRef}`) });
+  let ledgerDialog = target.getByRole("dialog", { name: new RegExp(`Реестр.*${publicRef}`) });
   const payment = ledgerDialog.locator("li").filter({ hasText: "Оплата" }).first();
   await payment.getByRole("button", { name: "Возврат" }).click();
   let actionDialog = target.getByRole("dialog", { name: "Записать возврат" });
@@ -415,13 +415,13 @@ async function recordRefundAndReversal(target, publicRef) {
   await actionDialog.getByLabel("Подтверждение").fill("synthetic-refund-evidence");
   await actionDialog.getByLabel("Причина").fill("Synthetic UAT refund");
   let responsePromise = target.waitForResponse((response) => response.url().includes("/finance/refunds") && response.request().method() === "POST");
-  await actionDialog.getByRole("button", { name: "Добавить в ledger" }).click();
+  await actionDialog.getByRole("button", { name: "Добавить в реестр" }).click();
   assert.equal((await responsePromise).status(), 201);
 
   await target.goto(`${baseUrl}/agent/finance`, { waitUntil: "networkidle" });
   row = obligationRow(target, publicRef);
   await row.getByRole("button", { name: "Открыть ledger" }).click();
-  ledgerDialog = target.getByRole("dialog", { name: new RegExp(`Ledger.*${publicRef}`) });
+  ledgerDialog = target.getByRole("dialog", { name: new RegExp(`Реестр.*${publicRef}`) });
   const refund = ledgerDialog.locator("li").filter({ hasText: "Возврат" }).first();
   await refund.getByRole("button", { name: "Коррекция" }).click();
   actionDialog = target.getByRole("dialog", { name: "Запросить коррекцию или сторно" });

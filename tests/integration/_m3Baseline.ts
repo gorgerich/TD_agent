@@ -58,32 +58,45 @@ export async function installM3IntegrationBaseline() {
   assertIsolatedTarget();
   await prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(LOCK_SQL);
-    const conflictingPolicy = await tx.documentRequirementPolicy.findFirst({
-      where: { status: "APPROVED", retiredAt: null, source: { not: SOURCE } },
-      select: { scenario: true },
-    });
-    if (conflictingPolicy) {
-      throw new Error(`Integration target contains a non-baseline approved ${conflictingPolicy.scenario} policy.`);
-    }
-
-    const approver = await tx.user.upsert({
+    await tx.user.upsert({
       where: { email: APPROVER_EMAIL },
       update: {},
       create: { email: APPROVER_EMAIL, name: "Synthetic M3 policy approver" },
       select: { id: true },
     });
+  });
+}
 
+export async function installM3OrganizationBaseline(organizationId: string) {
+  assertIsolatedTarget();
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`td-agent-m3-integration-baseline:${organizationId}`}))`;
+    const organization = await tx.organization.findUnique({ where: { id: organizationId }, select: { id: true } });
+    if (!organization) throw new Error("Integration organization is absent.");
+    const conflictingPolicy = await tx.documentRequirementPolicy.findFirst({
+      where: { organizationId, status: "APPROVED", retiredAt: null, source: { not: SOURCE } },
+      select: { scenario: true },
+    });
+    if (conflictingPolicy) {
+      throw new Error(`Integration target contains a non-baseline approved ${conflictingPolicy.scenario} policy.`);
+    }
+    const approver = await tx.user.findUnique({ where: { email: APPROVER_EMAIL }, select: { id: true } });
+    if (!approver) throw new Error("Install the canonical M3 integration baseline before creating fixtures.");
+
+    const typeIds = new Map<string, string>();
     for (const [code, name] of typeDefinitions) {
-      await tx.documentTypeDefinition.upsert({
-        where: { code_version: { code, version: 1 } },
+      const type = await tx.documentTypeDefinition.upsert({
+        where: { organizationId_code_version: { organizationId, code, version: 1 } },
         update: { name, allowedMimeTypes: ["application/pdf"], maxBytes: 1_000_000, status: "APPROVED", source: SOURCE },
-        create: { code, version: 1, name, allowedMimeTypes: ["application/pdf"], maxBytes: 1_000_000, status: "APPROVED", source: SOURCE },
+        create: { organizationId, code, version: 1, name, allowedMimeTypes: ["application/pdf"], maxBytes: 1_000_000, status: "APPROVED", source: SOURCE },
+        select: { id: true },
       });
+      typeIds.set(code, type.id);
     }
 
     for (const definition of policyDefinitions) {
       const policy = await tx.documentRequirementPolicy.upsert({
-        where: { scenario_version: { scenario: definition.scenario, version: POLICY_VERSION } },
+        where: { organizationId_scenario_version: { organizationId, scenario: definition.scenario, version: POLICY_VERSION } },
         update: {
           status: "APPROVED",
           source: SOURCE,
@@ -93,6 +106,7 @@ export async function installM3IntegrationBaseline() {
           retiredAt: null,
         },
         create: {
+          organizationId,
           scenario: definition.scenario,
           version: POLICY_VERSION,
           status: "APPROVED",
@@ -120,6 +134,7 @@ export async function installM3IntegrationBaseline() {
             ownerRole: "DOCUMENT_REVIEWER",
             blockingStage: "EXECUTION",
             acceptedDocumentTypeCodes: [documentTypeCode],
+            acceptedDocumentTypeVersionIds: [typeIds.get(documentTypeCode)!],
             reviewChecklist: [checklistItem],
             source: SOURCE,
           },
@@ -132,6 +147,7 @@ export async function installM3IntegrationBaseline() {
             ownerRole: "DOCUMENT_REVIEWER",
             blockingStage: "EXECUTION",
             acceptedDocumentTypeCodes: [documentTypeCode],
+            acceptedDocumentTypeVersionIds: [typeIds.get(documentTypeCode)!],
             reviewChecklist: [checklistItem],
             source: SOURCE,
           },
@@ -139,13 +155,13 @@ export async function installM3IntegrationBaseline() {
       }
     }
   });
-  return getM3IntegrationBaseline();
+  return getM3IntegrationBaseline(organizationId);
 }
 
-export async function getM3IntegrationBaseline() {
+export async function getM3IntegrationBaseline(organizationId: string) {
   assertIsolatedTarget();
   const policies = await prisma.documentRequirementPolicy.findMany({
-    where: { version: POLICY_VERSION, source: SOURCE, status: "APPROVED", retiredAt: null },
+    where: { organizationId, version: POLICY_VERSION, source: SOURCE, status: "APPROVED", retiredAt: null },
     select: { id: true, scenario: true, rules: { select: { id: true } } },
   });
   if (
@@ -165,6 +181,11 @@ export async function getM3IntegrationBaseline() {
     cremationPolicyId: policies.find((policy) => policy.scenario === "CREMATION_V1")!.id,
     burialPolicyId: policies.find((policy) => policy.scenario === "FAMILY_PLOT_BURIAL_V1")!.id,
     documentTypes: M3_TEST_DOCUMENT_TYPES,
+    policyIds: policies.map((policy) => policy.id),
+    documentTypeIds: [...(await prisma.documentTypeDefinition.findMany({
+      where: { organizationId, version: 1, source: SOURCE, code: { in: Object.values(M3_TEST_DOCUMENT_TYPES) } },
+      select: { id: true },
+    })).map((item) => item.id)],
   };
 }
 

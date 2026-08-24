@@ -27,14 +27,14 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
   const fixtures = createFixtureContext("m3-policy-activation");
   try {
     const organizationId = await fixtures.makeOrganization("approved-policy");
+    const otherOrganizationId = await fixtures.makeOrganization("other-approved-policy");
     const approver = await db.user.findUniqueOrThrow({
       where: { email: "m3-policy-approver@synthetic.invalid" },
       select: { id: true },
     });
 
-    // Document policies are intentionally platform-wide. Exercise replacement inside
-    // one rollback-only transaction so concurrent suites never observe a synthetic
-    // global policy or lose their installed baseline.
+    // Exercise immutable activation inside one rollback-only transaction. Identical
+    // policy codes in a second tenant must not retire or rewrite the first tenant.
     await assert.rejects(db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
       const firstBundle = baselinePolicyBundle(organizationId, approver.id);
@@ -49,12 +49,31 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       assert.equal(await tx.contractSigningPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
       assert.equal(await tx.financialControlPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
 
+      const other = await applyM3ApprovedPolicyBundle(tx, baselinePolicyBundle(otherOrganizationId, approver.id));
+      assert.equal(other.replayed, false);
+      assert.equal(await tx.documentRequirementPolicy.count({
+        where: { organizationId, status: "APPROVED", retiredAt: null },
+      }), 2);
+      assert.equal(await tx.documentRequirementPolicy.count({
+        where: { organizationId: otherOrganizationId, status: "APPROVED", retiredAt: null },
+      }), 2);
+      assert.equal(await tx.documentTypeDefinition.count({
+        where: { organizationId, status: "APPROVED" },
+      }), 5);
+      assert.equal(await tx.documentTypeDefinition.count({
+        where: { organizationId: otherOrganizationId, status: "APPROVED" },
+      }), 5);
+
       await assert.rejects(applyM3ApprovedPolicyBundle(tx, {
         ...firstBundle,
         signingPolicy: { ...firstBundle.signingPolicy, source: "Conflicting signed policy content" },
       }), /conflicts with approved bundle/);
       assert.equal(await tx.platformAuditEvent.count({
-        where: { actorUserId: approver.id, action: "M3_POLICIES_ACTIVATED" },
+        where: {
+          actorUserId: approver.id,
+          action: "M3_POLICIES_ACTIVATED",
+          targetId: organizationId,
+        },
       }), 1);
       throw new Error("ROLLBACK_M3_POLICY_ACTIVATION_TEST");
     }, { timeout: 20_000 }), /ROLLBACK_M3_POLICY_ACTIVATION_TEST/);

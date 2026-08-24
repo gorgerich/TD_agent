@@ -117,7 +117,12 @@ export async function uploadCaseDocument(
         select: { id: true, versionNumber: true, status: true },
       });
       if (previous && previous.status !== "SUPERSEDED") {
-        await authorizeDocumentTransition(tx, "supersede");
+        await authorizeDocumentTransition(tx, context, meta, {
+          entityId: previous.id,
+          command: "supersede",
+          fromStatus: previous.status,
+          toStatus: "SUPERSEDED",
+        });
         await tx.caseDocumentVersion.update({ where: { id: previous.id }, data: { status: "SUPERSEDED" } });
       }
       const version = await tx.caseDocumentVersion.create({
@@ -231,7 +236,12 @@ export async function beginDocumentReview(
     if (version.scanStatus !== "CLEAN" || version.status !== "UPLOADED") {
       throw new OperationalCommandError(409, "В проверку можно взять только чистую загруженную версию");
     }
-    await authorizeDocumentTransition(tx, "begin-review");
+    await authorizeDocumentTransition(tx, context, meta, {
+      entityId: version.id,
+      command: "begin-review",
+      fromStatus: "UPLOADED",
+      toStatus: "IN_REVIEW",
+    });
     const claimed = await tx.caseDocumentVersion.updateMany({
       where: {
         id: version.id,
@@ -339,7 +349,12 @@ export async function decideDocumentReview(
     if (version.status !== "IN_REVIEW" || version.scanStatus !== "CLEAN") {
       throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
     }
-    await authorizeDocumentTransition(tx, "review-decision");
+    await authorizeDocumentTransition(tx, context, meta, {
+      entityId: version.id,
+      command: "review-decision",
+      fromStatus: "IN_REVIEW",
+      toStatus: input.decision,
+    });
     if (input.decision === "VERIFIED") {
       if (!verifiedStorageIdentity || !sameStorageIdentity(version, verifiedStorageIdentity)) {
         throw new OperationalCommandError(409, "Файловая версия изменилась во время проверки", "DOCUMENT_INTEGRITY_MISMATCH");
@@ -447,9 +462,27 @@ export async function decideDocumentReview(
 
 async function authorizeDocumentTransition(
   tx: Prisma.TransactionClient,
-  command: "supersede" | "begin-review" | "review-decision",
+  context: OperationalContext,
+  meta: M3CommandMeta,
+  transition: {
+    entityId: string;
+    command: "supersede" | "begin-review" | "review-decision";
+    fromStatus: string;
+    toStatus: string;
+  },
 ): Promise<void> {
-  await tx.$queryRaw`SELECT set_config('td_agent.m3_document_transition', ${command}, true)`;
+  await appendOperationalAudit(tx, context, {
+    entityType: "document_version",
+    entityId: transition.entityId,
+    action: "m3.lifecycle_transition_authorized.v1",
+    before: prismaJson({ status: transition.fromStatus }),
+    after: prismaJson({ command: transition.command, status: transition.toStatus }),
+    correlationId: meta.correlationId,
+    causationId: meta.idempotencyKey,
+    idempotencyKey: `${meta.idempotencyKey}:db-auth:document:${transition.entityId}:${transition.command}`,
+    reason: meta.reason,
+    result: prismaJson({ authorized: true }),
+  });
 }
 
 export async function escalateDocumentReview(
@@ -638,7 +671,12 @@ async function loadUploadPrerequisite(
       organizationId: context.organizationId,
       ...(context.role === "AGENT" ? { case: { ownerId: context.agentId } } : {}),
     },
-    select: { id: true, acceptedDocumentTypeCodes: true, isApplicable: true },
+    select: {
+      id: true,
+      acceptedDocumentTypeCodes: true,
+      acceptedDocumentTypeVersionIds: true,
+      isApplicable: true,
+    },
   });
   if (!record) throw new OperationalCommandError(404, "Требование документа не найдено");
   if (!record.isApplicable) throw new OperationalCommandError(409, "Условное требование сейчас не применяется к кейсу");
@@ -646,8 +684,12 @@ async function loadUploadPrerequisite(
     throw new OperationalCommandError(422, "Тип документа не закрывает выбранное требование");
   }
   const documentType = await prisma.documentTypeDefinition.findFirst({
-    where: { code: input.documentTypeCode, status: { in: ["APPROVED", "RETIRED"] } },
-    orderBy: { version: "desc" },
+    where: {
+      id: { in: stringList(record.acceptedDocumentTypeVersionIds) },
+      organizationId: context.organizationId,
+      code: input.documentTypeCode,
+      status: { in: ["APPROVED", "RETIRED"] },
+    },
   });
   if (!documentType) throw new OperationalCommandError(422, "Тип документа не утверждён");
   if (!stringList(documentType.allowedMimeTypes).includes(input.file.type) || input.file.size > documentType.maxBytes) {

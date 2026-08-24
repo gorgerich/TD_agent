@@ -368,6 +368,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
   validateMeta(input.meta);
 
   return runOperationalTransaction(async (tx) => {
+    await lockQuoteAggregate(tx, input.quoteId, input.context);
     const quote = await loadQuoteForMutation(tx, input.quoteId, input.context);
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
@@ -499,7 +500,10 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
       result: json(result),
     });
     return result;
-  }, COMMERCIAL_COMMAND_ATTEMPTS);
+  }, {
+    maxAttempts: COMMERCIAL_COMMAND_ATTEMPTS,
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+  });
 }
 
 export async function createCommercialClientLink(input: {
@@ -952,6 +956,25 @@ async function loadQuoteForMutation(
     throw new OperationalCommandError(404, "Смета не найдена");
   }
   return quote;
+}
+
+async function lockQuoteAggregate(
+  tx: Prisma.TransactionClient,
+  quoteId: number,
+  context: OperationalContext,
+): Promise<void> {
+  const ownerScope = hasTeamOperationalScope(context.role)
+    ? Prisma.empty
+    : Prisma.sql`AND "ownerMembershipId" = ${context.membershipId}`;
+  const rows = await tx.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+    SELECT "id"
+    FROM "Quote"
+    WHERE "id" = ${quoteId}
+      AND "organizationId" = ${context.organizationId}
+      ${ownerScope}
+    FOR UPDATE
+  `);
+  if (rows.length !== 1) throw new OperationalCommandError(404, "Смета не найдена");
 }
 
 async function publishReplayResult(

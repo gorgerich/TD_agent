@@ -35,7 +35,7 @@ export async function materializeCaseRequirementsInTransaction(
   if (scenario !== "CREMATION_V1" && scenario !== "FAMILY_PLOT_BURIAL_V1") {
     throw new OperationalCommandError(422, "Сначала выберите пилотный сценарий кейса");
   }
-  const policyId = await lockDocumentRequirementPolicyScenario(tx, scenario, now);
+  const policyId = await lockDocumentRequirementPolicyScenario(tx, actor.organizationId, scenario, now);
   if (!policyId) return { policyApproved: false, policyId: null, created: 0, existing: 0 };
   const policy = await tx.documentRequirementPolicy.findUniqueOrThrow({
     where: { id: policyId },
@@ -90,6 +90,7 @@ export async function materializeCaseRequirementsInTransaction(
         ownerRole: rule.ownerRole,
         blockingStage: rule.blockingStage,
         acceptedDocumentTypeCodes: prismaJson(stringArray(rule.acceptedDocumentTypeCodes)),
+        acceptedDocumentTypeVersionIds: prismaJson(stringArray(rule.acceptedDocumentTypeVersionIds)),
         reviewChecklist: prismaJson(stringArray(rule.reviewChecklist)),
         isApplicable: ruleApplicability.get(rule.id) ?? false,
         applicabilityEvaluatedAt: now,
@@ -183,13 +184,15 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
 
 export async function lockDocumentRequirementPolicyScenario(
   tx: Prisma.TransactionClient,
+  organizationId: string,
   scenario: "CREMATION_V1" | "FAMILY_PLOT_BURIAL_V1",
   now = new Date(),
 ) {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
     FROM "DocumentRequirementPolicy"
-    WHERE "scenario" = CAST(${scenario} AS "CaseScenario")
+    WHERE "organizationId" = ${organizationId}
+      AND "scenario" = CAST(${scenario} AS "CaseScenario")
       AND "status" = CAST('APPROVED' AS "M3PolicyStatus")
       AND "effectiveFrom" <= ${now}
       AND ("retiredAt" IS NULL OR "retiredAt" > ${now})
@@ -221,6 +224,7 @@ export async function checkCaseRequirementMaterializationParity(
       ownerRole: true,
       blockingStage: true,
       acceptedDocumentTypeCodes: true,
+      acceptedDocumentTypeVersionIds: true,
       reviewChecklist: true,
       sourceRule: true,
     },
@@ -236,7 +240,7 @@ export async function checkCaseRequirementMaterializationParity(
     };
   }
   const policy = await client.documentRequirementPolicy.findFirst({
-    where: { id: policyIds[0], scenario, status: { in: ["APPROVED", "RETIRED"] } },
+    where: { id: policyIds[0], organizationId, scenario, status: { in: ["APPROVED", "RETIRED"] } },
     select: {
       id: true,
       version: true,
@@ -249,6 +253,7 @@ export async function checkCaseRequirementMaterializationParity(
           ownerRole: true,
           blockingStage: true,
           acceptedDocumentTypeCodes: true,
+          acceptedDocumentTypeVersionIds: true,
           reviewChecklist: true,
           source: true,
         },
@@ -276,6 +281,7 @@ export async function checkCaseRequirementMaterializationParity(
       && requirement.ownerRole === rule.ownerRole
       && requirement.blockingStage === rule.blockingStage
       && sameStringArray(requirement.acceptedDocumentTypeCodes, rule.acceptedDocumentTypeCodes)
+      && sameStringArray(requirement.acceptedDocumentTypeVersionIds, rule.acceptedDocumentTypeVersionIds)
       && sameStringArray(requirement.reviewChecklist, rule.reviewChecklist)
       && requirement.sourceRule === rule.source;
   });

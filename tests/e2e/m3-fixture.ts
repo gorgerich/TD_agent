@@ -102,7 +102,7 @@ async function provision() {
     const financeA = await createIdentity(tx, tier.id, organizationA, "finance-a", emails.financeA, "Финансы M3 A", "FINANCE", passwordHash, financeMfa);
     const financeB = await createIdentity(tx, tier.id, organizationA, "finance-b", emails.financeB, "Финансы M3 B", "FINANCE", passwordHash, financeMfa);
     await createIdentity(tx, tier.id, organizationB, "foreign", emails.foreign, "Другой tenant M3", "AGENT", passwordHash);
-    await createPolicies(tx, manager.user.id);
+    await createPolicies(tx, organizationA, manager.user.id);
     await tx.contractSigningPolicy.create({
       data: {
         organizationId: organizationA,
@@ -141,7 +141,7 @@ async function provision() {
   })}\n`);
 }
 
-async function createPolicies(tx: Prisma.TransactionClient, approverUserId: number) {
+async function createPolicies(tx: Prisma.TransactionClient, organizationId: string, approverUserId: number) {
   const types = [
     [typeCodes.identity, "Документ, удостоверяющий личность"],
     [typeCodes.death, "Документ о смерти"],
@@ -149,9 +149,11 @@ async function createPolicies(tx: Prisma.TransactionClient, approverUserId: numb
     [typeCodes.plot, "Право на родственный участок"],
     [typeCodes.relationship, "Подтверждение родства"],
   ] as const;
+  const typeIds = new Map<string, string>();
   for (const [code, name] of types) {
-    await tx.documentTypeDefinition.create({
+    const documentType = await tx.documentTypeDefinition.create({
       data: {
+        organizationId,
         code,
         version: 1,
         name,
@@ -161,7 +163,9 @@ async function createPolicies(tx: Prisma.TransactionClient, approverUserId: numb
         status: "APPROVED",
         source: "SYNTHETIC_UAT_NOT_A_RITUAL_OR_LEGAL_VERDICT",
       },
+      select: { id: true },
     });
+    typeIds.set(code, documentType.id);
   }
   const policyInput = [
     {
@@ -185,6 +189,7 @@ async function createPolicies(tx: Prisma.TransactionClient, approverUserId: numb
   for (const input of policyInput) {
     await tx.documentRequirementPolicy.create({
       data: {
+        organizationId,
         scenario: input.scenario,
         version: policyVersion,
         status: "APPROVED",
@@ -200,6 +205,7 @@ async function createPolicies(tx: Prisma.TransactionClient, approverUserId: numb
             ownerRole: "AGENT",
             blockingStage: "EXECUTION",
             acceptedDocumentTypeCodes: [documentType],
+            acceptedDocumentTypeVersionIds: [typeIds.get(documentType)!],
             reviewChecklist: checklist,
             source: "SYNTHETIC_UAT_NOT_A_RITUAL_OR_LEGAL_VERDICT",
           })),
@@ -329,7 +335,7 @@ async function materializeSyntheticRequirements(
 ) {
   const [policy, reviewer] = await Promise.all([
     db.documentRequirementPolicy.findFirst({
-      where: { scenario, version: policyVersion, status: "APPROVED" },
+      where: { organizationId: organizationA, scenario, version: policyVersion, status: "APPROVED" },
       include: { rules: { orderBy: { stableKey: "asc" } } },
     }),
     db.membership.findFirst({
@@ -357,6 +363,7 @@ async function materializeSyntheticRequirements(
         ownerRole: rule.ownerRole,
         blockingStage: rule.blockingStage,
         acceptedDocumentTypeCodes: rule.acceptedDocumentTypeCodes as Prisma.InputJsonValue,
+        acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeVersionIds as Prisma.InputJsonValue,
         reviewChecklist: rule.reviewChecklist as Prisma.InputJsonValue,
         satisfactionStatus: "NOT_SATISFIED",
         sourceRule: rule.source,
@@ -415,8 +422,14 @@ async function createIdentity(
 
 async function cleanup() {
   const organizations = await db.organization.findMany({ where: { id: { in: [organizationA, organizationB] } }, select: { id: true } });
-  const policies = await db.documentRequirementPolicy.findMany({ where: { version: policyVersion }, select: { id: true } });
-  const types = await db.documentTypeDefinition.findMany({ where: { code: { in: Object.values(typeCodes) } }, select: { id: true } });
+  const policies = await db.documentRequirementPolicy.findMany({
+    where: { organizationId: { in: [organizationA, organizationB] }, version: policyVersion },
+    select: { id: true },
+  });
+  const types = await db.documentTypeDefinition.findMany({
+    where: { organizationId: { in: [organizationA, organizationB] }, code: { in: Object.values(typeCodes) } },
+    select: { id: true },
+  });
   if (organizations.length === 0 && policies.length === 0 && types.length === 0) return;
   if (!isLocalTarget(directUrl) && process.env.M3_ALLOW_REMOTE_FIXTURE_CLEANUP !== "YES") {
     throw new Error("Remote M3 fixture cleanup requires deletion of the isolated database resource, not row cleanup");
@@ -454,6 +467,11 @@ async function cleanup() {
       await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
     }
     if (organizationIds.length) {
+      if (policies.length) {
+        await tx.documentRequirementRule.deleteMany({ where: { policyId: { in: policies.map((item) => item.id) } } });
+        await tx.documentRequirementPolicy.deleteMany({ where: { id: { in: policies.map((item) => item.id) } } });
+      }
+      if (types.length) await tx.documentTypeDefinition.deleteMany({ where: { id: { in: types.map((item) => item.id) } } });
       await tx.contractSigningPolicy.deleteMany({ where: { organizationId: { in: organizationIds } } });
       await tx.financialControlPolicy.deleteMany({ where: { organizationId: { in: organizationIds } } });
       await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: organizationIds } } });
@@ -489,11 +507,6 @@ async function cleanup() {
     if (agentIds.length) await tx.agent.deleteMany({ where: { id: { in: agentIds } } });
     if (userIds.length) await tx.user.deleteMany({ where: { id: { in: userIds } } });
     if (organizationIds.length) await tx.organization.deleteMany({ where: { id: { in: organizationIds } } });
-    if (policies.length) {
-      await tx.documentRequirementRule.deleteMany({ where: { policyId: { in: policies.map((item) => item.id) } } });
-      await tx.documentRequirementPolicy.deleteMany({ where: { id: { in: policies.map((item) => item.id) } } });
-    }
-    if (types.length) await tx.documentTypeDefinition.deleteMany({ where: { id: { in: types.map((item) => item.id) } } });
   }, { timeout: 120_000, maxWait: 30_000 });
   await db.agentTier.deleteMany({ where: { name: "M3 Synthetic UAT", agents: { none: {} } } });
   process.stdout.write(`${JSON.stringify({ status: "CLEAN" })}\n`);

@@ -228,6 +228,9 @@ export async function reconcileM3Case(
     });
 
   const signedContracts = record.contractVersions.filter((version) => version.status === "SIGNED");
+  const contractualTruthVersions = record.contractVersions.filter((version) => (
+    version.status === "SIGNED" || version.status === "SUPERSEDED"
+  ));
   for (const version of signedContracts) {
     if (version.validUntil != null && version.validUntil <= now) {
       push("SIGNED_CONTRACT_EXPIRED", "contract_version", version.id, "SIGNED contract истёк и не может открывать stage");
@@ -250,43 +253,46 @@ export async function reconcileM3Case(
   const contract = activeSigned[0] ?? null;
   let paymentStatus: Parameters<typeof evaluateFulfilmentGuards>[0]["paymentStatus"] = "LEGACY_INCOMPLETE";
   let pendingFinancialAdjustments = 0;
-  if (contract) {
-    const signedAt = contract.signedAt;
+  for (const historicalContract of contractualTruthVersions) {
+    const signedAt = historicalContract.signedAt;
     if (
-      !contract.signaturePolicy
-      || contract.signaturePolicy.organizationId !== record.tenantId
-      || contract.signaturePolicy.status === "DRAFT_POLICY"
-      || contract.signaturePolicy.version !== contract.signaturePolicyVersion
+      historicalContract.organizationId !== record.tenantId
+      || !historicalContract.signaturePolicy
+      || historicalContract.signaturePolicy.organizationId !== record.tenantId
+      || historicalContract.signaturePolicy.status === "DRAFT_POLICY"
+      || historicalContract.signaturePolicy.version !== historicalContract.signaturePolicyVersion
       || signedAt == null
-      || contract.signaturePolicy.approvedAt == null
-      || contract.signaturePolicy.effectiveFrom == null
-      || contract.signaturePolicy.approvedAt > signedAt
-      || contract.signaturePolicy.effectiveFrom > signedAt
-      || (contract.signaturePolicy.retiredAt != null && contract.signaturePolicy.retiredAt <= signedAt)
+      || historicalContract.signaturePolicy.approvedAt == null
+      || historicalContract.signaturePolicy.effectiveFrom == null
+      || historicalContract.signaturePolicy.approvedAt > signedAt
+      || historicalContract.signaturePolicy.effectiveFrom > signedAt
+      || (historicalContract.signaturePolicy.retiredAt != null && historicalContract.signaturePolicy.retiredAt <= signedAt)
     ) {
-      push("CONTRACT_SIGNING_POLICY_INVALID", "contract_version", contract.id, "SIGNED contract не связан с Legal-approved policy snapshot на момент подписания");
+      push("CONTRACT_SIGNING_POLICY_INVALID", "contract_version", historicalContract.id, "Contract history не связана с Legal-approved policy snapshot на момент подписания");
     }
-    const quote = contract.quoteVersion;
+    if (historicalContract.status === "SUPERSEDED" && historicalContract.supersededBy == null) {
+      push("SUPERSEDED_CONTRACT_LINK_MISSING", "contract_version", historicalContract.id, "SUPERSEDED contract не указывает замещающую версию");
+    }
+    const quote = historicalContract.quoteVersion;
     if (
       quote.quote.organizationId !== record.tenantId
       || quote.quote.caseId !== record.id
-      || quote.quote.status !== "ACCEPTED"
       || quote.state !== "PUBLISHED"
       || quote.totalState !== "KNOWN"
     ) {
-      push("CONTRACT_QUOTE_TRUTH_MISMATCH", "contract_version", contract.id, "SIGNED contract не связан с ACCEPTED/PUBLISHED QuoteVersion того же tenant/case");
+      push("CONTRACT_QUOTE_TRUTH_MISMATCH", "contract_version", historicalContract.id, "Contract history не связана с immutable PUBLISHED QuoteVersion того же tenant/case");
     }
-    if (quote.total !== contract.totalObligationKopecks || quote.currency !== contract.currency) {
-      push("CONTRACT_AMOUNT_MISMATCH", "contract_version", contract.id, "Contract obligation расходится с immutable QuoteVersion");
+    if (quote.total !== historicalContract.totalObligationKopecks || quote.currency !== historicalContract.currency) {
+      push("CONTRACT_AMOUNT_MISMATCH", "contract_version", historicalContract.id, "Contract obligation расходится с immutable QuoteVersion");
     }
-    if (!contract.obligation) {
-      push("PAYMENT_OBLIGATION_MISSING", "contract_version", contract.id, "SIGNED contract не имеет obligation");
+    if (!historicalContract.obligation) {
+      push("PAYMENT_OBLIGATION_MISSING", "contract_version", historicalContract.id, "Contract history не имеет obligation");
     } else {
-      const obligation = contract.obligation;
+      const obligation = historicalContract.obligation;
       if (
         obligation.organizationId !== record.tenantId
-        || obligation.amountKopecks !== contract.totalObligationKopecks
-        || obligation.currency !== contract.currency
+        || obligation.amountKopecks !== historicalContract.totalObligationKopecks
+        || obligation.currency !== historicalContract.currency
       ) {
         push("OBLIGATION_TRUTH_MISMATCH", "payment_obligation", obligation.id, "Obligation расходится с contract или tenant");
       }
@@ -302,7 +308,9 @@ export async function reconcileM3Case(
         if (entry.organizationId !== record.tenantId) {
           push("LEDGER_TENANT_MISMATCH", "payment_ledger_entry", entry.id, "Ledger entry не принадлежит tenant кейса");
         }
-        if (entry.approvalRequired && !entry.approval?.decision) pendingFinancialAdjustments += 1;
+        if (historicalContract.id === contract?.id && entry.approvalRequired && !entry.approval?.decision) {
+          pendingFinancialAdjustments += 1;
+        }
         if (
           entry.approval
           && entry.approval.decidedByMembershipId != null
@@ -328,7 +336,7 @@ export async function reconcileM3Case(
           remainingSourceCapacityKopecks(projectionEntries, source.id);
         }
         const summary = deriveLedgerSummary(projectionEntries, obligation.currency);
-        paymentStatus = summary.status ?? "LEGACY_INCOMPLETE";
+        if (historicalContract.id === contract?.id) paymentStatus = summary.status ?? "LEGACY_INCOMPLETE";
       } catch (error) {
         push("LEDGER_PROJECTION_INVALID", "payment_obligation", obligation.id, error instanceof Error ? error.message : "Ledger projection failed");
       }

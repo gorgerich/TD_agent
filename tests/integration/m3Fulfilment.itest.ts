@@ -40,7 +40,7 @@ import {
   type FixtureCase,
   type FixtureMember,
 } from "./_setup";
-import { getM3IntegrationBaseline } from "./_m3Baseline";
+import { installM3OrganizationBaseline } from "./_m3Baseline";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const fixtures = createFixtureContext("m3-fulfilment");
@@ -100,7 +100,9 @@ async function expectCommandError(
 }
 
 async function createApprovedScenarioPolicies() {
-  const baseline = await getM3IntegrationBaseline();
+  const baseline = await installM3OrganizationBaseline(agent.organizationId);
+  baseline.policyIds.forEach(fixtures.trackDocumentPolicy);
+  baseline.documentTypeIds.forEach(fixtures.trackDocumentType);
   identityTypeCode = baseline.documentTypes.identity;
   deathTypeCode = baseline.documentTypes.death;
   scenarioTypeCode = baseline.documentTypes.cremation;
@@ -272,6 +274,26 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.ok(deathRequirement);
   assert.ok(scenarioRequirement);
 
+  const pinnedIdentityType = await db.documentTypeDefinition.findFirstOrThrow({
+    where: { organizationId: agent.organizationId, code: identityTypeCode, version: 1 },
+    select: { id: true, name: true, source: true },
+  });
+  await db.documentTypeDefinition.update({ where: { id: pinnedIdentityType.id }, data: { status: "RETIRED" } });
+  const laterIdentityType = await db.documentTypeDefinition.create({
+    data: {
+      organizationId: agent.organizationId,
+      code: identityTypeCode,
+      version: 2,
+      name: `${pinnedIdentityType.name} later policy`,
+      allowedMimeTypes: ["image/png"],
+      maxBytes: 64,
+      status: "APPROVED",
+      source: pinnedIdentityType.source,
+    },
+    select: { id: true },
+  });
+  fixtures.trackDocumentType(laterIdentityType.id);
+
   const identityUpload = await uploadCaseDocument(agent.context, {
     caseId: caseRecord.id,
     requirementId: identityRequirement.id,
@@ -280,6 +302,10 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   }, meta("identity-upload"), { storage, scanner: cleanScanner });
   assert.equal(identityUpload.status, "UPLOADED");
   assert.equal(identityUpload.scanStatus, "CLEAN");
+  assert.equal((await db.caseDocument.findUniqueOrThrow({
+    where: { requirementId: identityRequirement.id },
+    select: { documentTypeId: true },
+  })).documentTypeId, pinnedIdentityType.id);
   assert.equal((await db.caseDocumentRequirement.findUniqueOrThrow({ where: { id: identityRequirement.id } })).satisfactionStatus, "NOT_SATISFIED");
 
   const queue = await listDocumentReviewQueue(reviewerOne.context);
@@ -497,8 +523,37 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.equal(await db.caseEvent.count({
     where: { caseId: caseRecord.id, eventType: "contract.signed.v1" },
   }), 1);
+  const directLedgerData = {
+    caseId: caseRecord.id,
+    obligationId: signed.obligationId,
+    payerPartyId: party.partyId,
+    type: "PAYMENT" as const,
+    direction: "CREDIT" as const,
+    amountKopecks: 100,
+    currency: "RUB",
+    occurredAt: new Date("2026-08-11T11:59:00Z"),
+    method: "BANK_TRANSFER" as const,
+    source: "manual-finance",
+    evidenceReference: "synthetic-direct-write-denial",
+    actorMembershipId: financeOne.membershipId,
+    correlationId: `${fixtures.runId}:direct-ledger-denial`,
+  };
+  await assert.rejects(db.paymentLedgerEntry.create({
+    data: {
+      ...directLedgerData,
+      organizationId: agent.organizationId,
+      idempotencyKey: `${fixtures.runId}:direct-ledger-without-authorization`,
+    },
+  }), /canonical authorization evidence/i);
+  await assert.rejects(db.paymentLedgerEntry.create({
+    data: {
+      ...directLedgerData,
+      organizationId: outsider.organizationId,
+      idempotencyKey: `${fixtures.runId}:direct-ledger-cross-tenant`,
+    },
+  }), /tenant-scoped obligation/i);
 
-  const half = await recordManualPayment(financeOne.context, {
+  const halfPaymentInput = {
     obligationId: signed.obligationId,
     payerPartyId: party.partyId,
     amountKopecks: 8_800_000,
@@ -507,20 +562,22 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     method: "BANK_TRANSFER",
     evidenceReference: "synthetic-bank-evidence",
     reason: "Synthetic partial payment",
-  }, meta("payment-half"));
+  } as const;
+  const concurrentHalfPayments = await Promise.all(Array.from(
+    { length: 5 },
+    () => recordManualPayment(financeOne.context, halfPaymentInput, meta("payment-half")),
+  ));
+  assert.equal(concurrentHalfPayments.filter((result) => !result.replayed).length, 1);
+  assert.equal(concurrentHalfPayments.filter((result) => result.replayed).length, 4);
+  assert.equal(new Set(concurrentHalfPayments.map((result) => result.ledgerEntryId)).size, 1);
+  assert.equal(await db.paymentLedgerEntry.count({
+    where: { obligationId: signed.obligationId, type: "PAYMENT", idempotencyKey: meta("payment-half").idempotencyKey },
+  }), 1);
+  const half = concurrentHalfPayments[0];
   assert.equal(half.summary.status, "PARTIALLY_PAID");
   assert.equal(half.summary.paidKopecks, 8_800_000);
   assert.equal(half.summary.balanceKopecks, 8_800_000);
-  const halfReplay = await recordManualPayment(financeOne.context, {
-    obligationId: signed.obligationId,
-    payerPartyId: party.partyId,
-    amountKopecks: 8_800_000,
-    currency: "RUB",
-    occurredAt: new Date("2026-08-11T12:00:00Z"),
-    method: "BANK_TRANSFER",
-    evidenceReference: "synthetic-bank-evidence",
-    reason: "Synthetic partial payment",
-  }, meta("payment-half"));
+  const halfReplay = await recordManualPayment(financeOne.context, halfPaymentInput, meta("payment-half"));
   assert.equal(halfReplay.replayed, true);
   assert.equal(halfReplay.ledgerEntryId, half.ledgerEntryId);
   await expectCommandError(recordManualPayment(financeOne.context, {
@@ -647,9 +704,20 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     /immutable/i,
   );
   await assert.rejects(
-    db.caseDocumentVersion.update({ where: { id: identityUpload.versionId }, data: { status: "REJECTED", rejectionReason: "forged" } }),
+    db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT set_config('td_agent.m3_document_transition', 'review-decision', true)`;
+      await tx.caseDocumentVersion.update({
+        where: { id: identityUpload.versionId },
+        data: { status: "REJECTED", rejectionReason: "forged" },
+      });
+    }),
     /lifecycle transition requires canonical command/i,
   );
+  const immutableAudit = await db.operationalAuditEvent.findFirstOrThrow({
+    where: { organizationId: agent.organizationId, action: "m3.lifecycle_transition_authorized.v1" },
+    select: { id: true },
+  });
+  await assert.rejects(db.operationalAuditEvent.delete({ where: { id: immutableAudit.id } }), /append-only/i);
   await assert.rejects(
     db.caseDocumentVersion.delete({ where: { id: identityUpload.versionId } }),
     /cannot be deleted|history/i,
@@ -1037,9 +1105,28 @@ test("M3: replacement draft preserves signed truth until replacement signing is 
     select: { status: true },
   }), [{ status: "SUPERSEDED" }, { status: "SIGNED" }]);
   await assert.rejects(
-    db.contractVersion.update({ where: { id: firstContract.contractVersionId }, data: { status: "SIGNED" } }),
+    db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT set_config('td_agent.m3_contract_transition', 'sign', true)`;
+      await tx.contractVersion.update({ where: { id: firstContract.contractVersionId }, data: { status: "SIGNED" } });
+    }),
     /lifecycle transition requires canonical command/i,
   );
+  await assert.rejects(db.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+    const historicalObligation = await tx.paymentObligation.findUniqueOrThrow({
+      where: { contractVersionId: firstContract.contractVersionId },
+      select: { id: true, amountKopecks: true },
+    });
+    await tx.paymentObligation.update({
+      where: { id: historicalObligation.id },
+      data: { amountKopecks: historicalObligation.amountKopecks + 1 },
+    });
+    const historicalDrift = await reconcileM3Case(manager.context, replacementCase.id, tx);
+    assert.equal(historicalDrift.discrepancies.some((item) => (
+      item.code === "OBLIGATION_TRUTH_MISMATCH" && item.entityId === historicalObligation.id
+    )), true);
+    throw new Error("ROLLBACK_HISTORICAL_RECONCILIATION_TEST");
+  }), /ROLLBACK_HISTORICAL_RECONCILIATION_TEST/);
 });
 
 test("M3: upload rechecks conditional applicability after storage and scan", opts, async () => {

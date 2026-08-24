@@ -15,7 +15,7 @@ import {
   signContractVersion,
 } from "../../lib/contractLedgerService";
 import { materializeCaseRequirements } from "../../lib/documentRequirementService";
-import { getM3IntegrationBaseline } from "./_m3Baseline";
+import { installM3OrganizationBaseline } from "./_m3Baseline";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const fixtures = createFixtureContext("cases");
@@ -212,9 +212,12 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   const leadId = fixture.lead.id;
   await db.clientLead.update({ where: { id: leadId }, data: { deceasedName: "enc1:test", ceremonyType: "кремация" } });
   const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
-  const baseline = await getM3IntegrationBaseline();
+  const baseline = await installM3OrganizationBaseline(membership.organizationId);
+  baseline.policyIds.forEach(fixtures.trackDocumentPolicy);
+  baseline.documentTypeIds.forEach(fixtures.trackDocumentType);
   const documentTypes = await db.documentTypeDefinition.findMany({
     where: {
+      organizationId: membership.organizationId,
       code: { in: [baseline.documentTypes.identity, baseline.documentTypes.death, baseline.documentTypes.cremation] },
       version: 1,
     },

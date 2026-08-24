@@ -103,6 +103,7 @@ export type IntegrationFixtureContext = {
   trackDocumentType(id: string): void;
   trackSigningPolicy(id: string): void;
   trackUser(userId: number): void;
+  trackCreatedMember(identity: { userId: number; agentId: number; membershipId: string }): void;
   cleanup(): Promise<void>;
   assertNoResidue(): Promise<void>;
 };
@@ -362,10 +363,6 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         await tx.clientLead.deleteMany({ where: { id: { in: leadIds } } });
       }
       if (ownAgentIds.length) await tx.agentCatalogItem.deleteMany({ where: { agentId: { in: ownAgentIds } } });
-      if (ownMembershipIds.length) await tx.membership.deleteMany({ where: { id: { in: ownMembershipIds } } });
-      if (ownAgentIds.length) await tx.agent.deleteMany({ where: { id: { in: ownAgentIds } } });
-      if (ownUserIds.length) await tx.user.deleteMany({ where: { id: { in: ownUserIds } } });
-      if (ownOrganizationIds.length) await tx.organization.deleteMany({ where: { id: { in: ownOrganizationIds } } });
       if (documentPolicyIds.size) {
         await tx.documentRequirementRule.deleteMany({ where: { policyId: { in: [...documentPolicyIds] } } });
         await tx.documentRequirementPolicy.deleteMany({ where: { id: { in: [...documentPolicyIds] } } });
@@ -376,6 +373,10 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       if (signingPolicyIds.size) {
         await tx.contractSigningPolicy.deleteMany({ where: { id: { in: [...signingPolicyIds] } } });
       }
+      if (ownMembershipIds.length) await tx.membership.deleteMany({ where: { id: { in: ownMembershipIds } } });
+      if (ownAgentIds.length) await tx.agent.deleteMany({ where: { id: { in: ownAgentIds } } });
+      if (ownUserIds.length) await tx.user.deleteMany({ where: { id: { in: ownUserIds } } });
+      if (ownOrganizationIds.length) await tx.organization.deleteMany({ where: { id: { in: ownOrganizationIds } } });
     });
 
     for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -494,6 +495,14 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     trackUser: (userId) => {
       userIds.add(userId);
       createdUserIds.add(userId);
+    },
+    trackCreatedMember: ({ userId, agentId, membershipId }) => {
+      userIds.add(userId);
+      agentIds.add(agentId);
+      membershipIds.add(membershipId);
+      createdUserIds.add(userId);
+      createdAgentIds.add(agentId);
+      createdMembershipIds.add(membershipId);
     },
     cleanup,
     assertNoResidue,
