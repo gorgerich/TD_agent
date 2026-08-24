@@ -1,13 +1,22 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { CaseDomainError, type CaseTransitionEvent } from "@/lib/caseDomain";
 import { transitionCaseInTransaction } from "@/lib/caseService";
-import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 
 export type FulfilmentAdvanceResult = {
   stage: string;
   transitioned: CaseTransitionEvent[];
   blockedBy: string | null;
 };
+
+export async function advanceCaseFulfilment(
+  input: Parameters<typeof advanceCaseFulfilmentInTransaction>[1],
+): Promise<FulfilmentAdvanceResult> {
+  return runOperationalTransaction(
+    (tx) => advanceCaseFulfilmentInTransaction(tx, input),
+    { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+  );
+}
 
 export async function advanceCaseFulfilmentInTransaction(
   tx: Prisma.TransactionClient,

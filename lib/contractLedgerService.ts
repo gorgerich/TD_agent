@@ -20,7 +20,7 @@ import {
   type LedgerProjectionEntry,
   type LedgerSummary,
 } from "@/lib/m3Domain";
-import { advanceCaseFulfilmentInTransaction } from "@/lib/caseFulfilment";
+import { advanceCaseFulfilment } from "@/lib/caseFulfilment";
 
 type CommandResult<T> = T & { replayed: boolean };
 
@@ -243,7 +243,7 @@ export async function signContractVersion(
   }
   if (!input.signaturePolicyVersion.trim()) throw new OperationalCommandError(422, "Нужна версия политики подписания");
   const fingerprint = commandFingerprint(input);
-  return runOperationalTransaction(async (tx) => {
+  const result = await runOperationalTransaction(async (tx) => {
     const replay = await readAuditReplay<{
       contractVersionId: string; obligationId: string; ledgerEntryId: string; status: "SIGNED";
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
@@ -450,15 +450,6 @@ export async function signContractVersion(
       idempotencyKey: `${meta.idempotencyKey}:ledger-obligation-audit`,
       result: prismaJson({ ledgerEntryId: ledger.id }),
     });
-    await advanceCaseFulfilmentInTransaction(tx, {
-      organizationId: context.organizationId,
-      caseId: version.caseId,
-      actorAgentId: context.agentId,
-      actorMembershipId: context.membershipId,
-      idempotencyKey: meta.idempotencyKey,
-      correlationId: meta.correlationId,
-      causationId: ledger.id,
-    });
     return { ...data, replayed: false };
   }, {
     // The contract row lock above is the concurrency boundary for signing. Using
@@ -466,6 +457,8 @@ export async function signContractVersion(
     // indexes without strengthening the per-contract invariant.
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
+  await advanceContractCaseAfterCommit(context, input.contractVersionId, result.ledgerEntryId, meta);
+  return result;
 }
 
 export async function recordManualPayment(
@@ -486,7 +479,7 @@ export async function recordManualPayment(
   validateLedgerInput(input.amountKopecks, input.currency, input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  return runOperationalTransaction(async (tx) => {
+  const result = await runOperationalTransaction(async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -538,21 +531,14 @@ export async function recordManualPayment(
     const summary = await derivePaymentSummaryInTransaction(tx, obligation.id);
     const data = { ledgerEntryId: entry.id, summary };
     await appendLedgerAudit(tx, context, entry.id, "ledger.payment_appended.v1", input, meta, fingerprint, data);
-    await advanceCaseFulfilmentInTransaction(tx, {
-      organizationId: context.organizationId,
-      caseId: obligation.caseId,
-      actorAgentId: context.agentId,
-      actorMembershipId: context.membershipId,
-      idempotencyKey: meta.idempotencyKey,
-      correlationId: meta.correlationId,
-      causationId: entry.id,
-    });
     return { ...data, replayed: false };
   }, {
     // The obligation lock serializes the ledger mutation and lets waiting retries
     // observe the committed replay envelope without cross-tenant predicate aborts.
     isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
   });
+  await advanceObligationCaseAfterCommit(context, input.obligationId, result.ledgerEntryId, meta);
+  return result;
 }
 
 export async function recordRefund(
@@ -816,7 +802,7 @@ export async function decideLedgerAdjustment(
   validateM3CommandMeta(meta);
   if (input.reason.trim().length < 3) throw new OperationalCommandError(422, "Нужна причина решения");
   const fingerprint = commandFingerprint(input);
-  return runOperationalTransaction(async (tx) => {
+  const result = await runOperationalTransaction(async (tx) => {
     const replay = await readAuditReplay<{
       ledgerEntryId: string; decision: "APPROVED" | "REJECTED"; summary: LedgerSummary;
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
@@ -876,17 +862,10 @@ export async function decideLedgerAdjustment(
       reason: input.reason,
       result: replayEnvelope(fingerprint, data),
     });
-    await advanceCaseFulfilmentInTransaction(tx, {
-      organizationId: context.organizationId,
-      caseId: lockedEntry.caseId,
-      actorAgentId: context.agentId,
-      actorMembershipId: context.membershipId,
-      idempotencyKey: meta.idempotencyKey,
-      correlationId: meta.correlationId,
-      causationId: lockedEntry.id,
-    });
     return { ...data, replayed: false };
   });
+  await advanceLedgerEntryCaseAfterCommit(context, input.ledgerEntryId, result.ledgerEntryId, meta);
+  return result;
 }
 
 export async function getPaymentSummary(context: OperationalContext, obligationId: string): Promise<LedgerSummary> {
@@ -1028,8 +1007,9 @@ export async function processPaymentWebhook(
   if (!Number.isSafeInteger(command.amountKopecks) || command.amountKopecks <= 0) {
     throw new OperationalCommandError(422, "Некорректная сумма webhook");
   }
+  let result: CommandResult<{ receiptId: string; ledgerEntryId: string }>;
   try {
-    return await runOperationalTransaction(async (tx) => {
+    result = await runOperationalTransaction(async (tx) => {
       const existing = await tx.paymentWebhookReceipt.findUnique({
         where: {
           organizationId_provider_externalEventId: {
@@ -1135,26 +1115,6 @@ export async function processPaymentWebhook(
         actorType: "payment-provider",
         result: prismaJson({ receiptId: receipt.id, ledgerEntryId: entry.id }),
       });
-      const owner = await tx.case.findFirst({
-        where: { id: command.caseId, tenantId: command.organizationId },
-        select: {
-          ownerId: true,
-          owner: { select: { membership: { select: { id: true } } } },
-        },
-      });
-      if (!owner?.owner.membership) {
-        throw new OperationalCommandError(409, "У кейса нет владельца для канонического перехода");
-      }
-      await advanceCaseFulfilmentInTransaction(tx, {
-        organizationId: command.organizationId,
-        caseId: command.caseId,
-        actorAgentId: owner.ownerId,
-        actorMembershipId: owner.owner.membership.id,
-        actorType: "payment-provider",
-        idempotencyKey: `webhook:${provider}:${command.externalEventId}`,
-        correlationId: command.externalEventId,
-        causationId: entry.id,
-      });
       return { receiptId: receipt.id, ledgerEntryId: entry.id, replayed: false };
     });
   } catch (error) {
@@ -1171,8 +1131,10 @@ export async function processPaymentWebhook(
     if (!existing) {
       throw new OperationalCommandError(409, "Webhook transaction уже зарегистрирована другим событием");
     }
-    return validateWebhookReplay(existing, payloadHash);
+    result = validateWebhookReplay(existing, payloadHash);
   }
+  await advanceWebhookCaseAfterCommit(provider, command, result.ledgerEntryId);
+  return result;
 }
 
 function validateWebhookReplay(
@@ -1217,6 +1179,92 @@ async function derivePaymentSummaryInTransaction(
     effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
     reserved: entry.approvalRequired && entry.approval?.decision == null,
   })), obligation.currency);
+}
+
+async function advanceContractCaseAfterCommit(
+  context: OperationalContext,
+  contractVersionId: string,
+  causationId: string,
+  meta: M3CommandMeta,
+): Promise<void> {
+  const version = await prisma.contractVersion.findFirst({
+    where: { id: contractVersionId, organizationId: context.organizationId },
+    select: { caseId: true },
+  });
+  if (!version) throw new OperationalCommandError(404, "Версия договора не найдена для обновления кейса");
+  await advanceMemberCaseAfterCommit(context, version.caseId, causationId, meta);
+}
+
+async function advanceObligationCaseAfterCommit(
+  context: OperationalContext,
+  obligationId: string,
+  causationId: string,
+  meta: M3CommandMeta,
+): Promise<void> {
+  const obligation = await prisma.paymentObligation.findFirst({
+    where: { id: obligationId, organizationId: context.organizationId },
+    select: { caseId: true },
+  });
+  if (!obligation) throw new OperationalCommandError(404, "Обязательство не найдено для обновления кейса");
+  await advanceMemberCaseAfterCommit(context, obligation.caseId, causationId, meta);
+}
+
+async function advanceLedgerEntryCaseAfterCommit(
+  context: OperationalContext,
+  ledgerEntryId: string,
+  causationId: string,
+  meta: M3CommandMeta,
+): Promise<void> {
+  const entry = await prisma.paymentLedgerEntry.findFirst({
+    where: { id: ledgerEntryId, organizationId: context.organizationId },
+    select: { caseId: true },
+  });
+  if (!entry) throw new OperationalCommandError(404, "Запись ledger не найдена для обновления кейса");
+  await advanceMemberCaseAfterCommit(context, entry.caseId, causationId, meta);
+}
+
+async function advanceMemberCaseAfterCommit(
+  context: OperationalContext,
+  caseId: string,
+  causationId: string,
+  meta: M3CommandMeta,
+): Promise<void> {
+  await advanceCaseFulfilment({
+    organizationId: context.organizationId,
+    caseId,
+    actorAgentId: context.agentId,
+    actorMembershipId: context.membershipId,
+    idempotencyKey: meta.idempotencyKey,
+    correlationId: meta.correlationId,
+    causationId,
+  });
+}
+
+async function advanceWebhookCaseAfterCommit(
+  provider: string,
+  command: PaymentWebhookCommand,
+  causationId: string,
+): Promise<void> {
+  const owner = await prisma.case.findFirst({
+    where: { id: command.caseId, tenantId: command.organizationId },
+    select: {
+      ownerId: true,
+      owner: { select: { membership: { select: { id: true } } } },
+    },
+  });
+  if (!owner?.owner.membership) {
+    throw new OperationalCommandError(409, "У кейса нет владельца для канонического перехода");
+  }
+  await advanceCaseFulfilment({
+    organizationId: command.organizationId,
+    caseId: command.caseId,
+    actorAgentId: owner.ownerId,
+    actorMembershipId: owner.owner.membership.id,
+    actorType: "payment-provider",
+    idempotencyKey: `webhook:${provider}:${command.externalEventId}`,
+    correlationId: command.externalEventId,
+    causationId,
+  });
 }
 
 async function authorizeLedgerInsert(

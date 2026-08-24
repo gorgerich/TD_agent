@@ -522,6 +522,19 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-evidence-reference" },
     signaturePolicyVersion: signingPolicyVersion,
   }, meta("contract-sign"));
+  const signedReplay = await signContractVersion(agent.context, {
+    contractVersionId: contract.contractVersionId,
+    signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-evidence-reference" },
+    signaturePolicyVersion: signingPolicyVersion,
+  }, meta("contract-sign"));
+  assert.equal(signedReplay.replayed, true);
+  assert.equal(signedReplay.contractVersionId, signed.contractVersionId);
+  assert.equal(signedReplay.obligationId, signed.obligationId);
+  assert.equal(signedReplay.ledgerEntryId, signed.ledgerEntryId);
+  assert.equal(await db.paymentObligation.count({ where: { contractVersionId: contract.contractVersionId } }), 1);
+  assert.equal(await db.paymentLedgerEntry.count({
+    where: { obligationId: signed.obligationId, type: "OBLIGATION" },
+  }), 1);
   await db.contractSigningPolicy.update({
     where: {
       organizationId_version: {
