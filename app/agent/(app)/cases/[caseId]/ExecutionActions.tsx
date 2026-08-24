@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle, LockSimple } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 
 export function ExecutionActions({
   caseId,
@@ -16,10 +17,15 @@ export function ExecutionActions({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const commandIdentity = useRef<ClientCommandIdentity | null>(null);
   const closing = executionConfirmed;
 
   async function submit() {
-    const commandId = crypto.randomUUID();
+    const body = closing
+      ? { eventType: "case.closure_requested.v1", payload: {} }
+      : { eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } };
+    const serializedBody = JSON.stringify(body);
+    const commandId = commandIdFor(commandIdentity, serializedBody);
     setBusy(true);
     setError(null);
     try {
@@ -30,12 +36,11 @@ export function ExecutionActions({
           "Idempotency-Key": `execution:${commandId}`,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify(closing
-          ? { eventType: "case.closure_requested.v1", payload: {} }
-          : { eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } }),
+        body: serializedBody,
       });
       const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(result?.error || "Команда исполнения не выполнена");
+      clearCommandId(commandIdentity);
       setConfirming(false);
       router.refresh();
     } catch (cause) {
@@ -50,7 +55,7 @@ export function ExecutionActions({
       <button
         type="button"
         className={buttonClasses({ size: "sm" })}
-        onClick={() => setConfirming(true)}
+        onClick={() => { clearCommandId(commandIdentity); setConfirming(true); }}
       >
         {closing ? <LockSimple size={15} weight="bold" /> : <CheckCircle size={15} weight="bold" />}
         {closing ? "Закрыть кейс" : "Подтвердить исполнение"}
@@ -77,7 +82,7 @@ export function ExecutionActions({
         <button
           type="button"
           className={buttonClasses({ variant: "ghost", size: "sm" })}
-          onClick={() => setConfirming(false)}
+          onClick={() => { clearCommandId(commandIdentity); setConfirming(false); }}
           disabled={busy}
         >
           Отмена

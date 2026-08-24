@@ -28,12 +28,20 @@ export async function advanceCaseFulfilment(
     } catch (error) {
       if (!(error instanceof FulfilmentProjectionBusyError)) throw error;
       if (attempt === maxAttempts) {
-        throw new OperationalCommandError(409, "Проекция кейса занята параллельной командой. Повторите действие.");
+        throw new OperationalCommandError(
+          503,
+          "Команда сохранена, но синхронизация кейса ещё выполняется. Повторите то же действие.",
+          "CASE_PROJECTION_RETRY",
+        );
       }
       await backoffBeforeRetry(attempt);
     }
   }
-  throw new OperationalCommandError(409, "Проекция кейса не выполнена после повторных попыток.");
+  throw new OperationalCommandError(
+    503,
+    "Команда сохранена, но синхронизация кейса ещё выполняется. Повторите то же действие.",
+    "CASE_PROJECTION_RETRY",
+  );
 }
 
 class FulfilmentProjectionBusyError extends Error {}

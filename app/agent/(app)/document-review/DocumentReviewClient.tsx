@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowSquareOut, Check, FileMagnifyingGlass, Warning, X } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
 
 type QueueItem = {
   id: string;
@@ -47,6 +48,7 @@ export function DocumentReviewClient({
   const viewerDialogRef = useRef<HTMLDivElement>(null);
   const viewerCloseRef = useRef<HTMLButtonElement>(null);
   const viewerReturnFocusRef = useRef<HTMLElement | null>(null);
+  const commandIdentity = useRef<ClientCommandIdentity | null>(null);
   const rows = useMemo(() => initial.filter((item) => {
     if (filter === "available") return item.status === "UPLOADED" && item.assignedReviewerMembershipId == null;
     if (filter === "mine") return item.assignedReviewerMembershipId === membershipId;
@@ -94,7 +96,8 @@ export function DocumentReviewClient({
   }, [viewer]);
 
   async function command(path: string, body?: unknown) {
-    const commandId = crypto.randomUUID();
+    const serializedBody = body === undefined ? "" : JSON.stringify(body);
+    const commandId = commandIdFor(commandIdentity, `${path}\n${serializedBody}`);
     const response = await fetch(path, {
       method: "POST",
       headers: {
@@ -102,10 +105,11 @@ export function DocumentReviewClient({
         "Idempotency-Key": `document-review:${commandId}`,
         "X-Correlation-Id": commandId,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : serializedBody,
     });
     const result = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) throw new Error(result?.error || "Команда проверки не выполнена");
+    clearCommandId(commandIdentity);
   }
 
   async function start(item: QueueItem) {
@@ -254,10 +258,10 @@ export function DocumentReviewClient({
                           <Button type="button" size="sm" onClick={() => decide(item, "VERIFIED")} disabled={!checklistComplete} loading={busyId === item.id}>
                             <Check size={14} weight="bold" /> Проверено
                           </Button>
-                          <button type="button" onClick={() => { setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
+                          <button type="button" onClick={() => { clearCommandId(commandIdentity); setReason(""); setEscalatingId(null); setRejectingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={rejectingId === item.id}>
                             <X size={14} weight="bold" /> Отклонить
                           </button>
-                          <button type="button" onClick={() => { setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
+                          <button type="button" onClick={() => { clearCommandId(commandIdentity); setReason(""); setRejectingId(null); setEscalatingId(item.id); }} className={buttonClasses({ variant: "secondary", size: "sm" })} aria-expanded={escalatingId === item.id}>
                             <Warning size={14} weight="bold" /> Эскалировать
                           </button>
                         </>
@@ -271,7 +275,7 @@ export function DocumentReviewClient({
                         <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { setRejectingId(null); setReason(""); }}>Отмена</button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setRejectingId(null); setReason(""); }}>Отмена</button>
                         <Button type="button" size="sm" onClick={() => decide(item, "REJECTED")} disabled={reason.trim().length < 3} loading={busyId === item.id}>Сохранить решение</Button>
                       </div>
                     </div>
@@ -283,7 +287,7 @@ export function DocumentReviewClient({
                         <textarea className="td-field min-h-20 resize-y" value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={500} />
                       </label>
                       <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { setEscalatingId(null); setReason(""); }}>Отмена</button>
+                        <button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={() => { clearCommandId(commandIdentity); setEscalatingId(null); setReason(""); }}>Отмена</button>
                         <Button type="button" size="sm" onClick={() => escalate(item)} disabled={reason.trim().length < 3} loading={busyId === item.id}>Передать владельцу кейса</Button>
                       </div>
                     </div>

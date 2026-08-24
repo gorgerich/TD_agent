@@ -138,7 +138,13 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
   }
 
   if (err instanceof OperationalCommandError) {
-    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    return NextResponse.json(
+      { error: err.message, code: err.code },
+      {
+        status: err.status,
+        headers: err.code === "CASE_PROJECTION_RETRY" ? { "Retry-After": "2" } : undefined,
+      },
+    );
   }
 
   if (err instanceof CommercialQuoteError) {

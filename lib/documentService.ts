@@ -15,7 +15,7 @@ import {
   type M3CommandMeta,
   validateM3CommandMeta,
 } from "@/lib/m3Command";
-import { advanceCaseFulfilmentInTransaction } from "@/lib/caseFulfilment";
+import { advanceCaseFulfilment } from "@/lib/caseFulfilment";
 import { refreshCaseRequirementApplicabilityInTransaction } from "@/lib/documentRequirementService";
 
 const MAX_ABSOLUTE_BYTES = 10 * 1024 * 1024;
@@ -307,6 +307,9 @@ export async function decideDocumentReview(
       fingerprint,
     );
     if (!data) throw new OperationalCommandError(409, "Idempotency result решения повреждён");
+    if (data.decision === "VERIFIED") {
+      await advanceVerifiedDocumentCaseAfterCommit(context, data.versionId, meta);
+    }
     return { ...data, replayed: true };
   }
 
@@ -327,7 +330,7 @@ export async function decideDocumentReview(
     await readVerifiedStorageObject(storage, verifiedStorageIdentity);
   }
 
-  return runOperationalTransaction(async (tx) => {
+  const committed = await runOperationalTransaction(async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
       const data = readReplayResult<{ versionId: string; decision: "VERIFIED" | "REJECTED" }>(replay.result, fingerprint);
@@ -445,18 +448,32 @@ export async function decideDocumentReview(
         data: { versionId: version.id, decision: input.decision },
       }),
     });
-    if (input.decision === "VERIFIED") {
-      await advanceCaseFulfilmentInTransaction(tx, {
-        organizationId: context.organizationId,
-        caseId: version.caseId,
-        actorAgentId: context.agentId,
-        actorMembershipId: context.membershipId,
-        idempotencyKey: meta.idempotencyKey,
-        correlationId: meta.correlationId,
-        causationId: version.id,
-      });
-    }
     return { versionId: version.id, decision: input.decision, replayed: false };
+  });
+  if (committed.decision === "VERIFIED") {
+    await advanceVerifiedDocumentCaseAfterCommit(context, committed.versionId, meta);
+  }
+  return committed;
+}
+
+async function advanceVerifiedDocumentCaseAfterCommit(
+  context: OperationalContext,
+  versionId: string,
+  meta: M3CommandMeta,
+): Promise<void> {
+  const version = await prisma.caseDocumentVersion.findFirst({
+    where: { id: versionId, organizationId: context.organizationId },
+    select: { caseId: true },
+  });
+  if (!version) throw new OperationalCommandError(404, "Версия документа не найдена для обновления кейса");
+  await advanceCaseFulfilment({
+    organizationId: context.organizationId,
+    caseId: version.caseId,
+    actorAgentId: context.agentId,
+    actorMembershipId: context.membershipId,
+    idempotencyKey: meta.idempotencyKey,
+    correlationId: meta.correlationId,
+    causationId: versionId,
   });
 }
 
