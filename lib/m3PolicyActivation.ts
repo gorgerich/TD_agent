@@ -8,10 +8,61 @@ import {
   materializeCaseRequirementsInTransaction,
 } from "@/lib/documentRequirementService";
 
+const RELEASE_DEPLOYMENT_ID = z.string().regex(/^dpl_[A-Za-z0-9]{8,}$/);
+const IMPLEMENTATION_SHA = z.string().regex(/^[0-9a-f]{40}$/);
+
+export const M3_HUMAN_ATTESTATION_CHECKLISTS = {
+  finance: [
+    "entry-policy",
+    "manual-evidence",
+    "four-eyes-threshold",
+    "accounting-formulas",
+    "export-scope",
+    "reconciliation",
+  ],
+  legalPrivacy: [
+    "legal-basis-consent",
+    "retention-rights",
+    "signing-boundary",
+    "access-visibility",
+    "metadata-minimization",
+    "special-category",
+  ],
+  ritualSme: [
+    "cremation-requirements",
+    "family-plot-requirements",
+    "accepted-document-types",
+    "stage-blockers",
+    "ownership-due-rules",
+    "rejection-replacement-flow",
+  ],
+} as const;
+
 const Attestation = z.object({
   verdict: z.literal("PASS"),
+  reviewer: z.object({
+    name: z.string().trim().min(3).max(160),
+    role: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
+  }).strict(),
   source: z.string().trim().min(3).max(500),
   date: z.iso.datetime(),
+  reviewedDeploymentId: RELEASE_DEPLOYMENT_ID,
+  reviewedImplementationSha: IMPLEMENTATION_SHA,
+  checklistAnswers: z.array(z.object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
+    verdict: z.literal("PASS"),
+    notes: z.string().trim().min(3).max(1_000),
+  }).strict()).length(6),
+  scenarioResults: z.object({
+    cremation: z.object({
+      verdict: z.literal("PASS"),
+      notes: z.string().trim().min(3).max(1_000),
+    }).strict(),
+    familyPlotBurial: z.object({
+      verdict: z.literal("PASS"),
+      notes: z.string().trim().min(3).max(1_000),
+    }).strict(),
+  }).strict(),
 }).strict();
 
 const Rule = z.object({
@@ -28,7 +79,11 @@ const Rule = z.object({
 }).strict();
 
 const BundleSchema = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
+  releaseCandidate: z.object({
+    deploymentId: RELEASE_DEPLOYMENT_ID,
+    implementationSha: IMPLEMENTATION_SHA,
+  }).strict(),
   organizationId: z.string().trim().min(1).max(200),
   approvedByUserId: z.number().int().positive(),
   approvedAt: z.iso.datetime(),
@@ -69,6 +124,7 @@ export type M3ApprovedPolicyBundle = z.infer<typeof BundleSchema>;
 
 export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBundle {
   const bundle = BundleSchema.parse(value);
+  assertAttestationContract(bundle);
   const scenarios = new Set(bundle.documentPolicies.map((policy) => policy.scenario));
   if (scenarios.size !== 2 || !scenarios.has("CREMATION_V1") || !scenarios.has("FAMILY_PLOT_BURIAL_V1")) {
     throw new Error("Approved bundle must contain exactly both M3 pilot scenarios");
@@ -274,11 +330,15 @@ export async function applyM3ApprovedPolicyBundle(
     metadata: {
       bundleFingerprint: fingerprint,
       schemaVersion: bundle.schemaVersion,
+      releaseDeploymentId: bundle.releaseCandidate.deploymentId,
+      releaseImplementationSha: bundle.releaseCandidate.implementationSha,
       policyCount: bundle.documentPolicies.length + 2,
       typeCount: bundle.documentTypes.length,
-      financeVerdict: bundle.attestations.finance.verdict,
-      legalPrivacyVerdict: bundle.attestations.legalPrivacy.verdict,
-      ritualSmeVerdict: bundle.attestations.ritualSme.verdict,
+      attestations: {
+        finance: attestationAuditSummary(bundle.attestations.finance),
+        legalPrivacy: attestationAuditSummary(bundle.attestations.legalPrivacy),
+        ritualSme: attestationAuditSummary(bundle.attestations.ritualSme),
+      },
       effectiveFrom: bundle.effectiveFrom,
     },
   });
@@ -392,4 +452,53 @@ function metadataFingerprint(value: Prisma.JsonValue | null | undefined): string
 
 function assertUnique(values: string[], label: string) {
   if (new Set(values).size !== values.length) throw new Error(`Duplicate ${label} in approved bundle`);
+}
+
+function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
+  const contracts = [
+    ["finance", "FINANCE_ACCOUNTING", M3_HUMAN_ATTESTATION_CHECKLISTS.finance],
+    ["legalPrivacy", "LEGAL_PRIVACY", M3_HUMAN_ATTESTATION_CHECKLISTS.legalPrivacy],
+    ["ritualSme", "RITUAL_OPERATIONS_SME", M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme],
+  ] as const;
+  const approvedAt = new Date(bundle.approvedAt).getTime();
+  for (const [key, reviewerRole, requiredChecklist] of contracts) {
+    const attestation = bundle.attestations[key];
+    if (attestation.reviewer.role !== reviewerRole) {
+      throw new Error(`${key} attestation reviewer role must be ${reviewerRole}`);
+    }
+    if (
+      attestation.reviewedDeploymentId !== bundle.releaseCandidate.deploymentId
+      || attestation.reviewedImplementationSha !== bundle.releaseCandidate.implementationSha
+    ) {
+      throw new Error(`${key} attestation must match the exact reviewed release candidate`);
+    }
+    if (new Date(attestation.date).getTime() > approvedAt) {
+      throw new Error(`${key} attestation cannot postdate policy approval`);
+    }
+    const answerIds = attestation.checklistAnswers.map((answer) => answer.id);
+    assertUnique(answerIds, `${key} attestation checklist answer`);
+    const actual = [...answerIds].sort();
+    const expected = [...requiredChecklist].sort();
+    if (actual.length !== expected.length || actual.some((id, index) => id !== expected[index])) {
+      throw new Error(`${key} attestation must answer the exact required M3 checklist`);
+    }
+  }
+}
+
+function attestationAuditSummary(attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]]) {
+  return {
+    verdict: attestation.verdict,
+    reviewerName: attestation.reviewer.name,
+    reviewerRole: attestation.reviewer.role,
+    reviewedAt: attestation.date,
+    reviewedDeploymentId: attestation.reviewedDeploymentId,
+    reviewedImplementationSha: attestation.reviewedImplementationSha,
+    checklistResults: attestation.checklistAnswers.map(({ id, verdict }) => ({ id, verdict })),
+    scenarioResults: {
+      cremation: attestation.scenarioResults.cremation.verdict,
+      burial: attestation.scenarioResults.familyPlotBurial.verdict,
+    },
+    sourceFingerprint: commandFingerprint(attestation.source),
+    attestationFingerprint: commandFingerprint(attestation),
+  };
 }

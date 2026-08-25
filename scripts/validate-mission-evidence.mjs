@@ -14,8 +14,9 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
   // A mission already marked RELEASED is a historical record. Re-validating it would make
   // an unrelated change to today's mission fail on a frozen artifact that nobody may edit.
   const missionYamlPath = path.join(missionDir, "mission.yaml");
-  const missionState = fs.existsSync(missionYamlPath)
-    ? (/^state:\s*(\S+)\s*$/m.exec(fs.readFileSync(missionYamlPath, "utf8"))?.[1] ?? "")
+  const missionText = fs.existsSync(missionYamlPath) ? fs.readFileSync(missionYamlPath, "utf8") : "";
+  const missionState = missionText
+    ? (/^state:\s*(\S+)\s*$/m.exec(missionText)?.[1] ?? "")
     : "";
   const KNOWN_STATES = new Set([
     "PLANNED",
@@ -39,9 +40,22 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
   const requiresSourceParity = missionState !== ""
     && !released
     && (requiresTerminalEvidence || missionState !== "MISSION_RELEASE_READY");
-  for (const required of ["mission.yaml", "implementation.md", "test-results.json", "acceptance.json", "migration.md", "security.md", "ux-uat.md", "review.md", "release.md"]) {
+  const requiredFiles = [
+    "mission.yaml",
+    "implementation.md",
+    "test-results.json",
+    "acceptance.json",
+    "migration.md",
+    "security.md",
+    "ux-uat.md",
+    "review.md",
+    "release.md",
+    ...(directory.name === "M3" ? ["finance.md", "privacy.md", "ritual-rules.md"] : []),
+  ];
+  for (const required of requiredFiles) {
     if (!fs.existsSync(path.join(missionDir, required))) errors.push(`${directory.name}: missing ${required}`);
   }
+  if (directory.name === "M3") validateM3HumanReleaseBoundary(missionText, missionState, errors);
   for (const jsonName of ["test-results.json", "acceptance.json"]) {
     const jsonPath = path.join(missionDir, jsonName);
     if (!fs.existsSync(jsonPath)) continue;
@@ -86,6 +100,58 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
       }
     }
   }
+}
+
+function validateM3HumanReleaseBoundary(missionText, missionState, target) {
+  const gates = {
+    finance: missionScalar(missionText, "finance_accounting"),
+    legalPrivacy: missionScalar(missionText, "legal_privacy"),
+    ritualSme: missionScalar(missionText, "ritual_operations_sme"),
+  };
+  const releaseAuthorized = missionScalar(missionText, "production_release_authorized");
+  const productionRelease = missionScalar(missionText, "production_release");
+  const requireAllGates = (expected) => {
+    for (const [gate, actual] of Object.entries(gates)) {
+      if (actual !== expected) target.push(`M3: ${gate} human gate must equal ${expected}`);
+    }
+  };
+
+  if (missionState === "BLOCKED_HUMAN_JUDGMENT") {
+    requireAllGates("AWAITING_HUMAN_VERDICT");
+    if (releaseAuthorized !== "false") {
+      target.push("M3: BLOCKED_HUMAN_JUDGMENT requires production_release_authorized=false");
+    }
+    if (productionRelease !== "NOT_PERFORMED") {
+      target.push("M3: BLOCKED_HUMAN_JUDGMENT requires production_release=NOT_PERFORMED");
+    }
+    return;
+  }
+
+  if (missionState === "MISSION_RELEASE_READY") {
+    requireAllGates("PASS");
+    if (releaseAuthorized !== "false") {
+      target.push("M3: MISSION_RELEASE_READY requires production_release_authorized=false");
+    }
+    if (productionRelease !== "NOT_PERFORMED") {
+      target.push("M3: MISSION_RELEASE_READY requires production_release=NOT_PERFORMED");
+    }
+    return;
+  }
+
+  if (missionState === "RELEASED") {
+    requireAllGates("PASS");
+    if (releaseAuthorized !== "true") {
+      target.push("M3: RELEASED requires production_release_authorized=true");
+    }
+    if (productionRelease !== "RELEASED") {
+      target.push("M3: RELEASED requires production_release=RELEASED");
+    }
+  }
+}
+
+function missionScalar(text, key) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^\\s*${escaped}:\\s*(\\S+)\\s*$`, "m").exec(text)?.[1] ?? "";
 }
 
 /** Every value under a `status`/`state` key, at any depth. */

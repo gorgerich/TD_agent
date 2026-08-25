@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
 import { POST as login } from "../../app/api/agent/auth/login/route";
 import {
+  M3_HUMAN_ATTESTATION_CHECKLISTS,
   activateM3ApprovedPoliciesAndMaterializeExistingCases,
   applyM3ApprovedPolicyBundle,
   parseM3ApprovedPolicyBundle,
@@ -48,6 +49,21 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       assert.equal(await tx.platformAuditEvent.count({
         where: { actorUserId: approver.id, action: "M3_POLICIES_ACTIVATED" },
       }), 1);
+      const activationAudit = await tx.platformAuditEvent.findFirstOrThrow({
+        where: {
+          actorUserId: approver.id,
+          action: "M3_POLICIES_ACTIVATED",
+          targetId: organizationId,
+        },
+        select: { metadata: true },
+      });
+      const auditMetadata = activationAudit.metadata as Record<string, unknown>;
+      assert.equal(auditMetadata.releaseDeploymentId, firstBundle.releaseCandidate.deploymentId);
+      assert.equal(auditMetadata.releaseImplementationSha, firstBundle.releaseCandidate.implementationSha);
+      assert.equal(JSON.stringify(auditMetadata).includes("Synthetic checklist result"), false);
+      assert.equal(JSON.stringify(auditMetadata).includes("Synthetic human verdict fixture"), false);
+      assert.match(JSON.stringify(auditMetadata), /FINANCE_ACCOUNTING/);
+      assert.match(JSON.stringify(auditMetadata), /entry-policy/);
       assert.equal(await tx.contractSigningPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
       assert.equal(await tx.financialControlPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
 
@@ -264,10 +280,9 @@ function baselinePolicyBundle(
   organizationId: string,
   approvedByUserId: number,
 ): M3ApprovedPolicyBundle {
-  const attestation = {
-    verdict: "PASS" as const,
-    source: "Synthetic human verdict fixture",
-    date: "2026-08-13T09:00:00.000Z",
+  const releaseCandidate = {
+    deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
+    implementationSha: "a".repeat(40),
   };
   const typeCodes = {
     identity: "M3_IT_IDENTITY_V1",
@@ -277,12 +292,29 @@ function baselinePolicyBundle(
     relationship: "M3_IT_RELATIONSHIP_V1",
   };
   return parseM3ApprovedPolicyBundle({
-    schemaVersion: 1,
+    schemaVersion: 2,
+    releaseCandidate,
     organizationId,
     approvedByUserId,
     approvedAt: "2026-08-11T00:00:00.000Z",
     effectiveFrom: "2026-08-11T00:00:00.000Z",
-    attestations: { finance: attestation, legalPrivacy: attestation, ritualSme: attestation },
+    attestations: {
+      finance: humanAttestation(
+        "FINANCE_ACCOUNTING",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.finance,
+        releaseCandidate,
+      ),
+      legalPrivacy: humanAttestation(
+        "LEGAL_PRIVACY",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.legalPrivacy,
+        releaseCandidate,
+      ),
+      ritualSme: humanAttestation(
+        "RITUAL_OPERATIONS_SME",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme,
+        releaseCandidate,
+      ),
+    },
     documentTypes: [
       {
         code: typeCodes.identity,
@@ -340,6 +372,30 @@ function baselinePolicyBundle(
       source: "Synthetic finance policy",
     },
   });
+}
+
+function humanAttestation(
+  role: "FINANCE_ACCOUNTING" | "LEGAL_PRIVACY" | "RITUAL_OPERATIONS_SME",
+  checklistIds: readonly string[],
+  releaseCandidate: { deploymentId: string; implementationSha: string },
+) {
+  return {
+    verdict: "PASS" as const,
+    reviewer: { name: `Synthetic ${role} reviewer`, role },
+    source: "Synthetic human verdict fixture",
+    date: "2026-08-10T23:00:00.000Z",
+    reviewedDeploymentId: releaseCandidate.deploymentId,
+    reviewedImplementationSha: releaseCandidate.implementationSha,
+    checklistAnswers: checklistIds.map((id) => ({
+      id,
+      verdict: "PASS" as const,
+      notes: "Synthetic checklist result",
+    })),
+    scenarioResults: {
+      cremation: { verdict: "PASS" as const, notes: "Synthetic cremation result" },
+      familyPlotBurial: { verdict: "PASS" as const, notes: "Synthetic burial result" },
+    },
+  };
 }
 
 function documentType(code: string, name: string) {

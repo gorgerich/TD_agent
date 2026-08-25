@@ -13,7 +13,10 @@ import {
   type LedgerProjectionEntry,
 } from "../lib/m3Domain";
 import { getDocumentScanner } from "../lib/documentScanner";
-import { parseM3ApprovedPolicyBundle } from "../lib/m3PolicyActivation";
+import {
+  M3_HUMAN_ATTESTATION_CHECKLISTS,
+  parseM3ApprovedPolicyBundle,
+} from "../lib/m3PolicyActivation";
 
 test("M3-W7: an uploaded or quarantined file never satisfies a requirement", () => {
   const uploaded = evaluateDocumentRequirement([
@@ -299,6 +302,45 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      finance: { ...bundle.attestations.finance, reviewedImplementationSha: "b".repeat(40) },
+    },
+  }), /exact reviewed release candidate/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      legalPrivacy: {
+        ...bundle.attestations.legalPrivacy,
+        reviewer: { ...bundle.attestations.legalPrivacy.reviewer, role: "FINANCE_ACCOUNTING" },
+      },
+    },
+  }), /reviewer role must be LEGAL_PRIVACY/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      ritualSme: {
+        ...bundle.attestations.ritualSme,
+        checklistAnswers: bundle.attestations.ritualSme.checklistAnswers.map((answer, index) => (
+          index === 0 ? { ...answer, id: "unapproved-check" } : answer
+        )),
+      },
+    },
+  }), /exact required M3 checklist/);
+
+  const incompleteFinance: Record<string, unknown> = { ...bundle.attestations.finance };
+  delete incompleteFinance.scenarioResults;
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: { ...bundle.attestations, finance: incompleteFinance },
+  }), /Invalid input/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
     documentPolicies: bundle.documentPolicies.map((policy) => ({
       ...policy,
       rules: [bundle.documentPolicies[0]!.rules[0]],
@@ -323,10 +365,9 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
 });
 
 function validPolicyBundle() {
-  const attestation = {
-    verdict: "PASS" as const,
-    source: "Synthetic human-verdict fixture",
-    date: "2026-08-13T09:00:00.000Z",
+  const releaseCandidate = {
+    deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
+    implementationSha: "a".repeat(40),
   };
   const commonRule = {
     kind: "REQUIRED" as const,
@@ -339,12 +380,29 @@ function validPolicyBundle() {
     source: "Synthetic ritual fixture",
   };
   return {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
+    releaseCandidate,
     organizationId: "synthetic-org",
     approvedByUserId: 1,
     approvedAt: "2026-08-13T09:00:00.000Z",
     effectiveFrom: "2026-08-13T10:00:00.000Z",
-    attestations: { finance: attestation, legalPrivacy: attestation, ritualSme: attestation },
+    attestations: {
+      finance: humanAttestation(
+        "FINANCE_ACCOUNTING",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.finance,
+        releaseCandidate,
+      ),
+      legalPrivacy: humanAttestation(
+        "LEGAL_PRIVACY",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.legalPrivacy,
+        releaseCandidate,
+      ),
+      ritualSme: humanAttestation(
+        "RITUAL_OPERATIONS_SME",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme,
+        releaseCandidate,
+      ),
+    },
     documentTypes: [
       {
         code: "APPLICANT_IDENTITY",
@@ -396,6 +454,30 @@ function validPolicyBundle() {
       version: 1,
       correctionThresholdKopecks: 10_000,
       source: "Synthetic finance fixture",
+    },
+  };
+}
+
+function humanAttestation(
+  role: "FINANCE_ACCOUNTING" | "LEGAL_PRIVACY" | "RITUAL_OPERATIONS_SME",
+  checklistIds: readonly string[],
+  releaseCandidate: { deploymentId: string; implementationSha: string },
+) {
+  return {
+    verdict: "PASS" as const,
+    reviewer: { name: `Synthetic ${role} reviewer`, role },
+    source: "Synthetic human-verdict fixture",
+    date: "2026-08-13T09:00:00.000Z",
+    reviewedDeploymentId: releaseCandidate.deploymentId,
+    reviewedImplementationSha: releaseCandidate.implementationSha,
+    checklistAnswers: checklistIds.map((id) => ({
+      id,
+      verdict: "PASS" as const,
+      notes: "Synthetic checklist result",
+    })),
+    scenarioResults: {
+      cremation: { verdict: "PASS" as const, notes: "Synthetic cremation result" },
+      familyPlotBurial: { verdict: "PASS" as const, notes: "Synthetic burial result" },
     },
   };
 }
