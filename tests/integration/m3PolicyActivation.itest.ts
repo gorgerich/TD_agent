@@ -6,6 +6,8 @@ import {
   M3_HUMAN_ATTESTATION_CHECKLISTS,
   activateM3ApprovedPoliciesAndMaterializeExistingCases,
   applyM3ApprovedPolicyBundle,
+  m3AttestationFingerprint,
+  m3PolicyBundleFingerprint,
   parseM3ApprovedPolicyBundle,
   type M3ApprovedPolicyBundle,
 } from "../../lib/m3PolicyActivation";
@@ -41,8 +43,8 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
     await assert.rejects(db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
       const firstBundle = baselinePolicyBundle(organizationId, approver.id);
-      const first = await applyM3ApprovedPolicyBundle(tx, firstBundle);
-      const replay = await applyM3ApprovedPolicyBundle(tx, firstBundle);
+      const first = await applyM3ApprovedPolicyBundle(tx, firstBundle, approvalExpectation(firstBundle));
+      const replay = await applyM3ApprovedPolicyBundle(tx, firstBundle, approvalExpectation(firstBundle));
       assert.equal(first.replayed, false);
       assert.equal(replay.replayed, true);
       assert.equal(replay.bundleFingerprint, first.bundleFingerprint);
@@ -60,6 +62,7 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       const auditMetadata = activationAudit.metadata as Record<string, unknown>;
       assert.equal(auditMetadata.releaseDeploymentId, firstBundle.releaseCandidate.deploymentId);
       assert.equal(auditMetadata.releaseImplementationSha, firstBundle.releaseCandidate.implementationSha);
+      assert.equal(auditMetadata.releaseDatabaseFingerprint, firstBundle.releaseCandidate.databaseFingerprint);
       assert.equal(JSON.stringify(auditMetadata).includes("Synthetic checklist result"), false);
       assert.equal(JSON.stringify(auditMetadata).includes("Synthetic human verdict fixture"), false);
       assert.match(JSON.stringify(auditMetadata), /FINANCE_ACCOUNTING/);
@@ -67,7 +70,8 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       assert.equal(await tx.contractSigningPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
       assert.equal(await tx.financialControlPolicy.count({ where: { organizationId, status: "APPROVED" } }), 1);
 
-      const other = await applyM3ApprovedPolicyBundle(tx, baselinePolicyBundle(otherOrganizationId, approver.id));
+      const otherBundle = baselinePolicyBundle(otherOrganizationId, approver.id);
+      const other = await applyM3ApprovedPolicyBundle(tx, otherBundle, approvalExpectation(otherBundle));
       assert.equal(other.replayed, false);
       assert.equal(await tx.documentRequirementPolicy.count({
         where: { organizationId, status: "APPROVED", retiredAt: null },
@@ -82,10 +86,14 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
         where: { organizationId: otherOrganizationId, status: "APPROVED" },
       }), 5);
 
-      await assert.rejects(applyM3ApprovedPolicyBundle(tx, {
+      const conflictingBundle = {
         ...firstBundle,
         signingPolicy: { ...firstBundle.signingPolicy, source: "Conflicting signed policy content" },
-      }), /conflicts with approved bundle/);
+      };
+      await assert.rejects(
+        applyM3ApprovedPolicyBundle(tx, conflictingBundle, approvalExpectation(conflictingBundle)),
+        /conflicts with approved bundle/,
+      );
       assert.equal(await tx.platformAuditEvent.count({
         where: {
           actorUserId: approver.id,
@@ -119,7 +127,11 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
       const bundle = baselinePolicyBundle(organizationId, approver.id);
       const first = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
-        tx, bundle, "synthetic-policy-run-0001", new Date("2026-08-13T10:00:00.000Z"),
+        tx,
+        bundle,
+        approvalExpectation(bundle),
+        "synthetic-policy-run-0001",
+        new Date("2026-08-13T10:00:00.000Z"),
       );
       assert.deepEqual(first.materialization, {
         casesExamined: 1,
@@ -131,7 +143,11 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       });
       assert.equal(await tx.caseDocumentRequirement.count({ where: { caseId: existingCase.id } }), 3);
       const replay = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
-        tx, bundle, "synthetic-policy-run-0002", new Date("2026-08-13T10:00:00.000Z"),
+        tx,
+        bundle,
+        approvalExpectation(bundle),
+        "synthetic-policy-run-0002",
+        new Date("2026-08-13T10:00:00.000Z"),
       );
       assert.equal(replay.replayed, true);
       assert.equal(replay.materialization.requirementsCreated, 0);
@@ -160,7 +176,11 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
         },
       });
       const upgrade = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
-        tx, upgradedBundle, "synthetic-policy-run-0003", new Date("2026-08-13T11:00:01.000Z"),
+        tx,
+        upgradedBundle,
+        approvalExpectation(upgradedBundle),
+        "synthetic-policy-run-0003",
+        new Date("2026-08-13T11:00:01.000Z"),
       );
       assert.deepEqual(upgrade.materialization, {
         casesExamined: 2,
@@ -186,7 +206,11 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       )).ok, true);
 
       const upgradeReplay = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
-        tx, upgradedBundle, "synthetic-policy-run-0004", new Date("2026-08-13T11:00:01.000Z"),
+        tx,
+        upgradedBundle,
+        approvalExpectation(upgradedBundle),
+        "synthetic-policy-run-0004",
+        new Date("2026-08-13T11:00:01.000Z"),
       );
       assert.equal(upgradeReplay.replayed, true);
       assert.equal(upgradeReplay.materialization.casesMaterialized, 0);
@@ -281,8 +305,10 @@ function baselinePolicyBundle(
   approvedByUserId: number,
 ): M3ApprovedPolicyBundle {
   const releaseCandidate = {
+    previewUrl: "https://td-agent-synthetic-review.vercel.app/",
     deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
     implementationSha: "a".repeat(40),
+    databaseFingerprint: "1".repeat(16),
   };
   const typeCodes = {
     identity: "M3_IT_IDENTITY_V1",
@@ -292,7 +318,7 @@ function baselinePolicyBundle(
     relationship: "M3_IT_RELATIONSHIP_V1",
   };
   return parseM3ApprovedPolicyBundle({
-    schemaVersion: 2,
+    schemaVersion: 3,
     releaseCandidate,
     organizationId,
     approvedByUserId,
@@ -377,15 +403,28 @@ function baselinePolicyBundle(
 function humanAttestation(
   role: "FINANCE_ACCOUNTING" | "LEGAL_PRIVACY" | "RITUAL_OPERATIONS_SME",
   checklistIds: readonly string[],
-  releaseCandidate: { deploymentId: string; implementationSha: string },
+  releaseCandidate: {
+    previewUrl: string;
+    deploymentId: string;
+    implementationSha: string;
+    databaseFingerprint: string;
+  },
 ) {
   return {
     verdict: "PASS" as const,
-    reviewer: { name: `Synthetic ${role} reviewer`, role },
+    reviewer: {
+      id: `synthetic-${role.toLowerCase()}-reviewer`,
+      name: `Synthetic ${role} reviewer`,
+      role,
+      credentialReference: `synthetic-reviewer-registry:${role}`,
+      experienceYears: role === "RITUAL_OPERATIONS_SME" ? 10 : null,
+    },
     source: "Synthetic human verdict fixture",
     date: "2026-08-10T23:00:00.000Z",
+    reviewedPreviewUrl: releaseCandidate.previewUrl,
     reviewedDeploymentId: releaseCandidate.deploymentId,
     reviewedImplementationSha: releaseCandidate.implementationSha,
+    reviewedDatabaseFingerprint: releaseCandidate.databaseFingerprint,
     checklistAnswers: checklistIds.map((id) => ({
       id,
       verdict: "PASS" as const,
@@ -395,6 +434,19 @@ function humanAttestation(
       cremation: { verdict: "PASS" as const, notes: "Synthetic cremation result" },
       familyPlotBurial: { verdict: "PASS" as const, notes: "Synthetic burial result" },
     },
+  };
+}
+
+function approvalExpectation(bundle: M3ApprovedPolicyBundle) {
+  return {
+    previewUrl: bundle.releaseCandidate.previewUrl,
+    deploymentId: bundle.releaseCandidate.deploymentId,
+    implementationSha: bundle.releaseCandidate.implementationSha,
+    databaseFingerprint: bundle.releaseCandidate.databaseFingerprint,
+    bundleFingerprint: m3PolicyBundleFingerprint(bundle),
+    financeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.finance),
+    legalPrivacyAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.legalPrivacy),
+    ritualSmeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.ritualSme),
   };
 }
 

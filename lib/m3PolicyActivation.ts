@@ -10,6 +10,12 @@ import {
 
 const RELEASE_DEPLOYMENT_ID = z.string().regex(/^dpl_[A-Za-z0-9]{8,}$/);
 const IMPLEMENTATION_SHA = z.string().regex(/^[0-9a-f]{40}$/);
+const ATTESTATION_FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
+const DATABASE_FINGERPRINT = z.string().regex(/^[0-9a-f]{16}$/);
+const PREVIEW_URL = z.string().url().refine((value) => {
+  const url = new URL(value);
+  return url.protocol === "https:" && url.hostname.endsWith(".vercel.app") && url.pathname === "/";
+}, "Preview URL must be an exact HTTPS vercel.app origin");
 
 export const M3_HUMAN_ATTESTATION_CHECKLISTS = {
   finance: [
@@ -41,13 +47,18 @@ export const M3_HUMAN_ATTESTATION_CHECKLISTS = {
 const Attestation = z.object({
   verdict: z.literal("PASS"),
   reviewer: z.object({
+    id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
     name: z.string().trim().min(3).max(160),
     role: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
+    credentialReference: z.string().trim().min(3).max(240),
+    experienceYears: z.number().int().positive().max(80).nullable(),
   }).strict(),
   source: z.string().trim().min(3).max(500),
   date: z.iso.datetime(),
+  reviewedPreviewUrl: PREVIEW_URL,
   reviewedDeploymentId: RELEASE_DEPLOYMENT_ID,
   reviewedImplementationSha: IMPLEMENTATION_SHA,
+  reviewedDatabaseFingerprint: DATABASE_FINGERPRINT,
   checklistAnswers: z.array(z.object({
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
     verdict: z.literal("PASS"),
@@ -79,10 +90,12 @@ const Rule = z.object({
 }).strict();
 
 const BundleSchema = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   releaseCandidate: z.object({
+    previewUrl: PREVIEW_URL,
     deploymentId: RELEASE_DEPLOYMENT_ID,
     implementationSha: IMPLEMENTATION_SHA,
+    databaseFingerprint: DATABASE_FINGERPRINT,
   }).strict(),
   organizationId: z.string().trim().min(1).max(200),
   approvedByUserId: z.number().int().positive(),
@@ -120,7 +133,19 @@ const BundleSchema = z.object({
   }).strict(),
 }).strict();
 
+const ApprovalExpectationSchema = z.object({
+  previewUrl: PREVIEW_URL,
+  deploymentId: RELEASE_DEPLOYMENT_ID,
+  implementationSha: IMPLEMENTATION_SHA,
+  databaseFingerprint: DATABASE_FINGERPRINT,
+  bundleFingerprint: ATTESTATION_FINGERPRINT,
+  financeAttestationFingerprint: ATTESTATION_FINGERPRINT,
+  legalPrivacyAttestationFingerprint: ATTESTATION_FINGERPRINT,
+  ritualSmeAttestationFingerprint: ATTESTATION_FINGERPRINT,
+}).strict();
+
 export type M3ApprovedPolicyBundle = z.infer<typeof BundleSchema>;
+export type M3PolicyApprovalExpectation = z.infer<typeof ApprovalExpectationSchema>;
 
 export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBundle {
   const bundle = BundleSchema.parse(value);
@@ -153,10 +178,52 @@ export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBun
   return bundle;
 }
 
+export function m3AttestationFingerprint(
+  attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]],
+) {
+  return commandFingerprint(attestation);
+}
+
+export function m3PolicyBundleFingerprint(bundle: M3ApprovedPolicyBundle) {
+  return commandFingerprint(bundle);
+}
+
+export function assertExpectedM3PolicyApproval(
+  bundle: M3ApprovedPolicyBundle,
+  value: M3PolicyApprovalExpectation,
+) {
+  const expected = ApprovalExpectationSchema.parse(value);
+  if (
+    bundle.releaseCandidate.previewUrl !== expected.previewUrl
+    || bundle.releaseCandidate.deploymentId !== expected.deploymentId
+    || bundle.releaseCandidate.implementationSha !== expected.implementationSha
+    || bundle.releaseCandidate.databaseFingerprint !== expected.databaseFingerprint
+  ) {
+    throw new Error("M3 policy bundle does not match the separately approved release candidate");
+  }
+  const bundleFingerprint = m3PolicyBundleFingerprint(bundle);
+  if (bundleFingerprint !== expected.bundleFingerprint) {
+    throw new Error("M3 policy bundle content does not match the separately approved policy fingerprint");
+  }
+  const actualFingerprints = {
+    financeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.finance),
+    legalPrivacyAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.legalPrivacy),
+    ritualSmeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.ritualSme),
+  };
+  for (const [key, actual] of Object.entries(actualFingerprints)) {
+    if (actual !== expected[key as keyof typeof actualFingerprints]) {
+      throw new Error(`M3 ${key} does not match the separately approved human attestation`);
+    }
+  }
+  return { bundleFingerprint, ...actualFingerprints };
+}
+
 export async function applyM3ApprovedPolicyBundle(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
+  approvalExpectation: M3PolicyApprovalExpectation,
 ) {
+  assertExpectedM3PolicyApproval(bundle, approvalExpectation);
   const fingerprint = commandFingerprint(bundle);
   await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${bundle.organizationId} FOR UPDATE`;
   const [organization, approver] = await Promise.all([
@@ -330,8 +397,10 @@ export async function applyM3ApprovedPolicyBundle(
     metadata: {
       bundleFingerprint: fingerprint,
       schemaVersion: bundle.schemaVersion,
+      releasePreviewUrl: bundle.releaseCandidate.previewUrl,
       releaseDeploymentId: bundle.releaseCandidate.deploymentId,
       releaseImplementationSha: bundle.releaseCandidate.implementationSha,
+      releaseDatabaseFingerprint: bundle.releaseCandidate.databaseFingerprint,
       policyCount: bundle.documentPolicies.length + 2,
       typeCount: bundle.documentTypes.length,
       attestations: {
@@ -348,13 +417,14 @@ export async function applyM3ApprovedPolicyBundle(
 export async function activateM3ApprovedPoliciesAndMaterializeExistingCases(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
+  approvalExpectation: M3PolicyApprovalExpectation,
   commandRunId: string,
   now = new Date(),
 ) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(commandRunId)) {
     throw new OperationalCommandError(400, "Некорректный идентификатор запуска M3 policy activation");
   }
-  const activation = await applyM3ApprovedPolicyBundle(tx, bundle);
+  const activation = await applyM3ApprovedPolicyBundle(tx, bundle, approvalExpectation);
   const cases = await tx.case.findMany({
     where: {
       tenantId: bundle.organizationId,
@@ -461,14 +531,21 @@ function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
     ["ritualSme", "RITUAL_OPERATIONS_SME", M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme],
   ] as const;
   const approvedAt = new Date(bundle.approvedAt).getTime();
+  const reviewerIds = Object.values(bundle.attestations).map((attestation) => attestation.reviewer.id);
+  assertUnique(reviewerIds, "human attestation reviewer");
   for (const [key, reviewerRole, requiredChecklist] of contracts) {
     const attestation = bundle.attestations[key];
     if (attestation.reviewer.role !== reviewerRole) {
       throw new Error(`${key} attestation reviewer role must be ${reviewerRole}`);
     }
+    if (reviewerRole === "RITUAL_OPERATIONS_SME" && attestation.reviewer.experienceYears === null) {
+      throw new Error("ritualSme attestation requires reviewer experienceYears");
+    }
     if (
-      attestation.reviewedDeploymentId !== bundle.releaseCandidate.deploymentId
+      attestation.reviewedPreviewUrl !== bundle.releaseCandidate.previewUrl
+      || attestation.reviewedDeploymentId !== bundle.releaseCandidate.deploymentId
       || attestation.reviewedImplementationSha !== bundle.releaseCandidate.implementationSha
+      || attestation.reviewedDatabaseFingerprint !== bundle.releaseCandidate.databaseFingerprint
     ) {
       throw new Error(`${key} attestation must match the exact reviewed release candidate`);
     }
@@ -488,11 +565,16 @@ function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
 function attestationAuditSummary(attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]]) {
   return {
     verdict: attestation.verdict,
+    reviewerId: attestation.reviewer.id,
     reviewerName: attestation.reviewer.name,
     reviewerRole: attestation.reviewer.role,
+    reviewerCredentialReference: attestation.reviewer.credentialReference,
+    reviewerExperienceYears: attestation.reviewer.experienceYears,
     reviewedAt: attestation.date,
+    reviewedPreviewUrl: attestation.reviewedPreviewUrl,
     reviewedDeploymentId: attestation.reviewedDeploymentId,
     reviewedImplementationSha: attestation.reviewedImplementationSha,
+    reviewedDatabaseFingerprint: attestation.reviewedDatabaseFingerprint,
     checklistResults: attestation.checklistAnswers.map(({ id, verdict }) => ({ id, verdict })),
     scenarioResults: {
       cremation: attestation.scenarioResults.cremation.verdict,

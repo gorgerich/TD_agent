@@ -15,6 +15,9 @@ import {
 import { getDocumentScanner } from "../lib/documentScanner";
 import {
   M3_HUMAN_ATTESTATION_CHECKLISTS,
+  assertExpectedM3PolicyApproval,
+  m3AttestationFingerprint,
+  m3PolicyBundleFingerprint,
   parseM3ApprovedPolicyBundle,
 } from "../lib/m3PolicyActivation";
 
@@ -293,7 +296,24 @@ test("M3-W7: synthetic scanner is available only to an explicitly isolated Previ
 
 test("M3 policy activation accepts only complete human-attested, scenario-distinct bundles", () => {
   const bundle = validPolicyBundle();
-  assert.equal(parseM3ApprovedPolicyBundle(bundle).documentPolicies.length, 2);
+  const parsed = parseM3ApprovedPolicyBundle(bundle);
+  assert.equal(parsed.documentPolicies.length, 2);
+  assert.doesNotThrow(() => assertExpectedM3PolicyApproval(parsed, approvalExpectation(parsed)));
+
+  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
+    ...approvalExpectation(parsed),
+    deploymentId: "dpl_DifferentApprovedCandidate12345",
+  }), /separately approved release candidate/);
+
+  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
+    ...approvalExpectation(parsed),
+    financeAttestationFingerprint: "f".repeat(64),
+  }), /separately approved human attestation/);
+
+  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
+    ...approvalExpectation(parsed),
+    bundleFingerprint: "e".repeat(64),
+  }), /separately approved policy fingerprint/);
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,
@@ -312,12 +332,45 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
     ...bundle,
     attestations: {
       ...bundle.attestations,
+      finance: { ...bundle.attestations.finance, reviewedDatabaseFingerprint: "2".repeat(16) },
+    },
+  }), /exact reviewed release candidate/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
       legalPrivacy: {
         ...bundle.attestations.legalPrivacy,
         reviewer: { ...bundle.attestations.legalPrivacy.reviewer, role: "FINANCE_ACCOUNTING" },
       },
     },
   }), /reviewer role must be LEGAL_PRIVACY/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      legalPrivacy: {
+        ...bundle.attestations.legalPrivacy,
+        reviewer: {
+          ...bundle.attestations.legalPrivacy.reviewer,
+          id: bundle.attestations.finance.reviewer.id,
+        },
+      },
+    },
+  }), /Duplicate human attestation reviewer/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      ritualSme: {
+        ...bundle.attestations.ritualSme,
+        reviewer: { ...bundle.attestations.ritualSme.reviewer, experienceYears: null },
+      },
+    },
+  }), /requires reviewer experienceYears/);
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,
@@ -366,8 +419,10 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
 
 function validPolicyBundle() {
   const releaseCandidate = {
+    previewUrl: "https://td-agent-synthetic-review.vercel.app/",
     deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
     implementationSha: "a".repeat(40),
+    databaseFingerprint: "1".repeat(16),
   };
   const commonRule = {
     kind: "REQUIRED" as const,
@@ -380,7 +435,7 @@ function validPolicyBundle() {
     source: "Synthetic ritual fixture",
   };
   return {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     releaseCandidate,
     organizationId: "synthetic-org",
     approvedByUserId: 1,
@@ -461,15 +516,28 @@ function validPolicyBundle() {
 function humanAttestation(
   role: "FINANCE_ACCOUNTING" | "LEGAL_PRIVACY" | "RITUAL_OPERATIONS_SME",
   checklistIds: readonly string[],
-  releaseCandidate: { deploymentId: string; implementationSha: string },
+  releaseCandidate: {
+    previewUrl: string;
+    deploymentId: string;
+    implementationSha: string;
+    databaseFingerprint: string;
+  },
 ) {
   return {
     verdict: "PASS" as const,
-    reviewer: { name: `Synthetic ${role} reviewer`, role },
+    reviewer: {
+      id: `synthetic-${role.toLowerCase()}-reviewer`,
+      name: `Synthetic ${role} reviewer`,
+      role,
+      credentialReference: `synthetic-reviewer-registry:${role}`,
+      experienceYears: role === "RITUAL_OPERATIONS_SME" ? 10 : null,
+    },
     source: "Synthetic human-verdict fixture",
     date: "2026-08-13T09:00:00.000Z",
+    reviewedPreviewUrl: releaseCandidate.previewUrl,
     reviewedDeploymentId: releaseCandidate.deploymentId,
     reviewedImplementationSha: releaseCandidate.implementationSha,
+    reviewedDatabaseFingerprint: releaseCandidate.databaseFingerprint,
     checklistAnswers: checklistIds.map((id) => ({
       id,
       verdict: "PASS" as const,
@@ -479,6 +547,19 @@ function humanAttestation(
       cremation: { verdict: "PASS" as const, notes: "Synthetic cremation result" },
       familyPlotBurial: { verdict: "PASS" as const, notes: "Synthetic burial result" },
     },
+  };
+}
+
+function approvalExpectation(bundle: ReturnType<typeof parseM3ApprovedPolicyBundle>) {
+  return {
+    previewUrl: bundle.releaseCandidate.previewUrl,
+    deploymentId: bundle.releaseCandidate.deploymentId,
+    implementationSha: bundle.releaseCandidate.implementationSha,
+    databaseFingerprint: bundle.releaseCandidate.databaseFingerprint,
+    bundleFingerprint: m3PolicyBundleFingerprint(bundle),
+    financeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.finance),
+    legalPrivacyAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.legalPrivacy),
+    ritualSmeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.ritualSme),
   };
 }
 
