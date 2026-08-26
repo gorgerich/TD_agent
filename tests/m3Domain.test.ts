@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign } from "node:crypto";
 import {
   assertLedgerAdjustmentForestCapacity,
   deriveCaseDocumentTruth,
@@ -15,11 +16,14 @@ import {
 import { getDocumentScanner } from "../lib/documentScanner";
 import {
   M3_HUMAN_ATTESTATION_CHECKLISTS,
-  assertExpectedM3PolicyApproval,
+  assertM3HumanSignoffsAuthorizeBundle,
+  m3AttestationSigningPayload,
   m3AttestationFingerprint,
-  m3PolicyBundleFingerprint,
+  m3PolicyContentFingerprint,
+  m3ReviewerPublicKeyFingerprint,
   parseM3ApprovedPolicyBundle,
 } from "../lib/m3PolicyActivation";
+import { commandFingerprint } from "../lib/m3Command";
 
 test("M3-W7: an uploaded or quarantined file never satisfies a requirement", () => {
   const uploaded = evaluateDocumentRequirement([
@@ -298,22 +302,27 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
   const bundle = validPolicyBundle();
   const parsed = parseM3ApprovedPolicyBundle(bundle);
   assert.equal(parsed.documentPolicies.length, 2);
-  assert.doesNotThrow(() => assertExpectedM3PolicyApproval(parsed, approvalExpectation(parsed)));
+  assert.doesNotThrow(() => assertM3HumanSignoffsAuthorizeBundle(parsed, humanSignoffs(parsed)));
 
-  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
-    ...approvalExpectation(parsed),
-    deploymentId: "dpl_DifferentApprovedCandidate12345",
-  }), /separately approved release candidate/);
+  assert.throws(() => assertM3HumanSignoffsAuthorizeBundle(parsed, {
+    ...humanSignoffs(parsed),
+    candidate: {
+      ...parsed.releaseCandidate,
+      deploymentId: "dpl_DifferentApprovedCandidate12345",
+    },
+  }), /human-signoffs release candidate/);
 
-  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
-    ...approvalExpectation(parsed),
-    financeAttestationFingerprint: "f".repeat(64),
-  }), /separately approved human attestation/);
+  const wrongAttestation = humanSignoffs(parsed);
+  wrongAttestation.gates.financeAccounting.attestationFingerprint = "f".repeat(64);
+  assert.throws(
+    () => assertM3HumanSignoffsAuthorizeBundle(parsed, wrongAttestation),
+    /human-signoffs attestation/,
+  );
 
-  assert.throws(() => assertExpectedM3PolicyApproval(parsed, {
-    ...approvalExpectation(parsed),
-    bundleFingerprint: "e".repeat(64),
-  }), /separately approved policy fingerprint/);
+  assert.throws(() => assertM3HumanSignoffsAuthorizeBundle(parsed, {
+    ...humanSignoffs(parsed),
+    policyContentFingerprint: "e".repeat(64),
+  }), /human-signoffs policy fingerprint/);
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,
@@ -360,6 +369,39 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
       },
     },
   }), /Duplicate human attestation reviewer/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      legalPrivacy: {
+        ...bundle.attestations.legalPrivacy,
+        reviewer: {
+          ...bundle.attestations.legalPrivacy.reviewer,
+          name: `  ${bundle.attestations.finance.reviewer.name.toUpperCase()}  `,
+        },
+      },
+    },
+  }), /Duplicate human attestation reviewer name/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      finance: {
+        ...bundle.attestations.finance,
+        signature: { ...bundle.attestations.finance.signature, value: "B".repeat(86) },
+      },
+    },
+  }), /attestation signature is invalid/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      finance: { ...bundle.attestations.finance, reviewedDeploymentSha: "c".repeat(40) },
+    },
+  }), /exact reviewed release candidate/);
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,
@@ -421,6 +463,7 @@ function validPolicyBundle() {
   const releaseCandidate = {
     previewUrl: "https://td-agent-synthetic-review.vercel.app/",
     deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
+    deploymentSha: "a".repeat(40),
     implementationSha: "a".repeat(40),
     databaseFingerprint: "1".repeat(16),
   };
@@ -434,30 +477,13 @@ function validPolicyBundle() {
     reviewChecklist: ["synthetic-readable"],
     source: "Synthetic ritual fixture",
   };
-  return {
+  const policyContent = {
     schemaVersion: 3 as const,
     releaseCandidate,
     organizationId: "synthetic-org",
     approvedByUserId: 1,
     approvedAt: "2026-08-13T09:00:00.000Z",
     effectiveFrom: "2026-08-13T10:00:00.000Z",
-    attestations: {
-      finance: humanAttestation(
-        "FINANCE_ACCOUNTING",
-        M3_HUMAN_ATTESTATION_CHECKLISTS.finance,
-        releaseCandidate,
-      ),
-      legalPrivacy: humanAttestation(
-        "LEGAL_PRIVACY",
-        M3_HUMAN_ATTESTATION_CHECKLISTS.legalPrivacy,
-        releaseCandidate,
-      ),
-      ritualSme: humanAttestation(
-        "RITUAL_OPERATIONS_SME",
-        M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme,
-        releaseCandidate,
-      ),
-    },
     documentTypes: [
       {
         code: "APPLICANT_IDENTITY",
@@ -511,6 +537,30 @@ function validPolicyBundle() {
       source: "Synthetic finance fixture",
     },
   };
+  const policyContentFingerprint = commandFingerprint(policyContent);
+  return {
+    ...policyContent,
+    attestations: {
+      finance: humanAttestation(
+        "FINANCE_ACCOUNTING",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.finance,
+        releaseCandidate,
+        policyContentFingerprint,
+      ),
+      legalPrivacy: humanAttestation(
+        "LEGAL_PRIVACY",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.legalPrivacy,
+        releaseCandidate,
+        policyContentFingerprint,
+      ),
+      ritualSme: humanAttestation(
+        "RITUAL_OPERATIONS_SME",
+        M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme,
+        releaseCandidate,
+        policyContentFingerprint,
+      ),
+    },
+  };
 }
 
 function humanAttestation(
@@ -519,25 +569,32 @@ function humanAttestation(
   releaseCandidate: {
     previewUrl: string;
     deploymentId: string;
+    deploymentSha: string;
     implementationSha: string;
     databaseFingerprint: string;
   },
+  policyContentFingerprint: string,
 ) {
-  return {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+  const keyFingerprint = m3ReviewerPublicKeyFingerprint(publicKeyPem);
+  const unsigned = {
     verdict: "PASS" as const,
     reviewer: {
       id: `synthetic-${role.toLowerCase()}-reviewer`,
       name: `Synthetic ${role} reviewer`,
       role,
-      credentialReference: `synthetic-reviewer-registry:${role}`,
+      credentialReference: `platform-audit-key:${keyFingerprint}`,
       experienceYears: role === "RITUAL_OPERATIONS_SME" ? 10 : null,
     },
     source: "Synthetic human-verdict fixture",
     date: "2026-08-13T09:00:00.000Z",
     reviewedPreviewUrl: releaseCandidate.previewUrl,
     reviewedDeploymentId: releaseCandidate.deploymentId,
+    reviewedDeploymentSha: releaseCandidate.deploymentSha,
     reviewedImplementationSha: releaseCandidate.implementationSha,
     reviewedDatabaseFingerprint: releaseCandidate.databaseFingerprint,
+    reviewedPolicyContentFingerprint: policyContentFingerprint,
     checklistAnswers: checklistIds.map((id) => ({
       id,
       verdict: "PASS" as const,
@@ -548,18 +605,40 @@ function humanAttestation(
       familyPlotBurial: { verdict: "PASS" as const, notes: "Synthetic burial result" },
     },
   };
+  const draft = {
+    ...unsigned,
+    signature: {
+      algorithm: "Ed25519" as const,
+      keyFingerprint,
+      publicKeyPem,
+      value: "A".repeat(86),
+    },
+  };
+  return {
+    ...draft,
+    signature: {
+      ...draft.signature,
+      value: sign(null, Buffer.from(m3AttestationSigningPayload(draft)), privateKey).toString("base64url"),
+    },
+  };
 }
 
-function approvalExpectation(bundle: ReturnType<typeof parseM3ApprovedPolicyBundle>) {
+function humanSignoffs(bundle: ReturnType<typeof parseM3ApprovedPolicyBundle>) {
+  const gate = (packet: "finance.md" | "privacy.md" | "ritual-rules.md", attestation: typeof bundle.attestations.finance) => ({
+    status: "PASS" as const,
+    packet,
+    attestation,
+    attestationFingerprint: m3AttestationFingerprint(attestation),
+  });
   return {
-    previewUrl: bundle.releaseCandidate.previewUrl,
-    deploymentId: bundle.releaseCandidate.deploymentId,
-    implementationSha: bundle.releaseCandidate.implementationSha,
-    databaseFingerprint: bundle.releaseCandidate.databaseFingerprint,
-    bundleFingerprint: m3PolicyBundleFingerprint(bundle),
-    financeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.finance),
-    legalPrivacyAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.legalPrivacy),
-    ritualSmeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.ritualSme),
+    schemaVersion: 2 as const,
+    candidate: bundle.releaseCandidate,
+    policyContentFingerprint: m3PolicyContentFingerprint(bundle),
+    gates: {
+      financeAccounting: gate("finance.md", bundle.attestations.finance),
+      legalPrivacy: gate("privacy.md", bundle.attestations.legalPrivacy),
+      ritualOperationsSme: gate("ritual-rules.md", bundle.attestations.ritualSme),
+    },
   };
 }
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,19 @@ import test from "node:test";
 const PREVIEW_URL = "https://td-agent-synthetic-review.vercel.app/";
 const PREVIEW_DEPLOYMENT_ID = "dpl_M3SyntheticReviewerEvidence12345";
 const PREVIEW_DATABASE_FINGERPRINT = "1234567890abcdef";
+const SOURCE_CI_URL = "https://github.com/gorgerich/TD_agent/actions/runs/123456789";
+const POLICY_CONTENT_FINGERPRINT = "b".repeat(64);
+const REQUIRED_GATES = [
+  "code_quality", "unit", "integration", "e2e", "migration_rehearsal", "schema_parity",
+  "tenant_rbac", "document_access_storage", "ledger_idempotency_concurrency", "stage_guards",
+  "reconciliation", "accessibility_mobile", "preview_uat", "independent_review",
+];
+const ACCEPTANCE_IDS = [
+  "M3-W7-01", "M3-W7-02", "M3-W7-03", "M3-W7-04", "M3-W7-05",
+  "M3-W6-01", "M3-W6-02", "M3-W6-03", "M3-W6-04", "M3-W6-05",
+  "M3-GUARD-01", "M3-RECON-01", "M3-SEC-01", "M3-MIG-01", "M3-UX-01",
+  "M3-UAT-01", "M3-REVIEW-01", "M3-GATE-01",
+];
 const CHECKLISTS = {
   financeAccounting: [
     "entry-policy", "manual-evidence", "four-eyes-threshold",
@@ -66,7 +79,7 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     assert.equal(ready.status, 0, ready.stderr);
 
     const wrongDatabase = JSON.parse(readFileSync(signoffsPath, "utf8"));
-    wrongDatabase.candidate.previewDatabaseFingerprint = "f".repeat(16);
+    wrongDatabase.candidate.databaseFingerprint = "f".repeat(16);
     writeFileSync(signoffsPath, JSON.stringify(wrongDatabase, null, 2));
     const wrongDatabaseCandidate = runValidator(fixture.root);
     assert.notEqual(wrongDatabaseCandidate.status, 0);
@@ -90,9 +103,45 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     assert.match(duplicateReviewer.stderr, /three distinct reviewers/);
 
     writeEvidenceFiles(fixture.root, blockedHumanState(), fixture.implementationSha);
-    writeFileSync(missionPath, `${missionYaml(blockedHumanState(), fixture.implementationSha)}decoy:\n  finance_accounting: PASS\n`);
+    const financePacket = join(evidenceDir, "finance.md");
+    writeFileSync(financePacket, `${readFileSync(financePacket, "utf8")}<!-- hidden PASS decoy -->\n`);
     const decoy = runValidator(fixture.root);
-    assert.equal(decoy.status, 0, decoy.stderr);
+    assert.notEqual(decoy.status, 0);
+    assert.match(decoy.stderr, /hidden HTML comments/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    const resultsPath = join(evidenceDir, "test-results.json");
+    const omittedGate = JSON.parse(readFileSync(resultsPath, "utf8"));
+    delete omittedGate.checks.integration;
+    writeFileSync(resultsPath, JSON.stringify(omittedGate));
+    const missingGate = runValidator(fixture.root);
+    assert.notEqual(missingGate.status, 0);
+    assert.match(missingGate.stderr, /checks\.integration\.status must equal PASS/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    const acceptancePath = join(evidenceDir, "acceptance.json");
+    const emptyAcceptance = JSON.parse(readFileSync(acceptancePath, "utf8"));
+    emptyAcceptance.acceptance = [];
+    writeFileSync(acceptancePath, JSON.stringify(emptyAcceptance));
+    const missingAcceptance = runValidator(fixture.root);
+    assert.notEqual(missingAcceptance.status, 0);
+    assert.match(missingAcceptance.stderr, /acceptance IDs must contain the exact required unique set/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    const staleCi = JSON.parse(readFileSync(resultsPath, "utf8"));
+    staleCi.githubCiUrl = "https://github.com/gorgerich/TD_agent/actions/runs/999";
+    writeFileSync(resultsPath, JSON.stringify(staleCi));
+    const wrongCi = runValidator(fixture.root);
+    assert.notEqual(wrongCi.status, 0);
+    assert.match(wrongCi.stderr, /source CI/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    const staleSchema = JSON.parse(readFileSync(signoffsPath, "utf8"));
+    staleSchema.schemaVersion = 1;
+    writeFileSync(signoffsPath, JSON.stringify(staleSchema));
+    const wrongSchema = runValidator(fixture.root);
+    assert.notEqual(wrongSchema.status, 0);
+    assert.match(wrongSchema.stderr, /schemaVersion must equal 2/);
 
     writeEvidenceFiles(fixture.root, releasedState(false), fixture.implementationSha);
     const unauthorizedRelease = runValidator(fixture.root);
@@ -103,7 +152,6 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     const released = runValidator(fixture.root);
     assert.equal(released.status, 0, released.stderr);
 
-    const resultsPath = join(evidenceDir, "test-results.json");
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     results.checks.skipped = 1;
     writeFileSync(resultsPath, JSON.stringify(results));
@@ -158,18 +206,27 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
     ["ritualOperationsSme", "ritual-rules.md"],
   ] as const) {
     const gate = signoffs.gates[key];
-    const verdict = gate.status === "PASS" ? "PASS" : "AWAITING HUMAN";
-    const identity = gate.attestation
-      ? `\nReviewer: ${gate.attestation.reviewer.name} (${gate.attestation.reviewer.id})\n`
-      : "\n";
+    const reviewer = gate.attestation?.reviewer;
+    const checks = CHECKLISTS[key].map((id) => `- [${gate.status === "PASS" ? "x" : " "}] ${id}: Synthetic decision item`);
     writeFileSync(join(evidenceDir, filename), [
+      "---",
+      "schema: m3-human-packet-v2",
+      `gate: ${key}`,
+      `preview_url: ${PREVIEW_URL}`,
+      `deployment_id: ${PREVIEW_DEPLOYMENT_ID}`,
+      `deployment_sha: ${implementationSha}`,
+      `implementation_sha: ${implementationSha}`,
+      `database_fingerprint: ${PREVIEW_DATABASE_FINGERPRINT}`,
+      `current_verdict: ${gate.status}`,
+      `reviewer_id: ${reviewer?.id ?? "null"}`,
+      `reviewer_name: ${reviewer?.name ?? "null"}`,
+      `attestation_fingerprint: ${gate.attestationFingerprint ?? "null"}`,
+      "---",
       `# Synthetic ${filename}`,
-      PREVIEW_URL,
-      PREVIEW_DEPLOYMENT_ID,
-      implementationSha,
-      PREVIEW_DATABASE_FINGERPRINT,
-      identity,
-      `Current verdict: **${verdict}**.`,
+      "",
+      ...checks,
+      `- [${gate.status === "PASS" ? "x" : " "}] scenario-cremation: Synthetic scenario decision`,
+      `- [${gate.status === "PASS" ? "x" : " "}] scenario-family-plot-burial: Synthetic scenario decision`,
       "",
     ].join("\n"));
   }
@@ -178,29 +235,73 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
   }
   writeFileSync(join(evidenceDir, "release.md"), `# Release\n\n\`${state.state}\`\n`);
   writeFileSync(join(evidenceDir, "acceptance.json"), JSON.stringify({
+    mission: "M3-FULFILMENT-MONEY-TRUST",
     state: state.state,
-    acceptance: [{ id: "fixture", status: "PASS" }],
+    acceptance: ACCEPTANCE_IDS.map((id) => ({
+      id,
+      status: "PASS",
+      requirement: `Synthetic requirement contract for ${id}`,
+      evidence: `Synthetic deterministic evidence record for ${id}`,
+    })),
   }));
   writeFileSync(join(evidenceDir, "test-results.json"), JSON.stringify({
+    mission: "M3-FULFILMENT-MONEY-TRUST",
     state: state.state,
     implementationSha,
+    githubCiUrl: SOURCE_CI_URL,
     previewDeploymentId: PREVIEW_DEPLOYMENT_ID,
+    previewDeploymentSha: implementationSha,
+    previewUrl: PREVIEW_URL,
     previewDatabaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
-    checks: { skipped: 0, notRun: 0, independentReview: { p0: 0, p1: 0 } },
+    checks: {
+      sourceCi: { status: "PASS", runId: 123456789, headSha: implementationSha, testSkipped: 0 },
+      gitDiffCheck: "PASS",
+      prismaGenerate: "PASS",
+      typecheck: "PASS",
+      lint: "PASS",
+      build: "PASS",
+      unit: { status: "PASS", passed: 10, skipped: 0 },
+      integration: { status: "PASS", passed: 10, skipped: 0, residue: 0 },
+      e2e: { status: "PASS", skipped: 0 },
+      migrationRehearsal: { status: "PASS", repeatedDeploy: "NO_OP", orphans: 0, duplicates: 0, tenantMismatches: 0 },
+      schemaParity: "PASS",
+      documentTruth: { status: "PASS" },
+      financeTruth: { status: "PASS" },
+      stageGuards: "PASS",
+      tenantRbac: "PASS",
+      reconciliation: { status: "PASS", discrepancies: 0 },
+      accessibility: { status: "PASS", critical: 0, serious: 0, mobile: "PASS", zoom200: "PASS", horizontalOverflow: 0 },
+      previewUat: {
+        status: "PASS",
+        deploymentId: PREVIEW_DEPLOYMENT_ID,
+        deploymentSha: implementationSha,
+        previewUrl: PREVIEW_URL,
+        databaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
+        skipped: 0,
+        unexpected5xx: 0,
+      },
+      independentReview: { status: "PASS", reviewedSha: implementationSha, p0: 0, p1: 0 },
+      evidenceSchema: "PASS",
+      discoveryParity: { status: "PASS" },
+      skipped: 0,
+      notRun: 0,
+    },
     humanGates: {
       financeAccounting: state.gate,
       legalPrivacy: state.gate,
       ritualOperationsSme: state.gate,
     },
+    production: { writes: "NONE", databaseSchemaChanges: "NONE", deployment: "UNCHANGED" },
   }));
 }
 
 function humanSignoffs(state: EvidenceState, implementationSha: string) {
   const candidate = {
     previewUrl: PREVIEW_URL,
-    previewDeploymentId: PREVIEW_DEPLOYMENT_ID,
+    deploymentId: PREVIEW_DEPLOYMENT_ID,
+    deploymentSha: implementationSha,
     implementationSha,
-    previewDatabaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
+    databaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
   };
   const gate = (
     key: keyof typeof CHECKLISTS,
@@ -210,32 +311,47 @@ function humanSignoffs(state: EvidenceState, implementationSha: string) {
     if (state.gate === "AWAITING_HUMAN_VERDICT") {
       return { status: state.gate, packet, attestation: null, attestationFingerprint: null };
     }
-    const attestation = {
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+    const keyFingerprint = createHash("sha256")
+      .update(publicKey.export({ type: "spki", format: "der" }))
+      .digest("hex");
+    const unsigned = {
       verdict: "PASS",
       reviewer: {
         id: `synthetic-${role.toLowerCase()}-reviewer`,
         name: `Synthetic ${role} reviewer`,
         role,
-        credentialReference: `synthetic-registry:${role}`,
+        credentialReference: `platform-audit-key:${keyFingerprint}`,
         experienceYears: role === "RITUAL_OPERATIONS_SME" ? 10 : null,
       },
       source: `Synthetic ${key} signed record`,
       date: "2026-08-25T12:00:00.000Z",
       reviewedPreviewUrl: PREVIEW_URL,
       reviewedDeploymentId: PREVIEW_DEPLOYMENT_ID,
+      reviewedDeploymentSha: implementationSha,
       reviewedImplementationSha: implementationSha,
       reviewedDatabaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
+      reviewedPolicyContentFingerprint: POLICY_CONTENT_FINGERPRINT,
       checklistAnswers: CHECKLISTS[key].map((id) => ({ id, verdict: "PASS", notes: "Synthetic PASS" })),
       scenarioResults: {
         cremation: { verdict: "PASS", notes: "Synthetic cremation PASS" },
         familyPlotBurial: { verdict: "PASS", notes: "Synthetic burial PASS" },
       },
     };
+    const signature = {
+      algorithm: "Ed25519",
+      keyFingerprint,
+      publicKeyPem,
+      value: sign(null, Buffer.from(canonicalString(unsigned)), privateKey).toString("base64url"),
+    };
+    const attestation = { ...unsigned, signature };
     return { status: state.gate, packet, attestation, attestationFingerprint: canonicalFingerprint(attestation) };
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     candidate,
+    policyContentFingerprint: state.gate === "PASS" ? POLICY_CONTENT_FINGERPRINT : null,
     gates: {
       financeAccounting: gate("financeAccounting", "finance.md", "FINANCE_ACCOUNTING"),
       legalPrivacy: gate("legalPrivacy", "privacy.md", "LEGAL_PRIVACY"),
@@ -249,9 +365,15 @@ function missionYaml(state: EvidenceState, implementationSha: string): string {
     "mission: M3",
     `state: ${state.state}`,
     `implementation_sha: ${implementationSha}`,
+    `source_ci: ${SOURCE_CI_URL}`,
     `preview_deployment_id: ${PREVIEW_DEPLOYMENT_ID}`,
+    `preview_deployment_sha: ${implementationSha}`,
     `preview_url: ${PREVIEW_URL}`,
     `preview_database_fingerprint: ${PREVIEW_DATABASE_FINGERPRINT}`,
+    "required_gates:",
+    ...REQUIRED_GATES.map((gate) => `  - ${gate}`),
+    "passed_gates:",
+    ...REQUIRED_GATES.map((gate) => `  - ${gate}`),
     "human_gates:",
     `  finance_accounting: ${state.gate}`,
     `  legal_privacy: ${state.gate}`,
@@ -275,6 +397,10 @@ function releasedState(authorized: boolean): EvidenceState {
 }
 
 function canonicalFingerprint(value: unknown): string {
+  return createHash("sha256").update(canonicalString(value)).digest("hex");
+}
+
+function canonicalString(value: unknown): string {
   const canonicalize = (nested: unknown): unknown => {
     if (Array.isArray(nested)) return nested.map(canonicalize);
     if (nested && typeof nested === "object") {
@@ -284,7 +410,7 @@ function canonicalFingerprint(value: unknown): string {
     }
     return nested;
   };
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  return JSON.stringify(canonicalize(value));
 }
 
 function git(cwd: string, ...args: string[]): string {

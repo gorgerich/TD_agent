@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import {
   activateM3ApprovedPoliciesAndMaterializeExistingCases,
   parseM3ApprovedPolicyBundle,
+  parseM3HumanSignoffs,
 } from "../../lib/m3PolicyActivation";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 
@@ -14,20 +15,13 @@ if (process.env.CONFIRM_M3_HUMAN_ATTESTATIONS !== "YES") {
 }
 const policyFile = process.env.M3_APPROVED_POLICY_FILE;
 if (!policyFile) throw new Error("M3_APPROVED_POLICY_FILE is required");
+const humanSignoffsFile = process.env.M3_HUMAN_SIGNOFFS_FILE;
+if (!humanSignoffsFile) throw new Error("M3_HUMAN_SIGNOFFS_FILE is required");
 const directUrl = process.env.DATABASE_URL_UNPOOLED;
 const target = inspectDirectMigrationUrl(directUrl);
 assertExpectedMigrationTarget(target, process.env.EXPECTED_DATABASE_FINGERPRINT);
 const bundle = parseM3ApprovedPolicyBundle(JSON.parse(await readFile(policyFile, "utf8")));
-const approvalExpectation = {
-  previewUrl: requiredEnv("EXPECTED_M3_PREVIEW_URL"),
-  deploymentId: requiredEnv("EXPECTED_M3_RELEASE_DEPLOYMENT_ID"),
-  implementationSha: requiredEnv("EXPECTED_M3_IMPLEMENTATION_SHA"),
-  databaseFingerprint: requiredEnv("EXPECTED_M3_PREVIEW_DATABASE_FINGERPRINT"),
-  bundleFingerprint: requiredEnv("EXPECTED_M3_POLICY_BUNDLE_FINGERPRINT"),
-  financeAttestationFingerprint: requiredEnv("EXPECTED_M3_FINANCE_ATTESTATION_FINGERPRINT"),
-  legalPrivacyAttestationFingerprint: requiredEnv("EXPECTED_M3_LEGAL_PRIVACY_ATTESTATION_FINGERPRINT"),
-  ritualSmeAttestationFingerprint: requiredEnv("EXPECTED_M3_RITUAL_SME_ATTESTATION_FINGERPRINT"),
-};
+const humanSignoffs = parseM3HumanSignoffs(JSON.parse(await readFile(humanSignoffsFile, "utf8")));
 const db = new PrismaClient({ datasources: { db: { url: directUrl } } });
 
 async function main() {
@@ -43,7 +37,7 @@ async function main() {
       activateM3ApprovedPoliciesAndMaterializeExistingCases(
         tx,
         bundle,
-        approvalExpectation,
+        humanSignoffs,
         commandRunId,
       )
     ));
@@ -59,12 +53,6 @@ async function main() {
   } finally {
     await db.$disconnect();
   }
-}
-
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} is required`);
-  return value;
 }
 
 void main().catch((error: unknown) => {

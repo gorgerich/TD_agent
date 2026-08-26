@@ -1,7 +1,8 @@
+import { createHash, createPublicKey, verify } from "node:crypto";
 import { Prisma, type CaseScenario, type MembershipRole } from "@prisma/client";
 import { z } from "zod";
 import { appendPlatformAudit } from "@/lib/platformAudit";
-import { commandFingerprint, prismaJson } from "@/lib/m3Command";
+import { canonicalJson, commandFingerprint, prismaJson } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import {
   checkCaseRequirementMaterializationParity,
@@ -12,10 +13,25 @@ const RELEASE_DEPLOYMENT_ID = z.string().regex(/^dpl_[A-Za-z0-9]{8,}$/);
 const IMPLEMENTATION_SHA = z.string().regex(/^[0-9a-f]{40}$/);
 const ATTESTATION_FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
 const DATABASE_FINGERPRINT = z.string().regex(/^[0-9a-f]{16}$/);
+const REVIEWER_KEY_FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
+const SIGNATURE_VALUE = z.string().regex(/^[A-Za-z0-9_-]{64,256}$/);
+const PUBLIC_KEY_PEM = z.string().min(80).max(2_000).refine(
+  (value) => value === value.trim()
+    && value.startsWith("-----BEGIN PUBLIC KEY-----")
+    && value.endsWith("-----END PUBLIC KEY-----"),
+  "Reviewer public key must be a PEM-encoded public key",
+);
 const PREVIEW_URL = z.string().url().refine((value) => {
   const url = new URL(value);
   return url.protocol === "https:" && url.hostname.endsWith(".vercel.app") && url.pathname === "/";
 }, "Preview URL must be an exact HTTPS vercel.app origin");
+const ReleaseCandidate = z.object({
+  previewUrl: PREVIEW_URL,
+  deploymentId: RELEASE_DEPLOYMENT_ID,
+  deploymentSha: IMPLEMENTATION_SHA,
+  implementationSha: IMPLEMENTATION_SHA,
+  databaseFingerprint: DATABASE_FINGERPRINT,
+}).strict();
 
 export const M3_HUMAN_ATTESTATION_CHECKLISTS = {
   finance: [
@@ -50,15 +66,17 @@ const Attestation = z.object({
     id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
     name: z.string().trim().min(3).max(160),
     role: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
-    credentialReference: z.string().trim().min(3).max(240),
+    credentialReference: z.string().regex(/^platform-audit-key:[0-9a-f]{64}$/),
     experienceYears: z.number().int().positive().max(80).nullable(),
   }).strict(),
   source: z.string().trim().min(3).max(500),
   date: z.iso.datetime(),
   reviewedPreviewUrl: PREVIEW_URL,
   reviewedDeploymentId: RELEASE_DEPLOYMENT_ID,
+  reviewedDeploymentSha: IMPLEMENTATION_SHA,
   reviewedImplementationSha: IMPLEMENTATION_SHA,
   reviewedDatabaseFingerprint: DATABASE_FINGERPRINT,
+  reviewedPolicyContentFingerprint: ATTESTATION_FINGERPRINT,
   checklistAnswers: z.array(z.object({
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
     verdict: z.literal("PASS"),
@@ -74,6 +92,21 @@ const Attestation = z.object({
       notes: z.string().trim().min(3).max(1_000),
     }).strict(),
   }).strict(),
+  signature: z.object({
+    algorithm: z.literal("Ed25519"),
+    keyFingerprint: REVIEWER_KEY_FINGERPRINT,
+    publicKeyPem: PUBLIC_KEY_PEM,
+    value: SIGNATURE_VALUE,
+  }).strict(),
+}).strict();
+
+const ReviewerCredentialRegistration = z.object({
+  schemaVersion: z.literal(1),
+  reviewerId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
+  reviewerName: z.string().trim().min(3).max(160),
+  reviewerRole: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
+  credentialReferenceFingerprint: ATTESTATION_FINGERPRINT,
+  publicKeyPem: PUBLIC_KEY_PEM,
 }).strict();
 
 const Rule = z.object({
@@ -91,12 +124,7 @@ const Rule = z.object({
 
 const BundleSchema = z.object({
   schemaVersion: z.literal(3),
-  releaseCandidate: z.object({
-    previewUrl: PREVIEW_URL,
-    deploymentId: RELEASE_DEPLOYMENT_ID,
-    implementationSha: IMPLEMENTATION_SHA,
-    databaseFingerprint: DATABASE_FINGERPRINT,
-  }).strict(),
+  releaseCandidate: ReleaseCandidate,
   organizationId: z.string().trim().min(1).max(200),
   approvedByUserId: z.number().int().positive(),
   approvedAt: z.iso.datetime(),
@@ -133,23 +161,35 @@ const BundleSchema = z.object({
   }).strict(),
 }).strict();
 
-const ApprovalExpectationSchema = z.object({
-  previewUrl: PREVIEW_URL,
-  deploymentId: RELEASE_DEPLOYMENT_ID,
-  implementationSha: IMPLEMENTATION_SHA,
-  databaseFingerprint: DATABASE_FINGERPRINT,
-  bundleFingerprint: ATTESTATION_FINGERPRINT,
-  financeAttestationFingerprint: ATTESTATION_FINGERPRINT,
-  legalPrivacyAttestationFingerprint: ATTESTATION_FINGERPRINT,
-  ritualSmeAttestationFingerprint: ATTESTATION_FINGERPRINT,
+const AwaitingHumanGate = z.object({
+  status: z.literal("AWAITING_HUMAN_VERDICT"),
+  packet: z.string().regex(/^(finance|privacy|ritual-rules)\.md$/),
+  attestation: z.null(),
+  attestationFingerprint: z.null(),
+}).strict();
+const PassingHumanGate = z.object({
+  status: z.literal("PASS"),
+  packet: z.string().regex(/^(finance|privacy|ritual-rules)\.md$/),
+  attestation: Attestation,
+  attestationFingerprint: ATTESTATION_FINGERPRINT,
+}).strict();
+const HumanGate = z.discriminatedUnion("status", [AwaitingHumanGate, PassingHumanGate]);
+const HumanSignoffsSchema = z.object({
+  schemaVersion: z.literal(2),
+  candidate: ReleaseCandidate,
+  policyContentFingerprint: ATTESTATION_FINGERPRINT.nullable(),
+  gates: z.object({
+    financeAccounting: HumanGate,
+    legalPrivacy: HumanGate,
+    ritualOperationsSme: HumanGate,
+  }).strict(),
 }).strict();
 
 export type M3ApprovedPolicyBundle = z.infer<typeof BundleSchema>;
-export type M3PolicyApprovalExpectation = z.infer<typeof ApprovalExpectationSchema>;
+export type M3HumanSignoffs = z.infer<typeof HumanSignoffsSchema>;
 
 export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBundle {
   const bundle = BundleSchema.parse(value);
-  assertAttestationContract(bundle);
   const scenarios = new Set(bundle.documentPolicies.map((policy) => policy.scenario));
   if (scenarios.size !== 2 || !scenarios.has("CREMATION_V1") || !scenarios.has("FAMILY_PLOT_BURIAL_V1")) {
     throw new Error("Approved bundle must contain exactly both M3 pilot scenarios");
@@ -175,6 +215,7 @@ export function parseM3ApprovedPolicyBundle(value: unknown): M3ApprovedPolicyBun
   if (cremation.size === burial.size && [...cremation].every((key) => burial.has(key))) {
     throw new Error("Cremation and relative-burial approved checklists must differ");
   }
+  assertAttestationContract(bundle);
   return bundle;
 }
 
@@ -188,42 +229,89 @@ export function m3PolicyBundleFingerprint(bundle: M3ApprovedPolicyBundle) {
   return commandFingerprint(bundle);
 }
 
-export function assertExpectedM3PolicyApproval(
-  bundle: M3ApprovedPolicyBundle,
-  value: M3PolicyApprovalExpectation,
+export function m3PolicyContentFingerprint(bundle: M3ApprovedPolicyBundle) {
+  const policyContent = Object.fromEntries(Object.entries(bundle).filter(([key]) => key !== "attestations"));
+  return commandFingerprint(policyContent);
+}
+
+export function parseM3HumanSignoffs(value: unknown): M3HumanSignoffs {
+  return HumanSignoffsSchema.parse(value);
+}
+
+export function m3AttestationSigningPayload(
+  attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]],
 ) {
-  const expected = ApprovalExpectationSchema.parse(value);
+  const payload = Object.fromEntries(Object.entries(attestation).filter(([key]) => key !== "signature"));
+  return canonicalJson(payload);
+}
+
+export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
+  const key = createPublicKey(publicKeyPem);
+  if (key.asymmetricKeyType !== "ed25519") throw new Error("M3 reviewer credential must be an Ed25519 public key");
+  const der = key.export({ type: "spki", format: "der" });
+  return createHash("sha256").update(der).digest("hex");
+}
+
+export function verifyM3AttestationSignature(
+  attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]],
+) {
+  const key = createPublicKey(attestation.signature.publicKeyPem);
+  if (key.asymmetricKeyType !== "ed25519") return false;
+  return verify(
+    null,
+    Buffer.from(m3AttestationSigningPayload(attestation), "utf8"),
+    key,
+    Buffer.from(attestation.signature.value, "base64url"),
+  );
+}
+
+export function assertM3HumanSignoffsAuthorizeBundle(
+  bundle: M3ApprovedPolicyBundle,
+  value: M3HumanSignoffs,
+) {
+  const expected = HumanSignoffsSchema.parse(value);
   if (
-    bundle.releaseCandidate.previewUrl !== expected.previewUrl
-    || bundle.releaseCandidate.deploymentId !== expected.deploymentId
-    || bundle.releaseCandidate.implementationSha !== expected.implementationSha
-    || bundle.releaseCandidate.databaseFingerprint !== expected.databaseFingerprint
+    commandFingerprint(bundle.releaseCandidate) !== commandFingerprint(expected.candidate)
   ) {
-    throw new Error("M3 policy bundle does not match the separately approved release candidate");
+    throw new Error("M3 policy bundle does not match human-signoffs release candidate");
   }
-  const bundleFingerprint = m3PolicyBundleFingerprint(bundle);
-  if (bundleFingerprint !== expected.bundleFingerprint) {
-    throw new Error("M3 policy bundle content does not match the separately approved policy fingerprint");
+  const policyContentFingerprint = m3PolicyContentFingerprint(bundle);
+  if (policyContentFingerprint !== expected.policyContentFingerprint) {
+    throw new Error("M3 policy bundle content does not match human-signoffs policy fingerprint");
   }
-  const actualFingerprints = {
-    financeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.finance),
-    legalPrivacyAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.legalPrivacy),
-    ritualSmeAttestationFingerprint: m3AttestationFingerprint(bundle.attestations.ritualSme),
+  const contracts = {
+    financeAccounting: { packet: "finance.md", attestation: bundle.attestations.finance },
+    legalPrivacy: { packet: "privacy.md", attestation: bundle.attestations.legalPrivacy },
+    ritualOperationsSme: { packet: "ritual-rules.md", attestation: bundle.attestations.ritualSme },
   };
-  for (const [key, actual] of Object.entries(actualFingerprints)) {
-    if (actual !== expected[key as keyof typeof actualFingerprints]) {
-      throw new Error(`M3 ${key} does not match the separately approved human attestation`);
+  const attestationFingerprints: Record<string, string> = {};
+  for (const [key, contract] of Object.entries(contracts)) {
+    const gate = expected.gates[key as keyof typeof expected.gates];
+    if (gate.status !== "PASS") throw new Error(`M3 ${key} human verdict is not PASS`);
+    if (gate.packet !== contract.packet) throw new Error(`M3 ${key} human-signoffs packet is invalid`);
+    const attestation = contract.attestation;
+    const fingerprint = m3AttestationFingerprint(attestation);
+    if (
+      gate.attestationFingerprint !== fingerprint
+      || commandFingerprint(gate.attestation) !== fingerprint
+    ) {
+      throw new Error(`M3 ${key} human-signoffs attestation does not match approved policy bundle`);
     }
+    attestationFingerprints[key] = fingerprint;
   }
-  return { bundleFingerprint, ...actualFingerprints };
+  return {
+    bundleFingerprint: m3PolicyBundleFingerprint(bundle),
+    policyContentFingerprint,
+    attestationFingerprints,
+  };
 }
 
 export async function applyM3ApprovedPolicyBundle(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
-  approvalExpectation: M3PolicyApprovalExpectation,
+  humanSignoffs: M3HumanSignoffs,
 ) {
-  assertExpectedM3PolicyApproval(bundle, approvalExpectation);
+  assertM3HumanSignoffsAuthorizeBundle(bundle, humanSignoffs);
   const fingerprint = commandFingerprint(bundle);
   await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${bundle.organizationId} FOR UPDATE`;
   const [organization, approver] = await Promise.all([
@@ -232,6 +320,7 @@ export async function applyM3ApprovedPolicyBundle(
   ]);
   if (!organization) throw new OperationalCommandError(404, "Активная организация не найдена");
   if (!approver) throw new OperationalCommandError(403, "Утверждающий Platform SUPER_ADMIN не найден");
+  await verifyRegisteredHumanApprovals(tx, bundle);
 
   const replay = await tx.platformAuditEvent.findFirst({
     where: { action: "M3_POLICIES_ACTIVATED", targetType: "organization", targetId: bundle.organizationId },
@@ -399,6 +488,7 @@ export async function applyM3ApprovedPolicyBundle(
       schemaVersion: bundle.schemaVersion,
       releasePreviewUrl: bundle.releaseCandidate.previewUrl,
       releaseDeploymentId: bundle.releaseCandidate.deploymentId,
+      releaseDeploymentSha: bundle.releaseCandidate.deploymentSha,
       releaseImplementationSha: bundle.releaseCandidate.implementationSha,
       releaseDatabaseFingerprint: bundle.releaseCandidate.databaseFingerprint,
       policyCount: bundle.documentPolicies.length + 2,
@@ -417,14 +507,14 @@ export async function applyM3ApprovedPolicyBundle(
 export async function activateM3ApprovedPoliciesAndMaterializeExistingCases(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
-  approvalExpectation: M3PolicyApprovalExpectation,
+  humanSignoffs: M3HumanSignoffs,
   commandRunId: string,
   now = new Date(),
 ) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(commandRunId)) {
     throw new OperationalCommandError(400, "Некорректный идентификатор запуска M3 policy activation");
   }
-  const activation = await applyM3ApprovedPolicyBundle(tx, bundle, approvalExpectation);
+  const activation = await applyM3ApprovedPolicyBundle(tx, bundle, humanSignoffs);
   const cases = await tx.case.findMany({
     where: {
       tenantId: bundle.organizationId,
@@ -531,8 +621,12 @@ function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
     ["ritualSme", "RITUAL_OPERATIONS_SME", M3_HUMAN_ATTESTATION_CHECKLISTS.ritualSme],
   ] as const;
   const approvedAt = new Date(bundle.approvedAt).getTime();
-  const reviewerIds = Object.values(bundle.attestations).map((attestation) => attestation.reviewer.id);
-  assertUnique(reviewerIds, "human attestation reviewer");
+  const attestations = Object.values(bundle.attestations);
+  assertUnique(attestations.map((item) => normalizeReviewerIdentity(item.reviewer.id)), "human attestation reviewer");
+  assertUnique(attestations.map((item) => normalizeReviewerIdentity(item.reviewer.name)), "human attestation reviewer name");
+  assertUnique(attestations.map((item) => item.reviewer.credentialReference), "human attestation credential");
+  assertUnique(attestations.map((item) => item.signature.keyFingerprint), "human attestation signing key");
+  const policyContentFingerprint = m3PolicyContentFingerprint(bundle);
   for (const [key, reviewerRole, requiredChecklist] of contracts) {
     const attestation = bundle.attestations[key];
     if (attestation.reviewer.role !== reviewerRole) {
@@ -544,10 +638,19 @@ function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
     if (
       attestation.reviewedPreviewUrl !== bundle.releaseCandidate.previewUrl
       || attestation.reviewedDeploymentId !== bundle.releaseCandidate.deploymentId
+      || attestation.reviewedDeploymentSha !== bundle.releaseCandidate.deploymentSha
       || attestation.reviewedImplementationSha !== bundle.releaseCandidate.implementationSha
       || attestation.reviewedDatabaseFingerprint !== bundle.releaseCandidate.databaseFingerprint
+      || attestation.reviewedPolicyContentFingerprint !== policyContentFingerprint
     ) {
       throw new Error(`${key} attestation must match the exact reviewed release candidate`);
+    }
+    const keyFingerprint = m3ReviewerPublicKeyFingerprint(attestation.signature.publicKeyPem);
+    if (
+      keyFingerprint !== attestation.signature.keyFingerprint
+      || attestation.reviewer.credentialReference !== `platform-audit-key:${keyFingerprint}`
+    ) {
+      throw new Error(`${key} attestation signing key does not match reviewer credential reference`);
     }
     if (new Date(attestation.date).getTime() > approvedAt) {
       throw new Error(`${key} attestation cannot postdate policy approval`);
@@ -559,7 +662,65 @@ function assertAttestationContract(bundle: M3ApprovedPolicyBundle) {
     if (actual.length !== expected.length || actual.some((id, index) => id !== expected[index])) {
       throw new Error(`${key} attestation must answer the exact required M3 checklist`);
     }
+    if (!verifyM3AttestationSignature(attestation)) {
+      throw new Error(`${key} attestation signature is invalid`);
+    }
   }
+}
+
+async function verifyRegisteredHumanApprovals(
+  tx: Prisma.TransactionClient,
+  bundle: M3ApprovedPolicyBundle,
+) {
+  for (const [key, attestation] of Object.entries(bundle.attestations)) {
+    const registration = await tx.platformAuditEvent.findFirst({
+      where: {
+        targetType: "m3-reviewer-credential",
+        targetId: attestation.signature.keyFingerprint,
+        action: { in: ["M3_REVIEWER_CREDENTIAL_REGISTERED", "M3_REVIEWER_CREDENTIAL_REVOKED"] },
+      },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: {
+        action: true,
+        metadata: true,
+        actor: { select: { platformRole: true } },
+      },
+    });
+    if (!registration || registration.action !== "M3_REVIEWER_CREDENTIAL_REGISTERED") {
+      throw new OperationalCommandError(403, `${key} reviewer credential is not actively registered`);
+    }
+    if (registration.actor.platformRole !== "SUPER_ADMIN") {
+      throw new OperationalCommandError(403, `${key} reviewer credential was not registered by an active Platform SUPER_ADMIN`);
+    }
+    const metadata = ReviewerCredentialRegistration.safeParse(registration.metadata);
+    if (!metadata.success) {
+      throw new OperationalCommandError(403, `${key} reviewer credential registry metadata is invalid`);
+    }
+    const expected = {
+      reviewerId: attestation.reviewer.id,
+      reviewerName: attestation.reviewer.name,
+      reviewerRole: attestation.reviewer.role,
+      credentialReferenceFingerprint: commandFingerprint(attestation.reviewer.credentialReference),
+      keyFingerprint: attestation.signature.keyFingerprint,
+    };
+    const actual = {
+      reviewerId: metadata.data.reviewerId,
+      reviewerName: metadata.data.reviewerName,
+      reviewerRole: metadata.data.reviewerRole,
+      credentialReferenceFingerprint: metadata.data.credentialReferenceFingerprint,
+      keyFingerprint: m3ReviewerPublicKeyFingerprint(metadata.data.publicKeyPem),
+    };
+    if (
+      commandFingerprint(expected) !== commandFingerprint(actual)
+      || metadata.data.publicKeyPem !== attestation.signature.publicKeyPem
+    ) {
+      throw new OperationalCommandError(403, `${key} reviewer credential does not match registered identity`);
+    }
+  }
+}
+
+function normalizeReviewerIdentity(value: string) {
+  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function attestationAuditSummary(attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]]) {
@@ -568,13 +729,16 @@ function attestationAuditSummary(attestation: M3ApprovedPolicyBundle["attestatio
     reviewerId: attestation.reviewer.id,
     reviewerName: attestation.reviewer.name,
     reviewerRole: attestation.reviewer.role,
-    reviewerCredentialReference: attestation.reviewer.credentialReference,
+    reviewerCredentialReferenceFingerprint: commandFingerprint(attestation.reviewer.credentialReference),
+    reviewerKeyFingerprint: attestation.signature.keyFingerprint,
     reviewerExperienceYears: attestation.reviewer.experienceYears,
     reviewedAt: attestation.date,
     reviewedPreviewUrl: attestation.reviewedPreviewUrl,
     reviewedDeploymentId: attestation.reviewedDeploymentId,
+    reviewedDeploymentSha: attestation.reviewedDeploymentSha,
     reviewedImplementationSha: attestation.reviewedImplementationSha,
     reviewedDatabaseFingerprint: attestation.reviewedDatabaseFingerprint,
+    reviewedPolicyContentFingerprint: attestation.reviewedPolicyContentFingerprint,
     checklistResults: attestation.checklistAnswers.map(({ id, verdict }) => ({ id, verdict })),
     scenarioResults: {
       cremation: attestation.scenarioResults.cremation.verdict,
