@@ -35,12 +35,15 @@ export async function appendPlatformAudit(
       | "PLATFORM_OWNER_PASSWORD_RECOVERED"
       | "PLATFORM_MFA_ENABLED"
       | "PLATFORM_SESSIONS_REVOKED"
+      | "M3_REVIEWER_CREDENTIAL_REGISTERED"
+      | "M3_REVIEWER_CREDENTIAL_REVOKED"
       | "M3_POLICIES_ACTIVATED"
       | "ORGANIZATION_SUSPENDED"
       | "ORGANIZATION_REACTIVATED";
-    targetType: "user" | "organization" | "activation" | "session";
+    targetType: "user" | "organization" | "activation" | "session" | "m3-reviewer-credential";
     targetId?: string | null;
     metadata: unknown;
+    createdAt?: Date;
   },
 ) {
   return tx.platformAuditEvent.create({
@@ -50,6 +53,7 @@ export async function appendPlatformAudit(
       targetType: input.targetType,
       targetId: input.targetId,
       metadata: sanitizePlatformAuditMetadata(input.metadata),
+      ...(input.createdAt ? { createdAt: input.createdAt } : {}),
     },
   });
 }

@@ -23,6 +23,7 @@
     "ops:issue-platform-owner-recovery": "tsx scripts/ops/issue-platform-owner-recovery.ts",
     "ops:verify-migration-target": "tsx scripts/ops/verify-migration-target.ts",
     "ops:apply-m3-approved-policies": "tsx scripts/ops/apply-m3-approved-policies.ts",
+    "ops:m3-reviewer-credential": "tsx scripts/ops/manage-m3-reviewer-credential.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

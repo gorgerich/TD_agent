@@ -1,9 +1,13 @@
-import { createHash, createPublicKey, verify } from "node:crypto";
+import { createPublicKey, verify } from "node:crypto";
 import { Prisma, type CaseScenario, type MembershipRole } from "@prisma/client";
 import { z } from "zod";
 import { appendPlatformAudit } from "@/lib/platformAudit";
 import { canonicalJson, commandFingerprint, prismaJson } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
+import {
+  m3ReviewerPublicKeyFingerprint,
+  requireActiveM3ReviewerCredential,
+} from "@/lib/m3ReviewerCredential";
 import {
   checkCaseRequirementMaterializationParity,
   materializeCaseRequirementsInTransaction,
@@ -15,6 +19,10 @@ const ATTESTATION_FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
 const DATABASE_FINGERPRINT = z.string().regex(/^[0-9a-f]{16}$/);
 const REVIEWER_KEY_FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
 const SIGNATURE_VALUE = z.string().regex(/^[A-Za-z0-9_-]{64,256}$/);
+const canonicalText = (min: number, max: number) => z.string().min(min).max(max).refine(
+  (value) => value === value.trim() && !value.includes("\r"),
+  "Signed text must use canonical whitespace",
+);
 const PUBLIC_KEY_PEM = z.string().min(80).max(2_000).refine(
   (value) => value === value.trim()
     && value.startsWith("-----BEGIN PUBLIC KEY-----")
@@ -64,12 +72,12 @@ const Attestation = z.object({
   verdict: z.literal("PASS"),
   reviewer: z.object({
     id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
-    name: z.string().trim().min(3).max(160),
+    name: canonicalText(3, 160),
     role: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
     credentialReference: z.string().regex(/^platform-audit-key:[0-9a-f]{64}$/),
     experienceYears: z.number().int().positive().max(80).nullable(),
   }).strict(),
-  source: z.string().trim().min(3).max(500),
+  source: canonicalText(3, 500),
   date: z.iso.datetime(),
   reviewedPreviewUrl: PREVIEW_URL,
   reviewedDeploymentId: RELEASE_DEPLOYMENT_ID,
@@ -80,16 +88,16 @@ const Attestation = z.object({
   checklistAnswers: z.array(z.object({
     id: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
     verdict: z.literal("PASS"),
-    notes: z.string().trim().min(3).max(1_000),
+    notes: canonicalText(3, 1_000),
   }).strict()).length(6),
   scenarioResults: z.object({
     cremation: z.object({
       verdict: z.literal("PASS"),
-      notes: z.string().trim().min(3).max(1_000),
+      notes: canonicalText(3, 1_000),
     }).strict(),
     familyPlotBurial: z.object({
       verdict: z.literal("PASS"),
-      notes: z.string().trim().min(3).max(1_000),
+      notes: canonicalText(3, 1_000),
     }).strict(),
   }).strict(),
   signature: z.object({
@@ -100,32 +108,23 @@ const Attestation = z.object({
   }).strict(),
 }).strict();
 
-const ReviewerCredentialRegistration = z.object({
-  schemaVersion: z.literal(1),
-  reviewerId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
-  reviewerName: z.string().trim().min(3).max(160),
-  reviewerRole: z.enum(["FINANCE_ACCOUNTING", "LEGAL_PRIVACY", "RITUAL_OPERATIONS_SME"]),
-  credentialReferenceFingerprint: ATTESTATION_FINGERPRINT,
-  publicKeyPem: PUBLIC_KEY_PEM,
-}).strict();
-
 const Rule = z.object({
   stableKey: z.string().regex(/^[a-z0-9][a-z0-9-]{2,79}$/),
   kind: z.enum(["REQUIRED", "CONDITIONAL"]),
-  conditionKey: z.string().trim().min(3).max(100).nullable(),
-  conditionExplanation: z.string().trim().min(3).max(500).nullable(),
+  conditionKey: canonicalText(3, 100).nullable(),
+  conditionExplanation: canonicalText(3, 500).nullable(),
   dueOffsetHours: z.number().int().nonnegative().max(24 * 365).nullable(),
   ownerRole: z.enum(["DOCUMENT_REVIEWER"]),
   blockingStage: z.enum(["EXECUTION", "CLOSED"]),
   acceptedDocumentTypeCodes: z.array(z.string().regex(/^[A-Z0-9_]{3,80}$/)).min(1),
-  reviewChecklist: z.array(z.string().trim().min(3).max(160)).min(1),
-  source: z.string().trim().min(3).max(500),
+  reviewChecklist: z.array(canonicalText(3, 160)).min(1),
+  source: canonicalText(3, 500),
 }).strict();
 
 const BundleSchema = z.object({
   schemaVersion: z.literal(3),
   releaseCandidate: ReleaseCandidate,
-  organizationId: z.string().trim().min(1).max(200),
+  organizationId: canonicalText(1, 200),
   approvedByUserId: z.number().int().positive(),
   approvedAt: z.iso.datetime(),
   effectiveFrom: z.iso.datetime(),
@@ -137,27 +136,27 @@ const BundleSchema = z.object({
   documentTypes: z.array(z.object({
     code: z.string().regex(/^[A-Z0-9_]{3,80}$/),
     version: z.number().int().positive(),
-    name: z.string().trim().min(3).max(160),
-    description: z.string().trim().max(500).nullable(),
+    name: canonicalText(3, 160),
+    description: canonicalText(0, 500).nullable(),
     allowedMimeTypes: z.array(z.enum(["application/pdf", "image/jpeg", "image/png", "image/heic", "image/webp"])).min(1),
     maxBytes: z.number().int().positive().max(10 * 1024 * 1024),
-    source: z.string().trim().min(3).max(500),
+    source: canonicalText(3, 500),
   }).strict()).min(1),
   documentPolicies: z.array(z.object({
     scenario: z.enum(["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"]),
     version: z.number().int().positive(),
-    source: z.string().trim().min(3).max(500),
+    source: canonicalText(3, 500),
     rules: z.array(Rule).min(1),
   }).strict()).length(2),
   signingPolicy: z.object({
-    version: z.string().trim().min(1).max(80),
-    allowedEvidenceTypes: z.array(z.string().trim().min(3).max(80)).min(1),
-    source: z.string().trim().min(3).max(500),
+    version: canonicalText(1, 80),
+    allowedEvidenceTypes: z.array(canonicalText(3, 80)).min(1),
+    source: canonicalText(3, 500),
   }).strict(),
   financialPolicy: z.object({
     version: z.number().int().positive(),
     correctionThresholdKopecks: z.number().int().positive(),
-    source: z.string().trim().min(3).max(500),
+    source: canonicalText(3, 500),
   }).strict(),
 }).strict();
 
@@ -245,12 +244,7 @@ export function m3AttestationSigningPayload(
   return canonicalJson(payload);
 }
 
-export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
-  const key = createPublicKey(publicKeyPem);
-  if (key.asymmetricKeyType !== "ed25519") throw new Error("M3 reviewer credential must be an Ed25519 public key");
-  const der = key.export({ type: "spki", format: "der" });
-  return createHash("sha256").update(der).digest("hex");
-}
+export { m3ReviewerPublicKeyFingerprint };
 
 export function verifyM3AttestationSignature(
   attestation: M3ApprovedPolicyBundle["attestations"][keyof M3ApprovedPolicyBundle["attestations"]],
@@ -673,48 +667,19 @@ async function verifyRegisteredHumanApprovals(
   bundle: M3ApprovedPolicyBundle,
 ) {
   for (const [key, attestation] of Object.entries(bundle.attestations)) {
-    const registration = await tx.platformAuditEvent.findFirst({
-      where: {
-        targetType: "m3-reviewer-credential",
-        targetId: attestation.signature.keyFingerprint,
-        action: { in: ["M3_REVIEWER_CREDENTIAL_REGISTERED", "M3_REVIEWER_CREDENTIAL_REVOKED"] },
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: {
-        action: true,
-        metadata: true,
-        actor: { select: { platformRole: true } },
-      },
-    });
-    if (!registration || registration.action !== "M3_REVIEWER_CREDENTIAL_REGISTERED") {
-      throw new OperationalCommandError(403, `${key} reviewer credential is not actively registered`);
-    }
-    if (registration.actor.platformRole !== "SUPER_ADMIN") {
-      throw new OperationalCommandError(403, `${key} reviewer credential was not registered by an active Platform SUPER_ADMIN`);
-    }
-    const metadata = ReviewerCredentialRegistration.safeParse(registration.metadata);
-    if (!metadata.success) {
-      throw new OperationalCommandError(403, `${key} reviewer credential registry metadata is invalid`);
-    }
-    const expected = {
-      reviewerId: attestation.reviewer.id,
-      reviewerName: attestation.reviewer.name,
-      reviewerRole: attestation.reviewer.role,
-      credentialReferenceFingerprint: commandFingerprint(attestation.reviewer.credentialReference),
-      keyFingerprint: attestation.signature.keyFingerprint,
-    };
-    const actual = {
-      reviewerId: metadata.data.reviewerId,
-      reviewerName: metadata.data.reviewerName,
-      reviewerRole: metadata.data.reviewerRole,
-      credentialReferenceFingerprint: metadata.data.credentialReferenceFingerprint,
-      keyFingerprint: m3ReviewerPublicKeyFingerprint(metadata.data.publicKeyPem),
-    };
-    if (
-      commandFingerprint(expected) !== commandFingerprint(actual)
-      || metadata.data.publicKeyPem !== attestation.signature.publicKeyPem
-    ) {
-      throw new OperationalCommandError(403, `${key} reviewer credential does not match registered identity`);
+    try {
+      await requireActiveM3ReviewerCredential(tx, {
+        reviewerId: attestation.reviewer.id,
+        reviewerName: attestation.reviewer.name,
+        reviewerRole: attestation.reviewer.role,
+        publicKeyPem: attestation.signature.publicKeyPem,
+        keyFingerprint: attestation.signature.keyFingerprint,
+      });
+    } catch (error) {
+      if (error instanceof OperationalCommandError) {
+        throw new OperationalCommandError(error.status, `${key} ${error.message}`);
+      }
+      throw error;
     }
   }
 }

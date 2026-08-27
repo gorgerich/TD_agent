@@ -16,6 +16,11 @@ import {
   type M3ApprovedPolicyBundle,
 } from "../../lib/m3PolicyActivation";
 import { commandFingerprint } from "../../lib/m3Command";
+import {
+  registerM3ReviewerCredential,
+  requireActiveM3ReviewerCredential,
+  revokeM3ReviewerCredential,
+} from "../../lib/m3ReviewerCredential";
 import { checkCaseRequirementMaterializationParity } from "../../lib/documentRequirementService";
 import { hashPassword } from "../../lib/password";
 import {
@@ -40,6 +45,93 @@ const REVIEWER_KEYS = Object.fromEntries(
     return [role, { privateKey, publicKeyPem, keyFingerprint: m3ReviewerPublicKeyFingerprint(publicKeyPem) }];
   }),
 ) as Record<ReviewerRole, { privateKey: KeyObject; publicKeyPem: string; keyFingerprint: string }>;
+
+test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and permanently revocable", opts, async () => {
+  const fixtures = createFixtureContext("m3-reviewer-registry");
+  try {
+    const organizationId = await fixtures.makeOrganization("reviewer-registry");
+    const actor = await fixtures.makeMember("registry-actor", { organizationId, role: "ADMIN" });
+    const credential = REVIEWER_KEYS.FINANCE_ACCOUNTING;
+    const input = {
+      schemaVersion: 1 as const,
+      reviewerId: "synthetic-finance-registry-reviewer",
+      reviewerName: "Synthetic Finance Registry Reviewer",
+      reviewerRole: "FINANCE_ACCOUNTING" as const,
+      publicKeyPem: credential.publicKeyPem,
+      verificationMethod: "VIDEO_CALL" as const,
+      verificationReference: "synthetic-controlled-channel-assertion",
+      verifiedAt: "2026-01-01T08:00:00.000Z",
+    };
+
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input)),
+      /Platform SUPER_ADMIN is required/,
+    );
+    await db.user.update({ where: { id: actor.userId }, data: { platformRole: "SUPER_ADMIN" } });
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, {
+        ...input,
+        verifiedAt: "2099-01-01T00:00:00.000Z",
+      })),
+      /cannot be future-dated/,
+    );
+    const first = await db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input));
+    const replay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input));
+    assert.equal(first.replayed, false);
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.auditEventId, first.auditEventId);
+    assert.equal(await db.platformAuditEvent.count({
+      where: { targetType: "m3-reviewer-credential", targetId: credential.keyFingerprint },
+    }), 1);
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, {
+        ...input,
+        reviewerName: "Conflicting Synthetic Reviewer",
+      })),
+      /different verified identity metadata/,
+    );
+
+    await db.user.update({ where: { id: actor.userId }, data: { platformRole: "USER" } });
+    await assert.doesNotReject(db.$transaction((tx) => requireActiveM3ReviewerCredential(tx, {
+      reviewerId: input.reviewerId,
+      reviewerName: input.reviewerName,
+      reviewerRole: input.reviewerRole,
+      publicKeyPem: input.publicKeyPem,
+      keyFingerprint: credential.keyFingerprint,
+    })));
+
+    await db.user.update({ where: { id: actor.userId }, data: { platformRole: "SUPER_ADMIN" } });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const revoked = await db.$transaction((tx) => revokeM3ReviewerCredential(
+      tx,
+      actor.userId,
+      credential.keyFingerprint,
+      "ROTATED",
+    ));
+    const revokedReplay = await db.$transaction((tx) => revokeM3ReviewerCredential(
+      tx,
+      actor.userId,
+      credential.keyFingerprint,
+      "ROTATED",
+    ));
+    assert.equal(revoked.replayed, false);
+    assert.equal(revokedReplay.replayed, true);
+    assert.equal(revokedReplay.auditEventId, revoked.auditEventId);
+    await assert.rejects(
+      db.$transaction((tx) => requireActiveM3ReviewerCredential(tx, {
+        reviewerId: input.reviewerId,
+        reviewerName: input.reviewerName,
+        reviewerRole: input.reviewerRole,
+        publicKeyPem: input.publicKeyPem,
+        keyFingerprint: credential.keyFingerprint,
+      })),
+      /not actively registered/,
+    );
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
 
 test("M3 approved policy activation is human-attested, idempotent and retires prior versions", opts, async () => {
   const fixtures = createFixtureContext("m3-policy-activation");
@@ -121,18 +213,15 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
           targetId: organizationId,
         },
       }), 1);
-      await tx.platformAuditEvent.create({
-        data: {
-          actorUserId: approver.id,
-          action: "M3_REVIEWER_CREDENTIAL_REVOKED",
-          targetType: "m3-reviewer-credential",
-          targetId: firstBundle.attestations.finance.signature.keyFingerprint,
-          metadata: { schemaVersion: 1, reason: "synthetic revocation assertion" },
-        },
-      });
+      await revokeM3ReviewerCredential(
+        tx,
+        approver.id,
+        firstBundle.attestations.finance.signature.keyFingerprint,
+        "CREDENTIAL_COMPROMISED",
+      );
       await assert.rejects(
         applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle)),
-        /reviewer credential is not actively registered/,
+        /reviewer credential registry|reviewer credential is not actively registered/,
       );
       throw new Error("ROLLBACK_M3_POLICY_ACTIVATION_TEST");
     }, { timeout: 20_000 }), /ROLLBACK_M3_POLICY_ACTIVATION_TEST/);
@@ -534,21 +623,15 @@ async function registerReviewerCredentials(
   actorUserId: number,
 ) {
   for (const attestation of Object.values(bundle.attestations)) {
-    await tx.platformAuditEvent.create({
-      data: {
-        actorUserId,
-        action: "M3_REVIEWER_CREDENTIAL_REGISTERED",
-        targetType: "m3-reviewer-credential",
-        targetId: attestation.signature.keyFingerprint,
-        metadata: {
-          schemaVersion: 1,
-          reviewerId: attestation.reviewer.id,
-          reviewerName: attestation.reviewer.name,
-          reviewerRole: attestation.reviewer.role,
-          credentialReferenceFingerprint: commandFingerprint(attestation.reviewer.credentialReference),
-          publicKeyPem: attestation.signature.publicKeyPem,
-        },
-      },
+    await registerM3ReviewerCredential(tx, actorUserId, {
+      schemaVersion: 1,
+      reviewerId: attestation.reviewer.id,
+      reviewerName: attestation.reviewer.name,
+      reviewerRole: attestation.reviewer.role,
+      publicKeyPem: attestation.signature.publicKeyPem,
+      verificationMethod: "VIDEO_CALL",
+      verificationReference: `synthetic-verification:${attestation.reviewer.id}`,
+      verifiedAt: "2026-08-13T08:00:00.000Z",
     });
   }
 }

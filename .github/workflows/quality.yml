@@ -92,10 +92,14 @@ jobs:
           printf '%s\n' "$output" | grep -Eq 'No pending migrations to apply|No pending migrations'
       - name: Verify migration/schema parity
         run: npx prisma migrate diff --from-url "$DATABASE_URL_UNPOOLED" --to-schema-datamodel prisma/schema.prisma --exit-code
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm run test:unit
-      - run: npm run test:integration
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Integration tests
+        run: npm run test:integration
       - name: Repeat M3 concurrency and policy gates five times
         run: |
           set -euo pipefail
@@ -252,7 +256,8 @@ jobs:
           test ! -e "$plain_dump"
           test ! -e "$restored_dump"
           echo "Encrypted backup restore, aggregate-count parity, and schema parity: PASS"
-      - run: npm run build
+      - name: Production build
+        run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Start production server
         run: |
@@ -271,7 +276,8 @@ jobs:
           done
           cat /tmp/td-agent-next.log
           exit 1
-      - run: npm run test:e2e
+      - name: End-to-end tests
+        run: npm run test:e2e
       - name: Show server diagnostics after an E2E failure
         if: failure()
         run: test ! -f /tmp/td-agent-next.log || tail -n 200 /tmp/td-agent-next.log
@@ -298,6 +304,10 @@ jobs:
         run: npm run evidence:validate
         env:
           REQUIRED_MISSION_EVIDENCE: M3
+          GITHUB_TOKEN: ${{ github.token }}
+          M3_FINANCE_REVIEWER_KEY_FINGERPRINTS: ${{ vars.M3_FINANCE_REVIEWER_KEY_FINGERPRINTS }}
+          M3_LEGAL_PRIVACY_REVIEWER_KEY_FINGERPRINTS: ${{ vars.M3_LEGAL_PRIVACY_REVIEWER_KEY_FINGERPRINTS }}
+          M3_RITUAL_SME_REVIEWER_KEY_FINGERPRINTS: ${{ vars.M3_RITUAL_SME_REVIEWER_KEY_FINGERPRINTS }}
           # On a pull_request the checkout leaves HEAD at the merge ref, so the evidence
           # gate would compare the certified SHA against base-merged-into-branch and fail
           # the moment an unrelated commit lands on main. Give it the real PR head.

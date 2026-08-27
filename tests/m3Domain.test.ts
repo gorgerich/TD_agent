@@ -378,11 +378,22 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
         ...bundle.attestations.legalPrivacy,
         reviewer: {
           ...bundle.attestations.legalPrivacy.reviewer,
-          name: `  ${bundle.attestations.finance.reviewer.name.toUpperCase()}  `,
+          name: bundle.attestations.finance.reviewer.name.toUpperCase(),
         },
       },
     },
   }), /Duplicate human attestation reviewer name/);
+
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    attestations: {
+      ...bundle.attestations,
+      finance: {
+        ...bundle.attestations.finance,
+        source: ` ${bundle.attestations.finance.source}`,
+      },
+    },
+  }), /canonical whitespace/);
 
   assert.throws(() => parseM3ApprovedPolicyBundle({
     ...bundle,

@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 
 const root = path.resolve("docs/evidence/missions");
 const errors = [];
+const pendingSourceCiValidations = [];
 const requiredMission = process.env.REQUIRED_MISSION_EVIDENCE;
 const M3_REQUIRED_GATES = [
   "code_quality",
@@ -47,6 +48,7 @@ const M3_HUMAN_GATE_CONTRACTS = {
     yamlKey: "finance_accounting",
     packet: "finance.md",
     role: "FINANCE_ACCOUNTING",
+    trustedKeysEnv: "M3_FINANCE_REVIEWER_KEY_FINGERPRINTS",
     checklist: [
       "entry-policy",
       "manual-evidence",
@@ -60,6 +62,7 @@ const M3_HUMAN_GATE_CONTRACTS = {
     yamlKey: "legal_privacy",
     packet: "privacy.md",
     role: "LEGAL_PRIVACY",
+    trustedKeysEnv: "M3_LEGAL_PRIVACY_REVIEWER_KEY_FINGERPRINTS",
     checklist: [
       "legal-basis-consent",
       "retention-rights",
@@ -73,6 +76,7 @@ const M3_HUMAN_GATE_CONTRACTS = {
     yamlKey: "ritual_operations_sme",
     packet: "ritual-rules.md",
     role: "RITUAL_OPERATIONS_SME",
+    trustedKeysEnv: "M3_RITUAL_SME_REVIEWER_KEY_FINGERPRINTS",
     checklist: [
       "cremation-requirements",
       "family-plot-requirements",
@@ -83,6 +87,30 @@ const M3_HUMAN_GATE_CONTRACTS = {
     ],
   },
 };
+const M3_SOURCE_CI_REQUIRED_STEPS = [
+  "Verify patch formatting",
+  "Verify Week 2 and M1 legacy backfill fixtures",
+  "Configure SSI predicate lock granularity",
+  "Apply migrations to isolated test database",
+  "Verify repeated migration deploy is a no-op",
+  "Verify migration/schema parity",
+  "Lint",
+  "Typecheck",
+  "Unit tests",
+  "Integration tests",
+  "Repeat M3 concurrency and policy gates five times",
+  "Provision isolated M1 browser UAT fixture",
+  "Provision isolated M1 RBAC Hardening browser UAT fixture",
+  "Provision isolated M3 browser UAT fixture",
+  "Verify encrypted production-like backup and real restore",
+  "Production build",
+  "Start production server",
+  "Wait for server",
+  "End-to-end tests",
+  "Cleanup isolated M3 browser UAT fixture",
+  "Cleanup isolated M1 browser UAT fixture",
+  "Cleanup isolated M1 RBAC Hardening browser UAT fixture",
+];
 if (requiredMission && !fs.existsSync(path.join(root, requiredMission))) {
   errors.push(`${requiredMission}: evidence directory is required`);
 }
@@ -128,7 +156,7 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
     "review.md",
     "release.md",
     ...(directory.name === "M3"
-      ? ["finance.md", "privacy.md", "ritual-rules.md", "human-signoffs.json"]
+      ? ["finance.md", "privacy.md", "ritual-rules.md", "human-signoffs.json", "reviewer-credentials.json"]
       : []),
   ];
   for (const required of requiredFiles) {
@@ -182,6 +210,8 @@ for (const directory of fs.readdirSync(root, { withFileTypes: true }).filter((en
     }
   }
 }
+
+await validatePendingSourceCiRuns();
 
 function validateM3HumanReleaseBoundary(missionDir, missionText, missionState, target) {
   const missionGates = Object.fromEntries(Object.entries(M3_HUMAN_GATE_CONTRACTS).map(
@@ -350,6 +380,14 @@ function validateM3HumanReleaseBoundary(missionDir, missionText, missionState, t
     }
   }
 
+  validateM3ReviewerCredentialEvidence(
+    missionDir,
+    candidate,
+    signoffs,
+    expectedGate,
+    target,
+  );
+
   validateM3StateAgreement(
     missionDir,
     missionState,
@@ -394,7 +432,7 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/.test(reviewer.id ?? "")) {
     target.push(`M3: ${key} reviewer ID is invalid`);
   }
-  if (typeof reviewer.name !== "string" || reviewer.name.trim().length < 3 || reviewer.name.trim().length > 160) {
+  if (!isCanonicalSignedText(reviewer.name, 3, 160)) {
     target.push(`M3: ${key} reviewer name is invalid`);
   }
   if (reviewer.role !== contract.role) target.push(`M3: ${key} reviewer role must equal ${contract.role}`);
@@ -407,7 +445,7 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
   if (reviewer.experienceYears !== null && !(Number.isInteger(reviewer.experienceYears) && reviewer.experienceYears > 0 && reviewer.experienceYears <= 80)) {
     target.push(`M3: ${key} reviewer experienceYears is invalid`);
   }
-  if (typeof attestation.source !== "string" || attestation.source.trim().length < 3 || attestation.source.trim().length > 500) {
+  if (!isCanonicalSignedText(attestation.source, 3, 500)) {
     target.push(`M3: ${key} attestation source is required`);
   }
   if (!isIsoDateTime(attestation.date)) target.push(`M3: ${key} attestation date is invalid`);
@@ -441,13 +479,11 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
     target.push(`M3: ${key} attestation must answer the exact role checklist`);
   }
   for (const answer of answers) {
-    const notesLength = String(answer?.notes ?? "").trim().length;
     if (
       !hasExactKeys(answer, ["id", "verdict", "notes"])
       || !/^[a-z0-9][a-z0-9-]{2,79}$/.test(answer?.id ?? "")
       || answer.verdict !== "PASS"
-      || notesLength < 3
-      || notesLength > 1_000
+      || !isCanonicalSignedText(answer?.notes, 3, 1_000)
     ) {
       target.push(`M3: ${key} checklist answers must be complete PASS records`);
       break;
@@ -455,8 +491,11 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
   }
   for (const scenario of ["cremation", "familyPlotBurial"]) {
     const result = attestation.scenarioResults?.[scenario];
-    const notesLength = String(result?.notes ?? "").trim().length;
-    if (!hasExactKeys(result, ["verdict", "notes"]) || result.verdict !== "PASS" || notesLength < 3 || notesLength > 1_000) {
+    if (
+      !hasExactKeys(result, ["verdict", "notes"])
+      || result.verdict !== "PASS"
+      || !isCanonicalSignedText(result?.notes, 3, 1_000)
+    ) {
       target.push(`M3: ${key} ${scenario} scenario result must be a complete PASS record`);
     }
   }
@@ -491,6 +530,10 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
     if (reviewer.credentialReference !== `platform-audit-key:${keyFingerprint}`) {
       target.push(`M3: ${key} reviewer credential reference does not bind the signing key`);
     }
+    const trustedKeys = trustedM3ReviewerKeys(contract.trustedKeysEnv, target);
+    if (!trustedKeys.has(keyFingerprint)) {
+      target.push(`M3: ${key} reviewer key is not present in the protected role trust root`);
+    }
     const signedPayload = Object.fromEntries(Object.entries(attestation).filter(([field]) => field !== "signature"));
     if (!verify(null, Buffer.from(canonicalString(signedPayload)), publicKey, Buffer.from(signature.value, "base64url"))) {
       target.push(`M3: ${key} attestation signature verification failed`);
@@ -502,6 +545,101 @@ function validateM3PassAttestation(key, contract, gate, candidate, target) {
   if (gate.attestationFingerprint !== fingerprint) {
     target.push(`M3: ${key} attestation fingerprint does not match its canonical content`);
   }
+}
+
+function validateM3ReviewerCredentialEvidence(missionDir, candidate, signoffs, expectedGate, target) {
+  const registry = readJson(
+    path.join(missionDir, "reviewer-credentials.json"),
+    "M3 reviewer-credentials.json",
+    target,
+  );
+  if (!registry) return;
+  if (!hasExactKeys(registry, ["schemaVersion", "candidate", "credentials"])) {
+    target.push("M3: reviewer-credentials.json fields are incomplete or unexpected");
+  }
+  if (registry.schemaVersion !== 1) target.push("M3: reviewer-credentials.json schemaVersion must equal 1");
+  if (canonicalFingerprint(registry.candidate) !== canonicalFingerprint(candidate)) {
+    target.push("M3: reviewer credential registry must bind the exact Preview candidate");
+  }
+  if (!hasExactKeys(registry.credentials, Object.keys(M3_HUMAN_GATE_CONTRACTS))) {
+    target.push("M3: reviewer credential registry roles are incomplete or unexpected");
+  }
+  const auditEventIds = [];
+  for (const [key, contract] of Object.entries(M3_HUMAN_GATE_CONTRACTS)) {
+    const record = registry.credentials?.[key];
+    const expectedKeys = [
+      "status",
+      "reviewerRole",
+      "keyFingerprint",
+      "registrationAuditEventId",
+      "registrationDatabaseFingerprint",
+      "registeredAt",
+      "registeredByUserId",
+      "verificationMethod",
+      "verificationReferenceFingerprint",
+    ];
+    if (!hasExactKeys(record, expectedKeys)) {
+      target.push(`M3: ${key} reviewer credential registry fields are incomplete or unexpected`);
+      continue;
+    }
+    if (record.reviewerRole !== contract.role) {
+      target.push(`M3: ${key} reviewer credential role must equal ${contract.role}`);
+    }
+    if (expectedGate !== "PASS") {
+      const pending = {
+        ...record,
+        status: "NOT_REGISTERED",
+        keyFingerprint: null,
+        registrationAuditEventId: null,
+        registrationDatabaseFingerprint: null,
+        registeredAt: null,
+        registeredByUserId: null,
+        verificationMethod: null,
+        verificationReferenceFingerprint: null,
+      };
+      if (canonicalFingerprint(record) !== canonicalFingerprint(pending)) {
+        target.push(`M3: ${key} awaiting human verdict cannot claim a registered reviewer credential`);
+      }
+      continue;
+    }
+    const attestation = signoffs.gates?.[key]?.attestation;
+    if (
+      record.status !== "REGISTERED"
+      || record.keyFingerprint !== attestation?.signature?.keyFingerprint
+      || !/^[0-9a-f]{64}$/.test(record.keyFingerprint ?? "")
+      || typeof record.registrationAuditEventId !== "string"
+      || !/^[A-Za-z0-9_-]{8,}$/.test(record.registrationAuditEventId)
+      || record.registrationDatabaseFingerprint !== candidate.databaseFingerprint
+      || !isIsoDateTime(record.registeredAt)
+      || !(Number.isInteger(record.registeredByUserId) && record.registeredByUserId > 0)
+      || !["IN_PERSON", "VIDEO_CALL", "CORPORATE_CHANNEL", "SIGNED_DOCUMENT"].includes(record.verificationMethod)
+      || !/^[0-9a-f]{64}$/.test(record.verificationReferenceFingerprint ?? "")
+    ) {
+      target.push(`M3: ${key} reviewer credential registration evidence is invalid or not bound to attestation`);
+    } else {
+      auditEventIds.push(record.registrationAuditEventId);
+    }
+  }
+  if (auditEventIds.length === 3 && new Set(auditEventIds).size !== 3) {
+    target.push("M3: reviewer credential registrations require three distinct audit events");
+  }
+}
+
+function trustedM3ReviewerKeys(environmentName, target) {
+  const raw = process.env[environmentName] ?? "";
+  const values = raw.split(",").map((value) => value.trim()).filter(Boolean);
+  if (!values.length || values.some((value) => !/^[0-9a-f]{64}$/.test(value))) {
+    target.push(`M3: ${environmentName} must provide protected trusted reviewer key fingerprints`);
+  }
+  return new Set(values.filter((value) => /^[0-9a-f]{64}$/.test(value)));
+}
+
+function isCanonicalSignedText(value, min, max) {
+  return typeof value === "string"
+    && value.length >= min
+    && value.length <= max
+    && value === value.trim()
+    && !value.includes("\r");
 }
 
 function validateM3StateAgreement(
@@ -571,6 +709,7 @@ function validateM3HumanPacket(packetPath, key, contract, gate, candidate, targe
   const packetName = path.basename(packetPath);
   const text = fs.readFileSync(packetPath, "utf8");
   if (text.includes("<!--")) target.push(`M3: ${packetName} cannot contain hidden HTML comments`);
+  if (/^\s*(?:```|~~~)/m.test(text)) target.push(`M3: ${packetName} cannot contain fenced-code checklist decoys`);
   const parsed = parseExactFrontmatter(text);
   if (!parsed) {
     target.push(`M3: ${packetName} requires one exact machine-readable frontmatter block`);
@@ -679,6 +818,7 @@ function validateM3DeterministicEvidence(
   ) {
     target.push("M3: source CI must be exact-head PASS with skipped=0");
   }
+  queueM3SourceCiValidation(sourceCi, implementationSha, target);
   for (const key of ["gitDiffCheck", "prismaGenerate", "typecheck", "lint", "build", "schemaParity", "stageGuards", "tenantRbac", "evidenceSchema"]) {
     if (checks[key] !== "PASS") target.push(`M3: checks.${key} must equal PASS`);
   }
@@ -726,6 +866,101 @@ function readJson(filePath, label, target) {
     target.push(`${label} must be valid JSON`);
     return null;
   }
+}
+
+function queueM3SourceCiValidation(sourceCi, implementationSha, target) {
+  const match = /^https:\/\/github\.com\/gorgerich\/TD_agent\/actions\/runs\/(\d+)$/.exec(sourceCi);
+  if (!match || !/^[0-9a-f]{40}$/.test(implementationSha)) return;
+  pendingSourceCiValidations.push({ runId: match[1], implementationSha, target });
+}
+
+async function validatePendingSourceCiRuns() {
+  for (const request of pendingSourceCiValidations) {
+    try {
+      const { run, jobs } = await sourceCiAttestation(request.runId);
+      if (
+        run?.id !== Number(request.runId)
+        || run?.repository?.full_name !== "gorgerich/TD_agent"
+        || run?.head_repository?.full_name !== "gorgerich/TD_agent"
+        || run?.head_sha !== request.implementationSha
+        || run?.event !== "pull_request"
+        || run?.status !== "completed"
+        || !["success", "failure"].includes(run?.conclusion)
+      ) {
+        request.target.push("M3: GitHub source CI run identity/status does not match exact implementation");
+        continue;
+      }
+      const allJobs = Array.isArray(jobs?.jobs) ? jobs.jobs : [];
+      const verifyJobs = allJobs.filter((job) => job?.name === "verify");
+      if (verifyJobs.length !== 1) {
+        request.target.push("M3: GitHub source CI must contain exactly one verify job");
+        continue;
+      }
+      const steps = Array.isArray(verifyJobs[0].steps) ? verifyJobs[0].steps : [];
+      for (const required of M3_SOURCE_CI_REQUIRED_STEPS) {
+        const matches = steps.filter((step) => step?.name === required);
+        if (matches.length !== 1 || matches[0].status !== "completed" || matches[0].conclusion !== "success") {
+          request.target.push(`M3: GitHub source CI required step did not pass: ${required}`);
+        }
+      }
+      const failed = steps.filter((step) => step?.conclusion === "failure").map((step) => step.name);
+      const allowedEvidenceFailure = failed.length === 1 && failed[0] === "Validate authoritative mission evidence";
+      if (
+        (run.conclusion === "success" && failed.length !== 0)
+        || (run.conclusion === "failure" && !allowedEvidenceFailure)
+      ) {
+        request.target.push("M3: GitHub source CI has a failure outside the expected stale-evidence boundary");
+      }
+    } catch (error) {
+      request.target.push(`M3: GitHub source CI attestation unavailable (${safeErrorMessage(error)})`);
+    }
+  }
+}
+
+async function sourceCiAttestation(runId) {
+  const fixturePath = process.env.M3_SOURCE_CI_ATTESTATION_FILE;
+  if (fixturePath) {
+    if (process.env.M3_EVIDENCE_VALIDATOR_TEST_MODE !== "YES" || process.env.NODE_ENV !== "test") {
+      throw new Error("source CI fixture override is test-only");
+    }
+    const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+    const attestation = fixture?.[runId];
+    if (!attestation) throw new Error("source CI fixture run is missing");
+    return attestation;
+  }
+  const runPath = `/repos/gorgerich/TD_agent/actions/runs/${runId}`;
+  const jobsPath = `${runPath}/jobs?filter=latest&per_page=100`;
+  if (process.env.CI && !process.env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN is required in CI");
+  }
+  if (process.env.GITHUB_TOKEN) {
+    return {
+      run: await githubApiFetch(runPath),
+      jobs: await githubApiFetch(jobsPath),
+    };
+  }
+  return {
+    run: JSON.parse(execFileSync("gh", ["api", runPath], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })),
+    jobs: JSON.parse(execFileSync("gh", ["api", jobsPath], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })),
+  };
+}
+
+async function githubApiFetch(apiPath) {
+  const response = await fetch(`https://api.github.com${apiPath}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`GitHub API HTTP ${response.status}`);
+  return response.json();
+}
+
+function safeErrorMessage(error) {
+  const message = error instanceof Error ? error.message : "unknown error";
+  return message.replace(/[\r\n]/g, " ").slice(0, 200);
 }
 
 function assertExactSet(actual, expected, label, target) {

@@ -11,6 +11,30 @@ const PREVIEW_DEPLOYMENT_ID = "dpl_M3SyntheticReviewerEvidence12345";
 const PREVIEW_DATABASE_FINGERPRINT = "1234567890abcdef";
 const SOURCE_CI_URL = "https://github.com/gorgerich/TD_agent/actions/runs/123456789";
 const POLICY_CONTENT_FINGERPRINT = "b".repeat(64);
+const SOURCE_CI_REQUIRED_STEPS = [
+  "Verify patch formatting",
+  "Verify Week 2 and M1 legacy backfill fixtures",
+  "Configure SSI predicate lock granularity",
+  "Apply migrations to isolated test database",
+  "Verify repeated migration deploy is a no-op",
+  "Verify migration/schema parity",
+  "Lint",
+  "Typecheck",
+  "Unit tests",
+  "Integration tests",
+  "Repeat M3 concurrency and policy gates five times",
+  "Provision isolated M1 browser UAT fixture",
+  "Provision isolated M1 RBAC Hardening browser UAT fixture",
+  "Provision isolated M3 browser UAT fixture",
+  "Verify encrypted production-like backup and real restore",
+  "Production build",
+  "Start production server",
+  "Wait for server",
+  "End-to-end tests",
+  "Cleanup isolated M3 browser UAT fixture",
+  "Cleanup isolated M1 browser UAT fixture",
+  "Cleanup isolated M1 RBAC Hardening browser UAT fixture",
+];
 const REQUIRED_GATES = [
   "code_quality", "unit", "integration", "e2e", "migration_rehearsal", "schema_parity",
   "tenant_rbac", "document_access_storage", "ledger_idempotency_concurrency", "stage_guards",
@@ -78,6 +102,10 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     const ready = runValidator(fixture.root);
     assert.equal(ready.status, 0, ready.stderr);
 
+    const untrustedReviewer = runValidator(fixture.root, { trustSignoffs: false });
+    assert.notEqual(untrustedReviewer.status, 0);
+    assert.match(untrustedReviewer.stderr, /protected role trust root/);
+
     const wrongDatabase = JSON.parse(readFileSync(signoffsPath, "utf8"));
     wrongDatabase.candidate.databaseFingerprint = "f".repeat(16);
     writeFileSync(signoffsPath, JSON.stringify(wrongDatabase, null, 2));
@@ -102,12 +130,30 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     assert.notEqual(duplicateReviewer.status, 0);
     assert.match(duplicateReviewer.stderr, /three distinct reviewers/);
 
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    const whitespaceAttestation = JSON.parse(readFileSync(signoffsPath, "utf8"));
+    whitespaceAttestation.gates.financeAccounting.attestation.source =
+      ` ${whitespaceAttestation.gates.financeAccounting.attestation.source}`;
+    whitespaceAttestation.gates.financeAccounting.attestationFingerprint = canonicalFingerprint(
+      whitespaceAttestation.gates.financeAccounting.attestation,
+    );
+    writeFileSync(signoffsPath, JSON.stringify(whitespaceAttestation, null, 2));
+    const nonCanonicalSignedText = runValidator(fixture.root);
+    assert.notEqual(nonCanonicalSignedText.status, 0);
+    assert.match(nonCanonicalSignedText.stderr, /attestation source is required/);
+
     writeEvidenceFiles(fixture.root, blockedHumanState(), fixture.implementationSha);
     const financePacket = join(evidenceDir, "finance.md");
     writeFileSync(financePacket, `${readFileSync(financePacket, "utf8")}<!-- hidden PASS decoy -->\n`);
     const decoy = runValidator(fixture.root);
     assert.notEqual(decoy.status, 0);
     assert.match(decoy.stderr, /hidden HTML comments/);
+
+    writeEvidenceFiles(fixture.root, blockedHumanState(), fixture.implementationSha);
+    writeFileSync(financePacket, `${readFileSync(financePacket, "utf8")}\n\`\`\`md\n- [x] entry-policy: hidden\n\`\`\`\n`);
+    const fencedDecoy = runValidator(fixture.root);
+    assert.notEqual(fencedDecoy.status, 0);
+    assert.match(fencedDecoy.stderr, /fenced-code checklist decoys/);
 
     writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
     const resultsPath = join(evidenceDir, "test-results.json");
@@ -134,6 +180,19 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     const wrongCi = runValidator(fixture.root);
     assert.notEqual(wrongCi.status, 0);
     assert.match(wrongCi.stderr, /source CI/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    writeFileSync(
+      missionPath,
+      missionYaml(releaseReadyState(), fixture.implementationSha).replace(SOURCE_CI_URL, "https://github.com/gorgerich/TD_agent/actions/runs/999"),
+    );
+    const forgedCiResults = JSON.parse(readFileSync(resultsPath, "utf8"));
+    forgedCiResults.githubCiUrl = "https://github.com/gorgerich/TD_agent/actions/runs/999";
+    forgedCiResults.checks.sourceCi.runId = 999;
+    writeFileSync(resultsPath, JSON.stringify(forgedCiResults));
+    const unverifiedCi = runValidator(fixture.root);
+    assert.notEqual(unverifiedCi.status, 0);
+    assert.match(unverifiedCi.stderr, /source CI attestation unavailable/);
 
     writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
     const staleSchema = JSON.parse(readFileSync(signoffsPath, "utf8"));
@@ -200,6 +259,10 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
   writeFileSync(join(evidenceDir, "mission.yaml"), missionYaml(state, implementationSha));
   const signoffs = humanSignoffs(state, implementationSha);
   writeFileSync(join(evidenceDir, "human-signoffs.json"), JSON.stringify(signoffs, null, 2));
+  writeFileSync(
+    join(evidenceDir, "reviewer-credentials.json"),
+    JSON.stringify(reviewerCredentials(state, signoffs), null, 2),
+  );
   for (const [key, filename] of [
     ["financeAccounting", "finance.md"],
     ["legalPrivacy", "privacy.md"],
@@ -293,6 +356,45 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
     },
     production: { writes: "NONE", databaseSchemaChanges: "NONE", deployment: "UNCHANGED" },
   }));
+}
+
+function reviewerCredentials(state: EvidenceState, signoffs: ReturnType<typeof humanSignoffs>) {
+  const credential = (key: keyof typeof CHECKLISTS, role: string) => {
+    const attestation = signoffs.gates[key].attestation;
+    if (state.gate === "AWAITING_HUMAN_VERDICT" || !attestation) {
+      return {
+        status: "NOT_REGISTERED",
+        reviewerRole: role,
+        keyFingerprint: null,
+        registrationAuditEventId: null,
+        registrationDatabaseFingerprint: null,
+        registeredAt: null,
+        registeredByUserId: null,
+        verificationMethod: null,
+        verificationReferenceFingerprint: null,
+      };
+    }
+    return {
+      status: "REGISTERED",
+      reviewerRole: role,
+      keyFingerprint: attestation.signature.keyFingerprint,
+      registrationAuditEventId: `audit-${key}-12345678`,
+      registrationDatabaseFingerprint: PREVIEW_DATABASE_FINGERPRINT,
+      registeredAt: "2026-08-25T11:00:00.000Z",
+      registeredByUserId: 1,
+      verificationMethod: "VIDEO_CALL",
+      verificationReferenceFingerprint: "c".repeat(64),
+    };
+  };
+  return {
+    schemaVersion: 1,
+    candidate: signoffs.candidate,
+    credentials: {
+      financeAccounting: credential("financeAccounting", "FINANCE_ACCOUNTING"),
+      legalPrivacy: credential("legalPrivacy", "LEGAL_PRIVACY"),
+      ritualOperationsSme: credential("ritualOperationsSme", "RITUAL_OPERATIONS_SME"),
+    },
+  };
 }
 
 function humanSignoffs(state: EvidenceState, implementationSha: string) {
@@ -417,11 +519,47 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function runValidator(cwd: string) {
+function runValidator(cwd: string, options: { trustSignoffs?: boolean } = {}) {
+  const evidenceDir = join(cwd, "docs", "evidence", "missions", "M3");
+  const signoffs = JSON.parse(readFileSync(join(evidenceDir, "human-signoffs.json"), "utf8"));
+  const keyFor = (key: keyof typeof CHECKLISTS) => signoffs.gates[key].attestation?.signature?.keyFingerprint ?? "";
+  const sourceCiFixture = join(cwd, ".git", "m3-source-ci-attestation.json");
+  writeFileSync(sourceCiFixture, JSON.stringify({
+    "123456789": {
+      run: {
+        id: 123456789,
+        repository: { full_name: "gorgerich/TD_agent" },
+        head_repository: { full_name: "gorgerich/TD_agent" },
+        head_sha: signoffs.candidate.implementationSha,
+        event: "pull_request",
+        status: "completed",
+        conclusion: "success",
+      },
+      jobs: {
+        jobs: [{
+          name: "verify",
+          conclusion: "success",
+          steps: [
+            ...SOURCE_CI_REQUIRED_STEPS.map((name) => ({ name, status: "completed", conclusion: "success" })),
+            { name: "Validate authoritative mission evidence", status: "completed", conclusion: "success" },
+          ],
+        }],
+      },
+    },
+  }));
   const result = spawnSync(process.execPath, ["scripts/validate-mission-evidence.mjs"], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, REQUIRED_MISSION_EVIDENCE: "M3" },
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      REQUIRED_MISSION_EVIDENCE: "M3",
+      M3_EVIDENCE_VALIDATOR_TEST_MODE: "YES",
+      M3_SOURCE_CI_ATTESTATION_FILE: sourceCiFixture,
+      M3_FINANCE_REVIEWER_KEY_FINGERPRINTS: options.trustSignoffs === false ? "" : keyFor("financeAccounting"),
+      M3_LEGAL_PRIVACY_REVIEWER_KEY_FINGERPRINTS: options.trustSignoffs === false ? "" : keyFor("legalPrivacy"),
+      M3_RITUAL_SME_REVIEWER_KEY_FINGERPRINTS: options.trustSignoffs === false ? "" : keyFor("ritualOperationsSme"),
+    },
   });
   return { status: result.status, stderr: result.stderr ?? "" };
 }
