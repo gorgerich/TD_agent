@@ -34,6 +34,7 @@ import {
   makeRequest,
   skip,
 } from "./_setup";
+import { signSession } from "../../lib/session";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const ACTIVATION_POLICY_VERSION = 3_000_002;
@@ -51,6 +52,11 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
   try {
     const organizationId = await fixtures.makeOrganization("reviewer-registry");
     const actor = await fixtures.makeMember("registry-actor", { organizationId, role: "ADMIN" });
+    const actorSessionVersion = (await db.user.findUniqueOrThrow({
+      where: { id: actor.userId },
+      select: { sessionVersion: true },
+    })).sessionVersion;
+    const authoritySession = await reviewerAuthoritySession(actor.userId, actorSessionVersion);
     const credential = REVIEWER_KEYS.FINANCE_ACCOUNTING;
     const input = {
       schemaVersion: 1 as const,
@@ -64,27 +70,52 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
     };
 
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input)),
-      /Platform SUPER_ADMIN is required/,
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
+      /Platform SUPER_ADMIN authority is required/,
     );
-    await db.user.update({ where: { id: actor.userId }, data: { platformRole: "SUPER_ADMIN" } });
+    await db.user.update({
+      where: { id: actor.userId },
+      data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
+    });
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, {
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, `${authoritySession}tampered`, input)),
+      /MFA-verified Platform SUPER_ADMIN authority session is required/,
+    );
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(
+        tx,
+        authoritySession,
+        input,
+        new Date(Date.now() + 16 * 60 * 1_000),
+      )),
+      /no more than 15 minutes old/,
+    );
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, {
         ...input,
         verifiedAt: "2099-01-01T00:00:00.000Z",
       })),
       /cannot be future-dated/,
     );
-    const first = await db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input));
-    const replay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, input));
+    const first = await db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input));
+    const replay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input));
     assert.equal(first.replayed, false);
     assert.equal(replay.replayed, true);
     assert.equal(replay.auditEventId, first.auditEventId);
     assert.equal(await db.platformAuditEvent.count({
       where: { targetType: "m3-reviewer-credential", targetId: credential.keyFingerprint },
     }), 1);
+    const registrationAudit = await db.platformAuditEvent.findUniqueOrThrow({
+      where: { id: first.auditEventId },
+      select: { actorUserId: true, metadata: true },
+    });
+    assert.equal(registrationAudit.actorUserId, actor.userId);
+    const authorityMetadata = registrationAudit.metadata as Record<string, unknown>;
+    assert.equal(authorityMetadata.authorityProofType, "MFA_VERIFIED_PLATFORM_SESSION");
+    assert.equal(authorityMetadata.authoritySessionVersion, actorSessionVersion);
+    assert.equal(Number.isFinite(Date.parse(String(authorityMetadata.authoritySessionIssuedAt))), true);
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, actor.userId, {
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, {
         ...input,
         reviewerName: "Conflicting Synthetic Reviewer",
       })),
@@ -104,13 +135,13 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
     await new Promise((resolve) => setTimeout(resolve, 5));
     const revoked = await db.$transaction((tx) => revokeM3ReviewerCredential(
       tx,
-      actor.userId,
+      authoritySession,
       credential.keyFingerprint,
       "ROTATED",
     ));
     const revokedReplay = await db.$transaction((tx) => revokeM3ReviewerCredential(
       tx,
-      actor.userId,
+      authoritySession,
       credential.keyFingerprint,
       "ROTATED",
     ));
@@ -133,6 +164,70 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
   }
 });
 
+test("M3 reviewer credential registry serializes concurrent register and revoke commands", opts, async () => {
+  const fixtures = createFixtureContext("m3-reviewer-registry-race");
+  try {
+    const organizationId = await fixtures.makeOrganization("reviewer-registry-race");
+    const actor = await fixtures.makeMember("registry-race-actor", { organizationId, role: "ADMIN" });
+    const actorRecord = await db.user.update({
+      where: { id: actor.userId },
+      data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
+      select: { sessionVersion: true },
+    });
+    const authoritySession = await reviewerAuthoritySession(actor.userId, actorRecord.sessionVersion);
+    const { publicKey } = generateKeyPairSync("ed25519");
+    const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString().trim();
+    const keyFingerprint = m3ReviewerPublicKeyFingerprint(publicKeyPem);
+    const input = {
+      schemaVersion: 1 as const,
+      reviewerId: "synthetic-finance-registry-race-reviewer",
+      reviewerName: "Synthetic Finance Registry Race Reviewer",
+      reviewerRole: "FINANCE_ACCOUNTING" as const,
+      publicKeyPem,
+      verificationMethod: "VIDEO_CALL" as const,
+      verificationReference: "synthetic-controlled-race-assertion",
+      verifiedAt: "2026-01-01T08:00:00.000Z",
+    };
+
+    const registrations = await Promise.all([
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
+    ]);
+    assert.deepEqual(registrations.map((result) => result.replayed).sort(), [false, true]);
+    assert.equal(new Set(registrations.map((result) => result.auditEventId)).size, 1);
+    assert.equal(await db.platformAuditEvent.count({
+      where: { targetType: "m3-reviewer-credential", targetId: keyFingerprint },
+    }), 1);
+
+    const [registerRace, revokeRace] = await Promise.allSettled([
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
+      db.$transaction((tx) => revokeM3ReviewerCredential(tx, authoritySession, keyFingerprint, "ROTATED")),
+    ]);
+    assert.equal(revokeRace.status, "fulfilled");
+    if (registerRace.status === "rejected") {
+      assert.match(String(registerRace.reason), /Revoked M3 reviewer credentials cannot be reactivated/);
+    } else {
+      assert.equal(registerRace.value.replayed, true);
+    }
+    assert.equal(await db.platformAuditEvent.count({
+      where: { targetType: "m3-reviewer-credential", targetId: keyFingerprint },
+    }), 2);
+    await assert.rejects(
+      db.$transaction((tx) => requireActiveM3ReviewerCredential(tx, {
+        reviewerId: input.reviewerId,
+        reviewerName: input.reviewerName,
+        reviewerRole: input.reviewerRole,
+        publicKeyPem,
+        keyFingerprint,
+      })),
+      /not actively registered/,
+    );
+  } finally {
+    await fixtures.cleanup();
+    await fixtures.assertNoResidue();
+  }
+});
+
 test("M3 approved policy activation is human-attested, idempotent and retires prior versions", opts, async () => {
   const fixtures = createFixtureContext("m3-policy-activation");
   try {
@@ -140,19 +235,23 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
     const otherOrganizationId = await fixtures.makeOrganization("other-approved-policy");
     const approver = await db.user.findUniqueOrThrow({
       where: { email: "m3-policy-approver@synthetic.invalid" },
-      select: { id: true },
+      select: { id: true, sessionVersion: true },
     });
+    const authoritySession = await reviewerAuthoritySession(approver.id, approver.sessionVersion);
 
     // Exercise immutable activation inside one rollback-only transaction. Identical
     // policy codes in a second tenant must not retire or rewrite the first tenant.
     await assert.rejects(db.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
+      await tx.user.update({
+        where: { id: approver.id },
+        data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
+      });
       const firstBundle = baselinePolicyBundle(organizationId, approver.id);
       await assert.rejects(
         applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle)),
         /reviewer credential is not actively registered/,
       );
-      await registerReviewerCredentials(tx, firstBundle, approver.id);
+      await registerReviewerCredentials(tx, firstBundle, authoritySession);
       const first = await applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle));
       const replay = await applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle));
       assert.equal(first.replayed, false);
@@ -215,7 +314,7 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       }), 1);
       await revokeM3ReviewerCredential(
         tx,
-        approver.id,
+        authoritySession,
         firstBundle.attestations.finance.signature.keyFingerprint,
         "CREDENTIAL_COMPROMISED",
       );
@@ -242,13 +341,17 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
     await db.case.update({ where: { id: laterCase.id }, data: { scenarioId: "UNSELECTED" } });
     const approver = await db.user.findUniqueOrThrow({
       where: { email: "m3-policy-approver@synthetic.invalid" },
-      select: { id: true },
+      select: { id: true, sessionVersion: true },
     });
+    const authoritySession = await reviewerAuthoritySession(approver.id, approver.sessionVersion);
 
     await assert.rejects(db.$transaction(async (tx) => {
-      await tx.user.update({ where: { id: approver.id }, data: { platformRole: "SUPER_ADMIN" } });
+      await tx.user.update({
+        where: { id: approver.id },
+        data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
+      });
       const bundle = baselinePolicyBundle(organizationId, approver.id);
-      await registerReviewerCredentials(tx, bundle, approver.id);
+      await registerReviewerCredentials(tx, bundle, authoritySession);
       const first = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
         tx,
         bundle,
@@ -620,10 +723,10 @@ function signedPolicyBundle(content: ReturnType<typeof policyContent>): M3Approv
 async function registerReviewerCredentials(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
-  actorUserId: number,
+  authoritySession: string,
 ) {
   for (const attestation of Object.values(bundle.attestations)) {
-    await registerM3ReviewerCredential(tx, actorUserId, {
+    await registerM3ReviewerCredential(tx, authoritySession, {
       schemaVersion: 1,
       reviewerId: attestation.reviewer.id,
       reviewerName: attestation.reviewer.name,
@@ -634,6 +737,15 @@ async function registerReviewerCredentials(
       verifiedAt: "2026-08-13T08:00:00.000Z",
     });
   }
+}
+
+async function reviewerAuthoritySession(userId: number, sessionVersion: number) {
+  return signSession({
+    version: 2,
+    userId,
+    sessionVersion,
+    mfaVerified: true,
+  });
 }
 
 function documentType(code: string, name: string) {

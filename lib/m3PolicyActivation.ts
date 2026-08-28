@@ -31,7 +31,11 @@ const PUBLIC_KEY_PEM = z.string().min(80).max(2_000).refine(
 );
 const PREVIEW_URL = z.string().url().refine((value) => {
   const url = new URL(value);
-  return url.protocol === "https:" && url.hostname.endsWith(".vercel.app") && url.pathname === "/";
+  return url.protocol === "https:"
+    && url.hostname.endsWith(".vercel.app")
+    && url.pathname === "/"
+    && !url.search
+    && !url.hash;
 }, "Preview URL must be an exact HTTPS vercel.app origin");
 const ReleaseCandidate = z.object({
   previewUrl: PREVIEW_URL,

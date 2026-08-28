@@ -4,6 +4,7 @@ import { z } from "zod";
 import { commandFingerprint } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { appendPlatformAudit } from "@/lib/platformAudit";
+import { verifySession } from "@/lib/session";
 
 const FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
 const PUBLIC_KEY_PEM = z.string().min(80).max(2_000).refine(
@@ -17,6 +18,7 @@ const CANONICAL_NAME = z.string().min(3).max(160).refine(
   "Reviewer name must not contain leading or trailing whitespace",
 );
 const ISO_INSTANT = z.iso.datetime();
+const AUTHORITY_SESSION_MAX_AGE_MS = 15 * 60 * 1_000;
 
 export const M3_REVIEWER_ROLES = [
   "FINANCE_ACCOUNTING",
@@ -39,7 +41,7 @@ export const M3ReviewerCredentialRegistrationInput = z.object({
 }).strict();
 
 export const M3ReviewerCredentialRegistrationMetadata = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   reviewerId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$/),
   reviewerNameFingerprint: FINGERPRINT,
   reviewerRole: z.enum(M3_REVIEWER_ROLES),
@@ -51,14 +53,20 @@ export const M3ReviewerCredentialRegistrationMetadata = z.object({
   verifiedAt: ISO_INSTANT,
   actorUserId: z.number().int().positive(),
   actorPlatformRoleAtEvent: z.literal("SUPER_ADMIN"),
+  authorityProofType: z.literal("MFA_VERIFIED_PLATFORM_SESSION"),
+  authoritySessionVersion: z.number().int().nonnegative(),
+  authoritySessionIssuedAt: ISO_INSTANT,
 }).strict();
 
 export const M3ReviewerCredentialRevocationMetadata = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   keyFingerprint: FINGERPRINT,
   reasonCode: z.enum(["CREDENTIAL_COMPROMISED", "REVIEWER_OFFBOARDED", "ROTATED", "OTHER_APPROVED"]),
   actorUserId: z.number().int().positive(),
   actorPlatformRoleAtEvent: z.literal("SUPER_ADMIN"),
+  authorityProofType: z.literal("MFA_VERIFIED_PLATFORM_SESSION"),
+  authoritySessionVersion: z.number().int().nonnegative(),
+  authoritySessionIssuedAt: ISO_INSTANT,
   revokedAt: ISO_INSTANT,
 }).strict();
 
@@ -66,6 +74,11 @@ export type M3ReviewerCredentialRegistration = z.infer<typeof M3ReviewerCredenti
 export type M3ReviewerRole = (typeof M3_REVIEWER_ROLES)[number];
 
 type AuditTx = Prisma.TransactionClient;
+type ReviewerCredentialAuthority = {
+  actorUserId: number;
+  sessionVersion: number;
+  sessionIssuedAt: Date;
+};
 
 export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
   const key = createPublicKey(publicKeyPem);
@@ -77,7 +90,7 @@ export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
 
 export async function registerM3ReviewerCredential(
   tx: AuditTx,
-  actorUserId: number,
+  authoritySessionToken: string,
   rawInput: unknown,
   now = new Date(),
 ) {
@@ -85,12 +98,13 @@ export async function registerM3ReviewerCredential(
   if (new Date(input.verifiedAt).getTime() > now.getTime()) {
     throw new OperationalCommandError(400, "M3 reviewer identity verification cannot be future-dated");
   }
+  const authority = await resolveReviewerCredentialAuthority(authoritySessionToken, now);
   const keyFingerprint = m3ReviewerPublicKeyFingerprint(input.publicKeyPem);
   await lockCredential(tx, keyFingerprint);
-  await requireSuperAdminAtEvent(tx, actorUserId);
+  await requireSuperAdminAtEvent(tx, authority);
 
   const metadata = M3ReviewerCredentialRegistrationMetadata.parse({
-    schemaVersion: 2,
+    schemaVersion: 3,
     reviewerId: input.reviewerId,
     reviewerNameFingerprint: commandFingerprint(input.reviewerName),
     reviewerRole: input.reviewerRole,
@@ -100,8 +114,11 @@ export async function registerM3ReviewerCredential(
     verificationMethod: input.verificationMethod,
     verificationReferenceFingerprint: commandFingerprint(input.verificationReference),
     verifiedAt: input.verifiedAt,
-    actorUserId,
+    actorUserId: authority.actorUserId,
     actorPlatformRoleAtEvent: "SUPER_ADMIN",
+    authorityProofType: "MFA_VERIFIED_PLATFORM_SESSION",
+    authoritySessionVersion: authority.sessionVersion,
+    authoritySessionIssuedAt: authority.sessionIssuedAt.toISOString(),
   });
   const latest = await latestCredentialEvent(tx, keyFingerprint);
   if (latest?.action === "M3_REVIEWER_CREDENTIAL_REVOKED") {
@@ -116,7 +133,7 @@ export async function registerM3ReviewerCredential(
   }
 
   const event = await appendPlatformAudit(tx, {
-    actorUserId,
+    actorUserId: authority.actorUserId,
     action: "M3_REVIEWER_CREDENTIAL_REGISTERED",
     targetType: "m3-reviewer-credential",
     targetId: keyFingerprint,
@@ -128,14 +145,15 @@ export async function registerM3ReviewerCredential(
 
 export async function revokeM3ReviewerCredential(
   tx: AuditTx,
-  actorUserId: number,
+  authoritySessionToken: string,
   keyFingerprint: string,
   reasonCode: z.infer<typeof M3ReviewerCredentialRevocationMetadata>["reasonCode"],
   now = new Date(),
 ) {
   FINGERPRINT.parse(keyFingerprint);
+  const authority = await resolveReviewerCredentialAuthority(authoritySessionToken, now);
   await lockCredential(tx, keyFingerprint);
-  await requireSuperAdminAtEvent(tx, actorUserId);
+  await requireSuperAdminAtEvent(tx, authority);
   const latest = await latestCredentialEvent(tx, keyFingerprint);
   if (!latest) throw new OperationalCommandError(404, "M3 reviewer credential is not registered");
   if (latest.action === "M3_REVIEWER_CREDENTIAL_REVOKED") {
@@ -146,16 +164,19 @@ export async function revokeM3ReviewerCredential(
   }
   const revokedAt = new Date(Math.max(now.getTime(), latest.createdAt.getTime() + 1));
   const event = await appendPlatformAudit(tx, {
-    actorUserId,
+    actorUserId: authority.actorUserId,
     action: "M3_REVIEWER_CREDENTIAL_REVOKED",
     targetType: "m3-reviewer-credential",
     targetId: keyFingerprint,
     metadata: M3ReviewerCredentialRevocationMetadata.parse({
-      schemaVersion: 2,
+      schemaVersion: 3,
       keyFingerprint,
       reasonCode,
-      actorUserId,
+      actorUserId: authority.actorUserId,
       actorPlatformRoleAtEvent: "SUPER_ADMIN",
+      authorityProofType: "MFA_VERIFIED_PLATFORM_SESSION",
+      authoritySessionVersion: authority.sessionVersion,
+      authoritySessionIssuedAt: authority.sessionIssuedAt.toISOString(),
       revokedAt: revokedAt.toISOString(),
     }),
     createdAt: revokedAt,
@@ -173,6 +194,7 @@ export async function requireActiveM3ReviewerCredential(
     keyFingerprint: string;
   },
 ) {
+  await lockCredential(tx, expected.keyFingerprint);
   const latest = await latestCredentialEvent(tx, expected.keyFingerprint);
   if (!latest || latest.action !== "M3_REVIEWER_CREDENTIAL_REGISTERED") {
     throw new OperationalCommandError(403, "M3 reviewer credential is not actively registered");
@@ -197,13 +219,48 @@ export async function requireActiveM3ReviewerCredential(
   return { auditEventId: latest.id, registeredAt: latest.createdAt, metadata: actual };
 }
 
-async function requireSuperAdminAtEvent(tx: AuditTx, actorUserId: number) {
+async function resolveReviewerCredentialAuthority(
+  authoritySessionToken: string,
+  now: Date,
+): Promise<ReviewerCredentialAuthority> {
+  if (!process.env.APP_ENCRYPTION_KEY || process.env.APP_ENCRYPTION_KEY.length < 32) {
+    throw new OperationalCommandError(503, "Application session trust root is unavailable for reviewer credential authority");
+  }
+  if (!authoritySessionToken || authoritySessionToken !== authoritySessionToken.trim()) {
+    throw new OperationalCommandError(403, "Canonical Platform SUPER_ADMIN authority session is required");
+  }
+  const payload = await verifySession(authoritySessionToken);
+  if (
+    !payload
+    || payload.version !== 2
+    || payload.mfaVerified !== true
+    || !Number.isInteger(payload.sessionVersion)
+  ) {
+    throw new OperationalCommandError(403, "Fresh MFA-verified Platform SUPER_ADMIN authority session is required");
+  }
+  const sessionIssuedAt = new Date(payload.iat * 1_000);
+  const ageMs = now.getTime() - sessionIssuedAt.getTime();
+  if (ageMs < -30_000 || ageMs > AUTHORITY_SESSION_MAX_AGE_MS) {
+    throw new OperationalCommandError(403, "Platform SUPER_ADMIN authority session must be no more than 15 minutes old");
+  }
+  return {
+    actorUserId: payload.userId,
+    sessionVersion: payload.sessionVersion!,
+    sessionIssuedAt,
+  };
+}
+
+async function requireSuperAdminAtEvent(tx: AuditTx, authority: ReviewerCredentialAuthority) {
   const actor = await tx.user.findUnique({
-    where: { id: actorUserId },
-    select: { platformRole: true },
+    where: { id: authority.actorUserId },
+    select: { platformRole: true, platformMfaEnabledAt: true, sessionVersion: true },
   });
-  if (actor?.platformRole !== "SUPER_ADMIN") {
-    throw new OperationalCommandError(403, "Active Platform SUPER_ADMIN is required for M3 reviewer credential changes");
+  if (
+    actor?.platformRole !== "SUPER_ADMIN"
+    || actor.platformMfaEnabledAt == null
+    || actor.sessionVersion !== authority.sessionVersion
+  ) {
+    throw new OperationalCommandError(403, "Current MFA-verified Platform SUPER_ADMIN authority is required for M3 reviewer credential changes");
   }
 }
 

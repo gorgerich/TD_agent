@@ -303,6 +303,14 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
   const parsed = parseM3ApprovedPolicyBundle(bundle);
   assert.equal(parsed.documentPolicies.length, 2);
   assert.doesNotThrow(() => assertM3HumanSignoffsAuthorizeBundle(parsed, humanSignoffs(parsed)));
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    releaseCandidate: { ...bundle.releaseCandidate, previewUrl: `${bundle.releaseCandidate.previewUrl}?candidate=other` },
+  }), /exact HTTPS vercel.app origin/);
+  assert.throws(() => parseM3ApprovedPolicyBundle({
+    ...bundle,
+    releaseCandidate: { ...bundle.releaseCandidate, previewUrl: `${bundle.releaseCandidate.previewUrl}#other` },
+  }), /exact HTTPS vercel.app origin/);
 
   assert.throws(() => assertM3HumanSignoffsAuthorizeBundle(parsed, {
     ...humanSignoffs(parsed),
