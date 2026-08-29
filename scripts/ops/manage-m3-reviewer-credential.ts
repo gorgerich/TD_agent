@@ -1,7 +1,8 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import {
   registerM3ReviewerCredential,
   revokeM3ReviewerCredential,
+  runM3ReviewerCredentialTransaction,
 } from "../../lib/m3ReviewerCredential";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 import { readSecureOperatorFile } from "../../lib/secureOperatorFile";
@@ -37,7 +38,7 @@ async function main() {
     if (!identity || identity.database !== target.database || identity.readOnly !== "off") {
       throw new Error("M3 reviewer credential target is not writable or does not match reviewed endpoint");
     }
-    const result = await db.$transaction(async (tx) => {
+    const result = await runM3ReviewerCredentialTransaction(db, async (tx) => {
       if (action === "register") {
         const inputFile = process.env.M3_REVIEWER_CREDENTIAL_FILE;
         if (!inputFile) throw new Error("M3_REVIEWER_CREDENTIAL_FILE is required for register");
@@ -49,7 +50,7 @@ async function main() {
       if (!keyFingerprint) throw new Error("M3_REVIEWER_KEY_FINGERPRINT is required for revoke");
       if (!isRevocationReason(reasonCode)) throw new Error("M3_REVIEWER_REVOCATION_REASON is invalid");
       return revokeM3ReviewerCredential(tx, authorityGrantToken, keyFingerprint, reasonCode);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
     process.stdout.write(`${JSON.stringify({
       status: result.replayed ? "ALREADY_APPLIED" : "APPLIED",
       action: action.toUpperCase(),

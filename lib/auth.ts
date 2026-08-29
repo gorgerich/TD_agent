@@ -22,6 +22,7 @@ export type AuthenticatedUserSession = {
   userId: number;
   platformRole: PlatformRole;
   sessionVersion: number;
+  sessionIssuedAtEpochSeconds: number;
   mfaVerified: boolean;
   platformMfaEnabled: boolean;
   activeMembershipId?: string;
@@ -78,6 +79,7 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
     userId: user.id,
     platformRole: user.platformRole,
     sessionVersion: user.sessionVersion,
+    sessionIssuedAtEpochSeconds: payload.iat,
     mfaVerified: payload.mfaVerified === true,
     platformMfaEnabled: user.platformMfaEnabledAt != null,
     activeMembershipId: selected?.id,

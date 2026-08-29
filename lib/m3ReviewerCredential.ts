@@ -1,9 +1,10 @@
-import { createHash, createPublicKey, randomBytes } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { createHash, createPublicKey } from "node:crypto";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { commandFingerprint } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { appendPlatformAudit } from "@/lib/platformAudit";
+import { backoffBeforeRetry } from "@/lib/serializationBackoff";
 
 const FINGERPRINT = z.string().regex(/^[0-9a-f]{64}$/);
 const AUDIT_EVENT_ID = z.string().min(8).max(128);
@@ -19,7 +20,6 @@ const CANONICAL_NAME = z.string().min(3).max(160).refine(
 );
 const ISO_INSTANT = z.iso.datetime();
 const AUTHORITY_GRANT_TOKEN = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-const AUTHORITY_GRANT_TTL_MS = 15 * 60 * 1_000;
 
 export const M3_REVIEWER_ROLES = [
   "FINANCE_ACCOUNTING",
@@ -49,13 +49,14 @@ export const M3ReviewerCredentialRegistrationInput = z.object({
 }).strict();
 
 export const M3ReviewerAuthorityGrantMetadata = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   operation: z.enum(M3_REVIEWER_CREDENTIAL_OPERATIONS),
   keyFingerprint: FINGERPRINT,
   actorUserId: z.number().int().positive(),
   actorPlatformRoleAtEvent: z.literal("SUPER_ADMIN"),
   authoritySessionVersion: z.number().int().nonnegative(),
   authorityMfaVerified: z.literal(true),
+  authoritySessionIssuedAt: ISO_INSTANT,
   issuedAt: ISO_INSTANT,
   expiresAt: ISO_INSTANT,
 }).strict();
@@ -121,14 +122,6 @@ type ReviewerCredentialAuthority = {
   consumed: z.infer<typeof M3ReviewerAuthorityGrantConsumptionMetadata> | null;
 };
 
-type ReviewerAuthorityContext = {
-  userId: number;
-  platformRole: "SUPER_ADMIN";
-  sessionVersion: number;
-  platformMfaEnabled: boolean;
-  mfaVerified: boolean;
-};
-
 export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
   const key = createPublicKey(publicKeyPem);
   if (key.asymmetricKeyType !== "ed25519") {
@@ -137,40 +130,22 @@ export function m3ReviewerPublicKeyFingerprint(publicKeyPem: string) {
   return createHash("sha256").update(key.export({ type: "spki", format: "der" })).digest("hex");
 }
 
-/**
- * Called by the authenticated Platform Admin route. The raw grant leaves that
- * route once; PostgreSQL stores only its SHA-256 fingerprint.
- */
-export async function issueM3ReviewerAuthorityGrant(
-  tx: AuditTx,
-  context: ReviewerAuthorityContext,
-  rawInput: unknown,
-) {
-  const input = M3ReviewerAuthorityGrantInput.parse(rawInput);
-  await requireGrantIssuerAtEvent(tx, context);
-  const now = await databaseNow(tx);
-  const expiresAt = new Date(now.getTime() + AUTHORITY_GRANT_TTL_MS);
-  const token = randomBytes(32).toString("base64url");
-  const grantFingerprint = authorityGrantFingerprint(token);
-  const event = await appendPlatformAudit(tx, {
-    actorUserId: context.userId,
-    action: "M3_REVIEWER_AUTHORITY_GRANTED",
-    targetType: "m3-reviewer-authority",
-    targetId: grantFingerprint,
-    metadata: M3ReviewerAuthorityGrantMetadata.parse({
-      schemaVersion: 1,
-      operation: input.operation,
-      keyFingerprint: input.keyFingerprint,
-      actorUserId: context.userId,
-      actorPlatformRoleAtEvent: "SUPER_ADMIN",
-      authoritySessionVersion: context.sessionVersion,
-      authorityMfaVerified: true,
-      issuedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-    }),
-    createdAt: now,
-  });
-  return { token, expiresAt, auditEventId: event.id };
+export async function runM3ReviewerCredentialTransaction<T>(
+  client: PrismaClient,
+  work: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await client.$transaction(work, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      if (!retryable || attempt === 3) throw error;
+      await backoffBeforeRetry(attempt);
+    }
+  }
+  throw new OperationalCommandError(409, "M3 reviewer credential command exhausted retries");
 }
 
 export async function registerM3ReviewerCredential(
@@ -402,27 +377,6 @@ async function resolveReviewerCredentialAuthority(
     now,
     consumed: consumed?.success ? consumed.data : null,
   };
-}
-
-async function requireGrantIssuerAtEvent(tx: AuditTx, context: ReviewerAuthorityContext) {
-  if (
-    context.platformRole !== "SUPER_ADMIN"
-    || context.platformMfaEnabled !== true
-    || context.mfaVerified !== true
-  ) {
-    throw new OperationalCommandError(403, "Fresh MFA-verified Platform SUPER_ADMIN session is required");
-  }
-  const actor = await tx.user.findUnique({
-    where: { id: context.userId },
-    select: { platformRole: true, platformMfaEnabledAt: true, sessionVersion: true },
-  });
-  if (
-    actor?.platformRole !== "SUPER_ADMIN"
-    || actor.platformMfaEnabledAt == null
-    || actor.sessionVersion !== context.sessionVersion
-  ) {
-    throw new OperationalCommandError(403, "Current MFA-verified Platform SUPER_ADMIN authority is required");
-  }
 }
 
 async function consumeAuthorityGrant(
