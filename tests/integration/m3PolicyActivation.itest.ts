@@ -4,6 +4,7 @@ import { test } from "node:test";
 import type { Prisma } from "@prisma/client";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
 import { POST as login } from "../../app/api/agent/auth/login/route";
+import { handleM3ReviewerAuthorityGrant } from "../../app/api/platform-admin/m3-reviewer-authority/route";
 import {
   M3_HUMAN_ATTESTATION_CHECKLISTS,
   activateM3ApprovedPoliciesAndMaterializeExistingCases,
@@ -17,6 +18,7 @@ import {
 } from "../../lib/m3PolicyActivation";
 import { commandFingerprint } from "../../lib/m3Command";
 import {
+  issueM3ReviewerAuthorityGrant,
   registerM3ReviewerCredential,
   requireActiveM3ReviewerCredential,
   revokeM3ReviewerCredential,
@@ -34,7 +36,7 @@ import {
   makeRequest,
   skip,
 } from "./_setup";
-import { signSession } from "../../lib/session";
+import { signSession, SESSION_COOKIE } from "../../lib/session";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const ACTIVATION_POLICY_VERSION = 3_000_002;
@@ -56,7 +58,6 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
       where: { id: actor.userId },
       select: { sessionVersion: true },
     })).sessionVersion;
-    const authoritySession = await reviewerAuthoritySession(actor.userId, actorSessionVersion);
     const credential = REVIEWER_KEYS.FINANCE_ACCOUNTING;
     const input = {
       schemaVersion: 1 as const,
@@ -68,40 +69,95 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
       verificationReference: "synthetic-controlled-channel-assertion",
       verifiedAt: "2026-01-01T08:00:00.000Z",
     };
-
-    await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
-      /Platform SUPER_ADMIN authority is required/,
-    );
+    const authoritySession = await reviewerAuthoritySession(actor.userId, actorSessionVersion);
+    const authorityRequest = makeRequest("/api/platform-admin/m3-reviewer-authority", {
+      method: "POST",
+      cookie: `${SESSION_COOKIE}=${authoritySession}`,
+      body: { operation: "REGISTER", keyFingerprint: credential.keyFingerprint },
+    });
+    const denied = await handleM3ReviewerAuthorityGrant(authorityRequest, async () => null);
+    assert.equal(denied.status, 403);
     await db.user.update({
       where: { id: actor.userId },
       data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
     });
+    const grantResponse = await handleM3ReviewerAuthorityGrant(makeRequest(
+      "/api/platform-admin/m3-reviewer-authority",
+      {
+        method: "POST",
+        cookie: `${SESSION_COOKIE}=${authoritySession}`,
+        body: { operation: "REGISTER", keyFingerprint: credential.keyFingerprint },
+      },
+    ), async () => null);
+    assert.equal(grantResponse.status, 201);
+    const routeGrant = await grantResponse.json() as {
+      authorityGrant: string;
+      expiresAt: string;
+      auditEventId: string;
+    };
+    assert.match(routeGrant.authorityGrant, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(Date.parse(routeGrant.expiresAt) > Date.now(), true);
+    const grantAudit = await db.platformAuditEvent.findUniqueOrThrow({
+      where: { id: routeGrant.auditEventId },
+      select: { action: true, targetType: true, metadata: true },
+    });
+    assert.equal(grantAudit.action, "M3_REVIEWER_AUTHORITY_GRANTED");
+    assert.equal(grantAudit.targetType, "m3-reviewer-authority");
+    assert.equal(JSON.stringify(grantAudit).includes(routeGrant.authorityGrant), false);
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, `${authoritySession}tampered`, input)),
-      /MFA-verified Platform SUPER_ADMIN authority session is required/,
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, "A".repeat(43), input)),
+      /authority grant is required|grant is missing/,
+    );
+    const staleGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REGISTER",
+      credential.keyFingerprint,
+    );
+    const staleAudit = await db.platformAuditEvent.findUniqueOrThrow({
+      where: { id: staleGrant.auditEventId },
+      select: { metadata: true },
+    });
+    await db.platformAuditEvent.update({
+      where: { id: staleGrant.auditEventId },
+      data: {
+        metadata: {
+          ...(staleAudit.metadata as Record<string, unknown>),
+          expiresAt: "2020-01-01T00:00:00.000Z",
+        } as Prisma.InputJsonObject,
+      },
+    });
+    await assert.rejects(
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, staleGrant.token, input)),
+      /invalid or expired/,
+    );
+    const futureGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REGISTER",
+      credential.keyFingerprint,
     );
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(
-        tx,
-        authoritySession,
-        input,
-        new Date(Date.now() + 16 * 60 * 1_000),
-      )),
-      /no more than 15 minutes old/,
-    );
-    await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, {
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, futureGrant.token, {
         ...input,
         verifiedAt: "2099-01-01T00:00:00.000Z",
       })),
       /cannot be future-dated/,
     );
-    const first = await db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input));
-    const replay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input));
+    const first = await db.$transaction((tx) => registerM3ReviewerCredential(tx, routeGrant.authorityGrant, input));
+    const replay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, routeGrant.authorityGrant, input));
+    const freshReplayGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REGISTER",
+      credential.keyFingerprint,
+    );
+    const freshReplay = await db.$transaction((tx) => registerM3ReviewerCredential(tx, freshReplayGrant.token, input));
     assert.equal(first.replayed, false);
     assert.equal(replay.replayed, true);
+    assert.equal(freshReplay.replayed, true);
     assert.equal(replay.auditEventId, first.auditEventId);
+    assert.equal(freshReplay.auditEventId, first.auditEventId);
     assert.equal(await db.platformAuditEvent.count({
       where: { targetType: "m3-reviewer-credential", targetId: credential.keyFingerprint },
     }), 1);
@@ -111,11 +167,18 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
     });
     assert.equal(registrationAudit.actorUserId, actor.userId);
     const authorityMetadata = registrationAudit.metadata as Record<string, unknown>;
-    assert.equal(authorityMetadata.authorityProofType, "MFA_VERIFIED_PLATFORM_SESSION");
+    assert.equal(authorityMetadata.authorityProofType, "ONE_TIME_PLATFORM_AUTHORITY_GRANT");
     assert.equal(authorityMetadata.authoritySessionVersion, actorSessionVersion);
-    assert.equal(Number.isFinite(Date.parse(String(authorityMetadata.authoritySessionIssuedAt))), true);
+    assert.equal(authorityMetadata.authorityGrantAuditEventId, routeGrant.auditEventId);
+    assert.equal(Number.isFinite(Date.parse(String(authorityMetadata.authorityGrantIssuedAt))), true);
+    const conflictingGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REGISTER",
+      credential.keyFingerprint,
+    );
     await assert.rejects(
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, {
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, conflictingGrant.token, {
         ...input,
         reviewerName: "Conflicting Synthetic Reviewer",
       })),
@@ -132,21 +195,39 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
     })));
 
     await db.user.update({ where: { id: actor.userId }, data: { platformRole: "SUPER_ADMIN" } });
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    const revokeGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REVOKE",
+      credential.keyFingerprint,
+    );
     const revoked = await db.$transaction((tx) => revokeM3ReviewerCredential(
       tx,
-      authoritySession,
+      revokeGrant.token,
       credential.keyFingerprint,
       "ROTATED",
     ));
     const revokedReplay = await db.$transaction((tx) => revokeM3ReviewerCredential(
       tx,
-      authoritySession,
+      revokeGrant.token,
+      credential.keyFingerprint,
+      "ROTATED",
+    ));
+    const freshRevokeGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorSessionVersion,
+      "REVOKE",
+      credential.keyFingerprint,
+    );
+    const freshRevokedReplay = await db.$transaction((tx) => revokeM3ReviewerCredential(
+      tx,
+      freshRevokeGrant.token,
       credential.keyFingerprint,
       "ROTATED",
     ));
     assert.equal(revoked.replayed, false);
     assert.equal(revokedReplay.replayed, true);
+    assert.equal(freshRevokedReplay.replayed, true);
     assert.equal(revokedReplay.auditEventId, revoked.auditEventId);
     await assert.rejects(
       db.$transaction((tx) => requireActiveM3ReviewerCredential(tx, {
@@ -174,7 +255,6 @@ test("M3 reviewer credential registry serializes concurrent register and revoke 
       data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
       select: { sessionVersion: true },
     });
-    const authoritySession = await reviewerAuthoritySession(actor.userId, actorRecord.sessionVersion);
     const { publicKey } = generateKeyPairSync("ed25519");
     const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString().trim();
     const keyFingerprint = m3ReviewerPublicKeyFingerprint(publicKeyPem);
@@ -188,10 +268,14 @@ test("M3 reviewer credential registry serializes concurrent register and revoke 
       verificationReference: "synthetic-controlled-race-assertion",
       verifiedAt: "2026-01-01T08:00:00.000Z",
     };
+    const registrationGrants = await Promise.all([
+      issueReviewerAuthorityGrant(actor.userId, actorRecord.sessionVersion, "REGISTER", keyFingerprint),
+      issueReviewerAuthorityGrant(actor.userId, actorRecord.sessionVersion, "REGISTER", keyFingerprint),
+    ]);
 
     const registrations = await Promise.all([
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, registrationGrants[0].token, input)),
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, registrationGrants[1].token, input)),
     ]);
     assert.deepEqual(registrations.map((result) => result.replayed).sort(), [false, true]);
     assert.equal(new Set(registrations.map((result) => result.auditEventId)).size, 1);
@@ -199,9 +283,21 @@ test("M3 reviewer credential registry serializes concurrent register and revoke 
       where: { targetType: "m3-reviewer-credential", targetId: keyFingerprint },
     }), 1);
 
+    const replayGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorRecord.sessionVersion,
+      "REGISTER",
+      keyFingerprint,
+    );
+    const revokeGrant = await issueReviewerAuthorityGrant(
+      actor.userId,
+      actorRecord.sessionVersion,
+      "REVOKE",
+      keyFingerprint,
+    );
     const [registerRace, revokeRace] = await Promise.allSettled([
-      db.$transaction((tx) => registerM3ReviewerCredential(tx, authoritySession, input)),
-      db.$transaction((tx) => revokeM3ReviewerCredential(tx, authoritySession, keyFingerprint, "ROTATED")),
+      db.$transaction((tx) => registerM3ReviewerCredential(tx, replayGrant.token, input)),
+      db.$transaction((tx) => revokeM3ReviewerCredential(tx, revokeGrant.token, keyFingerprint, "ROTATED")),
     ]);
     assert.equal(revokeRace.status, "fulfilled");
     if (registerRace.status === "rejected") {
@@ -237,8 +333,6 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
       where: { email: "m3-policy-approver@synthetic.invalid" },
       select: { id: true, sessionVersion: true },
     });
-    const authoritySession = await reviewerAuthoritySession(approver.id, approver.sessionVersion);
-
     // Exercise immutable activation inside one rollback-only transaction. Identical
     // policy codes in a second tenant must not retire or rewrite the first tenant.
     await assert.rejects(db.$transaction(async (tx) => {
@@ -251,7 +345,7 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
         applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle)),
         /reviewer credential is not actively registered/,
       );
-      await registerReviewerCredentials(tx, firstBundle, authoritySession);
+      await registerReviewerCredentials(tx, firstBundle, approver.id, approver.sessionVersion);
       const first = await applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle));
       const replay = await applyM3ApprovedPolicyBundle(tx, firstBundle, humanSignoffs(firstBundle));
       assert.equal(first.replayed, false);
@@ -312,9 +406,16 @@ test("M3 approved policy activation is human-attested, idempotent and retires pr
           targetId: organizationId,
         },
       }), 1);
+      const revocationGrant = await issueReviewerAuthorityGrantInTransaction(
+        tx,
+        approver.id,
+        approver.sessionVersion,
+        "REVOKE",
+        firstBundle.attestations.finance.signature.keyFingerprint,
+      );
       await revokeM3ReviewerCredential(
         tx,
-        authoritySession,
+        revocationGrant.token,
         firstBundle.attestations.finance.signature.keyFingerprint,
         "CREDENTIAL_COMPROMISED",
       );
@@ -343,15 +444,13 @@ test("M3 policy activation materializes requirements for existing pilot cases wi
       where: { email: "m3-policy-approver@synthetic.invalid" },
       select: { id: true, sessionVersion: true },
     });
-    const authoritySession = await reviewerAuthoritySession(approver.id, approver.sessionVersion);
-
     await assert.rejects(db.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: approver.id },
         data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() },
       });
       const bundle = baselinePolicyBundle(organizationId, approver.id);
-      await registerReviewerCredentials(tx, bundle, authoritySession);
+      await registerReviewerCredentials(tx, bundle, approver.id, approver.sessionVersion);
       const first = await activateM3ApprovedPoliciesAndMaterializeExistingCases(
         tx,
         bundle,
@@ -723,10 +822,18 @@ function signedPolicyBundle(content: ReturnType<typeof policyContent>): M3Approv
 async function registerReviewerCredentials(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
-  authoritySession: string,
+  actorUserId: number,
+  sessionVersion: number,
 ) {
   for (const attestation of Object.values(bundle.attestations)) {
-    await registerM3ReviewerCredential(tx, authoritySession, {
+    const grant = await issueReviewerAuthorityGrantInTransaction(
+      tx,
+      actorUserId,
+      sessionVersion,
+      "REGISTER",
+      attestation.signature.keyFingerprint,
+    );
+    await registerM3ReviewerCredential(tx, grant.token, {
       schemaVersion: 1,
       reviewerId: attestation.reviewer.id,
       reviewerName: attestation.reviewer.name,
@@ -737,6 +844,37 @@ async function registerReviewerCredentials(
       verifiedAt: "2026-08-13T08:00:00.000Z",
     });
   }
+}
+
+async function issueReviewerAuthorityGrant(
+  actorUserId: number,
+  sessionVersion: number,
+  operation: "REGISTER" | "REVOKE",
+  keyFingerprint: string,
+) {
+  return db.$transaction((tx) => issueReviewerAuthorityGrantInTransaction(
+    tx,
+    actorUserId,
+    sessionVersion,
+    operation,
+    keyFingerprint,
+  ));
+}
+
+async function issueReviewerAuthorityGrantInTransaction(
+  tx: Prisma.TransactionClient,
+  actorUserId: number,
+  sessionVersion: number,
+  operation: "REGISTER" | "REVOKE",
+  keyFingerprint: string,
+) {
+  return issueM3ReviewerAuthorityGrant(tx, {
+    userId: actorUserId,
+    platformRole: "SUPER_ADMIN",
+    sessionVersion,
+    platformMfaEnabled: true,
+    mfaVerified: true,
+  }, { operation, keyFingerprint });
 }
 
 async function reviewerAuthoritySession(userId: number, sessionVersion: number) {
