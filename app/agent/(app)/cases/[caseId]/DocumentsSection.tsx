@@ -203,8 +203,14 @@ export function DocumentsSection({
                     </div>
                     <p className="mt-1 text-[12px] leading-relaxed text-ink-3">Правило v{requirement.policyVersion} · блокирует этап {requirement.blockingStage}</p>
                     <dl className="mt-2 grid gap-1 text-[12px] text-ink-2 sm:grid-cols-2">
-                      <div className="flex gap-2"><dt className="text-ink-3">Ответственный:</dt><dd>{OWNER_LABELS[requirement.ownerRole] ?? requirement.ownerRole}</dd></div>
-                      <div className="flex gap-2"><dt className="text-ink-3">Срок:</dt><dd>{requirement.dueAt ? formatDate(requirement.dueAt, timezone) : "не назначен policy"}</dd></div>
+                      <div className="grid min-w-0 gap-0.5 min-[280px]:grid-cols-[auto_minmax(0,1fr)] min-[280px]:gap-2">
+                        <dt className="text-ink-3">Ответственный:</dt>
+                        <dd className="min-w-0 break-words">{OWNER_LABELS[requirement.ownerRole] ?? requirement.ownerRole}</dd>
+                      </div>
+                      <div className="grid min-w-0 gap-0.5 min-[280px]:grid-cols-[auto_minmax(0,1fr)] min-[280px]:gap-2">
+                        <dt className="text-ink-3">Срок:</dt>
+                        <dd className="min-w-0 break-words">{requirement.dueAt ? formatDate(requirement.dueAt, timezone) : "не назначен policy"}</dd>
+                      </div>
                     </dl>
                     {latest?.rejectionReason && (
                       <p className="mt-2 text-[12px] font-medium text-danger">Причина: {latest.rejectionReason}</p>

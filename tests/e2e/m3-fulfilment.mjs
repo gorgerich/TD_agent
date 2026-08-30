@@ -519,6 +519,14 @@ async function assertResponsiveAndAccessible(target, leadId) {
     target.getByRole("heading", { name: cases.cremation.name, level: 1 }),
     "case title 200 percent zoom",
   );
+  const documentMetadataValues = target.locator('[aria-label="Сценарные документы"] dl dd');
+  for (let index = 0; index < await documentMetadataValues.count(); index += 1) {
+    await assertTextFullyVisible(
+      target,
+      documentMetadataValues.nth(index),
+      `document metadata ${index + 1} at 200 percent zoom`,
+    );
+  }
   await target.setViewportSize({ width: 390, height: 844 });
   await context.clearCookies();
   await login(target, identities.financeA, password, /\/agent\/finance/);
