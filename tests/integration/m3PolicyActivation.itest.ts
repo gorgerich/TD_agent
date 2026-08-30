@@ -37,7 +37,7 @@ import {
   skip,
 } from "./_setup";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
-import { persistentRateLimitKey } from "../../lib/persistentRateLimit";
+import { enforcePersistentRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const ACTIVATION_POLICY_VERSION = 3_000_002;
@@ -52,6 +52,30 @@ const REVIEWER_KEYS = Object.fromEntries(
     return [role, { privateKey, publicKeyPem, keyFingerprint: m3ReviewerPublicKeyFingerprint(publicKeyPem) }];
   }),
 ) as Record<ReviewerRole, { privateKey: KeyObject; publicKeyPem: string; keyFingerprint: string }>;
+
+test("persistent rate limits remain exact under concurrent requests", opts, async () => {
+  const bucket = `m3-rate-limit-concurrency-${process.pid}`;
+  const clientAddress = `2001:db8:ffff::${process.pid.toString(16)}`;
+  const keyHash = persistentRateLimitKey(bucket, clientAddress);
+  authorityRateLimitKeys.add(keyHash);
+  try {
+    const responses = await Promise.all(Array.from({ length: 8 }, () => enforcePersistentRateLimit(
+      makeRequest("/api/platform-admin/m3-reviewer-authority", {
+        method: "POST",
+        headers: { "x-real-ip": clientAddress },
+      }),
+      bucket,
+      3,
+      15 * 60_000,
+    )));
+    assert.equal(responses.filter((response) => response == null).length, 3);
+    assert.equal(responses.filter((response) => response?.status === 429).length, 5);
+    const persisted = await db.securityRateLimitBucket.findUniqueOrThrow({ where: { keyHash } });
+    assert.equal(persisted.count, 8);
+  } finally {
+    await cleanupAuthorityRateLimitKeys();
+  }
+});
 
 test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and permanently revocable", opts, async () => {
   const fixtures = createFixtureContext("m3-reviewer-registry");

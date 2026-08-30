@@ -32,6 +32,8 @@ async function main() {
       authorityGrantFile,
       "M3 reviewer authority grant",
     );
+    const registrationInput = action === "register" ? await readRegistrationInput() : null;
+    const revocation = action === "revoke" ? readRevocationInput() : null;
     const [identity] = await db.$queryRaw<Array<{ database: string; readOnly: string }>>`
       SELECT current_database() AS database, current_setting('transaction_read_only') AS "readOnly"
     `;
@@ -40,16 +42,10 @@ async function main() {
     }
     const result = await runM3ReviewerCredentialTransaction(db, async (tx) => {
       if (action === "register") {
-        const inputFile = process.env.M3_REVIEWER_CREDENTIAL_FILE;
-        if (!inputFile) throw new Error("M3_REVIEWER_CREDENTIAL_FILE is required for register");
-        const input = JSON.parse(await readSecureOperatorFile(inputFile, "M3 reviewer credential input"));
-        return registerM3ReviewerCredential(tx, authorityGrantToken, input);
+        return registerM3ReviewerCredential(tx, authorityGrantToken, registrationInput);
       }
-      const keyFingerprint = process.env.M3_REVIEWER_KEY_FINGERPRINT;
-      const reasonCode = process.env.M3_REVIEWER_REVOCATION_REASON;
-      if (!keyFingerprint) throw new Error("M3_REVIEWER_KEY_FINGERPRINT is required for revoke");
-      if (!isRevocationReason(reasonCode)) throw new Error("M3_REVIEWER_REVOCATION_REASON is invalid");
-      return revokeM3ReviewerCredential(tx, authorityGrantToken, keyFingerprint, reasonCode);
+      if (!revocation) throw new Error("M3 reviewer revocation input is unavailable");
+      return revokeM3ReviewerCredential(tx, authorityGrantToken, revocation.keyFingerprint, revocation.reasonCode);
     });
     process.stdout.write(`${JSON.stringify({
       status: result.replayed ? "ALREADY_APPLIED" : "APPLIED",
@@ -65,6 +61,20 @@ async function main() {
     authorityGrantToken = "";
     await db.$disconnect();
   }
+}
+
+async function readRegistrationInput(): Promise<unknown> {
+  const inputFile = process.env.M3_REVIEWER_CREDENTIAL_FILE;
+  if (!inputFile) throw new Error("M3_REVIEWER_CREDENTIAL_FILE is required for register");
+  return JSON.parse(await readSecureOperatorFile(inputFile, "M3 reviewer credential input"));
+}
+
+function readRevocationInput() {
+  const keyFingerprint = process.env.M3_REVIEWER_KEY_FINGERPRINT;
+  const reasonCode = process.env.M3_REVIEWER_REVOCATION_REASON;
+  if (!keyFingerprint) throw new Error("M3_REVIEWER_KEY_FINGERPRINT is required for revoke");
+  if (!isRevocationReason(reasonCode)) throw new Error("M3_REVIEWER_REVOCATION_REASON is invalid");
+  return { keyFingerprint, reasonCode };
 }
 
 function isRevocationReason(value: string | undefined): value is
