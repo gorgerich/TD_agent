@@ -21,7 +21,7 @@ export const RELEASE_GATE_A_MIGRATION_CHECKSUMS: Readonly<Record<string, string>
   "20260728130000_m2_platform_admin_activation_revoke": "743d6b48f5c750e2c227fa788e001d3779a867ebfd4f4a71356a771c214ac252",
   "20260728190000_m1_platform_owner_recovery": "352bce3b68654db2d56b5cfff48de6522319cd4f8c96d6376a5bacf6a1b79cbe",
   "20260729170000_m2_commercial_trust_loop": "fc82c99f3fa06cd7a74d42917e82638923d543bb19b5150a1a9403183eb6999e",
-  "20260811172829_m3_fulfilment_money_trust": "bf5ad4fa4330e922cd4389e30f13022582d4712b76de0be37402e355d6523d11",
+  "20260811172829_m3_fulfilment_money_trust": "270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480",
 };
 
 export function inspectDirectMigrationUrl(value: string | undefined): MigrationTarget {

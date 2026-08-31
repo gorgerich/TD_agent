@@ -73,6 +73,7 @@ test("MISSION_RELEASE_READY still rejects evidence for a stale source tree", () 
   try {
     const initial = runValidator(fixture.root);
     assert.equal(initial.status, 0, initial.stderr);
+
     writeFileSync(join(fixture.root, "lib", "runtime.ts"), "export const runtime = 2;\n");
     git(fixture.root, "add", "lib/runtime.ts");
     git(fixture.root, "commit", "-m", "unreviewed source change");
@@ -92,6 +93,16 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
   try {
     const initial = runValidator(fixture.root);
     assert.equal(initial.status, 0, initial.stderr);
+
+    const reviewPath = join(evidenceDir, "review.md");
+    writeFileSync(
+      reviewPath,
+      readFileSync(reviewPath, "utf8").replace(fixture.implementationSha, "0".repeat(40)),
+    );
+    const staleReview = runValidator(fixture.root);
+    assert.notEqual(staleReview.status, 0);
+    assert.match(staleReview.stderr, /review\.md does not bind/);
+    writeEvidenceFiles(fixture.root, blockedHumanState(), fixture.implementationSha);
 
     writeFileSync(missionPath, missionYaml(releaseReadyState(), fixture.implementationSha));
     const relabelOnly = runValidator(fixture.root);
@@ -293,9 +304,22 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
       "",
     ].join("\n"));
   }
-  for (const name of ["implementation.md", "migration.md", "security.md", "ux-uat.md", "review.md"]) {
+  for (const name of ["implementation.md", "migration.md", "security.md", "ux-uat.md"]) {
     writeFileSync(join(evidenceDir, name), `# Synthetic ${name}\n`);
   }
+  writeFileSync(join(evidenceDir, "review.md"), [
+    "---",
+    "schema: m3-independent-review-v1",
+    `reviewed_sha: ${implementationSha}`,
+    "reviewer: Synthetic independent reviewer",
+    "verdict: PASS",
+    "p0: 0",
+    "p1: 0",
+    "p2: 0",
+    "---",
+    "# Synthetic review.md",
+    "",
+  ].join("\n"));
   writeFileSync(join(evidenceDir, "release.md"), `# Release\n\n\`${state.state}\`\n`);
   writeFileSync(join(evidenceDir, "acceptance.json"), JSON.stringify({
     mission: "M3-FULFILMENT-MONEY-TRUST",
@@ -343,7 +367,14 @@ function writeEvidenceFiles(root: string, state: EvidenceState, implementationSh
         skipped: 0,
         unexpected5xx: 0,
       },
-      independentReview: { status: "PASS", reviewedSha: implementationSha, p0: 0, p1: 0 },
+      independentReview: {
+        status: "PASS",
+        reviewedSha: implementationSha,
+        p0: 0,
+        p1: 0,
+        p2: 0,
+        reviewer: "Synthetic independent reviewer",
+      },
       evidenceSchema: "PASS",
       discoveryParity: { status: "PASS" },
       skipped: 0,

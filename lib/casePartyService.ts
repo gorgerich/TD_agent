@@ -89,7 +89,11 @@ export async function createCaseParty(
         caseId,
         roles: normalized.roles,
         preferredChannel: normalized.preferredChannel,
-        consentStatus: normalized.consentStatus,
+        consent: consentAuditSnapshot(
+          normalized.consentStatus,
+          normalized.consentSource,
+          normalized.consentAt,
+        ),
         visibilityPolicy: normalized.visibilityPolicy,
         pii: "encrypted",
       }),
@@ -174,14 +178,18 @@ export async function updateCaseParty(
       before: prismaJson({
         roles: previousRoles,
         preferredChannel: current.preferredChannel,
-        consentStatus: current.consentStatus,
+        consent: consentAuditSnapshot(current.consentStatus, current.consentSource, current.consentAt),
         visibilityPolicy: current.visibilityPolicy,
         pii: "encrypted",
       }),
       after: prismaJson({
         roles: normalized.roles,
         preferredChannel: normalized.preferredChannel,
-        consentStatus: normalized.consentStatus,
+        consent: consentAuditSnapshot(
+          normalized.consentStatus,
+          normalized.consentSource,
+          normalized.consentAt,
+        ),
         visibilityPolicy: normalized.visibilityPolicy,
         pii: "encrypted",
       }),
@@ -193,6 +201,18 @@ export async function updateCaseParty(
     await refreshCaseRequirementApplicabilityInTransaction(tx, context, caseId, meta, changedAt);
     return { ...result, replayed: false };
   });
+}
+
+function consentAuditSnapshot(
+  status: M3ConsentStatus,
+  source: string | null,
+  consentAt: Date | null,
+) {
+  return {
+    status,
+    sourceEncrypted: encryptField(source),
+    consentAt: consentAt?.toISOString() ?? null,
+  };
 }
 
 export async function listCaseParties(context: OperationalContext, caseId: string) {

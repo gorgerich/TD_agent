@@ -15,6 +15,25 @@ export async function enforcePersistentRateLimit(
   windowMs: number,
 ): Promise<NextResponse | null> {
   const keyHash = persistentRateLimitKey(bucket, clientIp(req));
+  return consumePersistentRateLimit(keyHash, limit, windowMs);
+}
+
+/** Shared-instance limit for a normalized account or token identity. Only its hash is stored. */
+export async function enforcePersistentIdentityRateLimit(
+  bucket: string,
+  identity: string,
+  limit: number,
+  windowMs: number,
+): Promise<NextResponse | null> {
+  const keyHash = persistentRateLimitKey(bucket, identity);
+  return consumePersistentRateLimit(keyHash, limit, windowMs);
+}
+
+async function consumePersistentRateLimit(
+  keyHash: string,
+  limit: number,
+  windowMs: number,
+): Promise<NextResponse | null> {
   const now = new Date();
   const nextResetAt = new Date(now.getTime() + windowMs);
   const [result] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>(Prisma.sql`

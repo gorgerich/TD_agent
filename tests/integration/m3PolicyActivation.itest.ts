@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { createHash, createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import { test } from "node:test";
 import type { Prisma } from "@prisma/client";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
@@ -18,6 +18,7 @@ import {
 } from "../../lib/m3PolicyActivation";
 import { commandFingerprint } from "../../lib/m3Command";
 import {
+  M3ReviewerAuthorityGrantMetadata,
   registerM3ReviewerCredential,
   requireActiveM3ReviewerCredential,
   revokeM3ReviewerCredential,
@@ -150,35 +151,51 @@ test("M3 reviewer credential registry is SUPER_ADMIN-controlled, idempotent and 
     ))), true);
     assert.equal(JSON.stringify(grantAudit).includes(routeGrant.authorityGrant), false);
     await assert.rejects(
+      db.platformAuditEvent.update({
+        where: { id: routeGrant.auditEventId },
+        data: { targetId: "forbidden-platform-audit-mutation" },
+      }),
+      /PlatformAuditEvent is append-only/,
+    );
+    await assert.rejects(
+      db.platformAuditEvent.delete({ where: { id: routeGrant.auditEventId } }),
+      /PlatformAuditEvent is append-only/,
+    );
+    await assert.rejects(
       runM3ReviewerCredentialTransaction(
         db,
         (tx) => registerM3ReviewerCredential(tx, "A".repeat(43), input),
       ),
       /authority grant is required|grant is missing/,
     );
-    const staleGrant = await issueReviewerAuthorityGrant(
-      actor.userId,
-      actorSessionVersion,
-      "REGISTER",
-      credential.keyFingerprint,
-    );
-    const staleAudit = await db.platformAuditEvent.findUniqueOrThrow({
-      where: { id: staleGrant.auditEventId },
-      select: { metadata: true },
-    });
-    await db.platformAuditEvent.update({
-      where: { id: staleGrant.auditEventId },
+    const staleToken = "S".repeat(43);
+    const staleGrantFingerprint = createHash("sha256").update(staleToken).digest("hex");
+    const staleIssuedAt = new Date("2020-01-01T00:00:00.000Z");
+    await db.platformAuditEvent.create({
       data: {
-        metadata: {
-          ...(staleAudit.metadata as Record<string, unknown>),
-          expiresAt: "2020-01-01T00:00:00.000Z",
-        } as Prisma.InputJsonObject,
+        actorUserId: actor.userId,
+        action: "M3_REVIEWER_AUTHORITY_GRANTED",
+        targetType: "m3-reviewer-authority",
+        targetId: staleGrantFingerprint,
+        metadata: M3ReviewerAuthorityGrantMetadata.parse({
+          schemaVersion: 2,
+          operation: "REGISTER",
+          keyFingerprint: credential.keyFingerprint,
+          actorUserId: actor.userId,
+          actorPlatformRoleAtEvent: "SUPER_ADMIN",
+          authoritySessionVersion: actorSessionVersion,
+          authorityMfaVerified: true,
+          authoritySessionIssuedAt: staleIssuedAt.toISOString(),
+          issuedAt: staleIssuedAt.toISOString(),
+          expiresAt: "2020-01-01T00:15:00.000Z",
+        }),
+        createdAt: staleIssuedAt,
       },
     });
     await assert.rejects(
       runM3ReviewerCredentialTransaction(
         db,
-        (tx) => registerM3ReviewerCredential(tx, staleGrant.token, input),
+        (tx) => registerM3ReviewerCredential(tx, staleToken, input),
       ),
       /invalid or expired/,
     );
@@ -653,6 +670,31 @@ test("M3 Finance login and API require current-session TOTP verification", opts,
       where: { id: finance.userId },
       data: { passwordHash: hashPassword(password) },
     });
+    const loginRateLimitKey = persistentRateLimitKey("login-account", email);
+    authorityRateLimitKeys.add(loginRateLimitKey);
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      const ip = `2001:db8:30::${attempt}`;
+      authorityRateLimitKeys.add(persistentRateLimitKey("login-ip", ip));
+      const rejected = await login(makeRequest("/api/agent/auth/login", {
+        method: "POST",
+        headers: { "x-real-ip": ip },
+        body: { email, password: "wrong-password" },
+      }));
+      assert.equal(rejected.status, 401);
+    }
+    const finalIp = "2001:db8:30::ffff";
+    authorityRateLimitKeys.add(persistentRateLimitKey("login-ip", finalIp));
+    const throttled = await login(makeRequest("/api/agent/auth/login", {
+      method: "POST",
+      headers: { "x-real-ip": finalIp },
+      body: { email, password },
+    }));
+    assert.equal(throttled.status, 429);
+    assert.equal((await db.securityRateLimitBucket.findUniqueOrThrow({
+      where: { keyHash: loginRateLimitKey },
+    })).count, 11);
+    await db.securityRateLimitBucket.delete({ where: { keyHash: loginRateLimitKey } });
+    authorityRateLimitKeys.add(loginRateLimitKey);
 
     const setupLogin = await login(makeRequest("/api/agent/auth/login", {
       method: "POST",

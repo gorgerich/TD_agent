@@ -244,6 +244,7 @@ export async function signContractVersion(
   if (!input.signaturePolicyVersion.trim()) throw new OperationalCommandError(422, "Нужна версия политики подписания");
   const fingerprint = commandFingerprint(input);
   const result = await runOperationalTransaction(async (tx) => {
+    await lockOrganizationPolicyBoundary(tx, context.organizationId);
     const replay = await readAuditReplay<{
       contractVersionId: string; obligationId: string; ledgerEntryId: string; status: "SIGNED";
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
@@ -1294,6 +1295,16 @@ async function lockContract(tx: Prisma.TransactionClient, contractId: string): P
     SELECT "id" FROM "Contract" WHERE "id" = ${contractId} FOR UPDATE
   `;
   if (rows.length !== 1) throw new OperationalCommandError(404, "Договор не найден");
+}
+
+async function lockOrganizationPolicyBoundary(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+): Promise<void> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "Organization" WHERE "id" = ${organizationId} FOR UPDATE
+  `;
+  if (rows.length !== 1) throw new OperationalCommandError(404, "Организация не найдена");
 }
 
 async function authorizeContractTransition(

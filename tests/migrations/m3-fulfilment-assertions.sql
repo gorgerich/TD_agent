@@ -41,6 +41,9 @@ BEGIN
     WHERE tgname = 'OperationalAuditEvent_append_only' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger
+    WHERE tgname = 'PlatformAuditEvent_append_only' AND tgenabled = 'O'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_trigger
     WHERE tgname = 'CaseDocumentVersion_history_guard' AND tgenabled = 'O'
   ) OR NOT EXISTS (
     SELECT 1 FROM pg_trigger

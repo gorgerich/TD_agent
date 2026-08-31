@@ -1079,6 +1079,19 @@ CREATE TRIGGER "OperationalAuditEvent_append_only"
 BEFORE UPDATE OR DELETE ON "OperationalAuditEvent"
 FOR EACH ROW EXECUTE FUNCTION "prevent_operational_audit_mutation"();
 
+CREATE FUNCTION "prevent_platform_audit_mutation"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'PlatformAuditEvent is append-only';
+END;
+$$;
+
+CREATE TRIGGER "PlatformAuditEvent_append_only"
+BEFORE UPDATE OR DELETE ON "PlatformAuditEvent"
+FOR EACH ROW EXECUTE FUNCTION "prevent_platform_audit_mutation"();
+
 -- Canonical lifecycle transitions carry an immutable authorization event that
 -- was written by the same transaction. A caller-settable session GUC is not an
 -- authorization boundary.

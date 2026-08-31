@@ -770,7 +770,7 @@ function parseExactFrontmatter(text) {
     if (separator <= 0) return null;
     const key = line.slice(0, separator).trim();
     const value = line.slice(separator + 1).trim();
-    if (!/^[a-z_]+$/.test(key) || !value || Object.hasOwn(values, key)) return null;
+    if (!/^[a-z_][a-z0-9_]*$/.test(key) || !value || Object.hasOwn(values, key)) return null;
     values[key] = value;
   }
   return { values, body: normalized.slice(end + 5) };
@@ -842,6 +842,7 @@ function validateM3DeterministicEvidence(
   if (checks.independentReview?.reviewedSha !== implementationSha || checks.independentReview?.p0 !== 0 || checks.independentReview?.p1 !== 0) {
     target.push("M3: independent review must bind exact implementation with p0=0 and p1=0");
   }
+  validateM3IndependentReviewArtifact(missionDir, implementationSha, checks.independentReview, target);
   if (
     checks.previewUat?.deploymentId !== previewDeploymentId
     || checks.previewUat?.deploymentSha !== previewDeploymentSha
@@ -855,6 +856,33 @@ function validateM3DeterministicEvidence(
   if (checks.skipped !== 0 || checks.notRun !== 0) target.push("M3: terminal checks require skipped=0 and notRun=0");
   if (results.production?.writes !== "NONE" || results.production?.databaseSchemaChanges !== "NONE" || results.production?.deployment !== "UNCHANGED") {
     target.push("M3: technical mission evidence must prove Production unchanged");
+  }
+}
+
+function validateM3IndependentReviewArtifact(missionDir, implementationSha, reported, target) {
+  const reviewPath = path.join(missionDir, "review.md");
+  if (!fs.existsSync(reviewPath)) return;
+  const parsed = parseExactFrontmatter(fs.readFileSync(reviewPath, "utf8"));
+  if (!parsed) {
+    target.push("M3: review.md requires exact machine-readable review frontmatter");
+    return;
+  }
+  const expectedKeys = ["schema", "reviewed_sha", "reviewer", "verdict", "p0", "p1", "p2"];
+  if (!hasExactKeys(parsed.values, expectedKeys)) {
+    target.push("M3: review.md frontmatter fields are incomplete or unexpected");
+    return;
+  }
+  if (
+    parsed.values.schema !== "m3-independent-review-v1"
+    || parsed.values.reviewed_sha !== implementationSha
+    || parsed.values.reviewer !== reported?.reviewer
+    || parsed.values.verdict !== "PASS"
+    || parsed.values.p0 !== String(reported?.p0)
+    || parsed.values.p1 !== String(reported?.p1)
+    || parsed.values.p2 !== String(reported?.p2)
+    || !isCanonicalSignedText(parsed.values.reviewer, 3, 160)
+  ) {
+    target.push("M3: review.md does not bind the exact reported reviewer, SHA, verdict, and findings");
   }
 }
 

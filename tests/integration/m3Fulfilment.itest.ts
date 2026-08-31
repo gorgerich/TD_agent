@@ -32,7 +32,7 @@ import { transitionCase } from "../../lib/caseService";
 import { CaseDomainError } from "../../lib/caseDomain";
 import { getCanonicalCase } from "../../lib/caseReadModel";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
-import { EncryptedDataUnavailableError } from "../../lib/crypto";
+import { decryptFieldStrict, EncryptedDataUnavailableError } from "../../lib/crypto";
 import { InMemoryTestStorage } from "../fixtures/testStorage";
 import {
   createFixtureContext,
@@ -238,6 +238,35 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.match(rawParty.nameEncrypted, /^enc1:/);
   assert.match(rawParty.phoneEncrypted ?? "", /^enc1:/);
   assert.match(rawParty.emailEncrypted ?? "", /^enc1:/);
+  const updatedConsentAt = new Date(rawParty.consentAt!.getTime() + 60_000);
+  await updateCaseParty(agent.context, caseRecord.id, party.partyId, {
+    name: "Синтетический заявитель",
+    phone: "+70000000000",
+    email: "m3-payer@synthetic.invalid",
+    roles: ["APPLICANT", "PAYER"],
+    preferredChannel: "EMAIL",
+    consentStatus: "GRANTED",
+    consentSource: "synthetic-reconsent",
+    consentAt: updatedConsentAt,
+    visibilityPolicy: "FINANCE_LIMITED",
+  }, meta("party-update-consent"));
+  const consentAudit = await db.operationalAuditEvent.findFirstOrThrow({
+    where: {
+      organizationId: agent.organizationId,
+      entityType: "case_party",
+      entityId: party.partyId,
+      action: "case_party.updated.v1",
+    },
+    select: { before: true, after: true },
+  });
+  const beforeConsent = (consentAudit.before as Record<string, unknown>).consent as Record<string, unknown>;
+  const afterConsent = (consentAudit.after as Record<string, unknown>).consent as Record<string, unknown>;
+  assert.match(String(beforeConsent.sourceEncrypted), /^enc1:/);
+  assert.match(String(afterConsent.sourceEncrypted), /^enc1:/);
+  assert.equal(decryptFieldStrict(String(beforeConsent.sourceEncrypted)), "synthetic-test");
+  assert.equal(decryptFieldStrict(String(afterConsent.sourceEncrypted)), "synthetic-reconsent");
+  assert.equal(beforeConsent.consentAt, rawParty.consentAt!.toISOString());
+  assert.equal(afterConsent.consentAt, updatedConsentAt.toISOString());
   const listedParties = await listCaseParties(agent.context, caseRecord.id);
   assert.deepEqual(listedParties[0]?.roles.sort(), ["APPLICANT", "PAYER"]);
   assert.equal((await listCaseParties(outsider.context, caseRecord.id)).length, 0);
@@ -991,6 +1020,75 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.equal(reconciliation.discrepancyCount, 0, JSON.stringify(reconciliation.discrepancies));
   assert.equal(await db.paymentWebhookReceipt.count({ where: { organizationId: agent.organizationId } }), 1);
   assert.equal(await db.paymentLedgerApproval.count({ where: { organizationId: agent.organizationId } }), 3);
+});
+
+test("M3: contract signing cannot bind a policy retired by a concurrent activation boundary", opts, async () => {
+  const raceCase = await fixtures.makeCase(agent, "signing-policy-race");
+  await db.case.update({ where: { id: raceCase.id }, data: { scenarioId: "CREMATION_V1" } });
+  await createAcceptedQuote(raceCase);
+  const payer = await createCaseParty(agent.context, raceCase.id, {
+    name: "Синтетический плательщик гонки",
+    roles: ["PAYER"],
+    preferredChannel: "EMAIL",
+    consentStatus: "NOT_REQUESTED",
+    visibilityPolicy: "FINANCE_LIMITED",
+  }, meta("signing-policy-race-party"));
+  const racePolicyVersion = `SYNTHETIC_SIGNING_RACE_${fixtures.runId}`;
+  const racePolicy = await db.contractSigningPolicy.create({
+    data: {
+      organizationId: agent.organizationId,
+      version: racePolicyVersion,
+      status: "APPROVED",
+      allowedEvidenceTypes: ["SYNTHETIC_TEST_ONLY"],
+      source: "SYNTHETIC_TEST_ONLY_NOT_A_LEGAL_VERDICT",
+      approvedByUserId: manager.userId,
+      approvedAt: new Date(),
+      effectiveFrom: new Date(Date.now() - 60_000),
+    },
+    select: { id: true },
+  });
+  fixtures.trackSigningPolicy(racePolicy.id);
+  const contract = await createContractVersion(agent.context, {
+    caseId: raceCase.id,
+    payerPartyId: payer.partyId,
+    paymentTerms: { mode: "synthetic-policy-race" },
+    validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  }, meta("signing-policy-race-contract"));
+  await issueContractVersion(agent.context, contract.contractVersionId, meta("signing-policy-race-issue"));
+
+  let reportOrganizationLocked!: () => void;
+  let releaseRetirement!: () => void;
+  const organizationLocked = new Promise<void>((resolve) => { reportOrganizationLocked = resolve; });
+  const mayRetire = new Promise<void>((resolve) => { releaseRetirement = resolve; });
+  const retirement = db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${agent.organizationId} FOR UPDATE`;
+    reportOrganizationLocked();
+    await mayRetire;
+    await tx.contractSigningPolicy.update({
+      where: { id: racePolicy.id },
+      data: { status: "RETIRED", retiredAt: new Date() },
+    });
+  });
+  await organizationLocked;
+  const signingRejected = expectCommandError(signContractVersion(agent.context, {
+    contractVersionId: contract.contractVersionId,
+    signatureEvidence: { type: "SYNTHETIC_TEST_ONLY", reference: "synthetic-policy-race-evidence" },
+    signaturePolicyVersion: racePolicyVersion,
+  }, meta("signing-policy-race-sign")), 422, /Legal/);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  releaseRetirement();
+  await retirement;
+  await signingRejected;
+  assert.equal((await db.contractVersion.findUniqueOrThrow({
+    where: { id: contract.contractVersionId },
+    select: { status: true },
+  })).status, "ISSUED");
+  assert.equal(await db.paymentObligation.count({
+    where: { contractVersionId: contract.contractVersionId },
+  }), 0);
+  assert.equal(await db.operationalAuditEvent.count({
+    where: { entityType: "contract_version", entityId: contract.contractVersionId, action: "contract.signed.v1" },
+  }), 0);
 });
 
 test("M3: cremation and relative-burial policies remain distinct", opts, async () => {
