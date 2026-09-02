@@ -2,13 +2,13 @@ mission: M3-FULFILMENT-MONEY-TRUST
 name: Fulfilment & Money Trust
 state: BLOCKED_HUMAN_JUDGMENT
 base_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
-implementation_sha: a917a1f10b959b80cd4e0a249a2d2281e0bba106
+implementation_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
 pull_request: https://github.com/gorgerich/TD_agent/pull/32
-source_ci: https://github.com/gorgerich/TD_agent/actions/runs/32782050582
-preview_deployment_id: dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f
-preview_deployment_sha: a917a1f10b959b80cd4e0a249a2d2281e0bba106
-preview_url: https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app
-preview_database_fingerprint: 646addef2eb61519
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/33529964574
+preview_deployment_id: dpl_CDP554WNjhyMX7zABzL1ZHUB3odY
+preview_deployment_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+preview_url: https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app
+preview_database_fingerprint: 545a187f9e9d66b0
 preview_storage_id: store_Ov8erHstuvfJ52Og
 production_deployment_id: dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g
 production_deployment_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
@@ -51,5 +51,6 @@ human_gates:
   ritual_operations_sme: AWAITING_HUMAN_VERDICT
 open_risks:
   - RISK-W1-TECH-HUMAN-REVIEW
+  - M3-P2-RATE-LIMIT-RETENTION
 production_release_authorized: false
 production_release: NOT_PERFORMED

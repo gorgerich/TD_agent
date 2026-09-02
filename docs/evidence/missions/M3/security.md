@@ -11,6 +11,10 @@
   omit ledger, family notes, and commercial economics; Finance responses omit document content
   and unrelated family notes.
 - Finance mutation login requires the existing MFA boundary.
+- Human policy approval cannot be asserted by an application operator alone: authority
+  grants require a fresh SUPER_ADMIN session with current TOTP verification, atomic
+  persistent throttling, and one-time consumption. Each reviewer key is registered for
+  one fixed role, auditable, and permanently revocable.
 
 ## Document boundary
 
@@ -38,12 +42,17 @@
   state unconfirmed. Retry sends that exact envelope.
 - Non-retryable 4xx responses clear recovery and unlock editing.
 - Document mutations are single-flight so one command cannot replace another command's recovery.
+- Human attestation files are bound to exact implementation, deployment, isolated database,
+  reviewed policy fingerprint, role-specific trusted key, and canonical Ed25519 signature.
 - Actor, timestamp, before/after, correlation, idempotency, and target are recorded for business
   mutations. Passwords, tokens, provider secrets, raw payloads, permanent file URLs, and document
   contents are excluded.
 
 ## Review result
 
-Independent review of exact source SHA `a917a1f10b959b80cd4e0a249a2d2281e0bba106`
-reported P0=0, P1=0, P2=0. Exact Preview negative tests reported cross-tenant access=0,
-unexpected 5xx=0, document reconciliation=0, and payment reconciliation=0.
+Independent review of exact source SHA `eb568f54d6b47d90ed36c73738bd89c03da761c9`
+reported P0=0, P1=0, P2=1. The open P2 is bounded retention cleanup for expired persistent
+login-rate-limit identities; it does not bypass authentication or throttling and is owned by
+Platform Operations for completion by 2026-09-15 or before M3 Production release. Exact Preview
+negative tests reported cross-tenant access=0, unexpected 5xx=0, document reconciliation=0,
+and payment reconciliation=0.

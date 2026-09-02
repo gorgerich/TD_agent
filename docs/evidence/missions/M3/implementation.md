@@ -4,7 +4,7 @@
 
 Mission `M3-FULFILMENT-MONEY-TRUST` is implemented from base
 `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. The certified source tree is
-`a917a1f10b959b80cd4e0a249a2d2281e0bba106`.
+`eb568f54d6b47d90ed36c73738bd89c03da761c9`.
 
 Read-only baseline verification identified Production deployment
 `dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g`, Production database fingerprint
@@ -71,6 +71,11 @@ for tests and no Production data, schema, environment, or deployment was changed
   responses unlock controls and discard the stale envelope.
 - Document review uses synchronous single-flight protection so concurrent UI actions
   cannot overwrite another command's recovery state.
+- Reviewer authority grants require a fresh, MFA-bound SUPER_ADMIN session and a
+  persistent atomic rate limit. Reviewer credentials are separately registered,
+  permanently revocable, and bound to role-specific Ed25519 human attestations.
+- Narrow mobile reflow keeps document owner and due-date metadata visible at the
+  200 percent equivalent viewport without hiding or truncating live content.
 
 ## Permission matrix
 

@@ -1,10 +1,23 @@
+---
+schema: m3-human-packet-v2
+gate: legalPrivacy
+preview_url: https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_CDP554WNjhyMX7zABzL1ZHUB3odY
+deployment_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+implementation_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+database_fingerprint: 545a187f9e9d66b0
+current_verdict: AWAITING_HUMAN_VERDICT
+reviewer_id: null
+reviewer_name: null
+attestation_fingerprint: null
+---
 # Legal and Privacy human decision packet
 
 ## Candidate facts
 
-- Exact Preview: `https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f`
-- Implementation: `a917a1f10b959b80cd4e0a249a2d2281e0bba106`
+- Exact Preview: `https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY`
+- Implementation: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
 - Case-party contacts use the existing encrypted adapter and stable role assignments.
 - Document storage is private, server-authorized, audited, and short lived; permanent URLs are absent.
 - Upload is quarantined and is never represented as verified.
@@ -16,12 +29,14 @@
 
 The Legal/Privacy reviewer must decide:
 
-1. Legal basis and consent provenance for each Case-party role and communication channel.
-2. Retention, export, rectification, and deletion restrictions for parties, document versions, access audit, contract versions, and ledger history.
-3. Whether the ContractVersion/signing evidence boundary may support the intended pilot and what wording is required.
-4. Which roles may view each document type, family-role field, payer field, and access event.
-5. Whether rejection reasons, filenames, and audit metadata are sufficiently minimized.
-6. Whether the fail-closed ban on religion/special-category processing is correct for this release.
+- [ ] legal-basis-consent: Approve legal basis and consent provenance for each party role and channel.
+- [ ] retention-rights: Define retention, export, rectification, and deletion restrictions.
+- [ ] signing-boundary: Approve ContractVersion signing-evidence boundary and required wording.
+- [ ] access-visibility: Approve role access to document, party, payer, and audit fields.
+- [ ] metadata-minimization: Confirm filenames, rejection reasons, and audit metadata are minimized.
+- [ ] special-category: Confirm fail-closed exclusion of religion and special-category processing.
+- [ ] scenario-cremation: Complete the synthetic cremation privacy and signing journey in this Preview.
+- [ ] scenario-family-plot-burial: Complete the synthetic family-plot burial privacy and signing journey in this Preview.
 
 ## Required attestation
 

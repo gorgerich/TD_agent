@@ -1,10 +1,23 @@
+---
+schema: m3-human-packet-v2
+gate: financeAccounting
+preview_url: https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_CDP554WNjhyMX7zABzL1ZHUB3odY
+deployment_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+implementation_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+database_fingerprint: 545a187f9e9d66b0
+current_verdict: AWAITING_HUMAN_VERDICT
+reviewer_id: null
+reviewer_name: null
+attestation_fingerprint: null
+---
 # Finance/accounting human decision packet
 
 ## Candidate facts
 
-- Exact Preview: `https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f`
-- Implementation: `a917a1f10b959b80cd4e0a249a2d2281e0bba106`
+- Exact Preview: `https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY`
+- Implementation: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
 - Data is synthetic and isolated from Production.
 - Ledger is append-only; corrections and reversals preserve the original entry.
 - Payment status is derived from obligation and ledger, never manually set.
@@ -17,12 +30,14 @@
 
 The Finance/accounting reviewer must exercise both synthetic scenarios and decide:
 
-1. Are `OBLIGATION`, `PAYMENT`, `REFUND`, `CORRECTION`, and `REVERSAL` sufficient and correctly interpreted?
-2. What evidence is mandatory for manual payment and the approved pilot fallback?
-3. What threshold and policy version require two-person approval?
-4. Are overpayment, partial refund, full refund, correction, reversal, and balance formulas acceptable?
-5. Which fields may appear in a safe finance export?
-6. Do reconciliation rules and exception ownership match accounting practice?
+- [ ] entry-policy: Confirm `OBLIGATION`, `PAYMENT`, `REFUND`, `CORRECTION`, and `REVERSAL` meanings.
+- [ ] manual-evidence: Define mandatory evidence for manual payment and pilot fallback.
+- [ ] four-eyes-threshold: Approve threshold and policy version for two-person approval.
+- [ ] accounting-formulas: Confirm balance, overpayment, refund, correction, and reversal formulas.
+- [ ] export-scope: Approve fields allowed in a purpose-limited finance export.
+- [ ] reconciliation: Confirm reconciliation rules, exception ownership, and escalation.
+- [ ] scenario-cremation: Complete the synthetic cremation finance journey in this Preview.
+- [ ] scenario-family-plot-burial: Complete the synthetic family-plot burial finance journey in this Preview.
 
 ## Required attestation
 

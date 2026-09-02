@@ -78,37 +78,37 @@
       "id": "M3-SEC-01",
       "status": "PASS",
       "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
-      "evidence": "Operational capability matrix, all M3 API guards, integration negative tests, exact Preview crossTenant=PASS, and independent review P0=0/P1=0/P2=0."
+      "evidence": "Operational capability matrix, all M3 API guards, integration negative tests, exact Preview crossTenant=PASS, and independent review P0=0/P1=0/P2=1; the P2 retention item is owned, dated, and does not weaken authorization."
     },
     {
       "id": "M3-MIG-01",
       "status": "PASS",
       "requirement": "Migration is additive, historical checksums remain unchanged, restore/deploy/no-op/parity pass, and legacy truth is not invented.",
-      "evidence": "M3 migration checksum bf5ad4fa4330e922cd4389e30f13022582d4712b76de0be37402e355d6523d11; encrypted backup and real restore, 11 migrations, repeated no-op, parity, legacy counts, orphan/duplicate/tenant mismatch=0."
+      "evidence": "M3 migration checksum 270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480; encrypted backup and real restore, 11 migrations, repeated no-op, parity, legacy counts, orphan/duplicate/tenant mismatch=0."
     },
     {
       "id": "M3-UX-01",
       "status": "PASS",
       "requirement": "Failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard, and 200 percent zoom states are honest and accessible.",
-      "evidence": "M3 UIs and recovery contracts; exact Preview axe critical=0/serious=0, mobile PASS, zoom200 PASS, horizontal overflow=0, unexpected5xx=0; seven screenshots under docs/evidence/missions/M3/screenshots."
+      "evidence": "M3 UIs and recovery contracts; exact Preview axe critical=0/serious=0, mobile PASS, zoom200 PASS, horizontal overflow=0, unexpected5xx=0; eight screenshots under docs/evidence/missions/M3/screenshots."
     },
     {
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Deployment dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f at a917a1f, DB fingerprint 646addef2eb61519 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
+      "evidence": "Deployment dpl_CDP554WNjhyMX7zABzL1ZHUB3odY at eb568f5, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Independent reviewer Huygens reviewed base 20b7e0f..implementation a917a1f, reran focused contracts/lint/typecheck/unit/build, and returned P0=0, P1=0, P2=0."
+      "evidence": "Independent reviewer agent Plato (Codex) reviewed base 20b7e0f..implementation eb568f5, examined the exact runtime diff and evidence, and returned PASS with P0=0, P1=0, P2=1."
     },
     {
       "id": "M3-GATE-01",
       "status": "PASS",
       "requirement": "All deterministic technical gates pass with skipped=0 and NOT_RUN=0.",
-      "evidence": "git diff check, Prisma generation, lint, typecheck, build, unit 122/122, integration 55/55 under default concurrency, five E2E scripts, migration/restore/no-op/parity, exact Preview UAT, evidence schema, and independent review all pass."
+      "evidence": "git diff check, Prisma generation, lint, typecheck, build, unit 125/125, integration 59/59 under default concurrency, targeted policy/authority suite 5 x 12/12, five E2E scripts, migration/restore/no-op/parity, exact Preview UAT, evidence schema, and independent review all pass."
     }
   ]
 }

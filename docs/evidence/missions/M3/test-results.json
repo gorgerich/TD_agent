@@ -1,16 +1,19 @@
 {
   "mission": "M3-FULFILMENT-MONEY-TRUST",
   "state": "BLOCKED_HUMAN_JUDGMENT",
-  "implementationSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/32782050582",
-  "previewDeploymentId": "dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f",
+  "implementationSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/33529964574",
+  "previewDeploymentId": "dpl_CDP554WNjhyMX7zABzL1ZHUB3odY",
+  "previewDeploymentSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
+  "previewUrl": "https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app",
+  "previewDatabaseFingerprint": "545a187f9e9d66b0",
   "checks": {
     "sourceCi": {
-      "status": "PASS_CODE_GATES_EVIDENCE_ABSENT",
-      "runId": 32782050582,
-      "headSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+      "status": "PASS",
+      "runId": 33529964574,
+      "headSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
       "testSkipped": 0,
-      "note": "Every code, migration, restore, build, unit, integration, targeted-repeat and E2E gate passed. The run concluded failure only because the authoritative M3 evidence directory had not yet been committed; the evidence-head run is recorded after this packet is pushed."
+      "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
     },
     "gitDiffCheck": "PASS",
     "prismaGenerate": "PASS",
@@ -19,24 +22,24 @@
     "build": "PASS",
     "unit": {
       "status": "PASS",
-      "files": 16,
-      "passed": 122,
+      "files": 17,
+      "passed": 125,
       "skipped": 0
     },
     "integration": {
       "status": "PASS",
       "files": 12,
-      "passed": 55,
+      "passed": 59,
       "skipped": 0,
       "parallelism": "one ordinary node --test invocation with default file concurrency",
       "residue": 0
     },
     "targetedRecovery": {
       "status": "PASS",
-      "testsPerRun": 4,
+      "testsPerRun": 12,
       "consecutiveRuns": 5,
       "skipped": 0,
-      "contract": "exact command envelope, truthful uncertainty state, single-flight, 4xx unlock"
+      "contract": "policy activation, reviewer authority, credential lifecycle, idempotency, materialization, concurrency, atomic throttling, and exact approval binding"
     },
     "e2e": {
       "status": "PASS",
@@ -51,7 +54,7 @@
     "migrationRehearsal": {
       "status": "PASS",
       "migrationCount": 11,
-      "m3Checksum": "bf5ad4fa4330e922cd4389e30f13022582d4712b76de0be37402e355d6523d11",
+      "m3Checksum": "270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480",
       "historicalMigrationChecksums": "MATCH",
       "encryptedBackup": "PASS",
       "realRestore": "PASS",
@@ -102,10 +105,10 @@
     },
     "previewUat": {
       "status": "PASS",
-      "deploymentId": "dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f",
-      "deploymentSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
-      "previewUrl": "https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app",
-      "databaseFingerprint": "646addef2eb61519",
+      "deploymentId": "dpl_CDP554WNjhyMX7zABzL1ZHUB3odY",
+      "deploymentSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
+      "previewUrl": "https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app",
+      "databaseFingerprint": "545a187f9e9d66b0",
       "productionFingerprint": "0257665af2dd90a4",
       "storageId": "store_Ov8erHstuvfJ52Og",
       "storageAccess": "private",
@@ -132,19 +135,19 @@
     },
     "independentReview": {
       "status": "PASS",
-      "reviewedSha": "a917a1f10b959b80cd4e0a249a2d2281e0bba106",
+      "reviewedSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
       "p0": 0,
       "p1": 0,
-      "p2": 0,
-      "reviewer": "independent reviewer agent Huygens"
+      "p2": 1,
+      "reviewer": "independent reviewer agent Plato (Codex)"
     },
     "evidenceSchema": "PASS",
     "discoveryParity": {
       "status": "PASS",
       "localIntegrationFiles": 12,
       "ciIntegrationFiles": 12,
-      "localIntegrationTests": 55,
-      "ciIntegrationTests": 55
+      "localIntegrationTests": 59,
+      "ciIntegrationTests": 59
     },
     "skipped": 0,
     "notRun": 0

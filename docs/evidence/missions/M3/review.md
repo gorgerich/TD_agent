@@ -1,39 +1,59 @@
+---
+schema: m3-independent-review-v1
+reviewed_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+reviewer: independent reviewer agent Plato (Codex)
+verdict: PASS
+p0: 0
+p1: 0
+p2: 1
+---
 # M3 independent adversarial review
 
 ## Certified scope
 
 - Base: `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`
-- Reviewed implementation: `a917a1f10b959b80cd4e0a249a2d2281e0bba106`
-- Reviewer: independent reviewer agent Huygens
+- Reviewed implementation: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
+- Reviewer: independent reviewer agent Plato (Codex)
 - Final verdict: **PASS**
 - P0: **0**
 - P1: **0**
-- P2: **0**
+- P2: **1**
 
-The reviewer read the exact diff rather than trusting the implementer summary, checked the M3
-domain/security boundaries, and independently reran focused recovery contracts, lint, typecheck,
-unit 122/122, and Production build.
+The reviewer read the exact diff, inspected all eight exact-SHA screenshots, checked the
+GitHub/Vercel binding, and independently reran focused unit, lint, typecheck, and Production
+build gates. Exact-SHA CI supplied the complete integration, concurrency, migration, restore,
+and E2E gate.
 
-## Findings closed before final review
+## Prior P1 findings closed
 
-- Signing retry could discard its idempotency key.
-- Shared document recovery could be overwritten by concurrent UI actions.
-- Execution retry reconstructed a payload from current props rather than retaining the original.
-- Generic transport/5xx copy could claim a commit that was not confirmed.
-- Non-retryable 4xx could leave a recovery lock active.
+- Login throttling is persistent, atomic, and enforced by IP and normalized account.
+- `PlatformAuditEvent` has database-enforced append-only history.
+- Contract signing and signing-policy activation use the same organization lock, with an
+  in-transaction policy recheck.
+- Consent changes preserve encrypted before/after source and timestamps in immutable audit.
+- Evidence validation binds this review artifact to exact SHA, reviewer, verdict, and counts.
 
-The certified source fixes these by retaining exact command envelopes, distinguishing confirmed
-from unconfirmed recovery truth, using synchronous single-flight document mutation guards,
-replaying the stored path/body/key directly, and clearing stale recovery on non-retryable errors.
+## Open P2
+
+Expired persistent login rate-limit identities are not reclaimed automatically. This does not
+bypass authentication or rate limits, and the `resetAt` index supports bounded cleanup, but
+attacker-selected valid email identities can cause long-term table growth.
+
+- Owner: Platform Operations
+- Reason deferred: retention and cleanup must be explicit and observable; adding an unreviewed
+  deletion policy during the final evidence-only step would change runtime behavior and require
+  another full candidate cycle.
+- Target date: 2026-09-15, before any M3 Production release authorization, whichever is earlier.
 
 ## Final verification
 
-- No weakened assertion or skipped test.
-- Integration suite remains one normal `node --test` invocation with default concurrency.
-- No timeout increase.
-- No schema, migration, auth hash, security, or workflow change in the final recovery repair.
-- No production behavior change outside the M3 command-recovery boundary.
-- No tracked file modified by the reviewer.
+- Unit: 125/125 PASS.
+- Integration: 59/59 PASS under normal file concurrency.
+- Targeted concurrency/policy repeat: 5 x 12/12 PASS.
+- Migration: one additive M3 migration; historical migrations unchanged.
+- Exact Preview: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY` at reviewed SHA, protected by Vercel SSO.
+- Finance top and dock screenshots jointly prove complete heading and final-record clearance.
+- No weakened assertion, timeout increase, suite serialization, or hidden test exclusion found.
 
-Human Finance, Legal/Privacy, and Ritual SME verdicts are deliberately outside this technical
-review and remain pending.
+Finance, Legal/Privacy, and Ritual SME verdicts remain pending human judgments and are outside
+this technical review.

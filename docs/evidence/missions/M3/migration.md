@@ -3,7 +3,7 @@
 ## Identity and checksum
 
 - Migration: `20260811172829_m3_fulfilment_money_trust`
-- SHA-256: `bf5ad4fa4330e922cd4389e30f13022582d4712b76de0be37402e355d6523d11`
+- SHA-256: `270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480`
 - Historical migrations changed: **NO**
 - Prisma schema change: additive models, enums, relations, indexes, and nullable legacy links.
 
@@ -35,7 +35,12 @@ All 11 migrations applied on the isolated target. The M3 deploy step completed w
 reported no pending migration. Prisma schema parity passed. Orphans, duplicates, tenant
 mismatches, and reconciliation discrepancies were all zero.
 
-The exact Preview database fingerprint is `646addef2eb61519`, distinct from Production
+The retained isolated Preview database was reset after the final migration checksum changed,
+all 11 migrations were applied from the exact implementation SHA, repeated deploy reported no
+pending migration, and a fresh schema diff returned `No difference detected`. Only synthetic
+Preview fixtures were restored after those checks.
+
+The exact Preview database fingerprint is `545a187f9e9d66b0`, distinct from Production
 `0257665af2dd90a4`. Preview migration and UAT never used the Production connection.
 
 ## Rollback and forward-fix

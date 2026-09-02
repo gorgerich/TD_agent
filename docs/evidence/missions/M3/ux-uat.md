@@ -2,13 +2,14 @@
 
 ## Environment
 
-- Deployment: `dpl_Dzj7KprKCNASbVN1xPBpfPoraD8f`
-- SHA: `a917a1f10b959b80cd4e0a249a2d2281e0bba106`
-- URL: `https://td-agent-1plelby0t-rics-projects-9baa2793.vercel.app`
-- Database fingerprint: `646addef2eb61519`
+- Deployment: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY`
+- SHA: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
+- URL: `https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app`
+- Database fingerprint: `545a187f9e9d66b0`
 - Production fingerprint excluded: `0257665af2dd90a4`
 - Private storage: `store_Ov8erHstuvfJ52Og`
-- Data: 2 synthetic organizations, 6 synthetic role identities, 2 synthetic Cases.
+- Data: retained isolated UAT run `preview-eb568f5`: 2 synthetic organizations,
+  6 synthetic role identities, and 2 synthetic Cases.
 - Vercel Deployment Protection remained enabled; authenticated automation bypass was used only
   for this protected Preview.
 
@@ -55,6 +56,8 @@ Result: **PASS**.
 - Document root horizontal overflow: 0.
 - Primary actions remain reachable; the fixed mobile navigation is offset by content padding and
   does not hide the final actionable row.
+- Exact element capture at the 200 percent equivalent viewport proves owner and due-date metadata
+  wrap into visible rows without clipping.
 
 ## Anti-slop and UI quality re-check
 
@@ -80,6 +83,7 @@ The entire applicable AGENTS anti-slop law was re-checked after the exact-SHA ca
 - `screenshots/case-documents-zoom200.png`
 - `screenshots/finance-desktop.png`
 - `screenshots/finance-mobile.png`
+- `screenshots/finance-mobile-dock.png`
 - `screenshots/reviewer-desktop.png`
 - `screenshots/reviewer-mobile.png`
 
