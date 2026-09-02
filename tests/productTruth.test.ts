@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IDS, MONEY, NOW, PAST_MEETING, eventEnvelope } from "./fixtures/productTruth";
 import { InMemoryTestStorage } from "./fixtures/testStorage";
-import { isIsolatedTestDatabase } from "./integration/testDatabaseSafety";
+import {
+  isApprovedIntegrationDatabaseEnvironment,
+  isIsolatedTestDatabase,
+} from "./integration/testDatabaseSafety";
 import { productionRegistrationRequiresInvite } from "../lib/invitations";
 import { isDemoMode } from "../lib/demo";
 import { dateTime } from "../lib/format";
@@ -179,6 +182,22 @@ test("integration DB guard allows only approved exact local test databases", () 
   assert.equal(isIsolatedTestDatabase("postgresql://local@127.0.0.1:5432/td_agent_m1_local_20260718_copy"), false);
   assert.equal(isIsolatedTestDatabase("postgresql://user:pass@example.com/td_agent_test"), false);
   assert.equal(isIsolatedTestDatabase(undefined), false);
+  const testUrl = "postgresql://test:test@127.0.0.1:5432/td_agent_m3_20260811_a";
+  assert.equal(isApprovedIntegrationDatabaseEnvironment({
+    testDatabaseUrl: testUrl,
+    databaseUrl: "postgres://runtime:secret@127.0.0.1:5432/td_agent_m3_20260811_a?schema=public",
+    directDatabaseUrl: testUrl,
+  }), true);
+  assert.equal(isApprovedIntegrationDatabaseEnvironment({
+    testDatabaseUrl: testUrl,
+    databaseUrl: "postgresql://runtime:secret@example.com:5432/production",
+    directDatabaseUrl: testUrl,
+  }), false);
+  assert.equal(isApprovedIntegrationDatabaseEnvironment({
+    testDatabaseUrl: testUrl,
+    databaseUrl: testUrl,
+    directDatabaseUrl: "postgresql://test:test@127.0.0.1:5432/td_agent_m3_20260811_b",
+  }), false);
 });
 
 test("M1 production registration is invite-only", () => {

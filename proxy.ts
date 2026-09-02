@@ -29,7 +29,9 @@ export function proxy(req: NextRequest) {
     );
   }
 
-  const res = NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-td-agent-path", req.nextUrl.pathname);
+  const res = NextResponse.next({ request: { headers: requestHeaders } });
   res.headers.set("X-Robots-Tag", "noindex, nofollow");
   if (freeze.active) res.headers.set("X-Release-Write-Freeze", "active");
   return res;

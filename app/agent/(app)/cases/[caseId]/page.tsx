@@ -19,6 +19,11 @@ import { getCanonicalCase } from "@/lib/caseReadModel";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
 import { zonedLocalInput } from "@/lib/zonedDateTime";
+import { isCoreOperationalRole } from "@/lib/operationalAuth";
+import { listCaseDocumentRequirements } from "@/lib/documentRequirementService";
+import { listCaseContractAndLedger } from "@/lib/contractLedgerService";
+import { listCaseParties } from "@/lib/casePartyService";
+import { ExecutionActions } from "./ExecutionActions";
 
 const SOURCE_LABELS: Record<string, string> = {
   agent: "Агент", telegram: "Telegram", form: "Форма", referral: "Рекомендация",
@@ -50,7 +55,20 @@ async function getFullCase(caseId: number, session: AgentSession) {
       id: caseId,
       case: { tenantId: session.organizationId },
     },
-    include: {
+    select: {
+      name: true,
+      phone: true,
+      source: true,
+      context: true,
+      ceremonyType: true,
+      budget: true,
+      needs: true,
+      deceasedName: true,
+      deceasedDate: true,
+      morgue: true,
+      ceremonyAt: true,
+      ceremonyPlace: true,
+      createdAt: true,
       case: { select: { owner: { select: { user: { select: { name: true } } } } } },
       meetings: {
         orderBy: { id: "asc" },
@@ -79,6 +97,7 @@ export default async function CasePage({
 
   const session = await getAgentSession();
   if (!session) notFound();
+  if (!isCoreOperationalRole(session.role)) notFound();
   const access = await getCaseAccess(id, session);
   if (!access) notFound();
   const limitedTaskContext = session.role === "AGENT" && access.ownerId !== session.agentId;
@@ -94,20 +113,23 @@ export default async function CasePage({
   if (!lead || !canonicalCase) notFound();
 
   // Tasks + Notes (P5) - fetched separately; notes body decrypted server-side.
-  const [rawTasks, rawNotes, rawDocs, rawPayments, rawEvents] = await Promise.all([
+  const [rawTasks, rawNotes, legacyDocumentCount, legacyPaymentCount, rawEvents, documentRequirementsRaw, contractLedgerRaw, partiesRaw] = await Promise.all([
     prisma.task.findMany({
       where: { leadId: id, organizationId: session.organizationId },
       orderBy: { createdAt: "desc" },
       include: { assignee: { select: { user: { select: { name: true } } } } },
     }),
     prisma.caseNote.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
-    prisma.document.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { createdAt: "desc" } }),
-    prisma.casePayment.findMany({ where: { leadId: id, agentId: canonicalCase.ownerId }, orderBy: { paidAt: "desc" } }),
+    prisma.document.count({ where: { leadId: id, agentId: canonicalCase.ownerId } }),
+    prisma.casePayment.count({ where: { leadId: id, agentId: canonicalCase.ownerId } }),
     prisma.caseEvent.findMany({
       where: { case: { leadId: id, tenantId: canonicalCase.tenantId } },
       orderBy: { createdAt: "desc" },
       select: { id: true, eventType: true, createdAt: true, fromStage: true, toStage: true },
     }),
+    listCaseDocumentRequirements(session, access.id),
+    listCaseContractAndLedger(session, access.id),
+    listCaseParties(session, access.id),
   ]);
   const tasks = rawTasks.map((t) => ({
     id: t.id,
@@ -142,7 +164,6 @@ export default async function CasePage({
   const intake = {
     ceremonyType: lead.ceremonyType ?? "",
     budget: lead.budget ?? "",
-    religion: lead.religion ?? "",
     needs: decryptField(lead.needs) ?? "",
     deceasedName: decryptField(lead.deceasedName) ?? "",
     deceasedDate: lead.deceasedDate ? lead.deceasedDate.toISOString().slice(0, 10) : "",
@@ -151,22 +172,29 @@ export default async function CasePage({
     ceremonyPlace: lead.ceremonyPlace ?? "",
   };
 
-  const docs = rawDocs.map((d) => ({
-    id: d.id,
-    name: d.name,
-    category: d.category,
-    url: d.url,
-    mimeType: d.mimeType,
-    size: d.size,
-    createdAt: d.createdAt.toISOString(),
+  const documentRequirements = documentRequirementsRaw.map((requirement) => ({
+    ...requirement,
+    dueAt: requirement.dueAt?.toISOString() ?? null,
+    applicabilityEvaluatedAt: requirement.applicabilityEvaluatedAt.toISOString(),
+    document: requirement.document ? {
+      ...requirement.document,
+      versions: requirement.document.versions.map((version) => ({
+        ...version,
+        expiresAt: version.expiresAt?.toISOString() ?? null,
+        createdAt: version.createdAt.toISOString(),
+      })),
+    } : null,
   }));
-  const payments = rawPayments.map((p) => ({
-    id: p.id,
-    amountKopecks: p.amountKopecks,
-    kind: p.kind,
-    method: p.method,
-    note: p.note,
-    paidAt: p.paidAt.toISOString(),
+  const contractVersions = contractLedgerRaw.versions.map((version) => ({
+    ...version,
+    issuedAt: version.issuedAt?.toISOString() ?? null,
+    signedAt: version.signedAt?.toISOString() ?? null,
+    validUntil: version.validUntil?.toISOString() ?? null,
+  }));
+  const parties = partiesRaw.map((party) => ({
+    ...party,
+    consentAt: party.consentAt?.toISOString() ?? null,
+    createdAt: party.createdAt.toISOString(),
   }));
 
   // Derived activity feed
@@ -216,7 +244,7 @@ export default async function CasePage({
         <div className="min-w-0">
           <div className="px-5 py-5 sm:px-6 sm:py-6">
             <span className="td-eyebrow">Кейс · #{id}</span>
-            <h1 className="td-display mt-2 text-[30px] text-ink sm:text-[38px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
+            <h1 className="td-display mt-2 min-w-0 text-[30px] text-ink [overflow-wrap:anywhere] sm:text-[38px]" style={{ viewTransitionName: `case-${id}` }}>{lead.name}</h1>
             <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13px] text-ink-2">
               <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1.5 font-semibold text-ink transition-colors hover:text-accent">
                 <Phone size={15} weight="fill" />
@@ -254,6 +282,12 @@ export default async function CasePage({
         meta={routeMeta}
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
+        stage={canonicalCase.legacyStage}
+        executionConfirmed={canonicalCase.scenarioId === "CREMATION_V1"
+          ? canonicalCase.guardState.crematorium_confirmed === true
+          : canonicalCase.scenarioId === "FAMILY_PLOT_BURIAL_V1"
+            ? canonicalCase.guardState.cemetery_confirmed === true
+            : false}
         controls={[
           { label: "Открытые задачи", value: String(openTasksCount), tone: openTasksCount > 0 ? "warning" : "neutral" },
           { label: "Документы", value: canonicalCase.documents.required ? `${canonicalCase.documents.verified}/${canonicalCase.documents.required}` : "—", tone: canonicalCase.documents.ready ? "success" : "warning" },
@@ -282,11 +316,14 @@ export default async function CasePage({
         <CaseTabs
           caseId={id}
           tasks={tasks}
-          docs={docs}
+          documentRequirements={documentRequirements}
+          legacyDocumentCount={legacyDocumentCount}
           notes={notes}
           intake={intake}
           context={context}
-          payments={payments}
+          contractVersions={contractVersions}
+          legacyPaymentCount={legacyPaymentCount}
+          parties={parties}
           activity={activity.map((a) => ({ label: a.label, sub: a.sub }))}
           initialTab={initialTab}
           timezone={session.timezone}
@@ -358,11 +395,14 @@ async function AssignedTaskCaseView({
         <CaseTabs
           caseId={access.leadId}
           tasks={tasks}
-          docs={[]}
+          documentRequirements={[]}
+          legacyDocumentCount={0}
           notes={[]}
-          intake={{ ceremonyType: "", budget: "", religion: "", needs: "", deceasedName: "", deceasedDate: "", morgue: "", ceremonyAt: "", ceremonyPlace: "" }}
+          intake={{ ceremonyType: "", budget: "", needs: "", deceasedName: "", deceasedDate: "", morgue: "", ceremonyAt: "", ceremonyPlace: "" }}
           context={null}
-          payments={[]}
+          contractVersions={[]}
+          legacyPaymentCount={0}
+          parties={[]}
           activity={[]}
           initialTab="work"
           timezone={session.timezone}
@@ -385,6 +425,7 @@ function eventLabel(eventType: string): string {
     "quote.accepted.v1": "Смета согласована",
     "contract.signed.v1": "Договор подписан",
     "payment.requirement_satisfied.v1": "Требование по оплате выполнено",
+    "execution.confirmed.v1": "Исполнение сценария подтверждено",
     "case.closure_requested.v1": "Кейс закрыт",
   };
   return labels[eventType] ?? eventType;
@@ -398,6 +439,8 @@ function RouteActionPanel({
   meta,
   firstMeetingId,
   caseId,
+  stage,
+  executionConfirmed,
   controls,
   lastActivity,
   canMutateCase,
@@ -409,6 +452,8 @@ function RouteActionPanel({
   meta: string[];
   firstMeetingId: number | null;
   caseId: number;
+  stage: string;
+  executionConfirmed: boolean;
   controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
   lastActivity: string;
   canMutateCase: boolean;
@@ -424,7 +469,9 @@ function RouteActionPanel({
           </div>
           <strong className="mt-2 block max-w-[760px] text-[20px] leading-snug text-ink sm:text-[23px]">{nextAction}</strong>
           {canMutateCase ? <div className="mt-4 flex flex-wrap gap-2">
-            {firstMeetingId ? (
+            {stage === "EXECUTION" ? (
+              <ExecutionActions caseId={caseId} executionConfirmed={executionConfirmed} />
+            ) : firstMeetingId ? (
               <Action href={`/agent/meetings/${firstMeetingId}/quote`} icon={<FileText size={16} />} primary compact>
                 Открыть смету
               </Action>
@@ -485,11 +532,11 @@ function RouteActionPanel({
           <span className="td-eyebrow">Контроль кейса</span>
           <span className="truncate text-[12px] text-ink-3">Последнее: {lastActivity}</span>
         </div>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] bg-line sm:grid-cols-4">
+        <dl aria-label="Контроль кейса" className="grid grid-cols-2 gap-px overflow-hidden rounded-[12px] bg-line sm:grid-cols-4">
           {controls.map((control) => (
             <CaseMetric key={control.label} {...control} />
           ))}
-        </div>
+        </dl>
       </div>
     </section>
   );
@@ -531,8 +578,8 @@ function CaseMetric({ label, value, tone = "neutral" }: { label: string; value: 
   const toneClass = tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-ink";
   return (
     <div className="min-w-0 bg-surface px-3 py-3 sm:px-4">
-      <span className="block truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</span>
-      <span className={`tnum mt-1 block truncate text-[15px] font-bold tracking-[-0.015em] ${toneClass}`}>{value}</span>
+      <dt className="block truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">{label}</dt>
+      <dd className={`tnum mt-1 block truncate text-[15px] font-bold ${toneClass}`}>{value}</dd>
     </div>
   );
 }

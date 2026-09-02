@@ -8,15 +8,25 @@ import {
 } from "./operationalAuth";
 import { prisma } from "./prisma";
 
-export type Role = "AGENT" | "MANAGER" | "SENIOR_AGENT" | "COORDINATOR" | "ADMIN" | "SUPPORT";
+export type Role =
+  | "AGENT"
+  | "MANAGER"
+  | "ADMIN"
+  | "DOCUMENT_REVIEWER"
+  | "FINANCE"
+  | "SENIOR_AGENT"
+  | "COORDINATOR"
+  | "SUPPORT";
 
 export type AuthenticatedUserSession = {
   userId: number;
   platformRole: PlatformRole;
   sessionVersion: number;
+  sessionIssuedAtEpochSeconds: number;
   mfaVerified: boolean;
   platformMfaEnabled: boolean;
   activeMembershipId?: string;
+  activeMembershipRole?: OperationalRole;
   name?: string;
   email?: string;
   hasOperationalAccess: boolean;
@@ -52,7 +62,7 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
           agent: { status: "ACTIVE" },
         },
         orderBy: { createdAt: "asc" },
-        select: { id: true, agentId: true },
+        select: { id: true, agentId: true, role: true },
       },
     },
   });
@@ -69,9 +79,11 @@ async function hydrateUserSession(payload: SessionPayload): Promise<Authenticate
     userId: user.id,
     platformRole: user.platformRole,
     sessionVersion: user.sessionVersion,
+    sessionIssuedAtEpochSeconds: payload.iat,
     mfaVerified: payload.mfaVerified === true,
     platformMfaEnabled: user.platformMfaEnabledAt != null,
     activeMembershipId: selected?.id,
+    activeMembershipRole: selected?.role,
     name: user.name ?? payload.name,
     email: user.email ?? undefined,
     hasOperationalAccess: user.memberships.length > 0,
@@ -108,7 +120,8 @@ export async function requireAuthenticatedUser(req?: Request): Promise<Authentic
 
 async function operationalFromUser(user: AuthenticatedUserSession): Promise<AgentSession | null> {
   if (!user.activeMembershipId) return null;
-  return resolveOperationalContextForUser(user.userId, { activeMembershipId: user.activeMembershipId });
+  const context = await resolveOperationalContextForUser(user.userId, { activeMembershipId: user.activeMembershipId });
+  return context ? { ...context, mfaVerified: user.mfaVerified } : null;
 }
 
 export async function getOperationalContext(): Promise<AgentSession | null> {

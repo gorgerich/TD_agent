@@ -7,9 +7,10 @@ import {
   type AgentSession,
 } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { OperationalAuthError } from "@/lib/operationalAuth";
+import { OperationalAuthError, isCoreOperationalRole, type OperationalRole } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { CommercialQuoteError } from "@/lib/commercialQuote";
+import { EncryptedDataUnavailableError } from "@/lib/crypto";
 
 /**
  * Единые помощники для API-роутов агента: авторизация, проверка владения
@@ -33,7 +34,10 @@ export function jsonError(status: number, message: string): NextResponse {
 
 /** Достаёт сессию агента или бросает 401. Fail-closed: dev-заглушка
  *  (agentId 0) допустима ТОЛЬКО в development; в проде такая сессия = 401. */
-export async function requireAgent(req: Request, options: { allowAdminMutation?: boolean } = {}): Promise<AgentSession> {
+export async function requireAgent(
+  req: Request,
+  options: { allowAdminMutation?: boolean; allowedRoles?: readonly OperationalRole[] } = {},
+): Promise<AgentSession> {
   const session = await getSessionFromRequest(req);
   if (!session) {
     const user = await getCurrentUserSessionFromRequest(req);
@@ -42,6 +46,13 @@ export async function requireAgent(req: Request, options: { allowAdminMutation?:
   if (session.agentId <= 0 && process.env.NODE_ENV !== "development") {
     throw new ApiError(401, "Unauthorized");
   }
+  if (session.role === "FINANCE" && session.mfaVerified !== true) {
+    throw new ApiError(403, "Для финансовых операций требуется двухфакторная аутентификация");
+  }
+  const roleAllowed = options.allowedRoles
+    ? options.allowedRoles.includes(session.role)
+    : isCoreOperationalRole(session.role);
+  if (!roleAllowed) throw new ApiError(403, "Недостаточно прав для этого маршрута");
   if (
     session.role === "ADMIN"
     && !options.allowAdminMutation
@@ -87,7 +98,7 @@ export async function assertMeetingOwned(meetingId: number, session: AgentSessio
       : {
           id: meetingId,
           organizationId: session.organizationId,
-          ...(session.role === "ADMIN" ? {} : { ownerMembershipId: session.membershipId }),
+          ...(session.role === "MANAGER" || session.role === "ADMIN" ? {} : { ownerMembershipId: session.membershipId }),
         },
     select: { id: true },
   });
@@ -104,7 +115,7 @@ export async function assertLeadOwned(leadId: number, session: AgentSession | nu
           id: leadId,
           case: {
             tenantId: session.organizationId,
-            ...(session.role === "ADMIN" ? {} : { ownerId: session.agentId }),
+            ...(session.role === "MANAGER" || session.role === "ADMIN" ? {} : { ownerId: session.agentId }),
           },
         },
     select: { id: true },
@@ -127,7 +138,13 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
   }
 
   if (err instanceof OperationalCommandError) {
-    return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
+    return NextResponse.json(
+      { error: err.message, code: err.code },
+      {
+        status: err.status,
+        headers: err.code === "CASE_PROJECTION_RETRY" ? { "Retry-After": "2" } : undefined,
+      },
+    );
   }
 
   if (err instanceof CommercialQuoteError) {
@@ -138,6 +155,14 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
       );
     }
     return NextResponse.json({ error: err.message, code: err.code }, { status: 422 });
+  }
+
+  if (err instanceof EncryptedDataUnavailableError) {
+    console.error("[api]%s PII_DECRYPTION_UNAVAILABLE", context ? ` ${context}` : "");
+    return NextResponse.json(
+      { error: "Зашифрованные данные временно недоступны", code: err.code },
+      { status: 503 },
+    );
   }
 
   if (

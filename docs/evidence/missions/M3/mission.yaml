@@ -1,0 +1,56 @@
+mission: M3-FULFILMENT-MONEY-TRUST
+name: Fulfilment & Money Trust
+state: BLOCKED_HUMAN_JUDGMENT
+base_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
+implementation_sha: 784140db230e8d0c1a566d2e70bbce91162a5587
+pull_request: https://github.com/gorgerich/TD_agent/pull/32
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/33604562239
+preview_deployment_id: dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB
+preview_deployment_sha: 784140db230e8d0c1a566d2e70bbce91162a5587
+preview_url: https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app
+preview_database_fingerprint: 545a187f9e9d66b0
+preview_storage_id: store_Ov8erHstuvfJ52Og
+production_deployment_id: dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g
+production_deployment_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
+production_runtime_source_sha: b8f6a40555c5fda83798dc2fc3fc96386d9156fd
+production_database_fingerprint: 0257665af2dd90a4
+production_changed: false
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+passed_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+human_gates:
+  finance_accounting: AWAITING_HUMAN_VERDICT
+  legal_privacy: AWAITING_HUMAN_VERDICT
+  ritual_operations_sme: AWAITING_HUMAN_VERDICT
+open_risks:
+  - RISK-W1-TECH-HUMAN-REVIEW
+  - M3-P2-RATE-LIMIT-RETENTION
+production_release_authorized: false
+production_release: NOT_PERFORMED

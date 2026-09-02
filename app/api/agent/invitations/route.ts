@@ -12,7 +12,7 @@ export const runtime = "nodejs";
 
 const Body = z.object({
   email: z.string().email(),
-  role: z.enum(["AGENT", "MANAGER", "ADMIN"]),
+  role: z.enum(["AGENT", "MANAGER", "ADMIN", "DOCUMENT_REVIEWER", "FINANCE"]),
   confirmation: z.string().trim().max(120).optional(),
   expiresInHours: z.number().int().min(1).max(168).default(48),
 });

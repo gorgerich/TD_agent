@@ -1,6 +1,6 @@
 import { Prisma, type TaskPriority, type TaskStatus, type TaskType } from "@prisma/client";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
-import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 
@@ -57,7 +57,7 @@ export async function createTask(
       where: {
         leadId: input.leadId,
         tenantId: context.organizationId,
-        ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+        ...(!hasTeamOperationalScope(context.role) ? { ownerId: context.agentId } : {}),
       },
       select: { id: true, leadId: true },
     });
@@ -66,7 +66,7 @@ export async function createTask(
     const assigneeMembershipId = input.assigneeMembershipId === undefined
       ? context.membershipId
       : input.assigneeMembershipId;
-    if (context.role === "AGENT" && assigneeMembershipId !== context.membershipId) {
+    if (!hasTeamOperationalScope(context.role) && assigneeMembershipId !== context.membershipId) {
       throw new OperationalCommandError(403, "Агент может назначить задачу только себе");
     }
     const assignee = assigneeMembershipId
@@ -369,7 +369,7 @@ async function commandReplay(
         where: {
           id: String(result.caseId),
           tenantId: context.organizationId,
-          ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+          ...(!hasTeamOperationalScope(context.role) ? { ownerId: context.agentId } : {}),
         },
         select: { id: true },
       })

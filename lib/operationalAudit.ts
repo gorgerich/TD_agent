@@ -13,7 +13,15 @@ type AuditInput = {
     | "catalog_item"
     | "quote"
     | "quote_version"
-    | "quote_client_decision";
+    | "quote_client_decision"
+    | "case_party"
+    | "document_requirement"
+    | "document_version"
+    | "document_access"
+    | "contract_version"
+    | "payment_obligation"
+    | "payment_ledger_entry"
+    | "payment_ledger_approval";
   entityId: string;
   action: string;
   before: Prisma.InputJsonValue;

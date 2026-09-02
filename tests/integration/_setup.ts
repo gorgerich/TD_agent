@@ -6,23 +6,25 @@ import { prisma } from "../../lib/prisma";
 import type { OperationalContext } from "../../lib/operationalAuth";
 import { signSession, SESSION_COOKIE } from "../../lib/session";
 import { backoffBeforeRetry } from "../../lib/serializationBackoff";
-import { isIsolatedTestDatabase } from "./testDatabaseSafety";
+import { isApprovedIntegrationDatabaseEnvironment } from "./testDatabaseSafety";
 
 /**
  * Integration-test harness. It can connect only to exact, local throwaway DBs
  * approved in testDatabaseSafety.ts. Every context owns a registry of exact IDs;
  * cleanup never discovers fixtures by prefix or removes another context's rows.
  */
-if (
-  process.env.ALLOW_DB_TESTS === "1" &&
-  process.env.TEST_DATABASE_URL &&
-  !isIsolatedTestDatabase(process.env.TEST_DATABASE_URL)
-) {
+const approvedIntegrationTarget = isApprovedIntegrationDatabaseEnvironment({
+  testDatabaseUrl: process.env.TEST_DATABASE_URL,
+  databaseUrl: process.env.DATABASE_URL,
+  directDatabaseUrl: process.env.DATABASE_URL_UNPOOLED,
+});
+
+if (process.env.ALLOW_DB_TESTS === "1" && !approvedIntegrationTarget) {
   throw new Error("Integration tests require an approved exact local throwaway database.");
 }
 
 export const dbTestsEnabled =
-  process.env.ALLOW_DB_TESTS === "1" && isIsolatedTestDatabase(process.env.TEST_DATABASE_URL);
+  process.env.ALLOW_DB_TESTS === "1" && approvedIntegrationTarget;
 
 export const skip = !dbTestsEnabled;
 export const db = prisma;
@@ -99,7 +101,11 @@ export type IntegrationFixtureContext = {
   makeMember(tag: string, options?: { organizationId?: string; role?: MembershipRole }): Promise<FixtureMember>;
   makeAgent(tag: string): Promise<FixtureMember>;
   makeCase(owner: FixtureMember, tag: string, options?: { ceremonyAt?: Date | null }): Promise<FixtureCase>;
+  trackDocumentPolicy(id: string): void;
+  trackDocumentType(id: string): void;
+  trackSigningPolicy(id: string): void;
   trackUser(userId: number): void;
+  trackCreatedMember(identity: { userId: number; agentId: number; membershipId: string }): void;
   cleanup(): Promise<void>;
   assertNoResidue(): Promise<void>;
 };
@@ -116,6 +122,9 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
   const createdMembershipIds = new Set<string>();
   const createdUserIds = new Set<number>();
   const createdAgentIds = new Set<number>();
+  const documentPolicyIds = new Set<string>();
+  const documentTypeIds = new Set<string>();
+  const signingPolicyIds = new Set<string>();
   let organizationSequence = 0;
   let memberSequence = 0;
   let caseSequence = 0;
@@ -273,7 +282,26 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       const orderIds = orders.map((item) => item.id);
 
       if (caseIds.length) await tx.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
+      if (caseIds.length) {
+        await tx.caseDocumentRequirement.updateMany({
+          where: { caseId: { in: caseIds } },
+          data: { satisfactionStatus: "NOT_SATISFIED", satisfiedByVersionId: null },
+        });
+        await tx.documentAccessEvent.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentWebhookReceipt.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentLedgerApproval.deleteMany({ where: { ledgerEntry: { caseId: { in: caseIds } } } });
+        await tx.paymentLedgerEntry.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.paymentObligation.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.contractVersion.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.contract.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocumentVersion.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocument.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.caseDocumentRequirement.deleteMany({ where: { caseId: { in: caseIds } } });
+        await tx.casePartyRoleAssignment.deleteMany({ where: { caseParty: { caseId: { in: caseIds } } } });
+        await tx.caseParty.deleteMany({ where: { caseId: { in: caseIds } } });
+      }
       if (ownOrganizationIds.length) {
+        await tx.financialControlPolicy.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.projectionReceipt.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
         await tx.savedOperationalView.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
@@ -281,6 +309,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         await tx.task.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
       }
       if (ownUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: ownUserIds } } });
+      if (ownUserIds.length) await tx.platformAccountActivation.deleteMany({ where: { userId: { in: ownUserIds } } });
       if (caseIds.length) await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
       if (meetingIds.length) await tx.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
       if (orderIds.length) {
@@ -336,6 +365,16 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         await tx.clientLead.deleteMany({ where: { id: { in: leadIds } } });
       }
       if (ownAgentIds.length) await tx.agentCatalogItem.deleteMany({ where: { agentId: { in: ownAgentIds } } });
+      if (documentPolicyIds.size) {
+        await tx.documentRequirementRule.deleteMany({ where: { policyId: { in: [...documentPolicyIds] } } });
+        await tx.documentRequirementPolicy.deleteMany({ where: { id: { in: [...documentPolicyIds] } } });
+      }
+      if (documentTypeIds.size) {
+        await tx.documentTypeDefinition.deleteMany({ where: { id: { in: [...documentTypeIds] } } });
+      }
+      if (signingPolicyIds.size) {
+        await tx.contractSigningPolicy.deleteMany({ where: { id: { in: [...signingPolicyIds] } } });
+      }
       if (ownMembershipIds.length) await tx.membership.deleteMany({ where: { id: { in: ownMembershipIds } } });
       if (ownAgentIds.length) await tx.agent.deleteMany({ where: { id: { in: ownAgentIds } } });
       if (ownUserIds.length) await tx.user.deleteMany({ where: { id: { in: ownUserIds } } });
@@ -376,6 +415,7 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.meeting.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
+      () => db.platformAccountActivation.count({ where: { userId: { in: [...createdUserIds] } } }),
       () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       // The mission's own tables. Without these the residue gate was structurally unable to
@@ -388,6 +428,22 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.quoteClientLink.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
       () => db.quoteClientDecision.count({ where: { quoteVersion: { quote: { organizationId: { in: [...createdOrganizationIds] } } } } }),
       () => db.quotePresentationSession.count({ where: { quote: { organizationId: { in: [...createdOrganizationIds] } } } }),
+      () => db.caseParty.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.casePartyRoleAssignment.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocumentRequirement.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocument.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.caseDocumentVersion.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.documentAccessEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.contract.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.contractVersion.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentObligation.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentLedgerEntry.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentLedgerApproval.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.financialControlPolicy.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.paymentWebhookReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.documentRequirementPolicy.count({ where: { id: { in: [...documentPolicyIds] } } }),
+      () => db.documentTypeDefinition.count({ where: { id: { in: [...documentTypeIds] } } }),
+      () => db.contractSigningPolicy.count({ where: { id: { in: [...signingPolicyIds] } } }),
     ];
     let total = 0;
     for (const count of counts) total += await count();
@@ -407,6 +463,18 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
            LEFT JOIN "Quote" q ON q.id = s."quoteId" WHERE q.id IS NULL)
       + (SELECT count(*) FROM "QuoteVersion" v
            LEFT JOIN "Quote" q ON q.id = v."quoteId" WHERE q.id IS NULL)
+      + (SELECT count(*) FROM "CasePartyRoleAssignment" r
+           LEFT JOIN "CaseParty" p ON p.id = r."casePartyId" WHERE p.id IS NULL)
+      + (SELECT count(*) FROM "CaseDocumentVersion" v
+           LEFT JOIN "CaseDocument" d ON d.id = v."documentId" WHERE d.id IS NULL)
+      + (SELECT count(*) FROM "PaymentLedgerEntry" e
+           LEFT JOIN "PaymentObligation" o ON o.id = e."obligationId" WHERE o.id IS NULL)
+      + (SELECT count(*) FROM "PaymentLedgerApproval" a
+           LEFT JOIN "PaymentLedgerEntry" e ON e.id = a."ledgerEntryId" WHERE e.id IS NULL)
+      + (SELECT count(*) FROM "PaymentWebhookReceipt" r
+           LEFT JOIN "Case" c ON c.id = r."caseId" WHERE c.id IS NULL)
+      + (SELECT count(*) FROM "PlatformAccountActivation" a
+           LEFT JOIN "User" u ON u.id = a."userId" WHERE u.id IS NULL)
       AS count
     `;
     if (Number(orphans.count) !== 0) {
@@ -423,9 +491,20 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     makeMember,
     makeAgent: (tag) => makeMember(tag, { role: "AGENT" }),
     makeCase,
+    trackDocumentPolicy: (id) => documentPolicyIds.add(id),
+    trackDocumentType: (id) => documentTypeIds.add(id),
+    trackSigningPolicy: (id) => signingPolicyIds.add(id),
     trackUser: (userId) => {
       userIds.add(userId);
       createdUserIds.add(userId);
+    },
+    trackCreatedMember: ({ userId, agentId, membershipId }) => {
+      userIds.add(userId);
+      agentIds.add(agentId);
+      membershipIds.add(membershipId);
+      createdUserIds.add(userId);
+      createdAgentIds.add(agentId);
+      createdMembershipIds.add(membershipId);
     },
     cleanup,
     assertNoResidue,

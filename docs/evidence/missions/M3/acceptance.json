@@ -1,0 +1,114 @@
+{
+  "mission": "M3-FULFILMENT-MONEY-TRUST",
+  "state": "BLOCKED_HUMAN_JUDGMENT",
+  "acceptance": [
+    {
+      "id": "M3-W7-01",
+      "status": "PASS",
+      "requirement": "Stable Case parties support multiple effective family roles, consent provenance, encrypted contact data, and tenant ownership.",
+      "evidence": "lib/casePartyService.ts, tests/integration/m3Fulfilment.itest.ts, and exact-SHA Preview UAT cover applicant, decision-maker, payer, responsible-for-burial, multi-role, consent, encryption, and cross-tenant denial."
+    },
+    {
+      "id": "M3-W7-02",
+      "status": "PASS",
+      "requirement": "Versioned cremation and relative-burial requirement policies differ and unapproved policy fails closed.",
+      "evidence": "lib/documentRequirementService.ts and tests/integration/m3PolicyActivation.itest.ts prove versioned activation, distinct scenario matrices, concurrent activation safety, and fail-closed unapproved rules."
+    },
+    {
+      "id": "M3-W7-03",
+      "status": "PASS",
+      "requirement": "Uploaded, quarantined, reviewed, verified, rejected, expired, and superseded document states preserve immutable version history.",
+      "evidence": "lib/documentService.ts, tests/integration/m3Fulfilment.itest.ts, and both Preview UAT scenarios prove upload is never verification and only the latest clean verified version satisfies a requirement."
+    },
+    {
+      "id": "M3-W7-04",
+      "status": "PASS",
+      "requirement": "Private document storage has fail-closed scanning, server authorization, checksum/type/size checks, short-lived access, and access audit.",
+      "evidence": "lib/documentStorage.ts, lib/documentScanner.ts, document API routes, isolated private Preview store store_Ov8erHstuvfJ52Og, integration tests, and Preview quarantine/failure UAT."
+    },
+    {
+      "id": "M3-W7-05",
+      "status": "PASS",
+      "requirement": "Document Reviewer has an organization-scoped queue and cannot read ledger or unrelated family context.",
+      "evidence": "Document Review routes/workspace, capability matrix tests, integration negative tests, and Preview reviewerVisibility=PASS."
+    },
+    {
+      "id": "M3-W6-01",
+      "status": "PASS",
+      "requirement": "ContractVersion and PaymentObligation immutably bind one accepted QuoteVersion without equating acceptance to signing.",
+      "evidence": "lib/contractLedgerService.ts and M3 integration/UAT scenarios prove immutable snapshots, checksums, signing evidence boundary, and obligation creation guards."
+    },
+    {
+      "id": "M3-W6-02",
+      "status": "PASS",
+      "requirement": "Append-only ledger derives truthful unpaid, partial, paid, overpaid, refunded states without manual PAID or destructive edits.",
+      "evidence": "lib/m3Domain.ts, lib/contractLedgerService.ts, unit and integration tests prove no update/delete business path and 176000 / 88000 = PARTIALLY_PAID with 88000 balance."
+    },
+    {
+      "id": "M3-W6-03",
+      "status": "PASS",
+      "requirement": "Manual payment, webhook, retry, refund, correction, and reversal boundaries are idempotent and detect changed-payload conflicts.",
+      "evidence": "M3 command/idempotency services and tests cover sequential, concurrent, lost-response, changed-payload, and webhook x5 behavior; exact Preview created one entry with one original and four replay responses."
+    },
+    {
+      "id": "M3-W6-04",
+      "status": "PASS",
+      "requirement": "Sensitive correction/reversal uses persistent four-eyes approval and preserves original history.",
+      "evidence": "Financial control policy and ledger approval models/services plus concurrency tests prove requester != approver, one decision, immutable original entry, and fail-closed pending policy."
+    },
+    {
+      "id": "M3-W6-05",
+      "status": "PASS",
+      "requirement": "Finance workspace exposes only necessary obligation, payer, evidence, reconciliation, and approval data.",
+      "evidence": "Finance API/UI, server-side capability tests, tenant negative tests, MFA enforcement, and Preview financeVisibility=PASS."
+    },
+    {
+      "id": "M3-GUARD-01",
+      "status": "PASS",
+      "requirement": "Case stages use verified requirements, signed contract evidence, ledger truth, and unresolved blockers through the canonical transition service.",
+      "evidence": "lib/caseFulfilment.ts, lib/caseService.ts, unit/integration stage-guard tests, and exact Preview stageGuards=PASS."
+    },
+    {
+      "id": "M3-RECON-01",
+      "status": "PASS",
+      "requirement": "Document, contract, ledger, task, tenant, webhook, and audit reconciliation is deterministic and fail closed.",
+      "evidence": "lib/m3Reconciliation.ts, integration tests, migration assertions, and both Preview scenarios report discrepancies=0 without automatic truth repair."
+    },
+    {
+      "id": "M3-SEC-01",
+      "status": "PASS",
+      "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
+      "evidence": "Operational capability matrix, all M3 API guards, integration negative tests, exact Preview crossTenant=PASS, and independent review P0=0/P1=0/P2=1; the P2 retention item is owned, dated, and does not weaken authorization."
+    },
+    {
+      "id": "M3-MIG-01",
+      "status": "PASS",
+      "requirement": "Migration is additive, historical checksums remain unchanged, restore/deploy/no-op/parity pass, and legacy truth is not invented.",
+      "evidence": "M3 migration checksum 270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480; encrypted backup and real restore, 11 migrations, repeated no-op, parity, legacy counts, orphan/duplicate/tenant mismatch=0."
+    },
+    {
+      "id": "M3-UX-01",
+      "status": "PASS",
+      "requirement": "Failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard, and 200 percent zoom states are honest and accessible.",
+      "evidence": "M3 UIs and recovery contracts; exact Preview axe critical=0/serious=0, mobile PASS, zoom200 PASS, horizontal overflow=0, unexpected5xx=0; eight screenshots under docs/evidence/missions/M3/screenshots."
+    },
+    {
+      "id": "M3-UAT-01",
+      "status": "PASS",
+      "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
+      "evidence": "Deployment dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB at 784140d, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
+    },
+    {
+      "id": "M3-REVIEW-01",
+      "status": "PASS",
+      "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
+      "evidence": "Independent reviewer agent Plato (Codex) reviewed base 20b7e0f..implementation 784140d, including the least-privilege source-CI attestation repair, and returned PASS with P0=0, P1=0, P2=1."
+    },
+    {
+      "id": "M3-GATE-01",
+      "status": "PASS",
+      "requirement": "All deterministic technical gates pass with skipped=0 and NOT_RUN=0.",
+      "evidence": "git diff check, Prisma generation, lint, typecheck, build, unit 125/125, integration 59/59 under default concurrency, targeted policy/authority suite 5 x 12/12, five E2E scripts, migration/restore/no-op/parity, exact Preview UAT, evidence schema, and independent review all pass."
+    }
+  ]
+}

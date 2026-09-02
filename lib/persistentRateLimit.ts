@@ -15,40 +15,47 @@ export async function enforcePersistentRateLimit(
   windowMs: number,
 ): Promise<NextResponse | null> {
   const keyHash = persistentRateLimitKey(bucket, clientIp(req));
+  return consumePersistentRateLimit(keyHash, limit, windowMs);
+}
+
+/** Shared-instance limit for a normalized account or token identity. Only its hash is stored. */
+export async function enforcePersistentIdentityRateLimit(
+  bucket: string,
+  identity: string,
+  limit: number,
+  windowMs: number,
+): Promise<NextResponse | null> {
+  const keyHash = persistentRateLimitKey(bucket, identity);
+  return consumePersistentRateLimit(keyHash, limit, windowMs);
+}
+
+async function consumePersistentRateLimit(
+  keyHash: string,
+  limit: number,
+  windowMs: number,
+): Promise<NextResponse | null> {
   const now = new Date();
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    try {
-      const result = await prisma.$transaction(async (tx) => {
-        const existing = await tx.securityRateLimitBucket.findUnique({ where: { keyHash } });
-        if (!existing || existing.resetAt <= now) {
-          const resetAt = new Date(now.getTime() + windowMs);
-          await tx.securityRateLimitBucket.upsert({
-            where: { keyHash },
-            create: { keyHash, count: 1, resetAt },
-            update: { count: 1, resetAt },
-          });
-          return { allowed: true, retryAfter: 0 };
-        }
-        const updated = await tx.securityRateLimitBucket.update({
-          where: { keyHash },
-          data: { count: { increment: 1 } },
-          select: { count: true, resetAt: true },
-        });
-        return {
-          allowed: updated.count <= limit,
-          retryAfter: Math.max(1, Math.ceil((updated.resetAt.getTime() - now.getTime()) / 1000)),
-        };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-      if (result.allowed) return null;
-      return NextResponse.json(
-        { error: "Слишком много попыток. Повторите позже." },
-        { status: 429, headers: { "Retry-After": String(result.retryAfter) } },
-      );
-    } catch (error) {
-      const retryable = error instanceof Prisma.PrismaClientKnownRequestError
-        && (error.code === "P2034" || error.code === "P2002");
-      if (!retryable || attempt === 3) throw error;
-    }
-  }
-  throw new Error("Persistent rate limiter exhausted retries");
+  const nextResetAt = new Date(now.getTime() + windowMs);
+  const [result] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>(Prisma.sql`
+    INSERT INTO "SecurityRateLimitBucket" AS bucket ("keyHash", "count", "resetAt", "updatedAt")
+    VALUES (${keyHash}, 1, ${nextResetAt}, ${now})
+    ON CONFLICT ("keyHash") DO UPDATE SET
+      "count" = CASE
+        WHEN bucket."resetAt" <= ${now} THEN 1
+        ELSE bucket."count" + 1
+      END,
+      "resetAt" = CASE
+        WHEN bucket."resetAt" <= ${now} THEN ${nextResetAt}
+        ELSE bucket."resetAt"
+      END,
+      "updatedAt" = ${now}
+    RETURNING "count", "resetAt"
+  `);
+  if (!result) throw new Error("Persistent rate limiter did not return a bucket");
+  if (result.count <= limit) return null;
+  const retryAfter = Math.max(1, Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000));
+  return NextResponse.json(
+    { error: "Слишком много попыток. Повторите позже." },
+    { status: 429, headers: { "Retry-After": String(retryAfter) } },
+  );
 }
