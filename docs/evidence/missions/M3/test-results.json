@@ -1,17 +1,17 @@
 {
   "mission": "M3-FULFILMENT-MONEY-TRUST",
   "state": "BLOCKED_HUMAN_JUDGMENT",
-  "implementationSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/33529964574",
-  "previewDeploymentId": "dpl_CDP554WNjhyMX7zABzL1ZHUB3odY",
-  "previewDeploymentSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
-  "previewUrl": "https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app",
+  "implementationSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/33604562239",
+  "previewDeploymentId": "dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB",
+  "previewDeploymentSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
+  "previewUrl": "https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app",
   "previewDatabaseFingerprint": "545a187f9e9d66b0",
   "checks": {
     "sourceCi": {
       "status": "PASS",
-      "runId": 33529964574,
-      "headSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
+      "runId": 33604562239,
+      "headSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
       "testSkipped": 0,
       "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
     },
@@ -105,9 +105,9 @@
     },
     "previewUat": {
       "status": "PASS",
-      "deploymentId": "dpl_CDP554WNjhyMX7zABzL1ZHUB3odY",
-      "deploymentSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
-      "previewUrl": "https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app",
+      "deploymentId": "dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB",
+      "deploymentSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
+      "previewUrl": "https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app",
       "databaseFingerprint": "545a187f9e9d66b0",
       "productionFingerprint": "0257665af2dd90a4",
       "storageId": "store_Ov8erHstuvfJ52Og",
@@ -135,7 +135,7 @@
     },
     "independentReview": {
       "status": "PASS",
-      "reviewedSha": "eb568f54d6b47d90ed36c73738bd89c03da761c9",
+      "reviewedSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
       "p0": 0,
       "p1": 0,
       "p2": 1,

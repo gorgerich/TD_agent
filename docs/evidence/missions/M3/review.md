@@ -1,6 +1,6 @@
 ---
 schema: m3-independent-review-v1
-reviewed_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+reviewed_sha: 784140db230e8d0c1a566d2e70bbce91162a5587
 reviewer: independent reviewer agent Plato (Codex)
 verdict: PASS
 p0: 0
@@ -12,7 +12,7 @@ p2: 1
 ## Certified scope
 
 - Base: `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`
-- Reviewed implementation: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
+- Reviewed implementation: `784140db230e8d0c1a566d2e70bbce91162a5587`
 - Reviewer: independent reviewer agent Plato (Codex)
 - Final verdict: **PASS**
 - P0: **0**
@@ -22,7 +22,8 @@ p2: 1
 The reviewer read the exact diff, inspected all eight exact-SHA screenshots, checked the
 GitHub/Vercel binding, and independently reran focused unit, lint, typecheck, and Production
 build gates. Exact-SHA CI supplied the complete integration, concurrency, migration, restore,
-and E2E gate.
+and E2E gate. Incremental review of `eb568f5..784140d` separately confirmed the source-CI
+attestation repair as least privilege with P0=0, P1=0, and P2=0.
 
 ## Prior P1 findings closed
 
@@ -32,6 +33,9 @@ and E2E gate.
   in-transaction policy recheck.
 - Consent changes preserve encrypted before/after source and timestamps in immutable audit.
 - Evidence validation binds this review artifact to exact SHA, reviewer, verdict, and counts.
+- The Quality workflow exposes the GitHub token only to evidence validation and grants only
+  `actions: read` plus `contents: read`; fork source runs remain rejected and no write
+  permission, `pull_request_target`, or gate bypass exists.
 
 ## Open P2
 
@@ -51,7 +55,7 @@ attacker-selected valid email identities can cause long-term table growth.
 - Integration: 59/59 PASS under normal file concurrency.
 - Targeted concurrency/policy repeat: 5 x 12/12 PASS.
 - Migration: one additive M3 migration; historical migrations unchanged.
-- Exact Preview: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY` at reviewed SHA, protected by Vercel SSO.
+- Exact Preview: `dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB` at reviewed SHA, protected by Vercel SSO.
 - Finance top and dock screenshots jointly prove complete heading and final-record clearance.
 - No weakened assertion, timeout increase, suite serialization, or hidden test exclusion found.
 

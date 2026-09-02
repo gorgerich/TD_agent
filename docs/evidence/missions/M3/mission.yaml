@@ -2,12 +2,12 @@ mission: M3-FULFILMENT-MONEY-TRUST
 name: Fulfilment & Money Trust
 state: BLOCKED_HUMAN_JUDGMENT
 base_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
-implementation_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
+implementation_sha: 784140db230e8d0c1a566d2e70bbce91162a5587
 pull_request: https://github.com/gorgerich/TD_agent/pull/32
-source_ci: https://github.com/gorgerich/TD_agent/actions/runs/33529964574
-preview_deployment_id: dpl_CDP554WNjhyMX7zABzL1ZHUB3odY
-preview_deployment_sha: eb568f54d6b47d90ed36c73738bd89c03da761c9
-preview_url: https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/33604562239
+preview_deployment_id: dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB
+preview_deployment_sha: 784140db230e8d0c1a566d2e70bbce91162a5587
+preview_url: https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app
 preview_database_fingerprint: 545a187f9e9d66b0
 preview_storage_id: store_Ov8erHstuvfJ52Og
 production_deployment_id: dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g

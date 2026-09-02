@@ -50,7 +50,7 @@
 
 ## Review result
 
-Independent review of exact source SHA `eb568f54d6b47d90ed36c73738bd89c03da761c9`
+Independent review of exact source SHA `784140db230e8d0c1a566d2e70bbce91162a5587`
 reported P0=0, P1=0, P2=1. The open P2 is bounded retention cleanup for expired persistent
 login-rate-limit identities; it does not bypass authentication or throttling and is owned by
 Platform Operations for completion by 2026-09-15 or before M3 Production release. Exact Preview

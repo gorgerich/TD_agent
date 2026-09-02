@@ -96,13 +96,13 @@
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Deployment dpl_CDP554WNjhyMX7zABzL1ZHUB3odY at eb568f5, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
+      "evidence": "Deployment dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB at 784140d, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Independent reviewer agent Plato (Codex) reviewed base 20b7e0f..implementation eb568f5, examined the exact runtime diff and evidence, and returned PASS with P0=0, P1=0, P2=1."
+      "evidence": "Independent reviewer agent Plato (Codex) reviewed base 20b7e0f..implementation 784140d, including the least-privilege source-CI attestation repair, and returned PASS with P0=0, P1=0, P2=1."
     },
     {
       "id": "M3-GATE-01",

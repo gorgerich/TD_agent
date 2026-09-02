@@ -4,7 +4,7 @@
 
 Mission `M3-FULFILMENT-MONEY-TRUST` is implemented from base
 `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. The certified source tree is
-`eb568f54d6b47d90ed36c73738bd89c03da761c9`.
+`784140db230e8d0c1a566d2e70bbce91162a5587`.
 
 Read-only baseline verification identified Production deployment
 `dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g`, Production database fingerprint
@@ -76,6 +76,9 @@ for tests and no Production data, schema, environment, or deployment was changed
   permanently revocable, and bound to role-specific Ed25519 human attestations.
 - Narrow mobile reflow keeps document owner and due-date metadata visible at the
   200 percent equivalent viewport without hiding or truncating live content.
+- The Quality workflow grants only `contents: read` and `actions: read`, allowing the
+  fail-closed evidence validator to attest the exact prior source CI run. No write-capable
+  GitHub permission, validator exception, or product runtime behavior was added.
 
 ## Permission matrix
 

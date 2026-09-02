@@ -5,7 +5,7 @@
 `BLOCKED_HUMAN_JUDGMENT`
 
 All safely executable technical work is complete on implementation SHA
-`eb568f54d6b47d90ed36c73738bd89c03da761c9`. Deterministic gates, exact-SHA isolated Preview
+`784140db230e8d0c1a566d2e70bbce91162a5587`. Deterministic gates, exact-SHA isolated Preview
 UAT, migration/restore/no-op/parity, reconciliation, accessibility/mobile, evidence validation,
 and independent review pass with skipped=0, NOT_RUN=0, P0=0, and P1=0.
 
@@ -22,9 +22,9 @@ result is substituted for a human decision.
 ## Release controls
 
 - Product PR: `https://github.com/gorgerich/TD_agent/pull/32`
-- Source CI: `https://github.com/gorgerich/TD_agent/actions/runs/33529964574`
-- Exact Preview: `https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app`
-- Preview deployment: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY`
+- Source CI: `https://github.com/gorgerich/TD_agent/actions/runs/33604562239`
+- Exact Preview: `https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app`
+- Preview deployment: `dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB`
 - Preview DB: isolated fingerprint `545a187f9e9d66b0`
 - Preview storage: private `store_Ov8erHstuvfJ52Og`
 - Production writes: **NONE**

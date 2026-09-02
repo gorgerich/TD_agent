@@ -2,9 +2,9 @@
 
 ## Environment
 
-- Deployment: `dpl_CDP554WNjhyMX7zABzL1ZHUB3odY`
-- SHA: `eb568f54d6b47d90ed36c73738bd89c03da761c9`
-- URL: `https://td-agent-3ulmmuenk-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB`
+- SHA: `784140db230e8d0c1a566d2e70bbce91162a5587`
+- URL: `https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app`
 - Database fingerprint: `545a187f9e9d66b0`
 - Production fingerprint excluded: `0257665af2dd90a4`
 - Private storage: `store_Ov8erHstuvfJ52Og`
