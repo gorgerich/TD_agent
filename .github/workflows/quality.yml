@@ -111,7 +111,8 @@ jobs:
             echo "M3 targeted repeat $attempt/5"
             npm run test:integration -- \
               tests/integration/m3Fulfilment.itest.ts \
-              tests/integration/m3PolicyActivation.itest.ts
+              tests/integration/m3PolicyActivation.itest.ts \
+              tests/integration/rateLimitRetention.itest.ts
           done
       - name: Provision isolated M1 browser UAT fixture
         run: |

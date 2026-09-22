@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { clientIp } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
+import { tryLoginRateLimitRetention } from "@/lib/rateLimitRetention";
 
 export function persistentRateLimitKey(bucket: string, ip: string): string {
   return createHash("sha256").update(`${bucket}:${ip}`).digest("hex");
@@ -34,26 +35,29 @@ async function consumePersistentRateLimit(
   limit: number,
   windowMs: number,
 ): Promise<NextResponse | null> {
-  const now = new Date();
-  const nextResetAt = new Date(now.getTime() + windowMs);
-  const [result] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date }>>(Prisma.sql`
+  const [result] = await prisma.$queryRaw<Array<{ count: number; resetAt: Date; observedAt: Date }>>(Prisma.sql`
     INSERT INTO "SecurityRateLimitBucket" AS bucket ("keyHash", "count", "resetAt", "updatedAt")
-    VALUES (${keyHash}, 1, ${nextResetAt}, ${now})
+    VALUES (${keyHash}, 1,
+      (statement_timestamp() AT TIME ZONE 'UTC') + (${windowMs} * interval '1 millisecond'),
+      (statement_timestamp() AT TIME ZONE 'UTC'))
     ON CONFLICT ("keyHash") DO UPDATE SET
       "count" = CASE
-        WHEN bucket."resetAt" <= ${now} THEN 1
+        WHEN bucket."resetAt" <= EXCLUDED."updatedAt" THEN 1
         ELSE bucket."count" + 1
       END,
       "resetAt" = CASE
-        WHEN bucket."resetAt" <= ${now} THEN ${nextResetAt}
+        WHEN bucket."resetAt" <= EXCLUDED."updatedAt" THEN EXCLUDED."resetAt"
         ELSE bucket."resetAt"
       END,
-      "updatedAt" = ${now}
-    RETURNING "count", "resetAt"
+      "updatedAt" = EXCLUDED."updatedAt"
+    RETURNING "count", "resetAt", (statement_timestamp() AT TIME ZONE 'UTC') AS "observedAt"
   `);
   if (!result) throw new Error("Persistent rate limiter did not return a bucket");
-  if (result.count <= limit) return null;
-  const retryAfter = Math.max(1, Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000));
+  if (result.count <= limit) {
+    await tryLoginRateLimitRetention();
+    return null;
+  }
+  const retryAfter = Math.max(1, Math.ceil((result.resetAt.getTime() - result.observedAt.getTime()) / 1000));
   return NextResponse.json(
     { error: "Слишком много попыток. Повторите позже." },
     { status: 429, headers: { "Retry-After": String(retryAfter) } },
