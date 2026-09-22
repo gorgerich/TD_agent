@@ -6,7 +6,7 @@ import { commandMetaFromHeaders } from "@/lib/m3Api";
 
 const Body = z.object({
   paymentEntryId: z.string().min(1).max(120),
-  amountKopecks: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  amountKopecks: z.number().int().positive().max(2_147_483_647),
   occurredAt: z.string().datetime(),
   method: z.enum(["CASH", "SBP_QR", "CARD", "BANK_TRANSFER"]),
   evidenceReference: z.string().trim().min(3).max(240),

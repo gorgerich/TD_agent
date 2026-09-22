@@ -8,7 +8,7 @@ const Body = z.object({
   type: z.enum(["CORRECTION", "REVERSAL"]),
   relatedEntryId: z.string().min(1).max(120),
   direction: z.enum(["DEBIT", "CREDIT"]),
-  amountKopecks: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  amountKopecks: z.number().int().positive().max(2_147_483_647),
   occurredAt: z.string().datetime(),
   evidenceReference: z.string().trim().min(3).max(240),
   reason: z.string().trim().min(3).max(500),

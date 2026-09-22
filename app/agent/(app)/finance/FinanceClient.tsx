@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, CurrencyCircleDollar, FileCsv, ListMagnifyingGlass, X } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { moneyFromKopecks } from "@/lib/format";
+import { parseRublesToKopecks } from "@/lib/financeAmount";
 
 type LedgerEntry = {
   id: string;
@@ -132,9 +133,9 @@ export function FinanceClient({
     if (!actionState) return;
     const { action, command } = actionState;
     const form = new FormData(event.currentTarget);
-    const rubles = Number(String(form.get("amount") ?? "").replace(/[^0-9]/g, ""));
-    if (!Number.isSafeInteger(rubles) || rubles <= 0) {
-      setError("Укажите положительную целую сумму в рублях");
+    const amountKopecks = parseRublesToKopecks(String(form.get("amount") ?? ""));
+    if (amountKopecks === null) {
+      setError("Укажите точную положительную сумму в рублях, не более двух знаков после запятой");
       return;
     }
     setBusyId(action.kind === "PAYMENT" ? action.obligation.id : action.entry.id);
@@ -145,7 +146,7 @@ export function FinanceClient({
         await post(`/api/agent/cases/${action.obligation.caseId}/payments`, {
           obligationId: action.obligation.id,
           payerPartyId: action.obligation.payerPartyId,
-          amountKopecks: rubles * 100,
+          amountKopecks,
           currency: "RUB",
           occurredAt: command.occurredAt,
           method: form.get("method"),
@@ -155,7 +156,7 @@ export function FinanceClient({
       } else if (action.kind === "REFUND") {
         await post("/api/agent/finance/refunds", {
           paymentEntryId: action.entry.id,
-          amountKopecks: rubles * 100,
+          amountKopecks,
           occurredAt: command.occurredAt,
           method: form.get("method"),
           evidenceReference: form.get("evidenceReference"),
@@ -166,7 +167,7 @@ export function FinanceClient({
           type: form.get("type"),
           relatedEntryId: action.entry.id,
           direction: form.get("direction"),
-          amountKopecks: rubles * 100,
+          amountKopecks,
           occurredAt: command.occurredAt,
           evidenceReference: form.get("evidenceReference"),
           reason: form.get("reason"),
@@ -359,7 +360,7 @@ function FinanceActionDialog({ action, busy, onClose, onSubmit }: { action: Fina
               <label><span className="td-field-label">Направление</span><select name="direction" className="td-field" defaultValue={defaultDirection}><option value="DEBIT">Начисление</option><option value="CREDIT">Зачисление</option></select></label>
             </>
           )}
-          <label><span className="td-field-label">Сумма, ₽</span><input name="amount" className="td-field tnum" inputMode="numeric" required /></label>
+          <label><span className="td-field-label">Сумма, ₽</span><input name="amount" className="td-field tnum" inputMode="decimal" required /></label>
           {action.kind !== "ADJUSTMENT" && <label><span className="td-field-label">Способ</span><select name="method" className="td-field" defaultValue="BANK_TRANSFER"><option value="BANK_TRANSFER">Банковский перевод</option><option value="SBP_QR">СБП</option><option value="CARD">Карта</option><option value="CASH">Наличные</option></select></label>}
           <label><span className="td-field-label">Подтверждение</span><input name="evidenceReference" className="td-field" minLength={3} maxLength={240} required /></label>
           <label><span className="td-field-label">Причина</span><textarea name="reason" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required /></label>

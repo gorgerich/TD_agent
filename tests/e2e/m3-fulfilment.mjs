@@ -328,9 +328,24 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   await paymentButton.focus();
   await target.keyboard.press("Enter");
   const dialog = target.getByRole("dialog", { name: "Записать подтверждённую оплату" });
-  await dialog.getByLabel("Сумма, ₽").fill(String(rubles));
+  const amountInput = dialog.getByLabel("Сумма, ₽");
   await dialog.getByLabel("Подтверждение").fill(`synthetic-evidence:${publicRef}:${rubles}`);
   await dialog.getByLabel("Причина").fill(reason);
+  if (rubles === 88_000) {
+    let invalidRequests = 0;
+    const countInvalid = (request) => {
+      if (request.method() === "POST" && request.url().includes("/payments")) invalidRequests += 1;
+    };
+    target.on("request", countInvalid);
+    for (const invalid of ["-88000", "1e3", "88 000", "88000,001"]) {
+      await amountInput.fill(invalid);
+      await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
+      await target.getByRole("alert").getByText(/точную положительную сумму/).waitFor();
+    }
+    assert.equal(invalidRequests, 0);
+    target.off("request", countInvalid);
+  }
+  await amountInput.fill(rubles === 88_000 ? "88000,00" : String(rubles));
   let retryEvidence = null;
   if (options.exerciseLostResponse) {
     let originalRequest = null;
@@ -367,7 +382,9 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   } else {
     const responsePromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
     await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
-    assert.equal((await responsePromise).status(), 201);
+    const response = await responsePromise;
+    assert.equal(response.status(), 201);
+    assert.equal(JSON.parse(response.request().postData()).amountKopecks, rubles * 100);
   }
   await dialog.waitFor({ state: "hidden" });
   await obligationRow(target, publicRef).getByText(rubles === 176_000 ? "Оплачено" : "Частично оплачено", { exact: true }).waitFor();
