@@ -1,6 +1,6 @@
 # M3 pre-release safety review
 
-Status: **BLOCKED_SAFETY** on 2026-09-21. This is a pre-release finding, not the requested
+Historical status: **BLOCKED_SAFETY** on 2026-09-21. This is a pre-release finding, not the requested
 post-deployment 45-item audit. Production remained unchanged.
 
 ## P1: financial amount input changes user intent
@@ -45,3 +45,45 @@ financial gate and independent review pass.
   production review lifecycle. It is an explicit operational limitation, not a PASS.
 - Finance, Legal/Privacy and Ritual SME verdicts remain PENDING under the recorded owner risk
   acceptance. No professional attestation is claimed.
+
+## Narrow P1 repair update, 2026-09-23
+
+- Candidate source: `42901ef3bf843fafd859acc9920f6008b9117f6b`, based on PR #32 head
+  `2c573f1a511a042388f0d12a3001bfe2f3fb4f3f` before repair. No migration, schema,
+  workflow, or Production configuration changed in the repair commits.
+- Finance amount input now accepts only exact positive rubles with at most two decimal digits,
+  converts with integer arithmetic to kopecks, and rejects ambiguous, negative, exponential,
+  over-precision, and out-of-range input before write. Payment, refund, and adjustment API
+  boundaries reject values beyond the ledger `Int` range. Unit tests include boundary values;
+  the browser E2E asserts the submitted minor-unit amount and that invalid inputs submit no
+  payment command.
+- Legacy `order-complete` webhook now rejects absent, short, or incorrect `WEBHOOK_SECRET`
+  before parsing or database access. Authenticated events cannot create a Commission from
+  `Order.totalAmount`: the documented `AgentTier.commissionPct` applies to margin, and Order
+  has no approved margin source. Existing commissions, including one linked to an unassigned
+  Order, also receive a controlled 409 without changing historical records. A completed
+  no-agent Order without Commission remains an idempotent no-op.
+- Targeted webhook integration, including five concurrent calls, passed five consecutive
+  runs with skipped=0. Full local PostgreSQL integration passed with isolated schema residue
+  0; unit passed 126/126 with skipped=0. Local Turbopack build was blocked by host process/port
+  restrictions; Webpack fallback is unsupported by existing `node:crypto` imports. Exact-source
+  GitHub CI ran the normal build, E2E, security, and migration checks successfully.
+- Source CI: https://github.com/gorgerich/TD_agent/actions/runs/35833918374. Its only failed
+  step was `Validate authoritative mission evidence`: the old M3 mission packet still binds
+  implementation and Preview UAT to `784140db230e8d0c1a566d2e70bbce91162a5587`.
+  That historical UAT cannot be relabeled as an exact-head run.
+- Exact-source Preview: `dpl_Fc7MaZVBQdDC1jNPbRV76Bex53Bb`,
+  https://td-agent-llhdx37t6-rics-projects-9baa2793.vercel.app, READY. GitHub Preview
+  deployment record `6609067015` binds it to `42901ef3bf843fafd859acc9920f6008b9117f6b`.
+  The complete authenticated Preview UAT was **not rerun** on this deployment.
+- Independent read-only review of the exact repair diff: P0=0, P1=0. One P2 remains: an
+  authenticated webhook `orderId` above Prisma `Int` range can produce a database error rather
+  than 400. Owner: engineering; reason: outside the two P1 repair paths; review by 2026-10-01.
+- Production writes, Production schema changes, Production env changes, merge, and deployment:
+  **NONE** for this repair. Existing historical commissions were not rewritten. The approved
+  commission margin policy and source remain an explicit product/contract blocker; the legacy
+  endpoint stays fail-closed for accrual until that decision and implementation exist.
+
+Release gate remains **BLOCKED_SAFETY**: exact-head authoritative evidence, complete Preview
+UAT, and CI PASS/skipped=0 are not yet established. No Production release or post-deployment
+audit was performed.
