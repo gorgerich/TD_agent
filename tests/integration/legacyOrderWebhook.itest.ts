@@ -21,6 +21,9 @@ test("legacy commission webhook authenticates before reads and refuses an unconf
     process.env.WEBHOOK_SECRET = secret;
     assert.equal((await POST(request(1))).status, 401);
     assert.equal((await POST(request(1, "wrong"))).status, 401);
+    for (const invalidId of [0, -1, 1.5, 2_147_483_648, Number.MAX_SAFE_INTEGER]) {
+      assert.equal((await POST(request(invalidId, secret))).status, 400);
+    }
 
     const owner = await fixtures.makeAgent("owner");
     const order = await db.order.create({

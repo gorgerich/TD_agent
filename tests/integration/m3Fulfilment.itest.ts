@@ -125,7 +125,7 @@ async function createApprovedScenarioPolicies() {
   fixtures.trackSigningPolicy(signingPolicy.id);
 }
 
-async function createAcceptedQuote(caseFixture: FixtureCase) {
+async function createAcceptedQuote(caseFixture: FixtureCase, validUntil?: Date) {
   const meeting = await db.meeting.create({
     data: {
       leadId: caseFixture.leadId,
@@ -166,6 +166,7 @@ async function createAcceptedQuote(caseFixture: FixtureCase) {
       publishedAt: new Date(),
       publishReason: "Synthetic M3 integration",
       publishChannel: "integration",
+      validUntil,
       idempotencyKey: `${fixtures.runId}:${caseFixture.id}:quote-publish`,
       correlationId: `${fixtures.runId}:${caseFixture.id}:quote-publish:correlation`,
     },
@@ -522,7 +523,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   }), 2);
   await beginDocumentReview(reviewerOne.context, replacement.versionId, meta("scenario-review-start"));
 
-  const published = await createAcceptedQuote(caseRecord);
+  const published = await createAcceptedQuote(caseRecord, new Date(Date.now() + 30 * 60_000));
   await assert.rejects(
     db.quoteVersion.update({ where: { id: published.id }, data: { total: 1 } }),
     /immutable|published/i,
@@ -811,6 +812,18 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.equal(new Set(refunds.map((result) => result.ledgerEntryId)).size, 1);
   const refund = refunds.find((result) => !result.replayed)!;
   assert.equal(refund.summary.status, "PARTIALLY_REFUNDED");
+  const afterRefund = await getCanonicalCase(manager.context, caseRecord.leadId);
+  assert.equal(afterRefund?.stage, "EXECUTION");
+  assert.equal(afterRefund.waiting, "payment");
+  assert.equal(afterRefund.statusLabel, "Остаток оплаты требует проверки");
+  assert.ok((afterRefund.payment.balanceKopecks ?? 0) > 0);
+  const afterOfferExpiry = await getCanonicalCase(manager.context, caseRecord.leadId, new Date(Date.now() + 31 * 60_000));
+  assert.equal(afterOfferExpiry?.publishedQuote, null);
+  assert.equal(afterOfferExpiry?.guardState.contract_signed, true);
+  assert.ok((afterOfferExpiry?.payment.balanceKopecks ?? 0) > 0);
+  assert.equal(afterOfferExpiry?.waiting, "payment");
+  assert.equal(afterOfferExpiry?.statusLabel, "Остаток оплаты требует проверки");
+  assert.equal(afterOfferExpiry?.nextAction.key, "resolve-payment-balance");
   assert.equal(await db.paymentLedgerEntry.count({
     where: { idempotencyKey: meta("refund").idempotencyKey, organizationId: financeOne.organizationId },
   }), 1);
@@ -929,6 +942,8 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   }), 5);
 
   const canonicalReadModel = await getCanonicalCase(manager.context, caseRecord.leadId);
+  assert.equal(canonicalReadModel?.publishedQuote?.versionId, published.id);
+  assert.equal(canonicalReadModel?.publishedQuote?.versionNumber, 1);
   assert.deepEqual(canonicalReadModel?.documents, {
     uploaded: 3,
     required: 3,
@@ -1145,6 +1160,49 @@ test("M3: cremation and relative-burial policies remain distinct", opts, async (
     paidKopecks: null,
     balanceKopecks: null,
   });
+});
+
+test("M3: legacy quote pointer cannot masquerade as a published commercial version", opts, async () => {
+  const legacyCase = await fixtures.makeCase(agent, "legacy-quote-projection");
+  const meeting = await db.meeting.create({
+    data: {
+      leadId: legacyCase.leadId,
+      agentId: agent.agentId,
+      organizationId: agent.organizationId,
+      caseId: legacyCase.id,
+      ownerMembershipId: agent.membershipId,
+      idempotencyKey: `${fixtures.runId}:${legacyCase.id}:meeting`,
+    },
+  });
+  const quote = await db.quote.create({
+    data: {
+      meetingId: meeting.id,
+      organizationId: agent.organizationId,
+      caseId: legacyCase.id,
+      ownerMembershipId: agent.membershipId,
+      status: "LEGACY_INCOMPLETE",
+    },
+  });
+  const legacyVersion = await db.quoteVersion.create({
+    data: {
+      quoteId: quote.id,
+      state: "LEGACY_INCOMPLETE",
+      totalState: "UNKNOWN",
+      total: 25_400_000,
+      payload: "{}",
+    },
+  });
+  await db.case.update({
+    where: { id: legacyCase.id },
+    data: { stage: "EXECUTION", publishedQuoteVersionId: legacyVersion.id },
+  });
+
+  const projection = await getCanonicalCase(agent.context, legacyCase.leadId);
+  assert.equal(projection?.publishedQuote, null);
+  assert.equal(projection?.guardState.contract_signed, false);
+  assert.equal(projection?.guardState.payment_satisfied, false);
+  assert.equal(projection?.statusLabel, "Смета требует проверки");
+  assert.equal(projection?.nextAction.key, "review-legacy-quote");
 });
 
 test("M3: replacement draft preserves signed truth until replacement signing is atomic", opts, async () => {

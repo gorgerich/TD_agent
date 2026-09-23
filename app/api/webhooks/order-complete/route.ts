@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const Body = z.object({
-  orderId: z.number().int().positive(),
+  orderId: z.number().int().min(1).max(2_147_483_647),
 });
 
 export async function POST(req: NextRequest) {

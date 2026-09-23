@@ -10,6 +10,7 @@ import {
 } from "@/lib/caseDomain";
 import { tenantIdForAgent } from "@/lib/caseService";
 import { deriveCaseDocumentTruth, deriveLedgerSummary } from "@/lib/m3Domain";
+import { isCurrentPublishedVersion } from "@/lib/quotePublicationTruth";
 import type { Stage } from "@/lib/case";
 import type { StatusTone, WaitingOn } from "@/lib/caseStatus";
 import type { OperationalContext } from "@/lib/operationalAuth";
@@ -39,6 +40,7 @@ export type CanonicalCaseReadModel = {
   firstMeetingId: number | null;
   publishedQuote: {
     versionId: number;
+    versionNumber: number | null;
     totalKopecks: number;
   } | null;
   payment: {
@@ -80,7 +82,18 @@ export async function getCanonicalCase(scope: number | OperationalContext, leadI
 }
 
 const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
-  publishedQuoteVersion: { select: { id: true, total: true } },
+  publishedQuoteVersion: {
+    select: {
+      id: true,
+      versionNumber: true,
+      state: true,
+      totalState: true,
+      total: true,
+      snapshotChecksum: true,
+      validUntil: true,
+      quote: { select: { caseId: true, organizationId: true, latestPublishedVersionId: true } },
+    },
+  },
   events: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
   tasks: {
     orderBy: { createdAt: "desc" },
@@ -116,6 +129,15 @@ const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
           status: true,
           validUntil: true,
           quoteVersionId: true,
+          quoteVersion: {
+            select: {
+              state: true,
+              totalState: true,
+              total: true,
+              snapshotChecksum: true,
+              quote: { select: { caseId: true, organizationId: true } },
+            },
+          },
           createdAt: true,
           supersededBy: { select: { id: true } },
           obligation: {
@@ -164,6 +186,14 @@ type CaseRecord = Prisma.CaseGetPayload<{ include: typeof caseReadInclude }>;
 
 function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
   const guardState = normalizeGuardState(record.guardState);
+  const version = record.publishedQuoteVersion;
+  const publishedQuote = isCurrentPublishedVersion(version ?? null, now)
+    && version
+    && version.quote.caseId === record.id
+    && version.quote.organizationId === record.tenantId
+    && version.quote.latestPublishedVersionId === version.id
+    ? version : null;
+  const invalidPublishedPointer = record.publishedQuoteVersionId != null && publishedQuote == null;
   const openTasks = record.tasks.filter((task) => task.status === "OPEN");
   const overdueTaskCount = openTasks.filter((task) => task.dueAt && task.dueAt < now).length;
   const nextOpenTaskDueAt = openTasks
@@ -189,7 +219,12 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     version.status === "SIGNED"
     && version.supersededBy == null
     && (version.validUntil == null || version.validUntil > now)
-    && version.quoteVersionId === record.publishedQuoteVersionId,
+    && version.quoteVersion.quote.caseId === record.id
+    && version.quoteVersion.quote.organizationId === record.tenantId
+    && version.quoteVersion.state === "PUBLISHED"
+    && version.quoteVersion.totalState === "KNOWN"
+    && version.quoteVersion.total > 0
+    && version.quoteVersion.snapshotChecksum != null,
   ) ?? null;
   const ledgerSummary = signedContract?.obligation
     ? deriveLedgerSummary(signedContract.obligation.ledgerEntries.map((entry) => ({
@@ -219,15 +254,44 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     overdueTaskCount,
     meetingsCount: record.lead.meetings.length,
     quoteVersionCount,
-    publishedQuoteVersionId: record.publishedQuoteVersionId,
+    publishedQuoteVersionId: publishedQuote?.id ?? null,
     clientTotalKopecks: totalKopecks,
     paidKopecks,
     uploadedDocumentCount: documentTruth.uploaded,
     requiredDocumentCount: documentTruth.required,
     guardState,
   };
-  const nextAction = projectNextAction({ stage: record.stage, ownerId: record.ownerId, facts });
-  const risk = projectCaseRisk({ stage: record.stage, scenarioId: record.scenarioId, nextAction, facts, now });
+  const projectedNextAction = projectNextAction({ stage: record.stage, ownerId: record.ownerId, facts });
+  const unpaidAfterAdvance = (record.stage === "EXECUTION" || record.stage === "CLOSED")
+    && ledgerSummary?.balanceKopecks != null && ledgerSummary.balanceKopecks > 0;
+  const paymentNeedsAttention = unpaidAfterAdvance || (invalidPublishedPointer
+    && signedContract != null
+    && ledgerSummary?.balanceKopecks != null
+    && ledgerSummary.balanceKopecks > 0);
+  const nextAction = paymentNeedsAttention
+    ? {
+        key: "resolve-payment-balance",
+        label: "Проверьте остаток оплаты по договору",
+        reason: "Ledger показывает непогашенный остаток после изменения платежей.",
+        dueAt: projectedNextAction.dueAt,
+        ownerId: record.ownerId,
+      }
+    : invalidPublishedPointer
+    ? {
+        key: "review-legacy-quote",
+        label: "Проверьте смету и опубликуйте подтверждённую версию",
+        reason: "Ссылка кейса не ведёт к текущей опубликованной смете.",
+        dueAt: projectedNextAction.dueAt,
+        ownerId: record.ownerId,
+      }
+    : projectedNextAction;
+  const projectedRisk = projectCaseRisk({ stage: record.stage, scenarioId: record.scenarioId, nextAction, facts, now });
+  const risk: CaseRiskProjection = unpaidAfterAdvance && record.stage === "CLOSED"
+    ? {
+        level: "HIGH",
+        reasons: [{ code: "MISSING_BLOCKER", label: "После закрытия появился остаток оплаты", deadline: null, level: "HIGH" }],
+      }
+    : projectedRisk;
   const lastActivityAt = latestDate(
     record.createdAt,
     record.updatedAt,
@@ -264,17 +328,21 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     scenarioId: record.scenarioId,
     version: record.version,
     guardState,
-    statusLabel: presentation.label,
-    statusTone: presentation.tone,
-    waiting: presentation.waiting,
+    statusLabel: paymentNeedsAttention ? "Остаток оплаты требует проверки" : invalidPublishedPointer ? "Смета требует проверки" : presentation.label,
+    statusTone: invalidPublishedPointer || paymentNeedsAttention ? "warning" : presentation.tone,
+    waiting: paymentNeedsAttention ? "payment" : presentation.waiting,
     nextAction,
     risk,
     lastActivityAt,
     ceremonyAt: record.lead.ceremonyAt,
     nextMeetingAt: futureMeetings[0] ?? null,
     firstMeetingId: record.lead.meetings.at(-1)?.id ?? null,
-    publishedQuote: record.publishedQuoteVersion
-      ? { versionId: record.publishedQuoteVersion.id, totalKopecks: record.publishedQuoteVersion.total }
+    publishedQuote: publishedQuote
+      ? {
+          versionId: publishedQuote.id,
+          versionNumber: publishedQuote.versionNumber,
+          totalKopecks: publishedQuote.total,
+        }
       : null,
     payment: {
       totalKopecks,

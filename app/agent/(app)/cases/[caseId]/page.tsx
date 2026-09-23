@@ -14,7 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptField } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER } from "@/lib/case";
-import { type StatusTone } from "@/lib/caseStatus";
+import { isCaseStageConfirmed, type StatusTone } from "@/lib/caseStatus";
 import { getCanonicalCase } from "@/lib/caseReadModel";
 import { CaseTabs } from "./CaseTabs";
 import { buttonClasses } from "@/components/ui/Button";
@@ -283,6 +283,12 @@ export default async function CasePage({
         firstMeetingId={firstMeeting?.id ?? null}
         caseId={id}
         stage={canonicalCase.legacyStage}
+        stageTruth={{
+          documentsReady: canonicalCase.documents.ready,
+          publishedQuote: canonicalCase.publishedQuote != null,
+          contractSigned: canonicalCase.guardState.contract_signed === true,
+          paymentSatisfied: canonicalCase.guardState.payment_satisfied === true,
+        }}
         executionConfirmed={canonicalCase.scenarioId === "CREMATION_V1"
           ? canonicalCase.guardState.crematorium_confirmed === true
           : canonicalCase.scenarioId === "FAMILY_PLOT_BURIAL_V1"
@@ -291,7 +297,9 @@ export default async function CasePage({
         controls={[
           { label: "Открытые задачи", value: String(openTasksCount), tone: openTasksCount > 0 ? "warning" : "neutral" },
           { label: "Документы", value: canonicalCase.documents.required ? `${canonicalCase.documents.verified}/${canonicalCase.documents.required}` : "—", tone: canonicalCase.documents.ready ? "success" : "warning" },
-          { label: "Опубликованная смета", value: canonicalCase.publishedQuote ? `v${canonicalCase.publishedQuote.versionId}` : "Нет", tone: canonicalCase.publishedQuote ? "success" : "warning" },
+          { label: "Опубликованная смета", value: canonicalCase.publishedQuote
+            ? canonicalCase.publishedQuote.versionNumber == null ? "Legacy: номер не задан" : `v${canonicalCase.publishedQuote.versionNumber}`
+            : "Нет", tone: canonicalCase.publishedQuote ? "success" : "warning" },
           { label: "Остаток", value: canonicalCase.payment.balanceKopecks == null ? "Не рассчитан" : moneyFromKopecks(canonicalCase.payment.balanceKopecks), tone: canonicalCase.payment.balanceKopecks === 0 ? "success" : "neutral" },
         ]}
         lastActivity={lastActivityText}
@@ -440,6 +448,7 @@ function RouteActionPanel({
   firstMeetingId,
   caseId,
   stage,
+  stageTruth,
   executionConfirmed,
   controls,
   lastActivity,
@@ -453,12 +462,12 @@ function RouteActionPanel({
   firstMeetingId: number | null;
   caseId: number;
   stage: string;
+  stageTruth: { documentsReady: boolean; publishedQuote: boolean; contractSigned: boolean; paymentSatisfied: boolean };
   executionConfirmed: boolean;
   controls: { label: string; value: string; tone?: "neutral" | "warning" | "success" }[];
   lastActivity: string;
   canMutateCase: boolean;
 }) {
-  const isDone = current >= STAGE_ORDER.length - 1;
   return (
     <section className="rise rise-1 td-shell-elevated mb-5 overflow-hidden">
       <div className="grid min-w-0 gap-0 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -496,18 +505,20 @@ function RouteActionPanel({
               </div>
             </div>
           </div>
-          {!isDone && (
           <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {STAGE_ORDER.map((s, i) => {
-              const done = i < current;
-              const active = i === current;
+              const done = i <= current && isCaseStageConfirmed(s, stageTruth);
+              const needsAttention = i < current && !done;
+              const active = i === current && !done;
               return (
                 <li
                   key={s}
                   className={`relative rounded-[12px] border px-3 py-2.5 ${
                     active
                       ? "border-accent/30 bg-accent-soft text-accent"
-                      : done
+                      : needsAttention
+                        ? "border-warning/40 bg-warning-soft text-warning"
+                        : done
                         ? "border-line bg-surface-2/60 text-ink-2"
                         : "border-line bg-surface text-ink-3"
                   }`}
@@ -516,15 +527,14 @@ function RouteActionPanel({
                     <span className={`grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[10px] font-bold ${
                       active ? "bg-accent text-on-accent" : done ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink-3"
                     }`}>
-                      {done ? <Check size={12} weight="bold" /> : i + 1}
+                      {done ? <Check size={12} weight="bold" /> : needsAttention ? <Warning size={12} weight="bold" /> : i + 1}
                     </span>
-                    <span className={`text-[12px] leading-tight ${active ? "font-semibold" : "font-medium"}`}>{s}</span>
+                    <span className={`text-[12px] leading-tight ${active ? "font-semibold" : "font-medium"}`}>{s}{needsAttention ? " · не подтверждено" : ""}</span>
                   </span>
                 </li>
               );
             })}
           </ol>
-          )}
         </div>
       </div>
       <div className="border-t border-line bg-surface-2/45 px-4 py-3.5 sm:px-5">

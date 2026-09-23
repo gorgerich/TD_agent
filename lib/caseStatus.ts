@@ -13,6 +13,31 @@ import { STAGE_ORDER } from "./case";
 export type StatusTone = "neutral" | "info" | "accent" | "warning" | "success" | "danger";
 export type WaitingOn = "client" | "payment" | "docs" | "info" | null;
 
+export function countCasesWaitingOnPayment(
+  cases: ReadonlyArray<{ waiting: WaitingOn; paymentBalanceKopecks: number | null }>,
+): number {
+  return cases.filter((item) => item.waiting === "payment" ||
+    (item.paymentBalanceKopecks !== null && item.paymentBalanceKopecks > 0)).length;
+}
+
+export function isCaseInWorklist(caseRow: { stage: Stage; paymentBalanceKopecks: number | null }): boolean {
+  return caseRow.stage !== "Завершено" || (caseRow.paymentBalanceKopecks ?? 0) > 0;
+}
+
+export function isCaseStageConfirmed(
+  stage: Stage,
+  truth: { documentsReady: boolean; publishedQuote: boolean; contractSigned: boolean; paymentSatisfied: boolean },
+): boolean {
+  switch (stage) {
+    case "Лид": return true;
+    case "Документы": return truth.documentsReady;
+    case "Смета": return truth.publishedQuote;
+    case "Договор": return truth.contractSigned;
+    case "Оплата": return truth.paymentSatisfied;
+    case "Завершено": return truth.paymentSatisfied && truth.contractSigned && truth.documentsReady;
+  }
+}
+
 export type CaseStatus = {
   /** Стабильный ключ для группировки/сортировки. */
   key: string;
