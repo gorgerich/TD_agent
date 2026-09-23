@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
     if (order.status !== "COMPLETED") {
       return NextResponse.json({ error: "Order is not COMPLETED", status: order.status }, { status: 422 });
     }
+    const existingCommission = await prisma.commission.findUnique({ where: { orderId } });
+    if (existingCommission) {
+      return NextResponse.json({ error: "Commission basis is unconfirmed" }, { status: 409 });
+    }
     if (!order.agentId) {
       return NextResponse.json({ ok: true, skipped: "no agent on order" });
     }
