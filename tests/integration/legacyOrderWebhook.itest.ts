@@ -41,6 +41,12 @@ test("legacy commission webhook authenticates before reads and refuses an unconf
     }))));
     assert.deepEqual(outcomes.map((response) => response.status), [409, 409, 409, 409, 409]);
     assert.equal(await db.commission.count({ where: { orderId: order.id } }), 0);
+
+    const historical = await db.commission.create({
+      data: { orderId: order.id, agentId: owner.agentId, amount: 100, status: "ACCRUED" },
+    });
+    assert.equal((await POST(request(secret))).status, 409);
+    assert.deepEqual(await db.commission.findUnique({ where: { id: historical.id } }), historical);
   } finally {
     if (previous === undefined) delete process.env.WEBHOOK_SECRET;
     else process.env.WEBHOOK_SECRET = previous;

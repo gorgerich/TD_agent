@@ -27,24 +27,18 @@ export async function POST(req: NextRequest) {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
-        agent: { include: { tier: true } },
-        commission: true,
-      },
+      select: { id: true, status: true, agentId: true },
     });
 
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
     if (order.status !== "COMPLETED") {
       return NextResponse.json({ error: "Order is not COMPLETED", status: order.status }, { status: 422 });
     }
-    if (!order.agentId || !order.agent) {
+    if (!order.agentId) {
       return NextResponse.json({ ok: true, skipped: "no agent on order" });
     }
-    if (order.commission) {
-      return NextResponse.json({ ok: true, skipped: "commission already exists", commissionId: order.commission.id });
-    }
 
-    // Order has gross total only. Commission policy requires confirmed margin.
+    // Order has gross total only. Existing commissions also lack a verified margin basis.
     return NextResponse.json({ error: "Commission basis is unconfirmed" }, { status: 409 });
   } catch (err) {
     if (
