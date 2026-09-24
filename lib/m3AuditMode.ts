@@ -24,8 +24,29 @@ export function isApprovedM3PreviewDatabase(): boolean {
   }
 }
 
+function isIsolatedM3CiDatabase(): boolean {
+  if (process.env.CI !== "true" || process.env.ALLOW_DB_TESTS !== "1"
+    || process.env.PREVIEW_DB_ISOLATION !== "PASS"
+    || process.env.VERCEL === "1"
+    || process.env.VERCEL_GIT_COMMIT_REF !== "mission/m3-fulfilment-money-trust") return false;
+  const testUrl = process.env.TEST_DATABASE_URL;
+  if (!testUrl || process.env.DATABASE_URL !== testUrl
+    || process.env.DATABASE_URL_UNPOOLED !== testUrl) return false;
+  try {
+    const url = new URL(testUrl);
+    return ["postgres:", "postgresql:"].includes(url.protocol)
+      && url.hostname === "127.0.0.1"
+      && url.port === "5432"
+      && url.pathname === "/td_agent_test";
+  } catch {
+    return false;
+  }
+}
+
 export function isM3ProductionWriteAllowed(organizationId: string): boolean {
   if (process.env.NODE_ENV !== "production") return true;
-  if (process.env.VERCEL_ENV === "preview") return isApprovedM3PreviewDatabase();
+  if (process.env.VERCEL_ENV === "preview") {
+    return isApprovedM3PreviewDatabase() || isIsolatedM3CiDatabase();
+  }
   return process.env.VERCEL_ENV === "production" && organizationId === M3_CPO_AUDIT_ORGANIZATION_ID;
 }

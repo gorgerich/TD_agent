@@ -271,6 +271,7 @@ jobs:
           M3_DOCUMENT_SCANNER=synthetic-preview \
           PREVIEW_DB_ISOLATION=PASS \
           VERCEL_ENV=preview \
+          VERCEL_GIT_COMMIT_REF=mission/m3-fulfilment-money-trust \
           ALLOW_DB_TESTS=1 \
           npm run start > /tmp/td-agent-next.log 2>&1 &
       - name: Wait for server

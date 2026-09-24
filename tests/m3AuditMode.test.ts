@@ -11,6 +11,10 @@ test("Production M3 writes are limited to the exact synthetic audit organization
   const previousIsolation = process.env.PREVIEW_DB_ISOLATION;
   const previousDirect = process.env.DATABASE_URL_UNPOOLED;
   const previousPooled = process.env.DATABASE_URL;
+  const previousCi = process.env.CI;
+  const previousAllowTests = process.env.ALLOW_DB_TESTS;
+  const previousTestUrl = process.env.TEST_DATABASE_URL;
+  const previousVercel = process.env.VERCEL;
   try {
     env.NODE_ENV = "production";
     process.env.VERCEL_ENV = "production";
@@ -42,6 +46,28 @@ test("Production M3 writes are limited to the exact synthetic audit organization
     assert.equal(isM3ProductionWriteAllowed(M3_CPO_AUDIT_ORGANIZATION_ID), false);
     process.env.DATABASE_URL_UNPOOLED = "postgresql://synthetic.invalid:5432/not-production";
     assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
+    const localTestUrl = "postgresql://test:test@127.0.0.1:5432/td_agent_test";
+    process.env.CI = "true";
+    process.env.ALLOW_DB_TESTS = "1";
+    delete process.env.VERCEL;
+    process.env.TEST_DATABASE_URL = localTestUrl;
+    process.env.DATABASE_URL = localTestUrl;
+    process.env.DATABASE_URL_UNPOOLED = localTestUrl;
+    assert.equal(isM3ProductionWriteAllowed("real-organization"), true);
+    process.env.VERCEL = "1";
+    assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
+    delete process.env.VERCEL;
+    process.env.VERCEL_GIT_COMMIT_REF = "another-branch";
+    assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
+    process.env.VERCEL_GIT_COMMIT_REF = "mission/m3-fulfilment-money-trust";
+    process.env.TEST_DATABASE_URL = "postgresql://test:test@127.0.0.1:5432/other_test";
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+    process.env.DATABASE_URL_UNPOOLED = process.env.TEST_DATABASE_URL;
+    assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
+    process.env.TEST_DATABASE_URL = localTestUrl;
+    process.env.DATABASE_URL = localTestUrl;
+    process.env.DATABASE_URL_UNPOOLED = "postgresql://test:test@production.invalid:5432/td_agent_test";
+    assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
   } finally {
     if (previous === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = previous;
@@ -52,6 +78,10 @@ test("Production M3 writes are limited to the exact synthetic audit organization
       PREVIEW_DB_ISOLATION: previousIsolation,
       DATABASE_URL_UNPOOLED: previousDirect,
       DATABASE_URL: previousPooled,
+      CI: previousCi,
+      ALLOW_DB_TESTS: previousAllowTests,
+      TEST_DATABASE_URL: previousTestUrl,
+      VERCEL: previousVercel,
     })) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
