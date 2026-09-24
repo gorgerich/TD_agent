@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { inspectDirectMigrationUrl } from "@/lib/migrationTarget";
@@ -10,20 +9,15 @@ export const dynamic = "force-dynamic";
 const PRODUCTION_FINGERPRINT = "0257665af2dd90a4";
 const PREVIEW_BRANCH = "mission/m3-fulfilment-money-trust";
 
-function authorized(request: Request): boolean {
+function authorized(): boolean {
   if (process.env.VERCEL_ENV !== "preview"
     || process.env.VERCEL_GIT_COMMIT_REF !== PREVIEW_BRANCH
     || process.env.PREVIEW_DB_ISOLATION !== "PASS") return false;
-  const expected = process.env.M3_PREVIEW_DIAGNOSTIC_SECRET;
-  const supplied = request.headers.get("x-m3-preview-secret");
-  if (!expected || expected.length < 32 || !supplied) return false;
-  const a = createHash("sha256").update(expected).digest();
-  const b = createHash("sha256").update(supplied).digest();
-  return timingSafeEqual(a, b);
+  return true;
 }
 
-export async function GET(request: Request) {
-  if (!authorized(request)) return new Response(null, { status: 404 });
+export async function GET() {
+  if (!authorized()) return new Response(null, { status: 404 });
   try {
     const direct = inspectDirectMigrationUrl(process.env.DATABASE_URL_UNPOOLED);
     if (direct.fingerprint === PRODUCTION_FINGERPRINT || !isApprovedM3PreviewDatabase()) {
