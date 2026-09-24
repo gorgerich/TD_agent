@@ -1,5 +1,6 @@
 import type { MembershipRole, PlatformRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 
 export type OperationalRole = MembershipRole;
 
@@ -106,6 +107,12 @@ export function operationalLanding(role: OperationalRole): string {
 export function assertCapability(context: OperationalContext, capability: OperationalCapability): void {
   if (!hasCapability(context.role, capability)) {
     throw new OperationalAuthError(403, "Недостаточно прав для этого действия");
+  }
+  if (
+    ["parties:manage", "documents:upload", "documents:review", "contracts:manage", "finance:record", "finance:approve"].includes(capability)
+    && !isM3ProductionWriteAllowed(context.organizationId)
+  ) {
+    throw new OperationalAuthError(403, "Операция доступна только в синтетическом контуре аудита M3");
   }
 }
 

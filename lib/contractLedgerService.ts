@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type LedgerDirection, type PaymentLedgerEntryType, type PaymentMethod } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
@@ -1004,6 +1005,9 @@ export async function processPaymentWebhook(
   command: PaymentWebhookCommand,
 ): Promise<CommandResult<{ receiptId: string; ledgerEntryId: string }>> {
   verifyWebhookSignature(provider, rawBody, signature);
+  if (!isM3ProductionWriteAllowed(command.organizationId)) {
+    throw new OperationalCommandError(403, "Webhook доступен только в синтетическом контуре аудита M3");
+  }
   const payloadHash = createHash("sha256").update(rawBody).digest("hex");
   if (!Number.isSafeInteger(command.amountKopecks) || command.amountKopecks <= 0) {
     throw new OperationalCommandError(422, "Некорректная сумма webhook");
@@ -1275,6 +1279,9 @@ async function authorizeLedgerInsert(
   meta: M3CommandMeta,
   actorType = "member",
 ): Promise<void> {
+  if (!isM3ProductionWriteAllowed(command.organizationId)) {
+    throw new OperationalCommandError(403, "Ledger доступен только в синтетическом контуре аудита M3");
+  }
   await appendOperationalAudit(tx, actor, {
     entityType: "payment_obligation",
     entityId: command.obligationId,
