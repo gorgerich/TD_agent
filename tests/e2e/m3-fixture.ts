@@ -78,6 +78,9 @@ async function verifyTarget() {
       label: "M3 UAT",
     });
     const allowed = [namespace];
+    if (ownerSeedWithoutMfa && process.env.M3_OWNER_SEED_RETAINED_RUN_ID === "preview-eb568f5") {
+      allowed.push(m3UatNamespace("preview-eb568f5"));
+    }
     if (process.env.M1_UAT_RUN_ID) allowed.push(m1UatNamespace(process.env.M1_UAT_RUN_ID));
     if (process.env.M2_UAT_RUN_ID) allowed.push(m2UatNamespace(process.env.M2_UAT_RUN_ID));
     assertOnlyRecognisedSyntheticData(await censusOfTarget(db), allowed, "M3 UAT");

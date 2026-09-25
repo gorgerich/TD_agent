@@ -14,6 +14,7 @@ const PREVIEW_FINGERPRINT = "545a187f9e9d66b0";
 const PRODUCTION_FINGERPRINT = "0257665af2dd90a4";
 const RUN_ID = "owner-preview-20260925";
 const namespace = m3UatNamespace(RUN_ID);
+const retainedNamespace = m3UatNamespace("preview-eb568f5");
 const credentialDirectory = path.join(homedir(), "Library", "Application Support", "TD Agent M3 Preview UAT");
 const credentialFile = path.join(credentialDirectory, "credentials.json");
 let stage = "RAILWAY_BINDING";
@@ -73,7 +74,16 @@ async function main() {
     }
     if (state.migrationCount !== 1n) throw new Error("M3 migration is not complete on Preview");
     stage = "DB_FOREIGN_DATA";
-    if (findForeignRows(state.census, [namespace]).length) throw new Error("Preview contains data outside the exact synthetic namespace");
+    const foreign = findForeignRows(state.census, [namespace, retainedNamespace]);
+    if (foreign.length) {
+      const categories: Record<string, number> = {};
+      for (const row of foreign) {
+        const category = row.slice(0, row.indexOf(":"));
+        categories[category] = (categories[category] ?? 0) + 1;
+      }
+      process.stdout.write(`${JSON.stringify({ status: "BLOCKED_FOREIGN_DATA", count: foreign.length, categories })}\n`);
+      throw new Error("Preview contains data outside the two exact synthetic namespaces");
+    }
 
     stage = "DB_FIXTURE_STATE";
     const ready = state.organizations === 2 && state.users === 6 && state.cases === 2 && state.requirements === 7;
@@ -97,6 +107,7 @@ async function main() {
       M3_PRODUCTION_DATABASE_FINGERPRINT: PRODUCTION_FINGERPRINT,
       M3_UAT_FIXTURE: "1",
       M3_OWNER_SEED_NO_MFA: "1",
+      M3_OWNER_SEED_RETAINED_RUN_ID: "preview-eb568f5",
       M3_UAT_RUN_ID: RUN_ID,
       M3_UAT_PASSWORD: password,
     };
