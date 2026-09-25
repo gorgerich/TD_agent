@@ -16,6 +16,7 @@ const RUN_ID = "owner-preview-20260925";
 const namespace = m3UatNamespace(RUN_ID);
 const credentialDirectory = path.join(homedir(), "Library", "Application Support", "TD Agent M3 Preview UAT");
 const credentialFile = path.join(credentialDirectory, "credentials.json");
+let stage = "RAILWAY_BINDING";
 
 async function main() {
   if (process.env.CI || process.env.VERCEL === "1") throw new Error("Local owner-run only");
@@ -27,11 +28,13 @@ async function main() {
     if (process.env[name] !== expected) throw new Error(`${name} does not match the exact Railway Preview target`);
   }
 
-  const url = process.env.DATABASE_PUBLIC_URL;
+  stage = "FINGERPRINT";
+  const url = previewPublicUrl();
   const target = inspectDirectMigrationUrl(url);
   if (target.fingerprint === PRODUCTION_FINGERPRINT) throw new Error("Production fingerprint refused");
   if (target.fingerprint !== PREVIEW_FINGERPRINT) throw new Error("Railway Preview fingerprint mismatch");
 
+  stage = "DB_PREFLIGHT";
   const db = new PrismaClient({ datasources: { db: { url } } });
   try {
     const state = await db.$transaction(async (tx) => {
@@ -66,6 +69,7 @@ async function main() {
     const ready = state.organizations === 2 && state.users === 6 && state.cases === 2 && state.requirements === 7;
     const empty = state.organizations === 0 && state.users === 0 && state.cases === 0 && state.requirements === 0;
     if (!ready && !empty) throw new Error("Preview fixture is partial; refusing to overwrite it");
+    stage = "LOCAL_CREDENTIALS";
     const existingCredentials = readCredentials();
     if (ready) {
       if (!existingCredentials) throw new Error("Fixture exists but local credentials are absent; refusing rotation");
@@ -87,6 +91,7 @@ async function main() {
       M3_UAT_PASSWORD: password,
     };
     delete env.M3_ALLOW_REMOTE_FIXTURE_CLEANUP;
+    stage = "FIXTURE_PROVISION";
     const result = spawnSync(process.execPath, ["--import", "tsx", "tests/e2e/m3-fixture.ts", "provision"], {
       cwd: process.cwd(), env, encoding: "utf8", timeout: 180_000, maxBuffer: 64 * 1024,
     });
@@ -97,6 +102,21 @@ async function main() {
   } finally {
     await db.$disconnect();
   }
+}
+
+function previewPublicUrl(): string {
+  if (process.env.DATABASE_PUBLIC_URL) return process.env.DATABASE_PUBLIC_URL;
+  const { PGUSER, PGPASSWORD, PGDATABASE, RAILWAY_TCP_PROXY_DOMAIN, RAILWAY_TCP_PROXY_PORT } = process.env;
+  if (!PGUSER || !PGPASSWORD || !PGDATABASE || !RAILWAY_TCP_PROXY_DOMAIN || !RAILWAY_TCP_PROXY_PORT) {
+    throw new Error("Railway Preview public connection fields are incomplete");
+  }
+  const url = new URL("postgresql://preview.invalid");
+  url.hostname = RAILWAY_TCP_PROXY_DOMAIN;
+  url.port = RAILWAY_TCP_PROXY_PORT;
+  url.username = PGUSER;
+  url.password = PGPASSWORD;
+  url.pathname = `/${PGDATABASE}`;
+  return url.toString();
 }
 
 function readCredentials(): { password: string } | null {
@@ -126,6 +146,6 @@ function saveCredentials(password: string) {
 }
 
 void main().catch(() => {
-  process.stderr.write("M3 Preview seed refused or failed; no secrets printed. Check exact Railway binding, schema and synthetic-only target.\n");
+  process.stderr.write(`M3 Preview seed BLOCKED_${stage}; no secrets printed.\n`);
   process.exitCode = 1;
 });

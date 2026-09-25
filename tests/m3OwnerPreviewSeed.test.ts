@@ -28,7 +28,33 @@ test("M3 owner-run seed rejects wrong Railway binding before DB access and never
       timeout: 10_000,
     });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /M3 Preview seed refused or failed/);
+    assert.match(result.stderr, /M3 Preview seed BLOCKED_RAILWAY_BINDING/);
     assert.doesNotMatch(result.stdout + result.stderr, new RegExp(canary));
   }
+});
+
+test("M3 owner-run seed rejects a different proxy fingerprint without exposing credentials", () => {
+  const canary = "proxy-secret-canary";
+  const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/ops/seed-m3-railway-preview.ts"], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      CI: "",
+      VERCEL: "",
+      RAILWAY_PROJECT_ID: "317daa1f-dd94-4c1e-84bb-929abd290d9f",
+      RAILWAY_ENVIRONMENT_ID: "6a4dc3cb-2eb0-4d33-bbcb-c024fad8dd5c",
+      RAILWAY_SERVICE_ID: "857fe7b5-0392-4579-9c09-aa10d174b51d",
+      DATABASE_PUBLIC_URL: "",
+      PGUSER: "synthetic",
+      PGPASSWORD: canary,
+      PGDATABASE: "different",
+      RAILWAY_TCP_PROXY_DOMAIN: "example.invalid",
+      RAILWAY_TCP_PROXY_PORT: "12345",
+    },
+    encoding: "utf8",
+    timeout: 10_000,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /M3 Preview seed BLOCKED_FINGERPRINT/);
+  assert.doesNotMatch(result.stdout + result.stderr, new RegExp(canary));
 });
