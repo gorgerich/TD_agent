@@ -88,7 +88,8 @@ async function main() {
     stage = "DB_FIXTURE_STATE";
     const ready = state.organizations === 2 && state.users === 6 && state.cases === 2 && state.requirements === 7;
     const empty = state.organizations === 0 && state.users === 0 && state.cases === 0 && state.requirements === 0;
-    if (!ready && !empty) throw new Error("Preview fixture is partial; refusing to overwrite it");
+    const recoverable = state.organizations === 2 && state.users === 6 && state.cases === 0 && state.requirements === 0;
+    if (!ready && !empty && !recoverable) throw new Error("Preview fixture is partial; refusing to overwrite it");
     stage = "LOCAL_CREDENTIALS";
     const existingCredentials = readCredentials();
     if (ready) {
@@ -96,6 +97,7 @@ async function main() {
       process.stdout.write(`${JSON.stringify({ status: "READY_REPLAY", fingerprint: target.fingerprint, runId: RUN_ID, credentialsFile: credentialFile })}\n`);
       return;
     }
+    if (recoverable && !existingCredentials) throw new Error("Partial fixture credentials are absent; refusing rotation");
 
     const password = existingCredentials?.password ?? randomBytes(48).toString("base64url");
     if (!existingCredentials) saveCredentials(password);
@@ -116,7 +118,12 @@ async function main() {
     const result = spawnSync(process.execPath, ["--import", "tsx", "tests/e2e/m3-fixture.ts", "provision"], {
       cwd: process.cwd(), env, encoding: "utf8", timeout: 180_000, maxBuffer: 64 * 1024,
     });
-    if (result.status !== 0) throw new Error("Synthetic fixture provisioning failed; no cleanup attempted");
+    if (result.status !== 0) {
+      const safeError = /^M3_FIXTURE_ERROR stage=[A-Z_]+ code=(?:P\d{4}|UNCLASSIFIED)\n?$/.test(result.stderr.trim())
+        ? result.stderr.trim() : "M3_FIXTURE_ERROR stage=UNKNOWN code=UNCLASSIFIED";
+      process.stderr.write(`${safeError}\n`);
+      throw new Error("Synthetic fixture provisioning failed; no cleanup attempted");
+    }
     const provisioned = JSON.parse(result.stdout.trim()) as { status?: string };
     if (provisioned.status !== "READY") throw new Error("Synthetic fixture did not report READY");
     process.stdout.write(`${JSON.stringify({ status: "READY", fingerprint: target.fingerprint, runId: RUN_ID, organizations: 2, users: 6, cases: 2, credentialsFile: credentialFile, financeMfa: "ENROLLMENT_REQUIRED" })}\n`);

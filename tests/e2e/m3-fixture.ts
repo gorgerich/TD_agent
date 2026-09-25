@@ -19,6 +19,7 @@ const target = inspectDirectMigrationUrl(directUrl);
 const productionFingerprint = process.env.M3_PRODUCTION_DATABASE_FINGERPRINT;
 const mfaSecret = process.env.M3_UAT_MFA_SECRET ?? "";
 const ownerSeedWithoutMfa = process.env.M3_OWNER_SEED_NO_MFA === "1";
+let fixtureStage = "VERIFY_TARGET";
 const namespace = m3UatNamespace(runId);
 const [organizationA, organizationB] = namespace.organizationIds;
 const emails = {
@@ -96,6 +97,11 @@ async function provision() {
       process.stdout.write(`${JSON.stringify({ ...existing, status: "READY_REPLAY" })}\n`);
       return;
     }
+    if (existing.organizations === 2 && existing.users === 6 && existing.cases === 0 && existing.requirements === 0
+      && ownerSeedWithoutMfa && process.env.M3_OWNER_SEED_RETAINED_RUN_ID === "preview-eb568f5") {
+      await resumeExactOwnerFixture();
+      return;
+    }
     if (existing.organizations || existing.users || existing.cases || existing.requirements) {
       throw new Error("Remote M3 UAT fixture is partial; refusing to replace it");
     }
@@ -146,7 +152,9 @@ async function provision() {
   }, { timeout: 120_000, maxWait: 30_000 });
 
   const cases = [];
+  fixtureStage = "CREATE_CREMATION_CASE";
   cases.push(await createCaseFixture(fixture.agent, "cremation", "Кремация M3 · синтетика", "CREMATION_V1", 17_600_000));
+  fixtureStage = "CREATE_BURIAL_CASE";
   cases.push(await createCaseFixture(fixture.agent, "burial", "Родственное захоронение M3 · синтетика", "FAMILY_PLOT_BURIAL_V1", 17_600_000));
   process.stdout.write(`${JSON.stringify({
     status: "READY",
@@ -156,6 +164,35 @@ async function provision() {
     cases,
     emails,
   })}\n`);
+}
+
+async function resumeExactOwnerFixture() {
+  fixtureStage = "VERIFY_PARTIAL_FIXTURE";
+  const [memberships, policies, rules, types, signing, financial, leads] = await Promise.all([
+    db.membership.count({ where: { organizationId: { in: [organizationA, organizationB] } } }),
+    db.documentRequirementPolicy.count({ where: { organizationId: organizationA, version: policyVersion } }),
+    db.documentRequirementRule.count({ where: { policy: { organizationId: organizationA, version: policyVersion } } }),
+    db.documentTypeDefinition.count({ where: { organizationId: organizationA, code: { in: Object.values(typeCodes) } } }),
+    db.contractSigningPolicy.count({ where: { organizationId: organizationA, version: "SYNTHETIC-UAT-V1" } }),
+    db.financialControlPolicy.count({ where: { organizationId: organizationA, version: 1 } }),
+    db.clientLead.count({ where: { agent: { user: { email: { in: Object.values(emails) } } } } }),
+  ]);
+  if (memberships !== 6 || policies !== 2 || rules !== 7 || types !== 5 || signing !== 1 || financial !== 1 || leads !== 0) {
+    throw new Error("Partial fixture does not match the exact synthetic owner-run state");
+  }
+  const membership = await db.membership.findUnique({
+    where: { id: `m3-uat-membership:${runId}:agent` },
+    select: { id: true, agentId: true, organizationId: true, status: true },
+  });
+  if (!membership?.agentId || membership.organizationId !== organizationA || membership.status !== "ACTIVE") {
+    throw new Error("Synthetic agent membership is not ready");
+  }
+  const actor = { agent: { id: membership.agentId }, membership: { id: membership.id } };
+  fixtureStage = "CREATE_CREMATION_CASE";
+  await createCaseFixture(actor, "cremation", "Кремация M3 · синтетика", "CREMATION_V1", 17_600_000);
+  fixtureStage = "CREATE_BURIAL_CASE";
+  await createCaseFixture(actor, "burial", "Родственное захоронение M3 · синтетика", "FAMILY_PLOT_BURIAL_V1", 17_600_000);
+  process.stdout.write(`${JSON.stringify({ status: "READY", organizations: 2, users: 6, cases: 2 })}\n`);
 }
 
 async function createPolicies(tx: Prisma.TransactionClient, organizationId: string, approverUserId: number) {
@@ -233,7 +270,7 @@ async function createPolicies(tx: Prisma.TransactionClient, organizationId: stri
 }
 
 async function createCaseFixture(
-  identity: Awaited<ReturnType<typeof createIdentity>>,
+  identity: { agent: { id: number }; membership: { id: string } },
   key: string,
   name: string,
   scenario: "CREMATION_V1" | "FAMILY_PLOT_BURIAL_V1",
@@ -339,7 +376,7 @@ async function createCaseFixture(
     await tx.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: version.id } });
     await tx.case.update({ where: { id: canonicalCase.id }, data: { publishedQuoteVersionId: version.id } });
     return { leadId: lead.id, caseId: canonicalCase.id, quoteVersionId: version.id, key };
-  });
+  }, { maxWait: 5_000, timeout: 30_000 });
   await materializeSyntheticRequirements(row.caseId, scenario, identity.membership.id, key);
   return row;
 }
@@ -546,6 +583,8 @@ function isLocalTarget(value: string | undefined) {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.message : "M3 fixture failed"}\n`);
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+    && /^P\d{4}$/.test(error.code) ? error.code : "UNCLASSIFIED";
+  process.stderr.write(`M3_FIXTURE_ERROR stage=${fixtureStage} code=${code}\n`);
   process.exitCode = 1;
 });
