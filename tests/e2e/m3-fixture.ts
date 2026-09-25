@@ -18,6 +18,7 @@ const directUrl = process.env.DATABASE_URL_UNPOOLED;
 const target = inspectDirectMigrationUrl(directUrl);
 const productionFingerprint = process.env.M3_PRODUCTION_DATABASE_FINGERPRINT;
 const mfaSecret = process.env.M3_UAT_MFA_SECRET ?? "";
+const ownerSeedWithoutMfa = process.env.M3_OWNER_SEED_NO_MFA === "1";
 const namespace = m3UatNamespace(runId);
 const [organizationA, organizationB] = namespace.organizationIds;
 const emails = {
@@ -38,7 +39,9 @@ const typeCodes = {
 };
 
 if (process.env.M3_UAT_FIXTURE !== "1") throw new Error("M3_UAT_FIXTURE=1 is required");
-if (!mfaSecret || !/^[A-Z2-7]{32,}$/.test(mfaSecret)) throw new Error("M3_UAT_MFA_SECRET must be a valid protected Base32 secret");
+if (!ownerSeedWithoutMfa && (!mfaSecret || !/^[A-Z2-7]{32,}$/.test(mfaSecret))) {
+  throw new Error("M3_UAT_MFA_SECRET must be a valid protected Base32 secret");
+}
 assertExpectedMigrationTarget(target, process.env.EXPECTED_DATABASE_FINGERPRINT);
 if (productionFingerprint && target.fingerprint === productionFingerprint) {
   throw new Error("Refusing to manage M3 UAT fixtures on production");
@@ -82,7 +85,18 @@ async function verifyTarget() {
 }
 
 async function provision() {
-  await cleanup();
+  if (isLocalTarget(directUrl)) {
+    await cleanup();
+  } else {
+    const existing = await status();
+    if (existing.status === "READY") {
+      process.stdout.write(`${JSON.stringify({ ...existing, status: "READY_REPLAY" })}\n`);
+      return;
+    }
+    if (existing.organizations || existing.users || existing.cases || existing.requirements) {
+      throw new Error("Remote M3 UAT fixture is partial; refusing to replace it");
+    }
+  }
   const password = process.env.M3_UAT_PASSWORD;
   if (!password || password.length < 32) throw new Error("M3_UAT_PASSWORD must contain at least 32 characters");
   const passwordHash = hashPassword(password);
@@ -98,7 +112,7 @@ async function provision() {
     const agent = await createIdentity(tx, tier.id, organizationA, "agent", emails.agent, "Агент M3", "AGENT", passwordHash);
     const manager = await createIdentity(tx, tier.id, organizationA, "manager", emails.manager, "Менеджер M3", "MANAGER", passwordHash);
     const reviewer = await createIdentity(tx, tier.id, organizationA, "reviewer", emails.reviewer, "Проверяющий M3", "DOCUMENT_REVIEWER", passwordHash);
-    const financeMfa = encryptPlatformMfaSecret(mfaSecret);
+    const financeMfa = ownerSeedWithoutMfa ? undefined : encryptPlatformMfaSecret(mfaSecret);
     const financeA = await createIdentity(tx, tier.id, organizationA, "finance-a", emails.financeA, "Финансы M3 A", "FINANCE", passwordHash, financeMfa);
     const financeB = await createIdentity(tx, tier.id, organizationA, "finance-b", emails.financeB, "Финансы M3 B", "FINANCE", passwordHash, financeMfa);
     await createIdentity(tx, tier.id, organizationB, "foreign", emails.foreign, "Другой tenant M3", "AGENT", passwordHash);
