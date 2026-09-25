@@ -34,22 +34,30 @@ async function main() {
   if (target.fingerprint === PRODUCTION_FINGERPRINT) throw new Error("Production fingerprint refused");
   if (target.fingerprint !== PREVIEW_FINGERPRINT) throw new Error("Railway Preview fingerprint mismatch");
 
-  stage = "DB_PREFLIGHT";
+  stage = "DB_CONNECTION";
   const db = new PrismaClient({ datasources: { db: { url } } });
   try {
     const state = await db.$transaction(async (tx) => {
       await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
       await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '5000ms'");
+      stage = "DB_IDENTITY";
       const [identity] = await tx.$queryRaw<Array<{ database: string; readOnly: string; recovery: boolean }>>`
         SELECT current_database() AS database,
           current_setting('transaction_read_only') AS "readOnly",
           pg_is_in_recovery() AS recovery
       `;
+      stage = "DB_MIGRATION";
+      const [migrationTable] = await tx.$queryRaw<Array<{ present: boolean }>>`
+        SELECT to_regclass('public._prisma_migrations') IS NOT NULL AS present
+      `;
+      if (!migrationTable?.present) throw new Error("Preview migration table is absent");
       const [migration] = await tx.$queryRaw<Array<{ count: bigint }>>`
         SELECT COUNT(*)::bigint AS count FROM _prisma_migrations
         WHERE migration_name = '20260811172829_m3_fulfilment_money_trust'
           AND finished_at IS NOT NULL AND rolled_back_at IS NULL
       `;
+      if (migration?.count !== 1n) throw new Error("M3 migration is not complete on Preview");
+      stage = "DB_CENSUS";
       const census = await censusOfTarget(tx);
       const [organizations, users, cases, requirements] = await Promise.all([
         tx.organization.count({ where: { id: { in: namespace.organizationIds } } }),
@@ -64,8 +72,10 @@ async function main() {
       throw new Error("Connected database identity or read-only preflight mismatch");
     }
     if (state.migrationCount !== 1n) throw new Error("M3 migration is not complete on Preview");
+    stage = "DB_FOREIGN_DATA";
     if (findForeignRows(state.census, [namespace]).length) throw new Error("Preview contains data outside the exact synthetic namespace");
 
+    stage = "DB_FIXTURE_STATE";
     const ready = state.organizations === 2 && state.users === 6 && state.cases === 2 && state.requirements === 7;
     const empty = state.organizations === 0 && state.users === 0 && state.cases === 0 && state.requirements === 0;
     if (!ready && !empty) throw new Error("Preview fixture is partial; refusing to overwrite it");
