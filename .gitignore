@@ -10,6 +10,7 @@ tsconfig.tsbuildinfo
 taste-skill/
 .DS_Store
 .vercel
+.m3-private-storage/
 .vercel
 
 # Installed agent skills (npx skills add) — not project code

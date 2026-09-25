@@ -19,6 +19,7 @@ const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;
 let offlineProbeActive = false;
+let meetingNavigationRetries = 0;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const location = message.location().url;
@@ -55,6 +56,7 @@ try {
     accessibilityCriticalSerious: 0,
     mobile: "PASS",
     zoom200: "PASS",
+    meetingNavigationRetries,
     skipped: 0,
   })}\n`);
 } finally {
@@ -178,7 +180,26 @@ async function agentFlow(target, browserContext) {
       headings: Array.from(document.querySelectorAll("h1, h2"), (heading) => heading.textContent?.trim()).filter(Boolean),
       bodyText: document.body.innerText.replace(/\s+/g, " ").trim().slice(0, 320),
     }));
-    throw new Error(`Meeting detail navigation failed: ${JSON.stringify({
+    const retryableRscCancellation = new URL(pageState.url).pathname === meetingHref
+      && meetingResponses.some((response) => response.status === 200 && response.rsc)
+      && meetingResponses.every((response) => response.status < 500)
+      && meetingRequestFailures.length > 0
+      && meetingRequestFailures.every((failure) => failure.rsc && failure.error === "net::ERR_ABORTED");
+    if (retryableRscCancellation) {
+      meetingNavigationRetries += 1;
+      try {
+        await target.goto(`${baseUrl}${meetingHref}`, { waitUntil: "networkidle" });
+        await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
+      } catch (retryError) {
+        throw new Error(`Meeting detail read-only recovery failed: ${JSON.stringify({
+          pageState,
+          responses: meetingResponses,
+          requestFailures: meetingRequestFailures,
+          firstCause: error instanceof Error ? error.message : String(error),
+          retryCause: retryError instanceof Error ? retryError.message : String(retryError),
+        })}`);
+      }
+    } else throw new Error(`Meeting detail navigation failed: ${JSON.stringify({
       pageState,
       responses: meetingResponses,
       requestFailures: meetingRequestFailures,

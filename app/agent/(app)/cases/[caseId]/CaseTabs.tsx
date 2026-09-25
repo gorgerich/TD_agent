@@ -1,13 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardText, ClockCounterClockwise, Files, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
 import s from "./CaseTabs.module.css";
 import { TasksSection } from "./TasksSection";
 import { NotesSection } from "./NotesSection";
-import { DocumentsSection } from "./DocumentsSection";
+import { DocumentsSection, type CanonicalDocumentRequirement } from "./DocumentsSection";
 import { IntakeSection, type Intake } from "./IntakeSection";
-import { PaymentsSection, type PaymentItem } from "./PaymentsSection";
+import { PaymentsSection, type ContractLedgerVersion } from "./PaymentsSection";
+import { CasePartiesSection, type CasePartyItem } from "./CasePartiesSection";
 
 type TaskItem = {
   id: number;
@@ -26,7 +27,6 @@ type TaskItem = {
   actionHref: string | null;
 };
 type NoteItem = { id: number; body: string; createdAt: string };
-type DocItem = { id: number; name: string; category: string; url: string; mimeType: string; size: number; createdAt: string };
 type ActivityItem = { label: string; sub?: string };
 
 type TabId = "work" | "docs" | "family" | "history";
@@ -34,11 +34,14 @@ type TabId = "work" | "docs" | "family" | "history";
 export function CaseTabs({
   caseId,
   tasks,
-  docs,
+  documentRequirements,
+  legacyDocumentCount,
   notes,
   intake,
   context,
-  payments,
+  contractVersions,
+  legacyPaymentCount,
+  parties,
   activity,
   initialTab = "work",
   timezone,
@@ -47,11 +50,14 @@ export function CaseTabs({
 }: {
   caseId: number;
   tasks: TaskItem[];
-  docs: DocItem[];
+  documentRequirements: CanonicalDocumentRequirement[];
+  legacyDocumentCount: number;
   notes: NoteItem[];
   intake: Intake;
   context: string | null;
-  payments: PaymentItem[];
+  contractVersions: ContractLedgerVersion[];
+  legacyPaymentCount: number;
+  parties: CasePartyItem[];
   activity: ActivityItem[];
   initialTab?: TabId;
   timezone: string;
@@ -61,7 +67,9 @@ export function CaseTabs({
   const [tab, setTab] = useState<TabId>(initialTab);
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
   const openTasks = tasks.filter((task) => task.status === "OPEN").length;
-  const missingDocs = docs.length === 0;
+  const applicableDocuments = documentRequirements.filter((item) => item.isApplicable);
+  const verifiedDocuments = applicableDocuments.filter((item) => item.derivedSatisfactionStatus === "SATISFIED").length;
+  const missingDocs = verifiedDocuments < applicableDocuments.length || applicableDocuments.length === 0;
 
   const allTabs: { id: TabId; label: string; subtitle: string; icon: Icon; badge?: string }[] = [
     {
@@ -74,13 +82,18 @@ export function CaseTabs({
     {
       id: "docs",
       label: "Документы",
-      subtitle: missingDocs ? "Нужно собрать" : `${docs.length} в кейсе`,
+      subtitle: missingDocs ? "Есть блокеры" : `${verifiedDocuments} проверено`,
       icon: Files,
     },
     { id: "family", label: "Семья", subtitle: "Потребности и контекст", icon: UsersThree },
     { id: "history", label: "История", subtitle: "Заметки и события", icon: ClockCounterClockwise },
   ];
   const tabs = limitedTaskContext ? allTabs.slice(0, 1) : allTabs;
+
+  useEffect(() => {
+    tabRefs.current[tab]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
+
   return (
     <section className={`td-shell ${s.workspace}`} aria-label="Рабочая зона кейса">
       <nav className={s.nav} aria-label="Разделы кейса">
@@ -150,21 +163,30 @@ export function CaseTabs({
                 <TasksSection caseId={caseId} initial={tasks} timezone={timezone} canCreate={canMutateCase} />
               </Section>
               {!limitedTaskContext && (
-                <Section title="Оплата" hint="Аванс и остаток по договорённости с семьёй.">
-                  <PaymentsSection caseId={caseId} initial={payments} timezone={timezone} canMutate={canMutateCase} />
+                <Section title="Договор и оплата" hint="Каноническая сумма договора и вычисляемый статус ledger.">
+                  <PaymentsSection caseId={caseId} versions={contractVersions} legacyCount={legacyPaymentCount} parties={parties} canMutate={canMutateCase} />
                 </Section>
               )}
             </div>
           )}
 
           {tab === "docs" && (
-            <Section title="Документы" meta={missingDocs ? "нужно собрать" : `${docs.length} в кейсе`}>
-              <DocumentsSection caseId={caseId} initial={docs} timezone={timezone} canMutate={canMutateCase} />
+            <Section title="Документы" meta={`${verifiedDocuments}/${applicableDocuments.length} проверено`}>
+              <DocumentsSection
+                caseId={caseId}
+                timezone={timezone}
+                requirements={documentRequirements}
+                legacyCount={legacyDocumentCount}
+                canMutate={canMutateCase}
+              />
             </Section>
           )}
 
           {tab === "family" && (
             <div className={s.stack}>
+              <Section title="Участники и роли" meta={parties.length ? String(parties.length) : "пусто"}>
+                <CasePartiesSection caseId={caseId} parties={parties} canMutate={canMutateCase} />
+              </Section>
               <Section title="Потребности семьи">
                 <IntakeSection caseId={caseId} initial={intake} canMutate={canMutateCase} />
               </Section>

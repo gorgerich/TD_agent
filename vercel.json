@@ -1,0 +1,3 @@
+{
+  "crons": [{ "path": "/api/internal/rate-limit-retention", "schedule": "17 3 * * *" }]
+}

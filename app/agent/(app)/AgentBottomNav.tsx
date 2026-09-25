@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, CalendarDots, CheckSquare, FileText, UsersThree, type Icon } from "@phosphor-icons/react";
+import { Briefcase, CalendarDots, CheckSquare, CurrencyCircleDollar, FileMagnifyingGlass, FileText, GearSix, UsersThree, type Icon } from "@phosphor-icons/react";
 import type { OperationalRole } from "@/lib/operationalAuth";
 
 const TABS = [
@@ -22,9 +22,25 @@ const TEAM_TABS = [
   { href: "/agent/operations", icon: UsersThree, label: "Команда" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
+const REVIEWER_TABS = [
+  { href: "/agent/document-review", icon: FileMagnifyingGlass, label: "Проверка" },
+  { href: "/agent/settings", icon: GearSix, label: "Профиль" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
+const FINANCE_TABS = [
+  { href: "/agent/finance", icon: CurrencyCircleDollar, label: "Финансы" },
+  { href: "/agent/settings", icon: GearSix, label: "Профиль" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
 export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number; role: OperationalRole }) {
   const pathname = usePathname();
-  const tabs = role === "AGENT" ? TABS : TEAM_TABS;
+  const tabs = role === "DOCUMENT_REVIEWER"
+    ? REVIEWER_TABS
+    : role === "FINANCE"
+      ? FINANCE_TABS
+      : role === "AGENT"
+        ? TABS
+        : TEAM_TABS;
   // В открытом кейсе глобальный dock конкурирует с маршрутной панелью и
   // перекрывает рабочие элементы на mobile. Навигация остаётся в шапке и
   // во вкладках самого кейса.
@@ -34,7 +50,7 @@ export default function AgentBottomNav({ overdue = 0, role }: { overdue?: number
   return (
     <nav
       aria-label="Основная навигация"
-      className="td-mobile-dock fixed z-40 grid grid-cols-4 px-2 py-1 lg:hidden"
+      className={`td-mobile-dock fixed z-40 grid ${tabs.length === 2 ? "grid-cols-2" : "grid-cols-4"} px-2 py-1 lg:hidden`}
     >
       {tabs.map(({ href, icon: IconComponent, label }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);

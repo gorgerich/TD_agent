@@ -1,8 +1,6 @@
 import { type CaseScenario, type CaseStage, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  SCENARIO_CLOSURE_GUARDS,
-  isSupportedScenario,
   projectCaseRisk,
   projectNextAction,
   type CanonicalCaseFacts,
@@ -11,6 +9,8 @@ import {
   type NextActionProjection,
 } from "@/lib/caseDomain";
 import { tenantIdForAgent } from "@/lib/caseService";
+import { deriveCaseDocumentTruth, deriveLedgerSummary } from "@/lib/m3Domain";
+import { isCurrentPublishedVersion } from "@/lib/quotePublicationTruth";
 import type { Stage } from "@/lib/case";
 import type { StatusTone, WaitingOn } from "@/lib/caseStatus";
 import type { OperationalContext } from "@/lib/operationalAuth";
@@ -28,6 +28,7 @@ export type CanonicalCaseReadModel = {
   legacyStage: Stage;
   scenarioId: CaseScenario;
   version: number;
+  guardState: CaseGuardState;
   statusLabel: string;
   statusTone: StatusTone;
   waiting: WaitingOn;
@@ -39,11 +40,12 @@ export type CanonicalCaseReadModel = {
   firstMeetingId: number | null;
   publishedQuote: {
     versionId: number;
+    versionNumber: number | null;
     totalKopecks: number;
   } | null;
   payment: {
     totalKopecks: number | null;
-    paidKopecks: number;
+    paidKopecks: number | null;
     balanceKopecks: number | null;
   };
   documents: {
@@ -80,11 +82,85 @@ export async function getCanonicalCase(scope: number | OperationalContext, leadI
 }
 
 const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
-  publishedQuoteVersion: { select: { id: true, total: true } },
+  publishedQuoteVersion: {
+    select: {
+      id: true,
+      versionNumber: true,
+      state: true,
+      totalState: true,
+      total: true,
+      snapshotChecksum: true,
+      validUntil: true,
+      quote: { select: { caseId: true, organizationId: true, latestPublishedVersionId: true } },
+    },
+  },
   events: { orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
   tasks: {
     orderBy: { createdAt: "desc" },
     select: { id: true, status: true, dueAt: true, completedAt: true, createdAt: true },
+  },
+  documentRequirements: {
+    select: {
+      stableKey: true,
+      blockingStage: true,
+      isApplicable: true,
+      createdAt: true,
+      updatedAt: true,
+      policy: { select: { status: true } },
+      document: {
+        select: {
+          versions: {
+            select: {
+              versionNumber: true,
+              status: true,
+              scanStatus: true,
+              expiresAt: true,
+              createdAt: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  contract: {
+    select: {
+      versions: {
+        select: {
+          status: true,
+          validUntil: true,
+          quoteVersionId: true,
+          quoteVersion: {
+            select: {
+              state: true,
+              totalState: true,
+              total: true,
+              snapshotChecksum: true,
+              quote: { select: { caseId: true, organizationId: true } },
+            },
+          },
+          createdAt: true,
+          supersededBy: { select: { id: true } },
+          obligation: {
+            select: {
+              currency: true,
+              createdAt: true,
+              ledgerEntries: {
+                select: {
+                  id: true,
+                  type: true,
+                  direction: true,
+                  amountKopecks: true,
+                  relatedEntryId: true,
+                  approvalRequired: true,
+                  createdAt: true,
+                  approval: { select: { decision: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   },
   lead: {
     include: {
@@ -110,6 +186,14 @@ type CaseRecord = Prisma.CaseGetPayload<{ include: typeof caseReadInclude }>;
 
 function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
   const guardState = normalizeGuardState(record.guardState);
+  const version = record.publishedQuoteVersion;
+  const publishedQuote = isCurrentPublishedVersion(version ?? null, now)
+    && version
+    && version.quote.caseId === record.id
+    && version.quote.organizationId === record.tenantId
+    && version.quote.latestPublishedVersionId === version.id
+    ? version : null;
+  const invalidPublishedPointer = record.publishedQuoteVersionId != null && publishedQuote == null;
   const openTasks = record.tasks.filter((task) => task.status === "OPEN");
   const overdueTaskCount = openTasks.filter((task) => task.dueAt && task.dueAt < now).length;
   const nextOpenTaskDueAt = openTasks
@@ -124,11 +208,44 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     (total, meeting) => total + meeting.quotes.reduce((sum, quote) => sum + quote.versions.length, 0),
     0,
   );
-  const paidKopecks = record.lead.payments.reduce((sum, payment) => sum + payment.amountKopecks, 0);
-  const totalKopecks = record.publishedQuoteVersion?.total ?? null;
-  const requiredGuards = isSupportedScenario(record.scenarioId) ? SCENARIO_CLOSURE_GUARDS[record.scenarioId] : [];
-  const requiredDocumentGuards = requiredGuards.filter((guard) => guard.includes("document") || guard.includes("identity") || guard.includes("authorization") || guard.includes("entitlement") || guard.includes("relationship"));
-  const verifiedDocumentCount = requiredDocumentGuards.filter((guard) => guardState[guard]).length;
+  const documentTruth = deriveCaseDocumentTruth(record.documentRequirements
+    .filter((requirement) => requirement.isApplicable && requirement.policy.status !== "DRAFT_POLICY")
+    .map((requirement) => ({
+      stableKey: requirement.stableKey,
+      blockingStage: requirement.blockingStage,
+      versions: requirement.document?.versions ?? [],
+    })), now);
+  const signedContract = record.contract?.versions.find((version) =>
+    version.status === "SIGNED"
+    && version.supersededBy == null
+    && (version.validUntil == null || version.validUntil > now)
+    && version.quoteVersion.quote.caseId === record.id
+    && version.quoteVersion.quote.organizationId === record.tenantId
+    && version.quoteVersion.state === "PUBLISHED"
+    && version.quoteVersion.totalState === "KNOWN"
+    && version.quoteVersion.total > 0
+    && version.quoteVersion.snapshotChecksum != null,
+  ) ?? null;
+  const ledgerSummary = signedContract?.obligation
+    ? deriveLedgerSummary(signedContract.obligation.ledgerEntries.map((entry) => ({
+        id: entry.id,
+        type: entry.type,
+        direction: entry.direction,
+        amountKopecks: entry.amountKopecks,
+        relatedEntryId: entry.relatedEntryId,
+        effective: !entry.approvalRequired || entry.approval?.decision === "APPROVED",
+      })), signedContract.obligation.currency)
+    : null;
+  const pendingFinancialAdjustments = signedContract?.obligation?.ledgerEntries.filter(
+    (entry) => entry.approvalRequired && entry.approval?.decision == null,
+  ).length ?? 0;
+  Object.assign(guardState, documentTruth.guardState, {
+    contract_signed: signedContract != null,
+    payment_satisfied: pendingFinancialAdjustments === 0
+      && (ledgerSummary?.status === "PAID" || ledgerSummary?.status === "OVERPAID"),
+  });
+  const totalKopecks = ledgerSummary?.obligationKopecks ?? null;
+  const paidKopecks = ledgerSummary?.paidKopecks ?? null;
   const facts: CanonicalCaseFacts = {
     updatedAt: record.updatedAt,
     ceremonyAt: record.lead.ceremonyAt,
@@ -137,19 +254,58 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     overdueTaskCount,
     meetingsCount: record.lead.meetings.length,
     quoteVersionCount,
-    publishedQuoteVersionId: record.publishedQuoteVersionId,
+    publishedQuoteVersionId: publishedQuote?.id ?? null,
     clientTotalKopecks: totalKopecks,
     paidKopecks,
-    uploadedDocumentCount: record.lead.documents.length,
-    requiredDocumentCount: requiredDocumentGuards.length,
+    uploadedDocumentCount: documentTruth.uploaded,
+    requiredDocumentCount: documentTruth.required,
     guardState,
   };
-  const nextAction = projectNextAction({ stage: record.stage, ownerId: record.ownerId, facts });
-  const risk = projectCaseRisk({ stage: record.stage, scenarioId: record.scenarioId, nextAction, facts, now });
+  const projectedNextAction = projectNextAction({ stage: record.stage, ownerId: record.ownerId, facts });
+  const unpaidAfterAdvance = (record.stage === "EXECUTION" || record.stage === "CLOSED")
+    && ledgerSummary?.balanceKopecks != null && ledgerSummary.balanceKopecks > 0;
+  const paymentNeedsAttention = unpaidAfterAdvance || (invalidPublishedPointer
+    && signedContract != null
+    && ledgerSummary?.balanceKopecks != null
+    && ledgerSummary.balanceKopecks > 0);
+  const nextAction = paymentNeedsAttention
+    ? {
+        key: "resolve-payment-balance",
+        label: "Проверьте остаток оплаты по договору",
+        reason: "Ledger показывает непогашенный остаток после изменения платежей.",
+        dueAt: projectedNextAction.dueAt,
+        ownerId: record.ownerId,
+      }
+    : invalidPublishedPointer
+    ? {
+        key: "review-legacy-quote",
+        label: "Проверьте смету и опубликуйте подтверждённую версию",
+        reason: "Ссылка кейса не ведёт к текущей опубликованной смете.",
+        dueAt: projectedNextAction.dueAt,
+        ownerId: record.ownerId,
+      }
+    : projectedNextAction;
+  const projectedRisk = projectCaseRisk({ stage: record.stage, scenarioId: record.scenarioId, nextAction, facts, now });
+  const risk: CaseRiskProjection = unpaidAfterAdvance && record.stage === "CLOSED"
+    ? {
+        level: "HIGH",
+        reasons: [{ code: "MISSING_BLOCKER", label: "После закрытия появился остаток оплаты", deadline: null, level: "HIGH" }],
+      }
+    : projectedRisk;
   const lastActivityAt = latestDate(
     record.createdAt,
     record.updatedAt,
     record.events[0]?.createdAt,
+    ...record.documentRequirements.flatMap((requirement) => [
+      requirement.createdAt,
+      requirement.updatedAt,
+      ...(requirement.document?.versions.map((version) => version.createdAt) ?? []),
+    ]),
+    ...(record.contract?.versions.flatMap((version) => [
+      version.createdAt,
+      version.obligation?.createdAt,
+      ...(version.obligation?.ledgerEntries.map((entry) => entry.createdAt) ?? []),
+    ]) ?? []),
     record.lead.documents[0]?.createdAt,
     record.tasks[0]?.createdAt,
     record.lead.notes[0]?.createdAt,
@@ -171,28 +327,33 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     legacyStage: presentation.legacyStage,
     scenarioId: record.scenarioId,
     version: record.version,
-    statusLabel: presentation.label,
-    statusTone: presentation.tone,
-    waiting: presentation.waiting,
+    guardState,
+    statusLabel: paymentNeedsAttention ? "Остаток оплаты требует проверки" : invalidPublishedPointer ? "Смета требует проверки" : presentation.label,
+    statusTone: invalidPublishedPointer || paymentNeedsAttention ? "warning" : presentation.tone,
+    waiting: paymentNeedsAttention ? "payment" : presentation.waiting,
     nextAction,
     risk,
     lastActivityAt,
     ceremonyAt: record.lead.ceremonyAt,
     nextMeetingAt: futureMeetings[0] ?? null,
     firstMeetingId: record.lead.meetings.at(-1)?.id ?? null,
-    publishedQuote: record.publishedQuoteVersion
-      ? { versionId: record.publishedQuoteVersion.id, totalKopecks: record.publishedQuoteVersion.total }
+    publishedQuote: publishedQuote
+      ? {
+          versionId: publishedQuote.id,
+          versionNumber: publishedQuote.versionNumber,
+          totalKopecks: publishedQuote.total,
+        }
       : null,
     payment: {
       totalKopecks,
       paidKopecks,
-      balanceKopecks: totalKopecks == null ? null : Math.max(0, totalKopecks - paidKopecks),
+      balanceKopecks: ledgerSummary?.balanceKopecks ?? null,
     },
     documents: {
-      uploaded: record.lead.documents.length,
-      required: requiredDocumentGuards.length,
-      verified: verifiedDocumentCount,
-      ready: requiredDocumentGuards.length > 0 && verifiedDocumentCount === requiredDocumentGuards.length,
+      uploaded: documentTruth.uploaded,
+      required: documentTruth.required,
+      verified: documentTruth.verified,
+      ready: documentTruth.ready,
     },
     openTaskCount: openTasks.length,
     overdueTaskCount,

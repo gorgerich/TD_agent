@@ -1,8 +1,8 @@
 /**
  * Fail-closed admission guard for the isolated UAT database.
  *
- * The M1 and M2 browser fixtures both need to exist in ONE isolated database so the
- * commercial UAT can exercise the M1 pilots and the M2 second organization together.
+ * M1, M2 and M3 browser fixtures need to exist in one isolated database so each
+ * mission can verify sibling-role and cross-tenant behavior without production data.
  * Their original guards each demanded a completely empty remote database, which made that
  * impossible. This relaxes the rule by exactly one step and no further:
  *
@@ -48,6 +48,22 @@ export function m2UatNamespace(runId: string): UatNamespace {
       `m2-manager-${runId}@synthetic.invalid`,
       `m2-agent-${runId}@synthetic.invalid`,
       `m2-second-${runId}@synthetic.invalid`,
+    ],
+  };
+}
+
+/** Exact identifiers the M3 fulfilment browser UAT fixture creates for a run. */
+export function m3UatNamespace(runId: string): UatNamespace {
+  return {
+    label: `M3 UAT (${runId})`,
+    organizationIds: [`m3-uat:${runId}:a`, `m3-uat:${runId}:b`],
+    userEmails: [
+      `m3-agent-${runId}@synthetic.invalid`,
+      `m3-manager-${runId}@synthetic.invalid`,
+      `m3-reviewer-${runId}@synthetic.invalid`,
+      `m3-finance-a-${runId}@synthetic.invalid`,
+      `m3-finance-b-${runId}@synthetic.invalid`,
+      `m3-foreign-${runId}@synthetic.invalid`,
     ],
   };
 }

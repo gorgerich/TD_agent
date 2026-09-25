@@ -28,6 +28,7 @@ export const CASE_TRANSITION_EVENTS = [
   "quote.accepted.v1",
   "contract.signed.v1",
   "payment.requirement_satisfied.v1",
+  "execution.confirmed.v1",
   "case.closure_requested.v1",
 ] as const;
 
@@ -47,6 +48,7 @@ export type CaseTransitionFacts = {
   publishedQuoteVersionId: number | null;
   contractSigned: boolean;
   paymentSatisfied: boolean;
+  documentsReadyForExecution: boolean;
   guardState: CaseGuardState;
 };
 
@@ -64,6 +66,7 @@ export const CASE_TRANSITION_MATRIX: readonly TransitionRule[] = [
   { from: "AGREEMENT", eventType: "quote.accepted.v1", to: "CONTRACTING" },
   { from: "CONTRACTING", eventType: "contract.signed.v1", to: "PAYMENT" },
   { from: "PAYMENT", eventType: "payment.requirement_satisfied.v1", to: "EXECUTION" },
+  { from: "EXECUTION", eventType: "execution.confirmed.v1", to: "EXECUTION" },
   { from: "EXECUTION", eventType: "case.closure_requested.v1", to: "CLOSED" },
 ] as const;
 
@@ -156,7 +159,22 @@ export function evaluateCaseTransition(input: {
       requireGuard(input.facts.contractSigned, "Подписанный договор не найден", "contract_signed");
       break;
     case "payment.requirement_satisfied.v1":
+      requireGuard(
+        input.facts.documentsReadyForExecution,
+        "Обязательные документы ещё не проверены",
+        "verified_documents_for_execution",
+      );
       requireGuard(input.facts.paymentSatisfied, "Требование по оплате ещё не выполнено", "payment_satisfied");
+      break;
+    case "execution.confirmed.v1":
+      if (!isSupportedScenario(input.scenarioId)) {
+        throw new CaseDomainError("UNSUPPORTED_SCENARIO", "Исполнение нельзя подтвердить без пилотного сценария");
+      }
+      requireGuard(
+        input.payload.confirmationSource === "OPERATOR_CONFIRMED",
+        "Подтвердите фактическое исполнение сценария",
+        "execution_confirmation",
+      );
       break;
     case "case.closure_requested.v1": {
       if (!isSupportedScenario(input.scenarioId)) {
@@ -191,7 +209,7 @@ export type CanonicalCaseFacts = {
   quoteVersionCount: number;
   publishedQuoteVersionId: number | null;
   clientTotalKopecks: number | null;
-  paidKopecks: number;
+  paidKopecks: number | null;
   uploadedDocumentCount: number;
   requiredDocumentCount: number;
   guardState: CaseGuardState;

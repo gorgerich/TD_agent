@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { handleApiError, requireAgent } from "@/lib/apiAuth";
-import { assertCapability } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -9,11 +9,11 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAgent(req);
-    assertCapability(session, session.role === "AGENT" ? "work:read" : "audit:read");
+    assertCapability(session, hasTeamOperationalScope(session.role) ? "audit:read" : "work:read");
     const url = new URL(req.url);
     const entityType = url.searchParams.get("entityType")?.trim();
     const entityId = url.searchParams.get("entityId")?.trim();
-    const ownScope: Prisma.OperationalAuditEventWhereInput = session.role === "AGENT"
+    const ownScope: Prisma.OperationalAuditEventWhereInput = !hasTeamOperationalScope(session.role)
       ? await agentAuditScope(session.organizationId, session.membershipId, session.agentId)
       : {};
     const events = await prisma.operationalAuditEvent.findMany({

@@ -1,6 +1,6 @@
 import { Prisma, type MeetingChannel, type OperationalMeetingStatus, type OperationalMeetingType } from "@prisma/client";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
-import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { closeMeetingEscalationInTransaction, projectPastMeetingEscalationInTransaction } from "@/lib/operationsProjection";
 import { prisma } from "@/lib/prisma";
@@ -47,14 +47,14 @@ export async function createMeeting(
       where: {
         leadId: input.leadId,
         tenantId: context.organizationId,
-        ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+        ...(!hasTeamOperationalScope(context.role) ? { ownerId: context.agentId } : {}),
       },
       select: { id: true, leadId: true },
     });
     if (!canonicalCase) throw new OperationalCommandError(404, "Кейс не найден");
 
     const ownerMembershipId = input.ownerMembershipId ?? context.membershipId;
-    if (context.role === "AGENT" && ownerMembershipId !== context.membershipId) {
+    if (!hasTeamOperationalScope(context.role) && ownerMembershipId !== context.membershipId) {
       throw new OperationalCommandError(403, "Агент может назначить встречу только себе");
     }
     const owner = await activeOwner(tx, context.organizationId, ownerMembershipId);
@@ -286,7 +286,7 @@ async function commandReplay(
         where: {
           id: String(result.caseId),
           tenantId: context.organizationId,
-          ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+          ...(!hasTeamOperationalScope(context.role) ? { ownerId: context.agentId } : {}),
         },
         select: { id: true },
       })
