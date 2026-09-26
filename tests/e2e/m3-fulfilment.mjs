@@ -10,9 +10,11 @@ const runId = (process.env.M3_UAT_RUN_ID ?? "mission-3").replace(/[^a-z0-9-]/gi,
 const password = process.env.M3_UAT_PASSWORD;
 const webhookSecret = process.env.M3_PAYMENT_WEBHOOK_SECRET;
 const mfaSecret = process.env.M3_UAT_MFA_SECRET;
+const financeBMfaSecret = process.env.M3_UAT_MFA_SECRET_B ?? mfaSecret;
 if (!password || password.length < 32) throw new Error("M3_UAT_PASSWORD is required");
 if (!webhookSecret || webhookSecret.length < 32) throw new Error("M3_PAYMENT_WEBHOOK_SECRET is required");
 if (!mfaSecret || !/^[A-Z2-7]{32,}$/.test(mfaSecret)) throw new Error("M3_UAT_MFA_SECRET is required");
+if (!financeBMfaSecret || !/^[A-Z2-7]{32,}$/.test(financeBMfaSecret)) throw new Error("M3_UAT_MFA_SECRET_B is invalid");
 
 const identities = {
   agent: `m3-agent-${runId}@synthetic.invalid`,
@@ -628,7 +630,7 @@ async function login(target, email, identityPassword, landing) {
     }
     const body = await response.json().catch(() => null);
     if (body?.mfaRequired === true) {
-      await target.locator("#platform-mfa-code").fill(totp(mfaSecret));
+      await target.locator("#platform-mfa-code").fill(totp(email === identities.financeB ? financeBMfaSecret : mfaSecret));
       responsePromise = target.waitForResponse((next) => next.url().includes("/api/agent/auth/login") && next.request().method() === "POST");
       await target.locator('form button[type="submit"]').click();
       response = await responsePromise;
