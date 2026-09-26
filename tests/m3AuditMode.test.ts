@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { M3_CPO_AUDIT_ORGANIZATION_ID, isM3ProductionWriteAllowed } from "../lib/m3AuditMode";
 import { assertCapability, type OperationalContext } from "../lib/operationalAuth";
+import { materializeCaseRequirementsInTransaction, refreshCaseRequirementApplicabilityInTransaction } from "../lib/documentRequirementService";
 
-test("Production M3 writes are limited to the exact synthetic audit organization", () => {
+test("Production M3 writes are limited to the exact synthetic audit organization", async () => {
   const env = process.env as Record<string, string | undefined>;
   const previous = process.env.VERCEL_ENV;
   const previousNodeEnv = process.env.NODE_ENV;
@@ -20,6 +21,17 @@ test("Production M3 writes are limited to the exact synthetic audit organization
     process.env.VERCEL_ENV = "production";
     assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
     assert.equal(isM3ProductionWriteAllowed(M3_CPO_AUDIT_ORGANIZATION_ID), true);
+    const forbiddenActor = { organizationId: "real-organization", membershipId: "member" };
+    const transaction = {} as Parameters<typeof materializeCaseRequirementsInTransaction>[0];
+    const meta = { idempotencyKey: "audit-mode-test", correlationId: "audit-mode-test" };
+    assert.deepEqual(
+      await materializeCaseRequirementsInTransaction(transaction, forbiddenActor, "case", "CREMATION_V1", meta),
+      { policyApproved: false, policyId: null, created: 0, existing: 0 },
+    );
+    assert.deepEqual(
+      await refreshCaseRequirementApplicabilityInTransaction(transaction, forbiddenActor, "case", meta),
+      { changed: 0 },
+    );
     const context: OperationalContext = {
       userId: 1,
       agentId: 1,

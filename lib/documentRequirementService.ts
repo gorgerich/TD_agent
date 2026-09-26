@@ -4,6 +4,7 @@ import { appendOperationalAudit } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { evaluateDocumentRequirement } from "@/lib/m3Domain";
+import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 import { prismaJson, requireTenantCase, type M3CommandMeta, validateM3CommandMeta } from "@/lib/m3Command";
 
 type RequirementActor = {
@@ -35,6 +36,9 @@ export async function materializeCaseRequirementsInTransaction(
 ) {
   if (scenario !== "CREMATION_V1" && scenario !== "FAMILY_PLOT_BURIAL_V1") {
     throw new OperationalCommandError(422, "Сначала выберите пилотный сценарий кейса");
+  }
+  if (!isM3ProductionWriteAllowed(actor.organizationId)) {
+    return { policyApproved: false, policyId: null, created: 0, existing: 0 };
   }
   const policyId = await lockDocumentRequirementPolicyScenario(tx, actor.organizationId, scenario, now);
   if (!policyId) return { policyApproved: false, policyId: null, created: 0, existing: 0 };
@@ -146,6 +150,7 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
   meta: M3CommandMeta,
   now = new Date(),
 ) {
+  if (!isM3ProductionWriteAllowed(actor.organizationId)) return { changed: 0 };
   const [caseFacts, requirements] = await Promise.all([
     loadRequirementFacts(tx, caseId, now),
     tx.caseDocumentRequirement.findMany({
