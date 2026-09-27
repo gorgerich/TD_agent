@@ -78,7 +78,7 @@
       "id": "M3-SEC-01",
       "status": "PASS",
       "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
-      "evidence": "Operational capability matrix, all M3 API guards, integration negative tests, exact Preview crossTenant=PASS, and independent review P0=0/P1=0/P2=1; the P2 retention item is owned, dated, and does not weaken authorization."
+      "evidence": "Operational capability matrix, M3 API guards, integration negative tests, exact Preview crossTenant=PASS, and independent review P0=0/P1=0/P2=1; the open Finance Case-detail read P2 is owned and dated, and it does not widen tenant access."
     },
     {
       "id": "M3-MIG-01",
@@ -90,25 +90,25 @@
       "id": "M3-UX-01",
       "status": "PASS",
       "requirement": "Failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard, and 200 percent zoom states are honest and accessible.",
-      "evidence": "M3 UIs and recovery contracts; exact Preview axe critical=0/serious=0, mobile PASS, zoom200 PASS, horizontal overflow=0, unexpected5xx=0; eight screenshots under docs/evidence/missions/M3/screenshots."
+      "evidence": "M3 UIs and recovery contracts; exact e98cdbc Preview headless axe critical=0/serious=0, mobile PASS, zoom200 PASS, horizontal overflow=0, unexpected5xx=0. Eight older screenshots are historical only."
     },
     {
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Deployment dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB at 784140d, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; both journeys and negative/failure gates PASS."
+      "evidence": "Deployment dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu at e98cdbc, DB fingerprint 545a187f9e9d66b0 != Production 0257665af2dd90a4, private store store_Ov8erHstuvfJ52Og; authenticated owner-preview-20260927 completed both journeys and negative/failure gates."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Independent reviewer agent Plato (Codex) reviewed base 20b7e0f..implementation 784140d, including the least-privilege source-CI attestation repair, and returned PASS with P0=0, P1=0, P2=1."
+      "evidence": "Independent reviewer agent Gibbs (Codex) reviewed base 20b7e0f..implementation e98cdbc and reported runtime P0=0, P1=0, P2=1. Evidence-only diff was separately reviewed and corrected before final CI."
     },
     {
       "id": "M3-GATE-01",
       "status": "PASS",
-      "requirement": "All deterministic technical gates pass with skipped=0 and NOT_RUN=0.",
-      "evidence": "git diff check, Prisma generation, lint, typecheck, build, unit 125/125, integration 59/59 under default concurrency, targeted policy/authority suite 5 x 12/12, five E2E scripts, migration/restore/no-op/parity, exact Preview UAT, evidence schema, and independent review all pass."
+      "requirement": "Source technical gates, exact Preview UAT, local evidence validation, and independent runtime review pass with skipped=0; final evidence-head CI is a separate pre-merge gate.",
+      "evidence": "Source technical gates pass: git diff check, Prisma generation, lint, typecheck, build, unit 137/137 across 23 files, integration 72/72 across 14 files under default concurrency, targeted repeat 5 x 24/24, five E2E scripts, migration/restore/no-op/parity, exact Preview UAT, local evidence schema, and independent runtime review. Source CI overall failed solely at stale evidence; final evidence-head CI is pending and required before merge."
     }
   ]
 }

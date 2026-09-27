@@ -2,13 +2,13 @@
 
 ## Environment
 
-- Deployment: `dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB`
-- SHA: `784140db230e8d0c1a566d2e70bbce91162a5587`
-- URL: `https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu`
+- SHA: `e98cdbc613321e7c35e65c141dca7edfd20565a1`
+- URL: `https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app`
 - Database fingerprint: `545a187f9e9d66b0`
 - Production fingerprint excluded: `0257665af2dd90a4`
 - Private storage: `store_Ov8erHstuvfJ52Og`
-- Data: retained isolated UAT run `preview-eb568f5`: 2 synthetic organizations,
+- Data: retained isolated UAT run `owner-preview-20260927`: 2 synthetic organizations,
   6 synthetic role identities, and 2 synthetic Cases.
 - Vercel Deployment Protection remained enabled; authenticated automation bypass was used only
   for this protected Preview.
@@ -87,4 +87,8 @@ The entire applicable AGENTS anti-slop law was re-checked after the exact-SHA ca
 - `screenshots/reviewer-desktop.png`
 - `screenshots/reviewer-mobile.png`
 
-These captures were generated from the exact deployment above after its complete synthetic UAT.
+These captures are historical artifacts from Preview runtime
+`784140db230e8d0c1a566d2e70bbce91162a5587`, not screenshots of the current
+deployment. The current exact-SHA UAT above was exercised in headless Chromium;
+it did not produce replacement image files. Do not use these images as proof of
+the current SHA.

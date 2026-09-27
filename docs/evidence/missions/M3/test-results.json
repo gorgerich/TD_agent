@@ -1,17 +1,17 @@
 {
   "mission": "M3-FULFILMENT-MONEY-TRUST",
   "state": "BLOCKED_HUMAN_JUDGMENT",
-  "implementationSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/33604562239",
-  "previewDeploymentId": "dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB",
-  "previewDeploymentSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
-  "previewUrl": "https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app",
+  "implementationSha": "e98cdbc613321e7c35e65c141dca7edfd20565a1",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/36307243331",
+  "previewDeploymentId": "dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu",
+  "previewDeploymentSha": "e98cdbc613321e7c35e65c141dca7edfd20565a1",
+  "previewUrl": "https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app",
   "previewDatabaseFingerprint": "545a187f9e9d66b0",
   "checks": {
     "sourceCi": {
       "status": "PASS",
-      "runId": 33604562239,
-      "headSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
+      "runId": 36307243331,
+      "headSha": "e98cdbc613321e7c35e65c141dca7edfd20565a1",
       "testSkipped": 0,
       "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
     },
@@ -22,21 +22,21 @@
     "build": "PASS",
     "unit": {
       "status": "PASS",
-      "files": 17,
-      "passed": 125,
+      "files": 23,
+      "passed": 137,
       "skipped": 0
     },
     "integration": {
       "status": "PASS",
-      "files": 12,
-      "passed": 59,
+      "files": 14,
+      "passed": 72,
       "skipped": 0,
       "parallelism": "one ordinary node --test invocation with default file concurrency",
       "residue": 0
     },
     "targetedRecovery": {
       "status": "PASS",
-      "testsPerRun": 12,
+      "testsPerRun": 24,
       "consecutiveRuns": 5,
       "skipped": 0,
       "contract": "policy activation, reviewer authority, credential lifecycle, idempotency, materialization, concurrency, atomic throttling, and exact approval binding"
@@ -105,9 +105,9 @@
     },
     "previewUat": {
       "status": "PASS",
-      "deploymentId": "dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB",
-      "deploymentSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
-      "previewUrl": "https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app",
+      "deploymentId": "dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu",
+      "deploymentSha": "e98cdbc613321e7c35e65c141dca7edfd20565a1",
+      "previewUrl": "https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app",
       "databaseFingerprint": "545a187f9e9d66b0",
       "productionFingerprint": "0257665af2dd90a4",
       "storageId": "store_Ov8erHstuvfJ52Og",
@@ -135,19 +135,20 @@
     },
     "independentReview": {
       "status": "PASS",
-      "reviewedSha": "784140db230e8d0c1a566d2e70bbce91162a5587",
+      "reviewedSha": "e98cdbc613321e7c35e65c141dca7edfd20565a1",
       "p0": 0,
       "p1": 0,
       "p2": 1,
-      "reviewer": "independent reviewer agent Plato (Codex)"
+      "reviewer": "independent reviewer agent Gibbs (Codex)"
     },
     "evidenceSchema": "PASS",
+    "evidenceHeadCi": "PENDING",
     "discoveryParity": {
       "status": "PASS",
-      "localIntegrationFiles": 12,
-      "ciIntegrationFiles": 12,
-      "localIntegrationTests": 59,
-      "ciIntegrationTests": 59
+      "localIntegrationFiles": 14,
+      "ciIntegrationFiles": 14,
+      "localIntegrationTests": 72,
+      "ciIntegrationTests": 72
     },
     "skipped": 0,
     "notRun": 0

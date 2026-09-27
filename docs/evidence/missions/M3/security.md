@@ -50,9 +50,10 @@
 
 ## Review result
 
-Independent review of exact source SHA `784140db230e8d0c1a566d2e70bbce91162a5587`
-reported P0=0, P1=0, P2=1. The open P2 is bounded retention cleanup for expired persistent
-login-rate-limit identities; it does not bypass authentication or throttling and is owned by
-Platform Operations for completion by 2026-09-15 or before M3 Production release. Exact Preview
+Independent review of exact source SHA `e98cdbc613321e7c35e65c141dca7edfd20565a1`
+reported P0=0, P1=0, P2=1. Bounded login-rate-limit retention now has an indexed,
+scheduled, authorized cleanup and targeted tests. The remaining P2 is the
+Finance Case-detail read restriction recorded in `review.md`; it does not widen
+tenant access. Exact Preview
 negative tests reported cross-tenant access=0, unexpected 5xx=0, document reconciliation=0,
 and payment reconciliation=0.

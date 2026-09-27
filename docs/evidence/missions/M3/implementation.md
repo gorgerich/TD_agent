@@ -4,7 +4,7 @@
 
 Mission `M3-FULFILMENT-MONEY-TRUST` is implemented from base
 `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. The certified source tree is
-`784140db230e8d0c1a566d2e70bbce91162a5587`.
+`e98cdbc613321e7c35e65c141dca7edfd20565a1`.
 
 Read-only baseline verification identified Production deployment
 `dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g`, Production database fingerprint
@@ -76,6 +76,9 @@ for tests and no Production data, schema, environment, or deployment was changed
   permanently revocable, and bound to role-specific Ed25519 human attestations.
 - Narrow mobile reflow keeps document owner and due-date metadata visible at the
   200 percent equivalent viewport without hiding or truncating live content.
+- A targeted projection repair uses fresh Case state under the organization lock,
+  retries only a known Prisma transaction timeout, and permits a measured
+  30-second projection transaction without changing finance transaction limits.
 - The Quality workflow grants only `contents: read` and `actions: read`, allowing the
   fail-closed evidence validator to attest the exact prior source CI run. No write-capable
   GitHub permission, validator exception, or product runtime behavior was added.

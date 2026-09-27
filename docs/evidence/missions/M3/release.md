@@ -1,53 +1,45 @@
 # M3 release packet
 
-## Terminal state
+## Current state
 
 `BLOCKED_HUMAN_JUDGMENT`
 
-All safely executable technical work is complete on implementation SHA
-`784140db230e8d0c1a566d2e70bbce91162a5587`. Deterministic gates, exact-SHA isolated Preview
-UAT, migration/restore/no-op/parity, reconciliation, accessibility/mobile, evidence validation,
-and independent review pass with skipped=0, NOT_RUN=0, P0=0, and P1=0.
+The product PR is not merged. Production has not changed. The owner conditionally
+authorized a closed CPO audit release on a synthetic allowlisted organization,
+not a broad agent rollout. Finance, Legal/Privacy, and Ritual SME verdicts are
+still `AWAITING_HUMAN_VERDICT` and must not be represented as PASS.
 
-The mission cannot truthfully become `MISSION_RELEASE_READY` until three people issue explicit
-verdicts on the candidate:
+The reviewed runtime is `e98cdbc613321e7c35e65c141dca7edfd20565a1`.
+Source CI `https://github.com/gorgerich/TD_agent/actions/runs/36307243331`
+passed all technical steps; its overall conclusion was failure solely at the
+stale authoritative evidence validator. The evidence-head CI must pass before
+merge. No Production write, migration, environment change, or deployment has
+been performed.
 
-1. Finance/accounting: ledger, evidence, correction/reversal, threshold, and reconciliation.
-2. Legal/Privacy: contract/signing boundary, consent, retention, document access, and family roles.
-3. Ritual-operations SME: cremation and family-plot requirements, conditions, blockers, and review checklist.
+## Exact Preview
 
-Prepared factual packets are in `finance.md`, `privacy.md`, and `ritual-rules.md`. No automated
-result is substituted for a human decision.
+- URL: `https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu`, READY at the runtime SHA above.
+- Railway Preview DB fingerprint: `545a187f9e9d66b0`, distinct from Production
+  `0257665af2dd90a4`.
+- Private Preview storage: `store_Ov8erHstuvfJ52Og`.
+- Authenticated UAT run: `owner-preview-20260927`, 2 synthetic organizations,
+  6 role identities, 2 Cases. Cremation, family-plot burial, document review,
+  contract, partial/full payment, refund/reversal, webhook x5, finance/reviewer
+  visibility, cross-tenant denial, reconciliation, mobile and 200% zoom PASS.
+  Unexpected 5xx=0, skipped=0. Retained synthetic history is not deleted.
+- Previous Preview/UAT at `784140db230e8d0c1a566d2e70bbce91162a5587`
+  is historical and does not certify the current runtime.
 
-## Release controls
+## Release boundary
 
-- Product PR: `https://github.com/gorgerich/TD_agent/pull/32`
-- Source CI: `https://github.com/gorgerich/TD_agent/actions/runs/33604562239`
-- Exact Preview: `https://td-agent-gccg0szuh-rics-projects-9baa2793.vercel.app`
-- Preview deployment: `dpl_G4xZXHWRCtERDsVqXda9RuGxdqWB`
-- Preview DB: isolated fingerprint `545a187f9e9d66b0`
-- Preview storage: private `store_Ov8erHstuvfJ52Og`
-- Production writes: **NONE**
-- Production DB/schema changes: **NONE**
-- Production env changes: **NONE**
-- Production deployment: **UNCHANGED**
-- Production release authorization: **NOT GRANTED**
-- Product PR merge: **NOT PERFORMED**
+Full agent rollout remains blocked by three human verdicts. CPO audit release
+requires green evidence-head CI, protected merge, verified Production DB/NOX
+isolation, fresh encrypted backup with real isolated restore, additive migration
+compatibility, rollback target, freeze coverage, and server-side CPO allowlist.
+None of these final Production preflight gates may be inferred from Preview UAT.
+If any gate fails, do not merge or deploy.
 
-Final read-only verification re-confirmed Production fingerprint
-`0257665af2dd90a4`, `transaction_read_only=on`, zero M3 tables from the guarded set, and no
-applied M3 migration record. Production deployment remained
-`dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g` READY.
-
-## Required owner decision
-
-Arrange the three human reviews against the exact Preview and record their PASS/FAIL attestations.
-If all three pass, revalidate the unchanged head and request `AUTHORIZE M3 RELEASE`. If any reviewer
-rejects a policy, return the exact rule or accounting/privacy decision to rework; do not weaken the
-fail-closed defaults.
-
-`RISK-W1-TECH-HUMAN-REVIEW` remains OPEN. M4 has not started.
-
-Technical P2 `M3-P2-RATE-LIMIT-RETENTION` tracks bounded reclamation of expired persistent
-login-rate-limit identities. Platform Operations owns it for 2026-09-15 or before M3 Production
-release. It does not weaken authentication, throttling, tenant isolation, or current mission gates.
+The known P2 Finance Case-detail read restriction is owned by M3 product
+engineering, due 2026-10-04 before broad rollout. `RISK-W1-TECH-HUMAN-REVIEW`
+remains OPEN. M4 has not started.
