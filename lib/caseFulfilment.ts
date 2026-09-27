@@ -18,19 +18,13 @@ export async function advanceCaseFulfilment(
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await runOperationalTransaction(async (tx) => {
-        const [record] = await tx.$queryRaw<Array<{
-          leadId: number; ownerId: number; stage: string; acquired: boolean;
-        }>>`
-          SELECT c."leadId", c."ownerId", c."stage", pg_try_advisory_xact_lock(
+        const [lock] = await tx.$queryRaw<Array<{ acquired: boolean }>>`
+          SELECT pg_try_advisory_xact_lock(
             hashtextextended(${`m3-case-projection:${input.organizationId}:${input.caseId}`}, 0)
           ) AS "acquired"
-          FROM "Case" c
-          WHERE c."id" = ${input.caseId} AND c."tenantId" = ${input.organizationId}
-          LIMIT 1
         `;
-        if (!record) throw new OperationalCommandError(404, "Кейс не найден");
-        if (!record.acquired) throw new FulfilmentProjectionBusyError();
-        return advanceCaseFulfilmentInTransaction(tx, input, record);
+        if (!lock?.acquired) throw new FulfilmentProjectionBusyError();
+        return advanceCaseFulfilmentInTransaction(tx, input);
       }, {
         isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
         timeoutMs: 30_000,
@@ -74,8 +68,13 @@ export async function advanceCaseFulfilmentInTransaction(
     correlationId: string;
     causationId?: string;
   },
-  record: { leadId: number; ownerId: number; stage: string },
 ): Promise<FulfilmentAdvanceResult> {
+  const record = await tx.case.findFirst({
+    where: { id: input.caseId, tenantId: input.organizationId },
+    select: { leadId: true, ownerId: true, stage: true },
+  });
+  if (!record) throw new OperationalCommandError(404, "Кейс не найден");
+
   let stage: string = record.stage;
   const transitioned: CaseTransitionEvent[] = [];
   let blockedBy: string | null = null;

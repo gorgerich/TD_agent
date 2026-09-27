@@ -29,6 +29,7 @@ import {
 } from "../../lib/documentRequirementService";
 import { reconcileM3Case } from "../../lib/m3Reconciliation";
 import { transitionCase } from "../../lib/caseService";
+import { advanceCaseFulfilment } from "../../lib/caseFulfilment";
 import { CaseDomainError } from "../../lib/caseDomain";
 import { getCanonicalCase } from "../../lib/caseReadModel";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
@@ -575,6 +576,22 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     data: { status: "RETIRED", retiredAt: new Date() },
   });
   assert.equal((await db.case.findUniqueOrThrow({ where: { id: caseRecord.id } })).stage, "PAYMENT");
+  assert.equal(await db.caseEvent.count({
+    where: { caseId: caseRecord.id, eventType: "contract.signed.v1" },
+  }), 1);
+  const projectionInput = {
+    organizationId: agent.organizationId,
+    caseId: caseRecord.id,
+    actorAgentId: agent.agentId,
+    actorMembershipId: agent.membershipId,
+    idempotencyKey: `${fixtures.runId}:concurrent-projection-recheck`,
+    correlationId: `${fixtures.runId}:concurrent-projection-recheck`,
+  };
+  const projectionRechecks = await Promise.all([
+    advanceCaseFulfilment(projectionInput),
+    advanceCaseFulfilment(projectionInput),
+  ]);
+  assert.deepEqual(projectionRechecks.map((result) => result.stage), ["PAYMENT", "PAYMENT"]);
   assert.equal(await db.caseEvent.count({
     where: { caseId: caseRecord.id, eventType: "contract.signed.v1" },
   }), 1);
