@@ -7,16 +7,19 @@ export async function runOperationalTransaction<T>(
   options: number | {
     maxAttempts?: number;
     isolationLevel?: Prisma.TransactionIsolationLevel;
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   const maxAttempts = typeof options === "number" ? options : options.maxAttempts ?? 3;
   const isolationLevel = typeof options === "number"
     ? Prisma.TransactionIsolationLevel.Serializable
     : options.isolationLevel ?? Prisma.TransactionIsolationLevel.Serializable;
+  const timeout = typeof options === "number" ? undefined : options.timeoutMs;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await prisma.$transaction(work, {
         isolationLevel,
+        ...(timeout === undefined ? {} : { timeout }),
       });
     } catch (error) {
       if (!isRetryableOperationalRace(error)) {

@@ -14,20 +14,32 @@ export async function advanceCaseFulfilment(
   input: Parameters<typeof advanceCaseFulfilmentInTransaction>[1],
 ): Promise<FulfilmentAdvanceResult> {
   const maxAttempts = 40;
+  let expiredTransactions = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await runOperationalTransaction(async (tx) => {
-        const [lock] = await tx.$queryRaw<Array<{ acquired: boolean }>>`
-          SELECT pg_try_advisory_xact_lock(
+        const [record] = await tx.$queryRaw<Array<{
+          leadId: number; ownerId: number; stage: string; acquired: boolean;
+        }>>`
+          SELECT c."leadId", c."ownerId", c."stage", pg_try_advisory_xact_lock(
             hashtextextended(${`m3-case-projection:${input.organizationId}:${input.caseId}`}, 0)
           ) AS "acquired"
+          FROM "Case" c
+          WHERE c."id" = ${input.caseId} AND c."tenantId" = ${input.organizationId}
+          LIMIT 1
         `;
-        if (!lock?.acquired) throw new FulfilmentProjectionBusyError();
-        return advanceCaseFulfilmentInTransaction(tx, input);
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+        if (!record) throw new OperationalCommandError(404, "Кейс не найден");
+        if (!record.acquired) throw new FulfilmentProjectionBusyError();
+        return advanceCaseFulfilmentInTransaction(tx, input, record);
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+        timeoutMs: 30_000,
+      });
     } catch (error) {
-      if (!(error instanceof FulfilmentProjectionBusyError)) throw error;
-      if (attempt === maxAttempts) {
+      const expired = isExpiredProjectionTransaction(error);
+      if (!(error instanceof FulfilmentProjectionBusyError) && !expired) throw error;
+      if (expired) expiredTransactions += 1;
+      if (attempt === maxAttempts || expiredTransactions >= 3) {
         throw new OperationalCommandError(
           503,
           "Команда сохранена, но синхронизация кейса ещё выполняется. Повторите то же действие.",
@@ -46,6 +58,10 @@ export async function advanceCaseFulfilment(
 
 class FulfilmentProjectionBusyError extends Error {}
 
+export function isExpiredProjectionTransaction(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2028";
+}
+
 export async function advanceCaseFulfilmentInTransaction(
   tx: Prisma.TransactionClient,
   input: {
@@ -58,13 +74,8 @@ export async function advanceCaseFulfilmentInTransaction(
     correlationId: string;
     causationId?: string;
   },
+  record: { leadId: number; ownerId: number; stage: string },
 ): Promise<FulfilmentAdvanceResult> {
-  const record = await tx.case.findFirst({
-    where: { id: input.caseId, tenantId: input.organizationId },
-    select: { leadId: true, ownerId: true, stage: true },
-  });
-  if (!record) throw new OperationalCommandError(404, "Кейс не найден");
-
   let stage: string = record.stage;
   const transitioned: CaseTransitionEvent[] = [];
   let blockedBy: string | null = null;

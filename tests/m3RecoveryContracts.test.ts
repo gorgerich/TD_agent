@@ -11,6 +11,8 @@ import {
 } from "../lib/clientCommandRecovery";
 import { handleApiError } from "../lib/apiAuth";
 import { OperationalCommandError } from "../lib/operationalTransaction";
+import { Prisma } from "@prisma/client";
+import { isExpiredProjectionTransaction } from "../lib/caseFulfilment";
 
 test("M3 post-commit recovery locks the exact command key and payload", () => {
   const reference: { current: ClientCommandIdentity | null } = { current: null };
@@ -60,6 +62,20 @@ test("M3 projection contention is an explicit retryable service response", async
     error: "Команда сохранена, но синхронизация кейса ещё выполняется. Повторите то же действие.",
     code: "CASE_PROJECTION_RETRY",
   });
+});
+
+test("M3 retries only a rolled-back projection transaction timeout", () => {
+  const timeout = new Prisma.PrismaClientKnownRequestError("Transaction already closed", {
+    code: "P2028",
+    clientVersion: "test",
+  });
+  const unrelated = new Prisma.PrismaClientKnownRequestError("Other database error", {
+    code: "P2002",
+    clientVersion: "test",
+  });
+  assert.equal(isExpiredProjectionTransaction(timeout), true);
+  assert.equal(isExpiredProjectionTransaction(unrelated), false);
+  assert.equal(isExpiredProjectionTransaction(new Error("P2028")), false);
 });
 
 test("M3 case projection producers cannot bypass the public advisory-lock wrapper", () => {
