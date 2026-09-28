@@ -214,6 +214,7 @@ async function agentFlow(target, browserContext) {
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
   const [meetingUpdate] = await Promise.all([
     target.waitForResponse((response) => response.url().includes("/api/agent/meetings/") && response.request().method() === "PATCH"),
+    target.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === meetingHref),
     target.getByRole("button", { name: "Сохранить" }).click(),
   ]);
   assert.equal(meetingUpdate.status(), 200, "Meeting outcome update must succeed");

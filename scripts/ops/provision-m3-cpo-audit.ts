@@ -124,6 +124,10 @@ async function main() {
           && member.agent?.status === "ACTIVE" && member.user.platformRole === "USER").length !== 1)) {
         throw new Error("Existing CPO organization differs from expected synthetic fixture");
       }
+      if (await db.membership.count({ where: {
+        userId: { in: members.map((member) => member.user.id) },
+        organizationId: { not: M3_CPO_AUDIT_ORGANIZATION_ID },
+      } })) throw new Error("Synthetic CPO user has another organization membership");
       const saved = readCredentials();
       if (!saved || roles.some((role) => !verifyPassword(saved[role], members.find((member) =>
         member.user.email === `m3-cpo-${role}@synthetic.invalid`)?.user.passwordHash ?? null))) {
