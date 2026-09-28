@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, mock, test } from "node:test";
+import { Prisma } from "@prisma/client";
 import { db, skip } from "./_setup";
 import { claimRateLimitRetentionCadence, cleanupExpiredRateLimitBuckets, drainRateLimitRetention, RATE_LIMIT_RETENTION_BATCH } from "../../lib/rateLimitRetention";
 import { enforcePersistentIdentityRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
@@ -151,6 +152,19 @@ test("shared cadence admits one parallel claimant and survives a failed cleanup"
   assert.equal(await claimRateLimitRetentionCadence(keyHash), false);
   await db.securityRateLimitBucket.update({ where: { keyHash }, data: { resetAt: new Date(0) } });
   assert.equal(await claimRateLimitRetentionCadence(keyHash), true);
+});
+
+test("cadence lock contention yields to the winning claimant without hiding other database errors", opts, async () => {
+  const contention = new Prisma.PrismaClientKnownRequestError("lock contention", {
+    code: "P2010", clientVersion: Prisma.prismaVersion.client, meta: { code: "55P03" },
+  });
+  const transaction = mock.method(db, "$transaction", async () => { throw contention; });
+  try {
+    assert.equal(await claimRateLimitRetentionCadence(randomUUID()), false);
+    const unexpected = new Error("unexpected database failure");
+    transaction.mock.mockImplementation(async () => { throw unexpected; });
+    await assert.rejects(claimRateLimitRetentionCadence(randomUUID()), unexpected);
+  } finally { transaction.mock.restore(); }
 });
 
 test("application clock skew cannot reset an active database-clock limit", opts, async () => {

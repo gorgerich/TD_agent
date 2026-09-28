@@ -53,19 +53,25 @@ export async function tryLoginRateLimitRetention(): Promise<void> {
 
 /** Commit the lease separately so cleanup failure cannot erase fleet-wide backoff. */
 export async function claimRateLimitRetentionCadence(keyHash = CADENCE_KEY): Promise<boolean> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SET LOCAL statement_timeout = '1000ms'`;
-    await tx.$executeRaw`SET LOCAL lock_timeout = '100ms'`;
-    const rows = await tx.$queryRaw<Array<{ keyHash: string }>>`
-      INSERT INTO "SecurityRateLimitBucket" AS lease ("keyHash", "count", "resetAt", "updatedAt")
-      VALUES (${keyHash}, 1, (statement_timestamp() AT TIME ZONE 'UTC') + interval '1 minute', (statement_timestamp() AT TIME ZONE 'UTC'))
-      ON CONFLICT ("keyHash") DO UPDATE
-        SET "resetAt" = EXCLUDED."resetAt", "updatedAt" = EXCLUDED."updatedAt"
-        WHERE lease."resetAt" <= (statement_timestamp() AT TIME ZONE 'UTC')
-      RETURNING "keyHash"
-    `;
-    return rows.length === 1;
-  }, { maxWait: 500, timeout: 2000 });
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '1000ms'`;
+      await tx.$executeRaw`SET LOCAL lock_timeout = '100ms'`;
+      const rows = await tx.$queryRaw<Array<{ keyHash: string }>>`
+        INSERT INTO "SecurityRateLimitBucket" AS lease ("keyHash", "count", "resetAt", "updatedAt")
+        VALUES (${keyHash}, 1, (statement_timestamp() AT TIME ZONE 'UTC') + interval '1 minute', (statement_timestamp() AT TIME ZONE 'UTC'))
+        ON CONFLICT ("keyHash") DO UPDATE
+          SET "resetAt" = EXCLUDED."resetAt", "updatedAt" = EXCLUDED."updatedAt"
+          WHERE lease."resetAt" <= (statement_timestamp() AT TIME ZONE 'UTC')
+        RETURNING "keyHash"
+      `;
+      return rows.length === 1;
+    }, { maxWait: 500, timeout: 2000 });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2010"
+      && error.meta?.code === "55P03") return false;
+    throw error;
+  }
 }
 
 export async function drainRateLimitRetention() {

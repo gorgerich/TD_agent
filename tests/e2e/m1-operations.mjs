@@ -217,6 +217,8 @@ async function agentFlow(target, browserContext) {
     target.getByRole("button", { name: "Сохранить" }).click(),
   ]);
   assert.equal(meetingUpdate.status(), 200, "Meeting outcome update must succeed");
+  const updatedMeeting = await meetingUpdate.json();
+  assert.equal(updatedMeeting.meeting?.status, "COMPLETED", "Meeting command must persist completed status");
   await target.getByText("Завершена", { exact: true }).waitFor();
   await target.getByText("Синтетический исход встречи зафиксирован", { exact: true }).waitFor();
   return "PASS";
