@@ -212,8 +212,13 @@ async function agentFlow(target, browserContext) {
   await target.getByText("Подтверждена", { exact: true }).waitFor();
   await target.getByRole("button", { name: "Зафиксировать итог" }).click();
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
-  await target.getByRole("button", { name: "Сохранить" }).click();
-  await target.getByRole("status").filter({ hasText: "результат встречи сохранены" }).waitFor();
+  const [meetingUpdate] = await Promise.all([
+    target.waitForResponse((response) => response.url().includes("/api/agent/meetings/") && response.request().method() === "PATCH"),
+    target.getByRole("button", { name: "Сохранить" }).click(),
+  ]);
+  assert.equal(meetingUpdate.status(), 200, "Meeting outcome update must succeed");
+  await target.getByText("Завершена", { exact: true }).waitFor();
+  await target.getByText("Синтетический исход встречи зафиксирован", { exact: true }).waitFor();
   return "PASS";
 }
 
