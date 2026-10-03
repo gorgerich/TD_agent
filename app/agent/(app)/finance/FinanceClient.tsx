@@ -280,7 +280,7 @@ export function FinanceClient({
           <FileCsv size={15} weight="bold" /> Скачать сверку
         </a>
       </header>
-      {error && <p role="alert" className="mb-4 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
+      {error && !actionState && !approvalState && <p role="alert" className="mb-4 bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
 
       {initial.pendingApprovals.length > 0 && (
         <section className="td-shell mb-6 overflow-hidden" aria-labelledby="approval-title">

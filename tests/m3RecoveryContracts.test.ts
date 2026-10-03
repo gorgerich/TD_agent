@@ -17,6 +17,26 @@ import ts from "typescript";
 
 const financeSource = readFileSync(new URL("../app/agent/(app)/finance/FinanceClient.tsx", import.meta.url), "utf8");
 
+test("Finance shows an error in exactly one location while an action or approval modal is active", () => {
+  const alertConditions = [...financeSource.matchAll(/\{([^{}\n]+) && <p role="alert"/g)].map((match) => match[1]);
+  assert.equal(alertConditions.length, 2, "only the modal and page error locations should exist");
+  const feedbackStart = financeSource.indexOf("const commandFeedback");
+  const pageStart = financeSource.indexOf("  return (", feedbackStart);
+  assert.match(financeSource.slice(feedbackStart, pageStart), /\{error && <p role="alert"/);
+  assert.match(financeSource.slice(pageStart), /\{error && !actionState && !approvalState && <p role="alert"/);
+  for (const modal of ["FinanceActionDialog", "ApprovalDialog"]) {
+    assert.match(financeSource, new RegExp(`<${modal}[^>]*feedback=\\{commandFeedback\\}`));
+  }
+  const [modalAlert, pageAlert] = alertConditions.map((condition) => new Function("error", "actionState", "approvalState", `return Boolean(${condition});`));
+  for (const [actionState, approvalState] of [[null, null], [{}, null], [null, {}]]) {
+    const modalActive = actionState !== null || approvalState !== null;
+    const count = (error: string | null) => Number(pageAlert(error, actionState, approvalState))
+      + Number(modalActive && modalAlert(error, actionState, approvalState));
+    assert.equal(count("test failure"), 1);
+    assert.equal(count(null), 0);
+  }
+});
+
 test("Finance retains the serialized envelope across response and transport recovery boundaries", async () => {
   const source = financeSource.slice(financeSource.indexOf("  async function sendCommand("), financeSource.indexOf("  async function post("));
   const compiled = ts.transpile(source, { target: ts.ScriptTarget.ES2022 });
