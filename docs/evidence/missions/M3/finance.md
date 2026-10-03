@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: financeAccounting
-preview_url: https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu
-deployment_sha: e98cdbc613321e7c35e65c141dca7edfd20565a1
-implementation_sha: e98cdbc613321e7c35e65c141dca7edfd20565a1
+preview_url: https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5
+deployment_sha: ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f
+implementation_sha: ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,9 +15,9 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-- Exact Preview: `https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu`
-- Implementation: `e98cdbc613321e7c35e65c141dca7edfd20565a1`
+- Exact Preview: `https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5`
+- Implementation: `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`
 - Data is synthetic and isolated from Production.
 - Ledger is append-only; corrections and reversals preserve the original entry.
 - Payment status is derived from obligation and ledger, never manually set.

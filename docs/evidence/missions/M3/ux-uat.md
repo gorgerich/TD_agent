@@ -2,13 +2,13 @@
 
 ## Environment
 
-- Deployment: `dpl_HhM5s2s64SHrRrkQkXbsfeRSGFLu`
-- SHA: `e98cdbc613321e7c35e65c141dca7edfd20565a1`
-- URL: `https://td-agent-5xbxjbk6y-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5`
+- SHA: `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`
+- URL: `https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app`
 - Database fingerprint: `545a187f9e9d66b0`
 - Production fingerprint excluded: `0257665af2dd90a4`
 - Private storage: `store_Ov8erHstuvfJ52Og`
-- Data: retained isolated UAT run `owner-preview-20260927`: 2 synthetic organizations,
+- Data: retained isolated UAT run `preview-20261003-ced3fad`: 2 synthetic organizations,
   6 synthetic role identities, and 2 synthetic Cases.
 - Vercel Deployment Protection remained enabled; authenticated automation bypass was used only
   for this protected Preview.
@@ -59,22 +59,16 @@ Result: **PASS**.
 - Exact element capture at the 200 percent equivalent viewport proves owner and due-date metadata
   wrap into visible rows without clipping.
 
-## Anti-slop and UI quality re-check
+## UI quality and scope
 
-The entire applicable AGENTS anti-slop law was re-checked after the exact-SHA capture:
-
-| Area | Result |
-| --- | --- |
-| Product composition | Operational workspaces remain dense, task-focused tools; no landing hero, fake app mockup, decorative dashboard, pricing/testimonial/CTA template, or nested card theatre was introduced. |
-| Color and material | Existing TD Agent palette is retained; no purple gradient, glow orb, candy aurora, glass imitation, background grid, hard color seam, or broad halo shadow was added. |
-| Typography | Existing product typography and letter spacing are retained; no new Google display font, gradient headline, cramped negative tracking, decorative quote, mono house voice, or repeated kicker template was added. |
-| Containers | Cards frame real repeated records or tools only; radius stays restrained, shadows are directional/subtle, gutters are consistent, and no content sits against a viewport edge. |
-| Icons and controls | Existing icon system is used for real commands/status; no hand-drawn substitute, icon tile hero, dead tab, fake toggle, default theme switch, hover lift, or animated underline was added. |
-| Motion and visibility | Content is visible by default; no opacity-zero entrance dependency, floating card loop, parallax decoration, or animation-gated control exists. |
-| Alignment and clipping | Desktop, mobile, and 200 percent layouts have no document-level horizontal overflow; headings, values, buttons, tables/cards, empty states, and nav marks remain inside their functional regions. |
-| Responsive behavior | Finance rows become stacked records on mobile, Reviewer preserves a clear empty/queue state, Case actions remain above the bottom dock, and long synthetic references wrap without widening the page. |
-| Interaction truth | Every rendered control used in UAT was clicked through a real route/API; errors never present empty success, and retry replays the stored command rather than a reconstructed mutation. |
-| Accessibility | Semantic buttons, labels, focus, touch targets, keyboard flow, mobile, zoom, and axe critical/serious gates pass. |
+The new source passed actual keyboard, mobile, 200 percent equivalent viewport,
+overflow and axe checks in CI and protected Preview. The Finance repair adds no
+decorative layout, fonts, gradients, animation or new icon system. It keeps the
+existing functional dialog and makes errors single-location and recovery explicit.
+This is not a claim of perfect compliance with every aesthetic point of AGENTS
+across the entire legacy platform. Older screenshots are not new-SHA captures.
+The new recovery dialog was exercised on desktop; responsive workspace checks
+must not be described as an exhaustive mobile test of every modal state.
 
 ## Screenshots
 

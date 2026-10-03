@@ -50,7 +50,7 @@
 
 ## Review result
 
-Independent review of exact source SHA `e98cdbc613321e7c35e65c141dca7edfd20565a1`
+Independent review of exact source SHA `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`
 reported P0=0, P1=0, P2=1. Bounded login-rate-limit retention now has an indexed,
 scheduled, authorized cleanup and targeted tests. The remaining P2 is the
 Finance Case-detail read restriction recorded in `review.md`; it does not widen

@@ -4,7 +4,7 @@
 
 Mission `M3-FULFILMENT-MONEY-TRUST` is implemented from base
 `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. The certified source tree is
-`e98cdbc613321e7c35e65c141dca7edfd20565a1`.
+`ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`.
 
 Read-only baseline verification identified Production deployment
 `dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g`, Production database fingerprint
