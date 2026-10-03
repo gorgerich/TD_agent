@@ -102,6 +102,13 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm run test:unit
+      - name: M3 intake deadline regression with 80ms network round-trip delay
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "M3 intake latency repeat $attempt/5"
+            node scripts/test-m3-intake-latency.mjs 80
+          done
       - name: Integration tests
         run: npm run test:integration
       - name: Repeat M3 concurrency and policy gates five times

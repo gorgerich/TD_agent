@@ -13,6 +13,14 @@ type RequirementActor = {
   actorType?: string;
 };
 
+type ApplicabilityRequirement = {
+  id: string;
+  stableKey: string;
+  kind: "REQUIRED" | "CONDITIONAL";
+  isApplicable: boolean;
+  rule: { conditionKey: string | null };
+};
+
 export async function materializeCaseRequirements(
   context: OperationalContext,
   caseId: string,
@@ -33,6 +41,7 @@ export async function materializeCaseRequirementsInTransaction(
   scenario: CaseScenario,
   meta: M3CommandMeta,
   now = new Date(),
+  refreshMeta?: M3CommandMeta,
 ) {
   if (scenario !== "CREMATION_V1" && scenario !== "FAMILY_PLOT_BURIAL_V1") {
     throw new OperationalCommandError(422, "Сначала выберите пилотный сценарий кейса");
@@ -41,26 +50,16 @@ export async function materializeCaseRequirementsInTransaction(
     return { policyApproved: false, policyId: null, created: 0, existing: 0 };
   }
   const policyId = await lockDocumentRequirementPolicyScenario(tx, actor.organizationId, scenario, now);
-  if (!policyId) return { policyApproved: false, policyId: null, created: 0, existing: 0 };
+  if (!policyId) {
+    if (refreshMeta) await refreshCaseRequirementApplicabilityInTransaction(tx, actor, caseId, refreshMeta, now);
+    return { policyApproved: false, policyId: null, created: 0, existing: 0 };
+  }
   const policy = await tx.documentRequirementPolicy.findUniqueOrThrow({
     where: { id: policyId },
     include: { rules: { orderBy: { stableKey: "asc" } } },
   });
 
-  const caseFacts = await tx.case.findUniqueOrThrow({
-    where: { id: caseId },
-    select: {
-      lead: { select: { ceremonyAt: true } },
-      parties: {
-        select: {
-          roles: {
-            where: { validFrom: { lte: now }, OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
-            select: { role: true },
-          },
-        },
-      },
-    },
-  });
+  const caseFacts = await loadRequirementFacts(tx, caseId, now);
 
   const reviewer = await tx.membership.findFirst({
     where: {
@@ -73,8 +72,11 @@ export async function materializeCaseRequirementsInTransaction(
   });
   const ruleApplicability = new Map(policy.rules.map((rule) => [rule.id, requirementApplies(rule, caseFacts)]));
   const existingRequirements = await tx.caseDocumentRequirement.findMany({
-    where: { caseId, ruleId: { in: policy.rules.map((rule) => rule.id) } },
-    select: { id: true, ruleId: true, isApplicable: true },
+    where: { caseId, organizationId: actor.organizationId },
+    select: {
+      id: true, ruleId: true, stableKey: true, kind: true, isApplicable: true,
+      rule: { select: { conditionKey: true } },
+    },
   });
   const existingByRuleId = new Map(existingRequirements.map((requirement) => [requirement.ruleId, requirement]));
   const missingRules = policy.rules.filter((rule) => !existingByRuleId.has(rule.id));
@@ -106,7 +108,8 @@ export async function materializeCaseRequirementsInTransaction(
     });
   const created = inserted.count;
   const applicabilityChanges = existingRequirements.filter((requirement) => (
-    requirement.isApplicable !== (ruleApplicability.get(requirement.ruleId) ?? false)
+    ruleApplicability.has(requirement.ruleId)
+    && requirement.isApplicable !== ruleApplicability.get(requirement.ruleId)
   ));
   await Promise.all(applicabilityChanges.map((requirement) => tx.caseDocumentRequirement.update({
     where: { id: requirement.id },
@@ -133,6 +136,12 @@ export async function materializeCaseRequirementsInTransaction(
       actorType: actor.actorType,
     });
   }
+  if (refreshMeta) {
+    // Newly inserted requirements already use these same facts. Existing current
+    // policy rows were updated above; only historical applicability remains.
+    const historicalRequirements = existingRequirements.filter(requirement => !ruleApplicability.has(requirement.ruleId));
+    await refreshCaseRequirementApplicabilityInTransaction(tx, actor, caseId, refreshMeta, now, caseFacts, historicalRequirements);
+  }
   return {
     policyApproved: true,
     policyId: policy.id,
@@ -149,11 +158,13 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
   caseId: string,
   meta: M3CommandMeta,
   now = new Date(),
+  facts?: RequirementFacts,
+  existingRequirements?: ApplicabilityRequirement[],
 ) {
   if (!isM3ProductionWriteAllowed(actor.organizationId)) return { changed: 0 };
   const [caseFacts, requirements] = await Promise.all([
-    loadRequirementFacts(tx, caseId, now),
-    tx.caseDocumentRequirement.findMany({
+    facts ?? loadRequirementFacts(tx, caseId, now),
+    existingRequirements ?? tx.caseDocumentRequirement.findMany({
       where: { caseId, organizationId: actor.organizationId },
       select: {
         id: true,
@@ -308,20 +319,25 @@ export type RequirementFacts = {
 };
 
 async function loadRequirementFacts(tx: Prisma.TransactionClient, caseId: string, now: Date): Promise<RequirementFacts> {
-  return tx.case.findUniqueOrThrow({
-    where: { id: caseId },
-    select: {
-      lead: { select: { ceremonyAt: true } },
-      parties: {
-        select: {
-          roles: {
-            where: { validFrom: { lte: now }, OR: [{ validUntil: null }, { validUntil: { gt: now } }] },
-            select: { role: true },
-          },
-        },
-      },
-    },
-  });
+  // Applicability consumes only the date and the set of effective roles, not
+  // the party records. One joined read avoids four relation round trips.
+  const rows = await tx.$queryRaw<Array<{ ceremonyAt: Date | null; role: string | null }>>`
+    SELECT lead."ceremonyAt", assignment."role"::text AS "role"
+    FROM "Case" AS record
+    JOIN "ClientLead" AS lead ON lead."id" = record."leadId"
+    LEFT JOIN "CaseParty" AS party
+      ON party."caseId" = record."id" AND party."organizationId" = record."tenantId"
+    LEFT JOIN "CasePartyRoleAssignment" AS assignment
+      ON assignment."casePartyId" = party."id" AND assignment."organizationId" = record."tenantId"
+      AND assignment."validFrom" <= ${now}
+      AND (assignment."validUntil" IS NULL OR assignment."validUntil" > ${now})
+    WHERE record."id" = ${caseId}
+  `;
+  if (!rows.length) throw new OperationalCommandError(404, "Кейс не найден");
+  return {
+    lead: { ceremonyAt: rows[0].ceremonyAt },
+    parties: [{ roles: rows.flatMap(({ role }) => role ? [{ role }] : []) }],
+  };
 }
 
 function requirementApplies(

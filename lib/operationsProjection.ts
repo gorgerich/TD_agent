@@ -29,19 +29,19 @@ export async function projectCaseEventInTransaction(
 
   const affectedTaskIds: number[] = [];
   if (input.eventType === "scenario.selected.v1") {
-    const tasks = await Promise.all([
-      createProjectedTask(tx, context, input, {
+    const tasks = await createProjectedTasks(tx, context, input, [
+      {
         type: "PREPARATION",
         title: "Подготовить сценарный чек-лист",
         expectedOutcome: "Все обязательные действия до встречи распределены",
         priority: "HIGH",
-      }),
-      createProjectedTask(tx, context, input, {
+      },
+      {
         type: "QUOTE_SEND",
         title: "Подготовить и отправить смету",
         expectedOutcome: "Смета опубликована для клиента",
         priority: "HIGH",
-      }),
+      },
     ]);
     affectedTaskIds.push(...tasks.map((task) => task.id));
   }
@@ -294,19 +294,20 @@ export async function closeMeetingEscalationInTransaction(
   return firstUpdated;
 }
 
-async function createProjectedTask(
+async function createProjectedTasks(
   tx: Prisma.TransactionClient,
   context: CaseCommandContext,
   input: CaseProjectionInput,
-  task: {
+  tasks: Array<{
     type: "PREPARATION" | "QUOTE_SEND";
     title: string;
     expectedOutcome: string;
     priority: "HIGH";
-  },
+  }>,
 ) {
-  const created = await tx.task.create({
-    data: {
+  const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const created = await tx.task.createManyAndReturn({
+    data: tasks.map(task => ({
       organizationId: context.organizationId,
       caseId: input.caseId,
       leadId: input.leadId,
@@ -320,25 +321,25 @@ async function createProjectedTask(
       idempotencyKey: `projection:${input.eventId}:${task.type.toLowerCase()}`,
       title: task.title,
       expectedOutcome: task.expectedOutcome,
-      dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    },
+      dueAt,
+    })),
   });
-  await tx.operationalAuditEvent.create({
-    data: {
+  await tx.operationalAuditEvent.createMany({
+    data: created.map(task => ({
       organizationId: context.organizationId,
       actorMembershipId: context.membershipId,
       entityType: "task",
-      entityId: String(created.id),
+      entityId: String(task.id),
       action: "task.created_by_event",
       before: {},
-      after: projectionTaskSnapshot(created),
+      after: projectionTaskSnapshot(task),
       correlationId: context.correlationId,
       causationId: input.eventId,
       idempotencyKey: `projection:${input.eventId}:${task.type.toLowerCase()}:audit`,
-      result: { taskId: created.id },
-    },
+      result: { taskId: task.id },
+    })),
   });
-  return created;
+  return tasks.map(task => created.find(record => record.type === task.type)!);
 }
 
 function projectionTaskSnapshot(task: {
