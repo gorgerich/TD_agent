@@ -14,6 +14,7 @@ const mutations = new Set(["create", "createMany", "createManyAndReturn", "updat
 type Trace = {
   operations: string[];
   completed: string[];
+  timings: Array<{ operation: string; durationMs: number }>;
   faultCaseId?: string;
   injected: number;
   transactionMs?: number;
@@ -36,7 +37,10 @@ before(async () => {
     const trace = traces.getStore();
     const operation = `${params.model ?? "raw"}.${params.action}`;
     trace?.operations.push(operation);
-    const result = await next(params);
+    const started = performance.now();
+    let result;
+    try { result = await next(params); }
+    finally { trace?.timings.push({ operation, durationMs: Math.round(performance.now() - started) }); }
     trace?.completed.push(operation);
     const data = params.args as { data?: { caseId?: string; eventType?: string } } | undefined;
     if (trace?.faultCaseId && params.model === "CaseEvent" && params.action === "create"
@@ -90,7 +94,7 @@ async function submit(
   fixture: Fixture, scenario: Scenario, key: string,
   suffix: string | Record<string, string | null> = "original", fault = false,
 ) {
-  const trace: Trace = { operations: [], completed: [], injected: 0, ...(fault ? { faultCaseId: fixture.id } : {}) };
+  const trace: Trace = { operations: [], completed: [], timings: [], injected: 0, ...(fault ? { faultCaseId: fixture.id } : {}) };
   await latencyControl(true);
   try {
     const response = await traces.run(trace, () => intakePatch(makeRequest(`/api/agent/cases/${fixture.leadId}/intake`, {
@@ -116,7 +120,7 @@ async function latencyControl(active: boolean) {
 }
 
 async function successful(result: Awaited<ReturnType<typeof submit>>) {
-  assert.equal(result.response.status, 200, JSON.stringify(await result.response.clone().json()));
+  assert.equal(result.response.status, 200, JSON.stringify({ response: await result.response.clone().json(), transactionMs: result.trace.transactionMs, timings: result.trace.timings }));
   const body = await result.response.json() as CaseCommandResult & { ok: boolean };
   assert.equal(body.ok, true);
   return body;
@@ -293,8 +297,11 @@ for (const scenario of scenarios) {
       // Fixture-only stage setup isolates the intake branch from unrelated lifecycle prerequisites.
       await db.case.update({ where: { id: fixture.id }, data: { stage } });
       const beforeEdit = await snapshot(fixture);
-      const body = await successful(await submit(fixture, otherScenario,
-        `${fixtures.runId}:${scenario.id}:edit:${stage}`, stage));
+      const request = await submit(fixture, otherScenario,
+        `${fixtures.runId}:${scenario.id}:edit:${stage}`, stage);
+      const body = await successful(request);
+      assert.equal(request.trace.operations.filter(operation => operation === "raw.queryRaw").length, 2,
+        "Later intake edits need only the Case lock and applicability facts, not a scenario policy lock");
       const state = await snapshot(fixture);
       assert.equal(body.stage, stage);
       assert.equal(body.scenarioId, scenario.id);

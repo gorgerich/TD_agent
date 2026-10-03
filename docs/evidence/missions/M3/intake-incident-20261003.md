@@ -55,3 +55,18 @@ The latency harness is local-only, preserves concurrent request scopes and packe
 ## Release boundary
 
 Do not merge or promote this candidate until all required repair gates and new exact-runtime Preview UAT pass. Before release, recheck production fingerprint `0257665af2dd90a4`, customer baseline, freeze, backup/restore readiness and rollback deployment. Resume the retained synthetic Case 57, not a replacement tenant. Existing M3 migration is already applied and must not be manually reapplied. On failure preserve freeze and financial/document history, and restore the verified runtime target.
+# Continued repair on 2026-10-04
+
+The 28-query candidate `64505ffc58ccd118b2b456de6b9aa238b2cf2a0a` passed all
+technical steps of source CI `37158517403`, including the 80ms latency gate,
+canonical integration, required concurrency repeats, build, E2E and encrypted
+restore/parity. Its overall CI failed at authoritative evidence validation.
+This is not a green overall CI or release approval.
+
+Local v4 and diagnostic runs retained two later-stage/initial timeout failures;
+they are not relabeled PASS. The subsequent repair removes the early policy lock
+only when the locked Case is beyond INTAKE/PLANNING, where scenario selection and
+materialization cannot occur. Tenant/owner Case locking and requirement refresh
+remain mandatory. Regression tests assert two raw operations on those edits and
+record operation names/durations without query values. Five new latency repeats
+and exact-runtime authenticated UAT remain required before release.

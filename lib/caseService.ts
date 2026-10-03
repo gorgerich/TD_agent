@@ -177,7 +177,8 @@ export async function saveCaseIntake(input: {
       const replay = await findCommandReplay(tx, lockedCase.id, tenantId, input.context.idempotencyKey, eventType);
       if (replay) return replayResult(replay.result);
       const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
-      if (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1") {
+      if ((lockedCase.stage === CaseStage.INTAKE || lockedCase.stage === CaseStage.PLANNING)
+        && (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1")) {
         await lockDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
       }
       const updatedLead = await tx.clientLead.update({ where: { id: input.leadId }, data: input.data });
