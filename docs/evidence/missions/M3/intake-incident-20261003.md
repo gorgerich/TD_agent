@@ -25,6 +25,8 @@ Initial intake loaded the entire aggregate five times in one transaction, includ
 | Joined-facts repair candidate | Family-plot burial | 32 | 3 | 106 |
 | Batched-projection repair candidate | Cremation | 30 | 3 | 404 |
 | Batched-projection repair candidate | Family-plot burial | 30 | 3 | 320 |
+| Preloaded-requirements repair candidate | Cremation | 28 | 3 | 150 |
+| Preloaded-requirements repair candidate | Family-plot burial | 28 | 3 | 103 |
 
 Application region `iad1` and Railway TD Agent database region `us-west2` differ. A read-only operator-Mac probe of 20 `SELECT 1` calls measured median 279.105 ms, p95 347.587 ms and max 356.452 ms. This is **not** a measurement of Vercel-to-database RTT. The incident duration divided by reproduced query count implies about 66.8 ms per query, but this is an inference, not a captured production SQL trace. Current read-only lock-waiter count was zero; historical lock wait is unknown. SQL lock-statement timing includes network time and is not server lock-wait timing.
 
@@ -44,7 +46,9 @@ The 34-query intermediate repair passed two latency repeats but failed the third
 
 The 32-query candidate first passed 16/16 but its second repeat failed 13/16: scenario selection and parallel duplicate requests still reached P2028. That intermediate candidate was also reworked.
 
-The 30-query batched-projection candidate has passed the first two targeted runs, each 16/16 and skipped 0, with 80 ms injected network RTT. Initial transactions measured 2,896/2,895 ms and 3,662/2,922 ms. First-run parallel transaction durations were 2,331-3,614 ms. The unchanged deadline is 5,000 ms; normal and parallel regression assertions require at least 500 ms headroom. Remaining targeted repeats, final gates, independent exact-SHA review, new authenticated Preview UAT and production re-release are pending. Historical UAT is not evidence for this candidate.
+The 30-query candidate passed two targeted runs but failed the third headroom assertion (4,521.74 ms for one parallel transaction). CI `37158163153` independently reproduced that boundary (4,512.15 ms). Both are FAIL, despite successful HTTP responses and zero duplicates.
+
+The 28-query revision preloads existing tenant requirements and refreshes historical rows without rereading newly materialized rows. PostgreSQL regressions passed 18/18, skipped 0, including historical applicability and its audit for both scenarios. Five fresh 80 ms latency repeats are pending. The unchanged deadline is 5,000 ms; normal and parallel regression assertions require at least 500 ms headroom. Final gates, independent exact-SHA review, new authenticated Preview UAT and production re-release are pending. Historical UAT is not evidence for this candidate.
 
 The latency harness is local-only, preserves concurrent request scopes and packet ordering, and retains realistic policies, requirements, audit and projections. Fault injection after the final intake event proves rollback; five parallel duplicate requests must commit exactly once. No production test data is copied into fixtures.
 

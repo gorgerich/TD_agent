@@ -383,4 +383,52 @@ for (const scenario of scenarios) {
     assert.equal(retried.replayed, false, "Rolled-back command must not leave a replay receipt");
     await assertCommitted(fixture, scenario, retried, initial.record.version);
   });
+
+  test(`M3 intake ${scenario.id}: materialization retains and refreshes historical requirements`, opts, async () => {
+    const fixture = await makeFixture(scenario, "historical");
+    const policy = await db.documentRequirementPolicy.create({
+      data: {
+        organizationId: fixture.owner.organizationId, scenario: scenario.id, version: 1,
+        status: "RETIRED", source: "SYNTHETIC_HISTORICAL_INTAKE_REGRESSION",
+        effectiveFrom: new Date("2026-01-01"), retiredAt: new Date("2026-02-01"),
+        rules: { create: {
+          stableKey: "historical-ceremony-date", kind: "CONDITIONAL", conditionKey: "CEREMONY_DATE_SET",
+          ownerRole: "DOCUMENT_REVIEWER", blockingStage: "EXECUTION",
+          acceptedDocumentTypeCodes: [], acceptedDocumentTypeVersionIds: [], reviewChecklist: [],
+          source: "SYNTHETIC_HISTORICAL_INTAKE_REGRESSION",
+        } },
+      }, include: { rules: true },
+    });
+    fixtures.trackDocumentPolicy(policy.id);
+    const historical = await db.caseDocumentRequirement.create({
+      data: {
+        organizationId: fixture.owner.organizationId, caseId: fixture.id, policyId: policy.id,
+        ruleId: policy.rules[0].id, policyVersion: policy.version,
+        stableKey: "historical-ceremony-date", kind: "CONDITIONAL",
+        ownerRole: "DOCUMENT_REVIEWER", blockingStage: "EXECUTION",
+        acceptedDocumentTypeCodes: [], acceptedDocumentTypeVersionIds: [], reviewChecklist: [],
+        sourceRule: policy.source, isApplicable: false,
+      },
+    });
+    const key = `${fixtures.runId}:${scenario.id}:historical`;
+    const result = await successful(await submit(fixture, scenario, key, {
+      ...intakeBody(scenario), ceremonyAt: "2026-10-10T12:00:00.000Z",
+    }));
+    assert.equal(result.stage, "QUOTING");
+    const refreshed = await db.caseDocumentRequirement.findUniqueOrThrow({ where: { id: historical.id } });
+    assert.equal(refreshed.isApplicable, true);
+    assert.equal(refreshed.policyId, policy.id);
+    assert.equal(refreshed.satisfactionStatus, "NOT_SATISFIED");
+    assert.equal(await db.caseDocumentRequirement.count({ where: { caseId: fixture.id, policyId: fixture.policyId } }), scenario.rules);
+    const audit = await db.operationalAuditEvent.findUniqueOrThrow({
+      where: { organizationId_idempotencyKey: {
+        organizationId: fixture.owner.organizationId, idempotencyKey: `${key}:document-requirements-applicability`,
+      } },
+    });
+    assert.equal(audit.action, "document_requirements.applicability_refreshed.v1");
+    const committed = await snapshot(fixture);
+    const replay = await successful(await submit(fixture, scenario, key, "must-not-clear-date"));
+    assert.equal(replay.replayed, true);
+    assert.deepEqual(await snapshot(fixture), committed);
+  });
 }

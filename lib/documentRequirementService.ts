@@ -13,6 +13,14 @@ type RequirementActor = {
   actorType?: string;
 };
 
+type ApplicabilityRequirement = {
+  id: string;
+  stableKey: string;
+  kind: "REQUIRED" | "CONDITIONAL";
+  isApplicable: boolean;
+  rule: { conditionKey: string | null };
+};
+
 export async function materializeCaseRequirements(
   context: OperationalContext,
   caseId: string,
@@ -64,8 +72,11 @@ export async function materializeCaseRequirementsInTransaction(
   });
   const ruleApplicability = new Map(policy.rules.map((rule) => [rule.id, requirementApplies(rule, caseFacts)]));
   const existingRequirements = await tx.caseDocumentRequirement.findMany({
-    where: { caseId, ruleId: { in: policy.rules.map((rule) => rule.id) } },
-    select: { id: true, ruleId: true, isApplicable: true },
+    where: { caseId, organizationId: actor.organizationId },
+    select: {
+      id: true, ruleId: true, stableKey: true, kind: true, isApplicable: true,
+      rule: { select: { conditionKey: true } },
+    },
   });
   const existingByRuleId = new Map(existingRequirements.map((requirement) => [requirement.ruleId, requirement]));
   const missingRules = policy.rules.filter((rule) => !existingByRuleId.has(rule.id));
@@ -97,7 +108,8 @@ export async function materializeCaseRequirementsInTransaction(
     });
   const created = inserted.count;
   const applicabilityChanges = existingRequirements.filter((requirement) => (
-    requirement.isApplicable !== (ruleApplicability.get(requirement.ruleId) ?? false)
+    ruleApplicability.has(requirement.ruleId)
+    && requirement.isApplicable !== ruleApplicability.get(requirement.ruleId)
   ));
   await Promise.all(applicabilityChanges.map((requirement) => tx.caseDocumentRequirement.update({
     where: { id: requirement.id },
@@ -125,7 +137,10 @@ export async function materializeCaseRequirementsInTransaction(
     });
   }
   if (refreshMeta) {
-    await refreshCaseRequirementApplicabilityInTransaction(tx, actor, caseId, refreshMeta, now, caseFacts);
+    // Newly inserted requirements already use these same facts. Existing current
+    // policy rows were updated above; only historical applicability remains.
+    const historicalRequirements = existingRequirements.filter(requirement => !ruleApplicability.has(requirement.ruleId));
+    await refreshCaseRequirementApplicabilityInTransaction(tx, actor, caseId, refreshMeta, now, caseFacts, historicalRequirements);
   }
   return {
     policyApproved: true,
@@ -144,11 +159,12 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
   meta: M3CommandMeta,
   now = new Date(),
   facts?: RequirementFacts,
+  existingRequirements?: ApplicabilityRequirement[],
 ) {
   if (!isM3ProductionWriteAllowed(actor.organizationId)) return { changed: 0 };
   const [caseFacts, requirements] = await Promise.all([
     facts ?? loadRequirementFacts(tx, caseId, now),
-    tx.caseDocumentRequirement.findMany({
+    existingRequirements ?? tx.caseDocumentRequirement.findMany({
       where: { caseId, organizationId: actor.organizationId },
       select: {
         id: true,
