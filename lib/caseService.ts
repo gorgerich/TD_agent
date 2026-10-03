@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { CaseScenario, CaseStage, Prisma, type PrismaClient } from "@prisma/client";
+import { CaseScenario, CaseStage, Prisma, type Case, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   CaseDomainError,
@@ -172,43 +172,45 @@ export async function saveCaseIntake(input: {
 
   try {
     return await runCaseTransaction(async (tx) => {
-      const lockedCaseId = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
-      if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+      const lockedCase = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
+      if (!lockedCase) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+      const replay = await findCommandReplay(tx, lockedCase.id, tenantId, input.context.idempotencyKey, eventType);
+      if (replay) return replayResult(replay.result);
       const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
       if (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1") {
         await lockDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
       }
-      let aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
-      if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
-
-      const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, eventType);
-      if (replay) return replayResult(replay.result);
-
       const updatedLead = await tx.clientLead.update({ where: { id: input.leadId }, data: input.data });
+      let aggregate = { ...lockedCase, lead: updatedLead };
       if (aggregate.stage === CaseStage.INTAKE && updatedLead.deceasedName) {
-        await transitionCaseInTransaction(tx, {
+        const transitioned = await applyLockedCaseTransition(tx, {
           leadId: input.leadId,
           eventType: "intake.completed.v1",
           payload: {},
           context: derivedContext(input.context, "intake-completed"),
-        });
-        aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
-        if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден после интейка");
+        }, { aggregate, facts: intakeTransitionFacts(aggregate) });
+        aggregate = { ...aggregate, stage: transitioned.stage, scenarioId: transitioned.scenarioId, version: transitioned.version };
       }
 
       const scenarioId = scenarioFromCeremonyType(updatedLead.ceremonyType);
+      let requirementsRefreshed = false;
       if (aggregate.stage === CaseStage.PLANNING && scenarioId !== CaseScenario.UNSELECTED) {
-        await transitionCaseInTransaction(tx, {
+        if (scenarioId !== requestedScenario) {
+          await lockDocumentRequirementPolicyScenario(tx, tenantId, scenarioId);
+        }
+        const transitioned = await applyLockedCaseTransition(tx, {
           leadId: input.leadId,
           eventType: "scenario.selected.v1",
           payload: { scenarioId },
           context: derivedContext(input.context, "scenario-selected"),
+        }, { aggregate, facts: intakeTransitionFacts(aggregate) }, {
+          idempotencyKey: input.context.idempotencyKey, correlationId: input.context.correlationId,
         });
-        aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
-        if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден после выбора сценария");
+        aggregate = { ...aggregate, stage: transitioned.stage, scenarioId: transitioned.scenarioId, version: transitioned.version };
+        requirementsRefreshed = true;
       }
 
-      await refreshCaseRequirementApplicabilityInTransaction(
+      if (!requirementsRefreshed) await refreshCaseRequirementApplicabilityInTransaction(
         tx,
         { organizationId: tenantId, membershipId: input.context.membershipId },
         aggregate.id,
@@ -271,22 +273,30 @@ export async function transitionCaseInTransaction(
   ) {
     await lockDocumentRequirementPolicyScenario(tx, tenantId, input.payload.scenarioId);
   }
-  const aggregate = await loadAggregate(tx, input.leadId, tenantId, input.context.agentId);
-  if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+  const state = await loadTransitionState(tx, input);
+  return applyLockedCaseTransition(tx, input, state);
+}
+
+// Private: callers have already acquired the tenant/owner Case lock and, when
+// needed, the scenario policy lock. All effects remain on that transaction.
+async function applyLockedCaseTransition(
+  tx: Prisma.TransactionClient,
+  input: Parameters<typeof transitionCaseInTransaction>[1],
+  state: Awaited<ReturnType<typeof loadTransitionState>>,
+  refreshRequirements?: Pick<CaseCommandContext, "idempotencyKey" | "correlationId">,
+): Promise<CaseCommandResult> {
+  const tenantId = input.context.organizationId;
+  const aggregate = state.aggregate;
 
   const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, input.eventType);
   if (replay) return replayResult(replay.result);
-
-  const documentParity = input.eventType === "scenario.selected.v1"
-    ? { ok: true }
-    : await checkCaseRequirementMaterializationParity(tx, tenantId, aggregate.id, aggregate.scenarioId);
 
   const evaluated = evaluateCaseTransition({
     stage: aggregate.stage,
     scenarioId: aggregate.scenarioId,
     eventType: input.eventType,
     payload: input.payload,
-    facts: transitionFacts(aggregate, documentParity.ok),
+    facts: state.facts,
   });
   const eventId = `evt_${randomUUID().replaceAll("-", "")}`;
   const nextScenario = evaluated.scenarioId ?? aggregate.scenarioId;
@@ -348,6 +358,8 @@ export async function transitionCaseInTransaction(
         idempotencyKey: input.context.idempotencyKey,
         correlationId: input.context.correlationId,
       },
+      new Date(),
+      refreshRequirements,
     );
   }
   await projectCaseEventInTransaction(tx, input.context, {
@@ -485,14 +497,51 @@ async function loadAggregate(tx: Prisma.TransactionClient, leadId: number, tenan
   });
 }
 
+async function loadIntakeAggregate(tx: Prisma.TransactionClient, leadId: number, tenantId: string, ownerId: number) {
+  return tx.case.findFirst({
+    where: { leadId, tenantId, ownerId },
+    include: { lead: { select: { name: true, phone: true, deceasedName: true } } },
+  });
+}
+
+function intakeTransitionFacts(aggregate: NonNullable<Awaited<ReturnType<typeof loadIntakeAggregate>>>): CaseTransitionFacts {
+  return {
+    intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(aggregate.lead.deceasedName),
+    availableQuoteVersionIds: [],
+    publishedQuoteVersionId: aggregate.publishedQuoteVersionId,
+    contractSigned: false,
+    paymentSatisfied: false,
+    documentsReadyForExecution: false,
+    guardState: normalizedGuardState(aggregate.guardState),
+  };
+}
+
+async function loadTransitionState(
+  tx: Prisma.TransactionClient,
+  input: { leadId: number; eventType: CaseTransitionEvent; context: CaseCommandContext },
+) {
+  const { organizationId, agentId } = input.context;
+  // Initial stages cannot consume contract, payment or document truth. Do not
+  // load those relation trees just to validate name/phone/deceased intake.
+  if (input.eventType === "intake.completed.v1" || input.eventType === "scenario.selected.v1") {
+    const aggregate = await loadIntakeAggregate(tx, input.leadId, organizationId, agentId);
+    if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+    return { aggregate, facts: intakeTransitionFacts(aggregate) };
+  }
+  const aggregate = await loadAggregate(tx, input.leadId, organizationId, agentId);
+  if (!aggregate) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+  const parity = await checkCaseRequirementMaterializationParity(tx, organizationId, aggregate.id, aggregate.scenarioId);
+  return { aggregate, facts: transitionFacts(aggregate, parity.ok) };
+}
+
 async function lockCaseForCommand(
   tx: Prisma.TransactionClient,
   leadId: number,
   tenantId: string,
   ownerId: number,
-): Promise<string | null> {
-  const rows = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
+): Promise<Case | null> {
+  const rows = await tx.$queryRaw<Case[]>`
+    SELECT *
     FROM "Case"
     WHERE "leadId" = ${leadId}
       AND "tenantId" = ${tenantId}
@@ -500,7 +549,7 @@ async function lockCaseForCommand(
     LIMIT 1
     FOR UPDATE
   `;
-  return rows[0]?.id ?? null;
+  return rows[0] ?? null;
 }
 
 type LoadedAggregate = NonNullable<Awaited<ReturnType<typeof loadAggregate>>>;

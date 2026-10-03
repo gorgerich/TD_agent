@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { M3_CPO_AUDIT_ORGANIZATION_ID, isM3ProductionWriteAllowed } from "../lib/m3AuditMode";
+import { M3_CPO_AUDIT_ORGANIZATION_ID, isApprovedM3PreviewBranch, isM3ProductionWriteAllowed } from "../lib/m3AuditMode";
 import { assertCapability, type OperationalContext } from "../lib/operationalAuth";
 import { materializeCaseRequirementsInTransaction, refreshCaseRequirementApplicabilityInTransaction } from "../lib/documentRequirementService";
 
@@ -56,6 +56,12 @@ test("Production M3 writes are limited to the exact synthetic audit organization
     process.env.DATABASE_URL_UNPOOLED = "postgresql://synthetic.invalid/not-production";
     process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED;
     assert.equal(isM3ProductionWriteAllowed(M3_CPO_AUDIT_ORGANIZATION_ID), false);
+    process.env.VERCEL_GIT_COMMIT_REF = "fix/m3-intake-transaction";
+    assert.equal(isApprovedM3PreviewBranch(), true);
+    assert.equal(isM3ProductionWriteAllowed(M3_CPO_AUDIT_ORGANIZATION_ID), false, "Repair branch cannot bypass the exact database guard");
+    process.env.VERCEL_GIT_COMMIT_REF = "main";
+    assert.equal(isApprovedM3PreviewBranch(), false);
+    process.env.VERCEL_GIT_COMMIT_REF = "mission/m3-fulfilment-money-trust";
     process.env.DATABASE_URL_UNPOOLED = "postgresql://synthetic.invalid:5432/not-production";
     assert.equal(isM3ProductionWriteAllowed("real-organization"), false);
     const localTestUrl = "postgresql://test:test@127.0.0.1:5432/td_agent_test";

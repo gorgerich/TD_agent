@@ -102,6 +102,8 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm run test:unit
+      - name: M3 intake deadline regression with 80ms network round-trip delay
+        run: node scripts/test-m3-intake-latency.mjs 80
       - name: Integration tests
         run: npm run test:integration
       - name: Repeat M3 concurrency and policy gates five times
