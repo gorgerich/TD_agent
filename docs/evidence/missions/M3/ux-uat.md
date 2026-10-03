@@ -56,8 +56,8 @@ Result: **PASS**.
 - Document root horizontal overflow: 0.
 - Primary actions remain reachable; the fixed mobile navigation is offset by content padding and
   does not hide the final actionable row.
-- Exact element capture at the 200 percent equivalent viewport proves owner and due-date metadata
-  wrap into visible rows without clipping.
+- Historical element capture at the 200 percent equivalent viewport showed owner
+  and due-date metadata wrapping without clipping. It is not new-SHA image proof.
 
 ## UI quality and scope
 
