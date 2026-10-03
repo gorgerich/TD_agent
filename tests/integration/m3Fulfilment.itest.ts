@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { POST as paymentWebhookPost } from "../../app/api/webhooks/m3/payments/[provider]/route";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import type { DocumentScanner } from "../../lib/documentScanner";
@@ -682,6 +683,18 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
       evidenceReference: "synthetic-provider-receipt",
     };
     const rawBody = JSON.stringify(command);
+    const beforeRangeRejection = await db.paymentLedgerEntry.count({ where: { obligationId: signed.obligationId } });
+    for (const amountKopecks of [2_147_483_648, Number.MAX_SAFE_INTEGER]) {
+      const oversized = { ...command, amountKopecks };
+      const oversizedBody = JSON.stringify(oversized);
+      const oversizedSignature = `sha256=${createHmac("sha256", webhookSecret).update(`synthetic.${oversizedBody}`).digest("hex")}`;
+      const response = await paymentWebhookPost(new Request("http://localhost/api/webhooks/m3/payments/synthetic", {
+        method: "POST", body: oversizedBody, headers: { "x-td-payment-signature": oversizedSignature },
+      }), { params: Promise.resolve({ provider: "synthetic" }) });
+      assert.equal(response.status, 400);
+      await expectCommandError(processPaymentWebhook("synthetic", oversizedBody, oversizedSignature, oversized), 422);
+    }
+    assert.equal(await db.paymentLedgerEntry.count({ where: { obligationId: signed.obligationId } }), beforeRangeRejection);
     const signature = `sha256=${createHmac("sha256", webhookSecret).update(`synthetic.${rawBody}`).digest("hex")}`;
     const results = await Promise.all(
       Array.from({ length: 5 }, () => processPaymentWebhook("synthetic", rawBody, signature, command)),

@@ -54,10 +54,10 @@ export function recoveryForResponse(
   if (!shouldRetainCommandForRetry(status, code)) return null;
   return {
     ...envelope,
-    durability: isCaseProjectionRetry(status, code) ? "CONFIRMED_COMMIT" : "UNCONFIRMED",
+    durability: envelope.durability === "CONFIRMED_COMMIT" || isCaseProjectionRetry(status, code) ? "CONFIRMED_COMMIT" : "UNCONFIRMED",
   };
 }
 
 export function recoveryForTransport(envelope: RecoverableClientCommand): RecoverableClientCommand {
-  return { ...envelope, durability: "UNCONFIRMED" };
+  return { ...envelope };
 }

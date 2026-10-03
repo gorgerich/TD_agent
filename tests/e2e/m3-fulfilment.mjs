@@ -106,7 +106,7 @@ try {
   await context.clearCookies();
   await login(page, identities.financeA, password, /\/agent\/finance/);
   await assertFinancePrivacy(page);
-  await recordPayment(page, cases.cremation.publicRef, 88_000, "Synthetic partial payment");
+  await recordPayment(page, cases.cremation.publicRef, 88_000, "Synthetic partial payment", { exerciseProjectionRetry: true });
   const webhook = await replayWebhookFiveTimes(context, {
     organizationId: `m3-uat:${runId}:a`,
     caseId: cases.cremation.canonicalId,
@@ -349,7 +349,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   }
   await amountInput.fill(rubles === 88_000 ? "88000,00" : String(rubles));
   let retryEvidence = null;
-  if (options.exerciseLostResponse) {
+  if (options.exerciseLostResponse || options.exerciseProjectionRetry) {
     let originalRequest = null;
     let originalResult = null;
     await target.route("**/api/agent/cases/*/payments", async (route) => {
@@ -361,13 +361,23 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
       const serverResponse = await route.fetch();
       assert.equal(serverResponse.status(), 201);
       originalResult = await serverResponse.json();
-      await route.abort("failed");
+      if (options.exerciseProjectionRetry) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Команда сохранена, синхронизация кейса требует повтора", code: "CASE_PROJECTION_RETRY" }) });
+      } else {
+        await route.abort("failed");
+      }
     }, { times: 1 });
     await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     await target.getByRole("alert").getByText(/fetch|network|команд/i).waitFor();
+    if (options.exerciseProjectionRetry) await target.getByRole("status").getByText(/Команда сохранена/).waitFor();
+    assert.equal(await dialog.getByRole("button", { name: "Закрыть", exact: true }).isDisabled(), true);
+    assert.equal(await dialog.getByRole("button", { name: "Отмена", exact: true }).isDisabled(), true);
+    assert.equal(await amountInput.isDisabled(), true);
+    await target.keyboard.press("Escape");
+    assert.equal(await dialog.isVisible(), true);
     await target.unroute("**/api/agent/cases/*/payments");
     const replayPromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
-    await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
+    await target.getByRole("button", { name: "Повторить синхронизацию", exact: true }).click();
     const replayResponse = await replayPromise;
     const replayRequest = {
       idempotencyKey: replayResponse.request().headers()["idempotency-key"],

@@ -6,6 +6,7 @@ import { Check, CurrencyCircleDollar, FileCsv, ListMagnifyingGlass, X } from "@p
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { moneyFromKopecks } from "@/lib/format";
 import { parseRublesToKopecks } from "@/lib/financeAmount";
+import { recoveryForResponse, recoveryForTransport, type RecoverableClientCommand } from "@/lib/clientCommandRecovery";
 
 type LedgerEntry = {
   id: string;
@@ -74,6 +75,7 @@ type CommandEnvelope = {
 
 type FinanceActionState = { action: FinanceAction; command: CommandEnvelope };
 type ApprovalActionState = { action: ApprovalAction; command: CommandEnvelope };
+type FinanceRecovery = RecoverableClientCommand & CommandEnvelope;
 
 const STATUS_LABELS: Record<string, string> = {
   UNPAID: "Не оплачено",
@@ -109,28 +111,75 @@ export function FinanceClient({
   const [approvalState, setApprovalState] = useState<ApprovalActionState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mutationInFlight = useRef(false);
+  const recoveryRef = useRef<FinanceRecovery | null>(null);
+  const [recovery, setRecovery] = useState<FinanceRecovery | null>(null);
+  const mutationLocked = busyId !== null || recovery !== null;
   const rows = useMemo(
     () => filter === "ALL" ? initial.obligations : initial.obligations.filter((item) => item.summary.status === filter),
     [filter, initial.obligations],
   );
 
-  async function post(path: string, body: unknown, command: CommandEnvelope) {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": command.idempotencyKey,
-        "X-Correlation-Id": command.correlationId,
-      },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json().catch(() => null) as { error?: string } | null;
+  function applyRecovery(next: FinanceRecovery | null) {
+    recoveryRef.current = next;
+    setRecovery(next);
+  }
+
+  async function sendCommand(envelope: FinanceRecovery) {
+    let response: Response;
+    try {
+      response = await fetch(envelope.path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": envelope.idempotencyKey,
+          "X-Correlation-Id": envelope.correlationId,
+        },
+        body: envelope.serializedBody,
+      });
+    } catch {
+      applyRecovery({ ...envelope, ...recoveryForTransport(envelope) });
+      throw new Error("Результат команды не подтверждён. Повторите синхронизацию с теми же данными");
+    }
+    const result = await response.json().catch(() => null) as { error?: string; code?: string; ledgerEntryId?: unknown; replayed?: unknown } | null;
+    // A successful status alone cannot acknowledge a committed ledger command.
+    if (response.ok && (!result || typeof result.ledgerEntryId !== "string" || !result.ledgerEntryId.trim() || typeof result.replayed !== "boolean")) {
+      applyRecovery({ ...envelope, ...recoveryForTransport(envelope) });
+      throw new Error("Результат команды не подтверждён. Повторите синхронизацию с теми же данными");
+    }
+    const retained = recoveryForResponse(envelope, response.status, result?.code);
+    applyRecovery(retained ? { ...envelope, ...retained } : null);
     if (!response.ok) throw new Error(result?.error || "Финансовая команда не выполнена");
+  }
+
+  async function post(path: string, body: unknown, command: CommandEnvelope) {
+    const serializedBody = JSON.stringify(body);
+    await sendCommand({ ...command, path, serializedBody, signature: `${path}\n${serializedBody}`, commandId: command.correlationId, durability: "UNCONFIRMED" });
+  }
+
+  async function retryRecovery() {
+    const pending = recoveryRef.current;
+    if (!pending || mutationInFlight.current) return;
+    mutationInFlight.current = true;
+    setBusyId(pending.commandId);
+    setError(null);
+    try {
+      await sendCommand(pending);
+      setActionState(null);
+      setApprovalState(null);
+      setLedger(null);
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Синхронизация не завершена");
+    } finally {
+      mutationInFlight.current = false;
+      setBusyId(null);
+    }
   }
 
   async function submitAction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!actionState) return;
+    if (!actionState || mutationInFlight.current || recoveryRef.current) return;
     const { action, command } = actionState;
     const form = new FormData(event.currentTarget);
     const amountKopecks = parseRublesToKopecks(String(form.get("amount") ?? ""));
@@ -138,6 +187,7 @@ export function FinanceClient({
       setError("Укажите точную положительную сумму в рублях, не более двух знаков после запятой");
       return;
     }
+    mutationInFlight.current = true;
     setBusyId(action.kind === "PAYMENT" ? action.obligation.id : action.entry.id);
     setError(null);
     try {
@@ -179,15 +229,17 @@ export function FinanceClient({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Финансовая команда не выполнена");
     } finally {
+      mutationInFlight.current = false;
       setBusyId(null);
     }
   }
 
   async function decide(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!approvalState) return;
+    if (!approvalState || mutationInFlight.current || recoveryRef.current) return;
     const { action: approval, command } = approvalState;
     const form = new FormData(event.currentTarget);
+    mutationInFlight.current = true;
     setBusyId(approval.item.ledgerEntryId);
     setError(null);
     try {
@@ -200,9 +252,20 @@ export function FinanceClient({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Решение не сохранено");
     } finally {
+      mutationInFlight.current = false;
       setBusyId(null);
     }
   }
+
+  const commandFeedback = <>
+    {error && <p role="alert" className="mt-3 text-[12px] text-danger">{error}</p>}
+    {recovery && <div role="status" className="mt-3 text-[12px] text-warning">
+      <p>{recovery.durability === "CONFIRMED_COMMIT"
+        ? "Команда сохранена, но кейс ещё не синхронизирован. Повторите синхронизацию с теми же данными."
+        : "Результат команды не подтверждён: операция могла сохраниться. Повторите синхронизацию с теми же данными."}</p>
+      <Button type="button" size="sm" disabled={busyId !== null} onClick={retryRecovery}>Повторить синхронизацию</Button>
+    </div>}
+  </>;
 
   return (
     <div className="td-page mx-auto w-full max-w-[1240px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -261,7 +324,7 @@ export function FinanceClient({
                 <tr><th className="px-4 py-3">Кейс</th><th className="px-4 py-3">Договор</th><th className="px-4 py-3">Обязательство</th><th className="px-4 py-3">Получено</th><th className="px-4 py-3">Остаток</th><th className="px-4 py-3">Статус</th><th className="px-4 py-3"><span className="sr-only">Действия</span></th></tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {rows.map((item) => <FinanceRow key={item.id} item={item} onPayment={() => openAction({ kind: "PAYMENT", obligation: item })} onLedger={() => setLedger(item)} />)}
+                {rows.map((item) => <FinanceRow key={item.id} item={item} onPayment={() => openAction({ kind: "PAYMENT", obligation: item })} onLedger={() => openLedger(item)} />)}
               </tbody>
             </table>
           </div>
@@ -279,7 +342,7 @@ export function FinanceClient({
                 </dl>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button type="button" size="sm" onClick={() => openAction({ kind: "PAYMENT", obligation: item })} disabled={!item.payerPartyId}>Записать оплату</Button>
-                  <button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => setLedger(item)}><ListMagnifyingGlass size={15} /> Реестр</button>
+                  <button type="button" className={buttonClasses({ variant: "secondary", size: "sm" })} onClick={() => openLedger(item)}><ListMagnifyingGlass size={15} /> Реестр</button>
                 </div>
               </li>
             ))}
@@ -287,18 +350,29 @@ export function FinanceClient({
         </>
       )}
 
-      {ledger && <LedgerDialog obligation={ledger} timezone={timezone} onClose={() => setLedger(null)} onAction={(nextAction) => { setLedger(null); openAction(nextAction); }} />}
-      {actionState && <FinanceActionDialog action={actionState.action} busy={busyId != null} onClose={() => setActionState(null)} onSubmit={submitAction} />}
-      {approvalState && <ApprovalDialog action={approvalState.action} busy={busyId != null} onClose={() => setApprovalState(null)} onSubmit={decide} />}
+      {ledger && <LedgerDialog obligation={ledger} timezone={timezone} onClose={() => { if (!mutationInFlight.current && !recoveryRef.current) setLedger(null); }} onAction={openAction} />}
+      {actionState && <FinanceActionDialog action={actionState.action} busy={busyId != null} locked={mutationLocked} feedback={commandFeedback} onClose={() => { if (!mutationInFlight.current && !recoveryRef.current) setActionState(null); }} onSubmit={submitAction} />}
+      {approvalState && <ApprovalDialog action={approvalState.action} busy={busyId != null} locked={mutationLocked} feedback={commandFeedback} onClose={() => { if (!mutationInFlight.current && !recoveryRef.current) setApprovalState(null); }} onSubmit={decide} />}
     </div>
   );
 
   function openAction(action: FinanceAction) {
+    if (mutationInFlight.current || recoveryRef.current) return;
+    setLedger(null);
+    setApprovalState(null);
     setActionState({ action, command: createCommandEnvelope("finance") });
   }
 
   function openApproval(action: ApprovalAction) {
+    if (mutationInFlight.current || recoveryRef.current) return;
+    setLedger(null);
+    setActionState(null);
     setApprovalState({ action, command: createCommandEnvelope("finance-approval") });
+  }
+
+  function openLedger(item: Obligation) {
+    if (mutationInFlight.current || recoveryRef.current) return;
+    setLedger(item);
   }
 }
 
@@ -343,12 +417,13 @@ function LedgerDialog({ obligation, timezone, onClose, onAction }: { obligation:
   );
 }
 
-function FinanceActionDialog({ action, busy, onClose, onSubmit }: { action: FinanceAction; busy: boolean; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+function FinanceActionDialog({ action, busy, locked, feedback, onClose, onSubmit }: { action: FinanceAction; busy: boolean; locked: boolean; feedback: React.ReactNode; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   const title = action.kind === "PAYMENT" ? "Записать подтверждённую оплату" : action.kind === "REFUND" ? "Записать возврат" : "Запросить коррекцию или сторно";
   const defaultDirection = action.kind === "ADJUSTMENT" && action.entry.direction === "DEBIT" ? "CREDIT" : "DEBIT";
   return (
-    <Dialog title={title} onClose={onClose}>
+    <Dialog title={title} onClose={onClose} closeDisabled={locked}>
       <form onSubmit={onSubmit}>
+        <fieldset disabled={locked}>
         <p className="text-[12px] text-ink-3">
           {action.obligation.case.publicRef}
           {action.kind === "REFUND" ? ` · доступно к возврату ${moneyFromKopecks(action.remainingKopecks)}` : ""}
@@ -366,25 +441,30 @@ function FinanceActionDialog({ action, busy, onClose, onSubmit }: { action: Fina
           <label><span className="td-field-label">Причина</span><textarea name="reason" className="td-field min-h-20 resize-y" minLength={3} maxLength={500} required /></label>
         </div>
         {action.kind === "ADJUSTMENT" && <p className="mt-3 text-[11px] leading-relaxed text-ink-3">Чувствительная операция останется в ожидании независимого решения согласно утверждённому финансовому правилу. Исходная запись не изменяется.</p>}
-        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>{action.kind === "ADJUSTMENT" ? "Создать запрос" : "Добавить в реестр"}</Button></div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" disabled={locked} className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" disabled={locked} loading={busy}>{action.kind === "ADJUSTMENT" ? "Создать запрос" : "Добавить в реестр"}</Button></div>
+        </fieldset>
       </form>
+      {feedback}
     </Dialog>
   );
 }
 
-function ApprovalDialog({ action, busy, onClose, onSubmit }: { action: ApprovalAction; busy: boolean; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+function ApprovalDialog({ action, busy, locked, feedback, onClose, onSubmit }: { action: ApprovalAction; busy: boolean; locked: boolean; feedback: React.ReactNode; onClose: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   return (
-    <Dialog title={action.decision === "APPROVED" ? "Одобрить коррекцию" : "Отклонить коррекцию"} onClose={onClose}>
+    <Dialog title={action.decision === "APPROVED" ? "Одобрить коррекцию" : "Отклонить коррекцию"} onClose={onClose} closeDisabled={locked}>
       <form onSubmit={onSubmit}>
+        <fieldset disabled={locked}>
         <p className="text-[12px] text-ink-3">Решение принимает не автор запроса; результат становится частью неизменяемого журнала.</p>
         <label className="mt-4 block"><span className="td-field-label">Основание решения</span><textarea name="reason" className="td-field min-h-24 resize-y" minLength={3} maxLength={500} required /></label>
-        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить решение</Button></div>
+        <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" disabled={locked} className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onClose}>Отмена</button><Button type="submit" size="sm" disabled={locked} loading={busy}>Сохранить решение</Button></div>
+        </fieldset>
       </form>
+      {feedback}
     </Dialog>
   );
 }
 
-function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Dialog({ title, onClose, children, closeDisabled = false }: { title: string; onClose: () => void; children: React.ReactNode; closeDisabled?: boolean }) {
   const titleId = useId();
   const panelRef = useRef<HTMLElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -401,12 +481,12 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   function handleKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
       event.preventDefault();
-      onClose();
+      if (!closeDisabled) onClose();
       return;
     }
     if (event.key !== "Tab") return;
     const focusable = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? [])
-      .filter((element) => !element.hasAttribute("disabled") && element.tabIndex !== -1);
+      .filter((element) => !element.matches(":disabled") && element.tabIndex !== -1);
     if (focusable.length === 0) {
       event.preventDefault();
       panelRef.current?.focus();
@@ -424,9 +504,9 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" role="presentation" onMouseDown={(event) => { if (!closeDisabled && event.target === event.currentTarget) onClose(); }}>
       <section ref={panelRef} tabIndex={-1} onKeyDown={handleKeyDown} className="w-full max-w-[560px] bg-surface p-5 shadow-[var(--shadow-lg)]" role="dialog" aria-modal="true" aria-labelledby={titleId}>
-        <div className="mb-4 flex items-start justify-between gap-4"><h2 id={titleId} className="text-[18px] font-semibold text-ink">{title}</h2><button data-dialog-initial-focus type="button" onClick={onClose} className="grid h-11 w-11 place-items-center text-ink-2 hover:text-ink" aria-label="Закрыть"><X size={18} /></button></div>
+        <div className="mb-4 flex items-start justify-between gap-4"><h2 id={titleId} className="text-[18px] font-semibold text-ink">{title}</h2><button data-dialog-initial-focus type="button" disabled={closeDisabled} onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center text-ink-2 hover:text-ink" aria-label="Закрыть"><X size={18} /></button></div>
         {children}
       </section>
     </div>

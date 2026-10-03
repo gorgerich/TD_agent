@@ -22,6 +22,7 @@ import {
   type LedgerSummary,
 } from "@/lib/m3Domain";
 import { advanceCaseFulfilment } from "@/lib/caseFulfilment";
+import { MAX_LEDGER_AMOUNT_KOPECKS } from "@/lib/financeAmount";
 
 type CommandResult<T> = T & { replayed: boolean };
 
@@ -1009,7 +1010,7 @@ export async function processPaymentWebhook(
     throw new OperationalCommandError(403, "Webhook доступен только в синтетическом контуре аудита M3");
   }
   const payloadHash = createHash("sha256").update(rawBody).digest("hex");
-  if (!Number.isSafeInteger(command.amountKopecks) || command.amountKopecks <= 0) {
+  if (!Number.isSafeInteger(command.amountKopecks) || command.amountKopecks <= 0 || command.amountKopecks > MAX_LEDGER_AMOUNT_KOPECKS) {
     throw new OperationalCommandError(422, "Некорректная сумма webhook");
   }
   let result: CommandResult<{ receiptId: string; ledgerEntryId: string }>;
@@ -1452,7 +1453,7 @@ async function appendLedgerAudit(
 }
 
 function validateLedgerInput(amountKopecks: number, currency: string, evidenceReference: string, reason: string) {
-  if (!Number.isSafeInteger(amountKopecks) || amountKopecks <= 0) {
+  if (!Number.isSafeInteger(amountKopecks) || amountKopecks <= 0 || amountKopecks > MAX_LEDGER_AMOUNT_KOPECKS) {
     throw new OperationalCommandError(422, "Сумма должна быть положительным целым числом копеек");
   }
   if (currency !== "RUB") throw new OperationalCommandError(422, "В пилоте поддерживается только RUB");

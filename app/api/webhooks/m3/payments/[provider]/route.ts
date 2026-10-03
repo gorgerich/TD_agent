@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { handleApiError, jsonError } from "@/lib/apiAuth";
 import { processPaymentWebhook } from "@/lib/contractLedgerService";
+import { MAX_LEDGER_AMOUNT_KOPECKS } from "@/lib/financeAmount";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ const Body = z.object({
   externalEventId: z.string().min(1).max(160),
   eventVersion: z.string().min(1).max(40),
   externalTransactionId: z.string().min(1).max(160),
-  amountKopecks: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  amountKopecks: z.number().int().positive().max(MAX_LEDGER_AMOUNT_KOPECKS),
   currency: z.literal("RUB"),
   occurredAt: z.string().datetime(),
   method: z.enum(["CASH", "SBP_QR", "CARD", "BANK_TRANSFER"]),
