@@ -3,12 +3,16 @@ import { randomBytes } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import { spawn } from "node:child_process";
+import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 
 const source = new URL(process.env.TEST_DATABASE_URL);
 assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(source.hostname), "Latency harness is local-only");
 const roundTripMs = Number(process.argv[2] ?? 80);
 assert.ok(Number.isInteger(roundTripMs) && roundTripMs >= 80 && roundTripMs <= 200);
 const sockets = new Set();
+const eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
+eventLoopDelay.enable();
+let maximumForwardDelayMs = 0;
 let activeRequests = 0;
 const controlPath = `/${randomBytes(32).toString("hex")}`;
 const control = http.createServer(async (request, response) => {
@@ -36,9 +40,12 @@ const proxy = net.createServer(front => {
   for (const [input, output] of [[front, back], [back, front]]) {
     input.on("data", bytes => {
       input.pause();
+      const started = performance.now();
+      const delayMs = activeRequests ? roundTripMs / 2 : 0;
       setTimeout(() => {
+        if (delayMs) maximumForwardDelayMs = Math.max(maximumForwardDelayMs, performance.now() - started);
         if (!output.destroyed) output.write(bytes, () => input.resume());
-      }, activeRequests ? roundTripMs / 2 : 0);
+      }, delayMs);
     });
     input.on("error", () => output.destroy());
     input.on("close", () => { sockets.delete(input); output.destroy(); });
@@ -66,6 +73,8 @@ try {
   });
   assert.equal(activeRequests, 0, "All request delay scopes must close");
 } finally {
+  eventLoopDelay.disable();
+  console.log(JSON.stringify({ injectedRoundTripMs: roundTripMs, maximumForwardDelayMs: Math.round(maximumForwardDelayMs), eventLoopDelayMaxMs: Math.round(eventLoopDelay.max / 1e6) }));
   for (const socket of sockets) socket.destroy();
   if (proxy.listening) await new Promise(resolve => proxy.close(resolve));
   if (control.listening) await new Promise(resolve => control.close(resolve));
