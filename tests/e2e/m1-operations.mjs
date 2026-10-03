@@ -212,13 +212,20 @@ async function agentFlow(target, browserContext) {
   await target.getByText("Подтверждена", { exact: true }).waitFor();
   await target.getByRole("button", { name: "Зафиксировать итог" }).click();
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
-  const [meetingUpdate] = await Promise.all([
-    target.waitForResponse((response) => response.url().includes("/api/agent/meetings/") && response.request().method() === "PATCH"),
+  const meetingApiPattern = "**/api/agent/meetings/*";
+  let updatedMeeting;
+  await target.route(meetingApiPattern, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    const response = await route.fetch();
+    assert.equal(response.status(), 200, "Meeting outcome update must succeed");
+    updatedMeeting = await response.json();
+    await route.fulfill({ response });
+  });
+  await Promise.all([
     target.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === meetingHref),
     target.getByRole("button", { name: "Сохранить" }).click(),
   ]);
-  assert.equal(meetingUpdate.status(), 200, "Meeting outcome update must succeed");
-  const updatedMeeting = await meetingUpdate.json();
+  await target.unroute(meetingApiPattern);
   assert.equal(updatedMeeting.meeting?.status, "COMPLETED", "Meeting command must persist completed status");
   await target.getByText("Завершена", { exact: true }).waitFor();
   await target.getByText("Синтетический исход встречи зафиксирован", { exact: true }).waitFor();
