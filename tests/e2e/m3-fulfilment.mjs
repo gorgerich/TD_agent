@@ -59,10 +59,16 @@ const context = await browser.newContext({
 const page = await context.newPage();
 const pageErrors = [];
 const unexpected5xx = [];
+const injectedProjectionFailures = new Set();
+let observedInjectedProjectionFailures = 0;
 let expectedStorageFailure = false;
 page.on("pageerror", (error) => pageErrors.push(error.message));
 page.on("response", (response) => {
   if (response.status() < 500) return;
+  if (response.status() === 503 && injectedProjectionFailures.delete(response.request())) {
+    observedInjectedProjectionFailures += 1;
+    return;
+  }
   if (expectedStorageFailure && response.url().includes("/documents")) return;
   unexpected5xx.push(`${response.status()} ${new URL(response.url()).pathname}`);
 });
@@ -144,6 +150,8 @@ try {
   await assertResponsiveAndAccessible(page, cremation.leadId);
 
   assert.deepEqual(pageErrors, [], `Page errors: ${pageErrors.join("; ")}`);
+  assert.equal(observedInjectedProjectionFailures, 1, "exactly the controlled post-commit failure must be observed");
+  assert.equal(injectedProjectionFailures.size, 0);
   assert.deepEqual(unexpected5xx, [], `Unexpected 5xx: ${unexpected5xx.join("; ")}`);
   process.stdout.write(`${JSON.stringify({
     cremation: "PASS",
@@ -362,6 +370,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
       assert.equal(serverResponse.status(), 201);
       originalResult = await serverResponse.json();
       if (options.exerciseProjectionRetry) {
+        injectedProjectionFailures.add(route.request());
         await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Команда сохранена, синхронизация кейса требует повтора", code: "CASE_PROJECTION_RETRY" }) });
       } else {
         await route.abort("failed");
