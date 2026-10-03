@@ -1,5 +1,6 @@
 import type { MembershipRole, PlatformRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 
 export type OperationalRole = MembershipRole;
 
@@ -12,6 +13,7 @@ export type OperationalContext = {
   timezone: string;
   name?: string;
   platformRole: PlatformRole;
+  mfaVerified?: boolean;
 };
 
 export type OperationalCapability =
@@ -25,11 +27,34 @@ export type OperationalCapability =
   | "membership:manage"
   | "commercial:read"
   | "commercial:edit"
-  | "commercial:publish";
+  | "commercial:publish"
+  | "parties:read"
+  | "parties:manage"
+  | "documents:read"
+  | "documents:upload"
+  | "documents:review"
+  | "documents:access"
+  | "contracts:read"
+  | "contracts:manage"
+  | "finance:summary"
+  | "finance:read"
+  | "finance:record"
+  | "finance:approve"
+  | "fulfilment:read"
+  | "fulfilment:transition";
 
 const ROLE_CAPABILITIES: Record<OperationalRole, ReadonlySet<OperationalCapability>> = {
-  AGENT: new Set(["work:read", "work:mutate-own", "commercial:read", "commercial:edit", "commercial:publish"]),
-  MANAGER: new Set(["work:read", "work:mutate-own", "team:read", "team:assign", "audit:read", "commercial:read", "commercial:edit", "commercial:publish"]),
+  AGENT: new Set([
+    "work:read", "work:mutate-own", "commercial:read", "commercial:edit", "commercial:publish",
+    "parties:read", "parties:manage", "documents:read", "documents:upload", "documents:access",
+    "contracts:read", "contracts:manage", "finance:summary", "fulfilment:read", "fulfilment:transition",
+  ]),
+  MANAGER: new Set([
+    "work:read", "work:mutate-own", "team:read", "team:assign", "audit:read",
+    "commercial:read", "commercial:edit", "commercial:publish", "parties:read", "parties:manage",
+    "documents:read", "documents:upload", "documents:access", "contracts:read", "contracts:manage",
+    "finance:summary", "fulfilment:read", "fulfilment:transition",
+  ]),
   ADMIN: new Set([
     "work:read",
     "team:read",
@@ -40,6 +65,24 @@ const ROLE_CAPABILITIES: Record<OperationalRole, ReadonlySet<OperationalCapabili
     "commercial:read",
     "commercial:edit",
     "commercial:publish",
+    "parties:read",
+    "documents:read",
+    "documents:access",
+    "contracts:read",
+    "finance:summary",
+    "fulfilment:read",
+  ]),
+  DOCUMENT_REVIEWER: new Set([
+    "documents:read",
+    "documents:review",
+    "documents:access",
+  ]),
+  FINANCE: new Set([
+    "contracts:read",
+    "finance:summary",
+    "finance:read",
+    "finance:record",
+    "finance:approve",
   ]),
 };
 
@@ -47,9 +90,29 @@ export function hasCapability(role: OperationalRole, capability: OperationalCapa
   return ROLE_CAPABILITIES[role].has(capability);
 }
 
+export function hasTeamOperationalScope(role: OperationalRole): boolean {
+  return role === "MANAGER" || role === "ADMIN";
+}
+
+export function isCoreOperationalRole(role: OperationalRole): boolean {
+  return role === "AGENT" || role === "MANAGER" || role === "ADMIN";
+}
+
+export function operationalLanding(role: OperationalRole): string {
+  if (role === "DOCUMENT_REVIEWER") return "/agent/document-review";
+  if (role === "FINANCE") return "/agent/finance";
+  return "/agent/cases";
+}
+
 export function assertCapability(context: OperationalContext, capability: OperationalCapability): void {
   if (!hasCapability(context.role, capability)) {
     throw new OperationalAuthError(403, "Недостаточно прав для этого действия");
+  }
+  if (
+    ["parties:manage", "documents:upload", "documents:review", "contracts:manage", "finance:record", "finance:approve"].includes(capability)
+    && !isM3ProductionWriteAllowed(context.organizationId)
+  ) {
+    throw new OperationalAuthError(403, "Операция доступна только в синтетическом контуре аудита M3");
   }
 }
 

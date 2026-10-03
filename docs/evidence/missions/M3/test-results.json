@@ -1,0 +1,182 @@
+{
+  "mission": "M3-FULFILMENT-MONEY-TRUST",
+  "state": "BLOCKED_HUMAN_JUDGMENT",
+  "implementationSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/37116487974",
+  "previewDeploymentId": "dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5",
+  "previewDeploymentSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+  "previewUrl": "https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app",
+  "previewDatabaseFingerprint": "545a187f9e9d66b0",
+  "checks": {
+    "sourceCi": {
+      "status": "PASS",
+      "runId": 37116487974,
+      "headSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+      "testSkipped": 0,
+      "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
+    },
+    "gitDiffCheck": "PASS",
+    "prismaGenerate": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "files": 23,
+      "passed": 143,
+      "skipped": 0
+    },
+    "integration": {
+      "status": "PASS",
+      "files": 14,
+      "passed": 73,
+      "skipped": 0,
+      "parallelism": "Canonical runner: isolated schema per file, up to four ordinary concurrent workers; same 14 files locally and in CI.",
+      "residue": 0
+    },
+    "targetedRecovery": {
+      "status": "PASS",
+      "testsPerRun": 25,
+      "consecutiveRuns": 5,
+      "skipped": 0,
+      "contract": "policy activation, reviewer authority, credential lifecycle, idempotency, materialization, concurrency, atomic throttling, and exact approval binding"
+    },
+    "e2e": {
+      "status": "PASS",
+      "scripts": 5,
+      "legacySmoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "m2Commercial": "PASS",
+      "m3Fulfilment": "PASS",
+      "skipped": 0
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "migrationCount": 11,
+      "m3Checksum": "270c36a7aebd3ccf0604f87331d83865e6367e9806c27142e5a9d0d996366480",
+      "historicalMigrationChecksums": "MATCH",
+      "encryptedBackup": "PASS",
+      "realRestore": "PASS",
+      "initialDeployWallClock": "See exact source CI step timing; not Production timing",
+      "repeatedDeploy": "NO_OP",
+      "repeatedDeployWallClock": "Verified no-op in exact source CI; not Production timing",
+      "legacyCounts": "MATCH",
+      "orphans": 0,
+      "duplicates": 0,
+      "tenantMismatches": 0
+    },
+    "schemaParity": "PASS",
+    "documentTruth": {
+      "status": "PASS",
+      "uploadedAsVerified": 0,
+      "permanentFileUrls": 0,
+      "crossTenantAccess": 0,
+      "unexplainedReconciliation": 0
+    },
+    "financeTruth": {
+      "status": "PASS",
+      "manualPaidPaths": 0,
+      "destructiveDeletePaths": 0,
+      "unknownAmountAsZero": 0,
+      "duplicateLedgerEntries": 0,
+      "partialPaymentReference": "176000 obligation / 88000 payment = PARTIALLY_PAID / 88000 balance",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "originalResponses": 1,
+        "replayedResponses": 4
+      },
+      "unexplainedReconciliation": 0
+    },
+    "stageGuards": "PASS",
+    "tenantRbac": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0,
+      "keyboard": "PASS",
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "horizontalOverflow": 0
+    },
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5",
+      "deploymentSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+      "previewUrl": "https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app",
+      "databaseFingerprint": "545a187f9e9d66b0",
+      "productionFingerprint": "0257665af2dd90a4",
+      "storageId": "store_Ov8erHstuvfJ52Og",
+      "storageAccess": "private",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "documentQuarantineReviewReplacement": "PASS",
+      "contractObligation": "PASS",
+      "partialFullRefundReversal": "PASS",
+      "webhookReplayFive": "PASS_ONE_ENTRY",
+      "lostResponseRecovery": "PASS_SAME_COMMAND_ENVELOPE_ONE_ENTRY",
+      "financeVisibility": "PASS",
+      "reviewerVisibility": "PASS",
+      "stageGuards": "PASS",
+      "crossTenant": "PASS",
+      "reconciliationDiscrepancies": 0,
+      "accessibilityCriticalSerious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "unexpected5xx": 0,
+      "skipped": 0,
+      "syntheticOrganizations": 2,
+      "syntheticUsers": 6,
+      "syntheticCases": 2,
+      "syntheticSchema": "m3_uat_20261003_ced3fad",
+      "syntheticRunId": "preview-20261003-ced3fad",
+      "postCommitRecovery": "PASS_EXACT_ENVELOPE_ONE_ENTRY"
+    },
+    "independentReview": {
+      "status": "PASS",
+      "reviewedSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+      "p0": 0,
+      "p1": 0,
+      "p2": 1,
+      "reviewer": "independent cumulative M3 source reviewer (Codex)"
+    },
+    "evidenceSchema": "PASS",
+    "evidenceHeadCi": "PENDING",
+    "discoveryParity": {
+      "status": "PASS",
+      "localIntegrationFiles": 14,
+      "ciIntegrationFiles": 14,
+      "localIntegrationTests": 73,
+      "ciIntegrationTests": 73
+    },
+    "skipped": 0,
+    "notRun": 0,
+    "targetedFinanceRecovery": {
+      "status": "PASS",
+      "testsPerRun": 11,
+      "consecutiveRuns": 5,
+      "skipped": 0,
+      "contract": "Exact envelope, synchronous lock, unreadable acknowledgement, confirmed-commit monotonicity, modal dismissal and single alert"
+    }
+  },
+  "humanGates": {
+    "financeAccounting": "AWAITING_HUMAN_VERDICT",
+    "legalPrivacy": "AWAITING_HUMAN_VERDICT",
+    "ritualOperationsSme": "AWAITING_HUMAN_VERDICT"
+  },
+  "production": {
+    "writes": "NONE",
+    "databaseSchemaChanges": "NONE",
+    "environmentChanges": "NONE",
+    "deployment": "UNCHANGED",
+    "deploymentId": "dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g",
+    "databaseFingerprint": "0257665af2dd90a4"
+  },
+  "fullRolloutStatus": "PENDING_HUMAN_VERDICTS",
+  "cpoAuditReleaseStatus": "BLOCKED_EXTERNAL_ACCESS",
+  "localBuildLimitation": "Turbopack worker port binding denied by local environment. Optional webpack fallback rejected node:crypto client import. Canonical build passed exact source CI and Vercel Preview; no local build PASS claimed."
+}

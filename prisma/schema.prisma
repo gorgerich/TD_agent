@@ -41,10 +41,12 @@ model User {
   platformMfaEnabledAt       DateTime?
   orders                     Order[]
 
-  agent               Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
-  memberships         Membership[]
-  platformAuditEvents PlatformAuditEvent[]        @relation("PlatformAuditActor")
-  platformActivations PlatformAccountActivation[]
+  agent                    Agent? // CHANGED: связь 1:1 с агентским профилем (опциональна — у клиента её нет)
+  memberships              Membership[]
+  platformAuditEvents      PlatformAuditEvent[]        @relation("PlatformAuditActor")
+  platformActivations      PlatformAccountActivation[]
+  approvedDocumentPolicies DocumentRequirementPolicy[] @relation("DocumentPolicyApprover")
+  approvedSigningPolicies  ContractSigningPolicy[]     @relation("ContractSigningPolicyApprover")
 }
 
 model Order {
@@ -170,17 +172,33 @@ model Organization {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  memberships        Membership[]
-  invitations        OrganizationInvite[]
-  cases              Case[]
-  tasks              Task[]
-  meetings           Meeting[]
-  auditEvents        OperationalAuditEvent[]
-  savedViews         SavedOperationalView[]
-  projectionReceipts ProjectionReceipt[]
-  quotes             Quote[]
-  catalogItems       AgentCatalogItem[]
-  catalogRevisions   CatalogItemRevision[]
+  memberships              Membership[]
+  invitations              OrganizationInvite[]
+  cases                    Case[]
+  tasks                    Task[]
+  meetings                 Meeting[]
+  auditEvents              OperationalAuditEvent[]
+  savedViews               SavedOperationalView[]
+  projectionReceipts       ProjectionReceipt[]
+  quotes                   Quote[]
+  catalogItems             AgentCatalogItem[]
+  catalogRevisions         CatalogItemRevision[]
+  caseParties              CaseParty[]
+  documentTypeDefinitions  DocumentTypeDefinition[]
+  documentPolicies         DocumentRequirementPolicy[]
+  documentRequirements     CaseDocumentRequirement[]
+  caseDocuments            CaseDocument[]
+  documentVersions         CaseDocumentVersion[]
+  documentAccessEvents     DocumentAccessEvent[]
+  contracts                Contract[]
+  contractVersions         ContractVersion[]
+  paymentObligations       PaymentObligation[]
+  paymentLedgerEntries     PaymentLedgerEntry[]
+  paymentLedgerApprovals   PaymentLedgerApproval[]
+  financialPolicies        FinancialControlPolicy[]
+  paymentWebhookReceipts   PaymentWebhookReceipt[]
+  contractSigningPolicies  ContractSigningPolicy[]
+  casePartyRoleAssignments CasePartyRoleAssignment[]
 
   @@index([status, createdAt])
 }
@@ -198,16 +216,30 @@ model Membership {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  assignedTasks          Task[]                     @relation("TaskAssignee")
-  createdTasks           Task[]                     @relation("TaskCreator")
-  ownedMeetings          Meeting[]                  @relation("MeetingOwner")
-  auditEvents            OperationalAuditEvent[]    @relation("AuditActor")
-  savedViews             SavedOperationalView[]     @relation("SavedViewOwner")
-  invitationsCreated     OrganizationInvite[]       @relation("InvitationCreator")
-  ownedQuotes            Quote[]                    @relation("QuoteOwner")
-  publishedQuoteVersions QuoteVersion[]             @relation("QuotePublisher")
-  createdQuoteLinks      QuoteClientLink[]          @relation("QuoteLinkCreator")
-  presentationSessions   QuotePresentationSession[] @relation("QuotePresentationOwner")
+  assignedTasks             Task[]                     @relation("TaskAssignee")
+  createdTasks              Task[]                     @relation("TaskCreator")
+  ownedMeetings             Meeting[]                  @relation("MeetingOwner")
+  auditEvents               OperationalAuditEvent[]    @relation("AuditActor")
+  savedViews                SavedOperationalView[]     @relation("SavedViewOwner")
+  invitationsCreated        OrganizationInvite[]       @relation("InvitationCreator")
+  ownedQuotes               Quote[]                    @relation("QuoteOwner")
+  publishedQuoteVersions    QuoteVersion[]             @relation("QuotePublisher")
+  createdQuoteLinks         QuoteClientLink[]          @relation("QuoteLinkCreator")
+  presentationSessions      QuotePresentationSession[] @relation("QuotePresentationOwner")
+  createdCaseParties        CaseParty[]                @relation("CasePartyCreator")
+  createdPartyRoles         CasePartyRoleAssignment[]  @relation("CasePartyRoleCreator")
+  assignedRequirements      CaseDocumentRequirement[]  @relation("DocumentRequirementOwner")
+  uploadedDocumentVersions  CaseDocumentVersion[]      @relation("DocumentVersionUploader")
+  assignedDocumentReviews   CaseDocumentVersion[]      @relation("DocumentVersionAssignee")
+  reviewedDocumentVersions  CaseDocumentVersion[]      @relation("DocumentVersionReviewer")
+  documentAccessEvents      DocumentAccessEvent[]      @relation("DocumentAccessActor")
+  createdContracts          Contract[]                 @relation("ContractCreator")
+  issuedContractVersions    ContractVersion[]          @relation("ContractIssuer")
+  signedContractVersions    ContractVersion[]          @relation("ContractSigner")
+  createdPaymentObligations PaymentObligation[]        @relation("PaymentObligationCreator")
+  paymentLedgerEntries      PaymentLedgerEntry[]       @relation("PaymentLedgerActor")
+  paymentApprovalsRequested PaymentLedgerApproval[]    @relation("PaymentApprovalRequester")
+  paymentApprovalsDecided   PaymentLedgerApproval[]    @relation("PaymentApprovalDecider")
 
   @@unique([organizationId, userId])
   @@index([organizationId, role, status])
@@ -409,7 +441,7 @@ model QuoteVersion {
   subtotal                Int?
   discountTotal           Int?
   total                   Int // minor units (kopecks)
-  totalState              CommercialPriceState @default(UNKNOWN)
+  totalState              CommercialPriceState  @default(UNKNOWN)
   currency                String                @default("RUB")
   snapshotChecksum        String?
   catalogSourceVersion    String?
@@ -429,6 +461,7 @@ model QuoteVersion {
   activeDraftFor          Quote?                @relation("ActiveQuoteDraft")
   latestPublishedFor      Quote?                @relation("LatestPublishedQuoteVersion")
   publishedForCases       Case[]                @relation("PublishedQuoteForCase")
+  contractVersions        ContractVersion[]
 
   @@unique([quoteId, versionNumber])
   @@unique([quoteId, idempotencyKey])
@@ -519,27 +552,37 @@ model QuotePresentationSession {
 // Canonical Week 2 aggregate. ClientLead remains contact/intake storage; Case owns
 // lifecycle, scenario, tenant identity and immutable transition history.
 model Case {
-  id                      String        @id @default(cuid())
-  publicRef               String        @unique @default(cuid())
-  leadId                  Int           @unique
-  lead                    ClientLead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id                      String                    @id @default(cuid())
+  publicRef               String                    @unique @default(cuid())
+  leadId                  Int                       @unique
+  lead                    ClientLead                @relation(fields: [leadId], references: [id], onDelete: Cascade)
   tenantId                String
-  organization            Organization  @relation(fields: [tenantId], references: [id])
+  organization            Organization              @relation(fields: [tenantId], references: [id])
   ownerId                 Int
-  owner                   Agent         @relation("CaseOwner", fields: [ownerId], references: [id])
-  scenarioId              CaseScenario  @default(UNSELECTED)
-  stage                   CaseStage     @default(INTAKE)
-  version                 Int           @default(1)
-  guardState              Json          @default("{}")
+  owner                   Agent                     @relation("CaseOwner", fields: [ownerId], references: [id])
+  scenarioId              CaseScenario              @default(UNSELECTED)
+  stage                   CaseStage                 @default(INTAKE)
+  version                 Int                       @default(1)
+  guardState              Json                      @default("{}")
   publishedQuoteVersionId Int?
-  publishedQuoteVersion   QuoteVersion? @relation("PublishedQuoteForCase", fields: [publishedQuoteVersionId], references: [id])
-  commercialQuotes        Quote[]       @relation("CommercialQuoteCase")
+  publishedQuoteVersion   QuoteVersion?             @relation("PublishedQuoteForCase", fields: [publishedQuoteVersionId], references: [id])
+  commercialQuotes        Quote[]                   @relation("CommercialQuoteCase")
   closedAt                DateTime?
   events                  CaseEvent[]
   tasks                   Task[]
   meetings                Meeting[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
+  parties                 CaseParty[]
+  documentRequirements    CaseDocumentRequirement[]
+  caseDocuments           CaseDocument[]
+  documentVersions        CaseDocumentVersion[]
+  documentAccessEvents    DocumentAccessEvent[]
+  contract                Contract?
+  contractVersions        ContractVersion[]
+  paymentObligations      PaymentObligation[]
+  paymentLedgerEntries    PaymentLedgerEntry[]
+  paymentWebhookReceipts  PaymentWebhookReceipt[]
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
 
   @@index([tenantId, ownerId])
   @@index([tenantId, stage])
@@ -820,6 +863,441 @@ model Document {
   @@index([agentId])
 }
 
+// M3 canonical family/contact aggregate. Contact fields are encrypted by the
+// application adapter; role assignments are separate so one party can hold
+// several effective roles without identity-by-name joins.
+model CaseParty {
+  id                    String                    @id @default(cuid())
+  organizationId        String
+  organization          Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                String
+  case                  Case                      @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  nameEncrypted         String
+  phoneEncrypted        String?
+  emailEncrypted        String?
+  preferredChannel      M3CommunicationChannel    @default(NONE)
+  consentStatus         M3ConsentStatus           @default(UNKNOWN)
+  consentSource         String?
+  consentAt             DateTime?
+  visibilityPolicy      M3PartyVisibility         @default(CASE_TEAM)
+  createdByMembershipId String
+  createdBy             Membership                @relation("CasePartyCreator", fields: [createdByMembershipId], references: [id], onDelete: Restrict)
+  roles                 CasePartyRoleAssignment[]
+  paymentObligations    PaymentObligation[]
+  paymentLedgerEntries  PaymentLedgerEntry[]
+  contractVersions      ContractVersion[]
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  @@index([organizationId, caseId])
+  @@index([caseId, consentStatus])
+}
+
+model CasePartyRoleAssignment {
+  id                    String        @id @default(cuid())
+  organizationId        String
+  organization          Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  casePartyId           String
+  caseParty             CaseParty     @relation(fields: [casePartyId], references: [id], onDelete: Restrict)
+  role                  CasePartyRole
+  validFrom             DateTime      @default(now())
+  validUntil            DateTime?
+  createdByMembershipId String
+  createdBy             Membership    @relation("CasePartyRoleCreator", fields: [createdByMembershipId], references: [id], onDelete: Restrict)
+  createdAt             DateTime      @default(now())
+
+  @@unique([casePartyId, role, validFrom])
+  @@index([organizationId, role, validUntil])
+}
+
+model DocumentTypeDefinition {
+  id               String         @id @default(cuid())
+  organizationId   String
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  code             String
+  version          Int
+  name             String
+  description      String?
+  allowedMimeTypes Json
+  maxBytes         Int
+  status           M3PolicyStatus @default(DRAFT_POLICY)
+  source           String
+  documents        CaseDocument[]
+  createdAt        DateTime       @default(now())
+
+  @@unique([organizationId, code, version])
+  @@index([organizationId, status, code])
+}
+
+model DocumentRequirementPolicy {
+  id               String                    @id @default(cuid())
+  organizationId   String
+  organization     Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scenario         CaseScenario
+  version          Int
+  status           M3PolicyStatus            @default(DRAFT_POLICY)
+  source           String
+  approvedByUserId Int?
+  approvedBy       User?                     @relation("DocumentPolicyApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  approvedAt       DateTime?
+  effectiveFrom    DateTime?
+  retiredAt        DateTime?
+  rules            DocumentRequirementRule[]
+  requirements     CaseDocumentRequirement[]
+  createdAt        DateTime                  @default(now())
+
+  @@unique([organizationId, scenario, version])
+  @@index([organizationId, scenario, status, effectiveFrom])
+}
+
+model DocumentRequirementRule {
+  id                        String                    @id @default(cuid())
+  policyId                  String
+  policy                    DocumentRequirementPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  stableKey                 String
+  kind                      M3RequirementKind
+  conditionKey              String?
+  conditionExplanation      String?
+  dueOffsetHours            Int?
+  ownerRole                 MembershipRole
+  blockingStage             CaseStage
+  acceptedDocumentTypeCodes Json
+  acceptedDocumentTypeVersionIds Json
+  reviewChecklist           Json
+  source                    String
+  requirements              CaseDocumentRequirement[]
+  createdAt                 DateTime                  @default(now())
+
+  @@unique([policyId, stableKey])
+  @@index([policyId, blockingStage])
+}
+
+model CaseDocumentRequirement {
+  id                        String                    @id @default(cuid())
+  organizationId            String
+  organization              Organization              @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                    String
+  case                      Case                      @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  policyId                  String
+  policy                    DocumentRequirementPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  ruleId                    String
+  rule                      DocumentRequirementRule   @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  policyVersion             Int
+  stableKey                 String
+  kind                      M3RequirementKind
+  conditionExplanation      String?
+  dueAt                     DateTime?
+  ownerMembershipId         String?
+  owner                     Membership?               @relation("DocumentRequirementOwner", fields: [ownerMembershipId], references: [id], onDelete: Restrict)
+  ownerRole                 MembershipRole
+  blockingStage             CaseStage
+  acceptedDocumentTypeCodes Json
+  acceptedDocumentTypeVersionIds Json
+  reviewChecklist           Json
+  isApplicable              Boolean                   @default(true)
+  applicabilityEvaluatedAt  DateTime                  @default(now())
+  satisfactionStatus        M3RequirementSatisfaction @default(NOT_SATISFIED)
+  satisfiedByVersionId      String?                   @unique
+  satisfiedByVersion        CaseDocumentVersion?      @relation("RequirementSatisfiedBy", fields: [satisfiedByVersionId], references: [id], onDelete: Restrict)
+  sourceRule                String
+  document                  CaseDocument?
+  documentVersions          CaseDocumentVersion[]
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+
+  @@unique([caseId, ruleId])
+  @@unique([caseId, stableKey, policyVersion])
+  @@index([organizationId, satisfactionStatus, dueAt])
+  @@index([caseId, blockingStage, isApplicable])
+}
+
+model CaseDocument {
+  id             String                   @id @default(cuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId         String
+  case           Case                     @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  requirementId  String?                  @unique
+  requirement    CaseDocumentRequirement? @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  documentTypeId String
+  documentType   DocumentTypeDefinition   @relation(fields: [documentTypeId], references: [id], onDelete: Restrict)
+  status         DocumentLifecycleStatus  @default(REQUIRED)
+  versions       CaseDocumentVersion[]
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([organizationId, caseId, status])
+  @@index([documentTypeId])
+}
+
+model CaseDocumentVersion {
+  id                           String                   @id @default(cuid())
+  documentId                   String
+  document                     CaseDocument             @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  versionNumber                Int
+  organizationId               String
+  organization                 Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                       String
+  case                         Case                     @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  requirementId                String?
+  requirement                  CaseDocumentRequirement? @relation(fields: [requirementId], references: [id], onDelete: Restrict)
+  fileChecksum                 String
+  storageKey                   String                   @unique
+  storageEtag                  String
+  originalFilenameEncrypted    String
+  mimeType                     String
+  size                         Int
+  uploaderMembershipId         String
+  uploader                     Membership               @relation("DocumentVersionUploader", fields: [uploaderMembershipId], references: [id], onDelete: Restrict)
+  source                       String
+  status                       DocumentLifecycleStatus  @default(QUARANTINED)
+  scanStatus                   DocumentScanStatus       @default(PENDING)
+  scanProvider                 String?
+  scanResultCode               String?
+  assignedReviewerMembershipId String?
+  assignedReviewer             Membership?              @relation("DocumentVersionAssignee", fields: [assignedReviewerMembershipId], references: [id], onDelete: Restrict)
+  reviewedByMembershipId       String?
+  reviewedBy                   Membership?              @relation("DocumentVersionReviewer", fields: [reviewedByMembershipId], references: [id], onDelete: Restrict)
+  reviewedAt                   DateTime?
+  reviewChecklist              Json?
+  rejectionReason              String?
+  expiresAt                    DateTime?
+  supersedesVersionId          String?                  @unique
+  supersedesVersion            CaseDocumentVersion?     @relation("DocumentVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
+  supersededBy                 CaseDocumentVersion?     @relation("DocumentVersionSupersession")
+  satisfiesRequirement         CaseDocumentRequirement? @relation("RequirementSatisfiedBy")
+  accessEvents                 DocumentAccessEvent[]
+  createdAt                    DateTime                 @default(now())
+
+  @@unique([documentId, versionNumber])
+  @@index([organizationId, status, createdAt])
+  @@index([caseId, requirementId])
+  @@index([reviewedByMembershipId, status])
+  @@index([assignedReviewerMembershipId, status])
+}
+
+model DocumentAccessEvent {
+  id                String               @id @default(cuid())
+  organizationId    String
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId            String
+  case              Case                 @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  documentVersionId String
+  documentVersion   CaseDocumentVersion  @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+  actorMembershipId String
+  actor             Membership           @relation("DocumentAccessActor", fields: [actorMembershipId], references: [id], onDelete: Restrict)
+  action            DocumentAccessAction
+  purpose           String
+  correlationId     String
+  createdAt         DateTime             @default(now())
+
+  @@unique([organizationId, correlationId])
+  @@index([organizationId, caseId, createdAt])
+  @@index([documentVersionId, createdAt])
+}
+
+// Legal-approved proof boundary. A caller-provided label is never enough to
+// turn an issued contract into a signed obligation.
+model ContractSigningPolicy {
+  id                   String            @id @default(cuid())
+  organizationId       String
+  organization         Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  version              String
+  status               M3PolicyStatus    @default(DRAFT_POLICY)
+  allowedEvidenceTypes Json
+  source               String
+  approvedByUserId     Int?
+  approvedBy           User?             @relation("ContractSigningPolicyApprover", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  approvedAt           DateTime?
+  effectiveFrom        DateTime?
+  retiredAt            DateTime?
+  contractVersions     ContractVersion[]
+  createdAt            DateTime          @default(now())
+
+  @@unique([organizationId, version])
+  @@index([organizationId, status, effectiveFrom])
+}
+
+model Contract {
+  id                    String            @id @default(cuid())
+  organizationId        String
+  organization          Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                String            @unique
+  case                  Case              @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  createdByMembershipId String
+  createdBy             Membership        @relation("ContractCreator", fields: [createdByMembershipId], references: [id], onDelete: Restrict)
+  versions              ContractVersion[]
+  createdAt             DateTime          @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model ContractVersion {
+  id                     String                  @id @default(cuid())
+  contractId             String
+  contract               Contract                @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  organizationId         String
+  organization           Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                 String
+  case                   Case                    @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  quoteVersionId         Int
+  quoteVersion           QuoteVersion            @relation(fields: [quoteVersionId], references: [id], onDelete: Restrict)
+  versionNumber          Int
+  status                 ContractLifecycleStatus @default(DRAFT)
+  partiesSnapshot        Json
+  payerPartyId           String?
+  payerParty             CaseParty?              @relation(fields: [payerPartyId], references: [id], onDelete: Restrict)
+  currency               String                  @default("RUB")
+  totalObligationKopecks Int
+  paymentTerms           Json
+  issuedByMembershipId   String
+  issuedBy               Membership              @relation("ContractIssuer", fields: [issuedByMembershipId], references: [id], onDelete: Restrict)
+  issuedAt               DateTime?
+  signedByMembershipId   String?
+  signedBy               Membership?             @relation("ContractSigner", fields: [signedByMembershipId], references: [id], onDelete: Restrict)
+  signedAt               DateTime?
+  signatureEvidence      Json?
+  signaturePolicyId      String?
+  signaturePolicy        ContractSigningPolicy?  @relation(fields: [signaturePolicyId], references: [id], onDelete: Restrict)
+  signaturePolicyVersion String?
+  checksum               String
+  validUntil             DateTime?
+  supersedesVersionId    String?                 @unique
+  supersedesVersion      ContractVersion?        @relation("ContractVersionSupersession", fields: [supersedesVersionId], references: [id], onDelete: Restrict)
+  supersededBy           ContractVersion?        @relation("ContractVersionSupersession")
+  idempotencyKey         String
+  correlationId          String
+  obligation             PaymentObligation?
+  createdAt              DateTime                @default(now())
+
+  @@unique([contractId, versionNumber])
+  @@unique([contractId, quoteVersionId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, caseId, status])
+  @@index([quoteVersionId])
+  @@index([signaturePolicyId])
+}
+
+model PaymentObligation {
+  id                    String               @id @default(cuid())
+  organizationId        String
+  organization          Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                String
+  case                  Case                 @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  contractVersionId     String               @unique
+  contractVersion       ContractVersion      @relation(fields: [contractVersionId], references: [id], onDelete: Restrict)
+  payerPartyId          String?
+  payerParty            CaseParty?           @relation(fields: [payerPartyId], references: [id], onDelete: Restrict)
+  amountKopecks         Int
+  currency              String               @default("RUB")
+  createdByMembershipId String
+  createdBy             Membership           @relation("PaymentObligationCreator", fields: [createdByMembershipId], references: [id], onDelete: Restrict)
+  idempotencyKey        String
+  correlationId         String
+  ledgerEntries         PaymentLedgerEntry[]
+  createdAt             DateTime             @default(now())
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, caseId])
+}
+
+model PaymentLedgerEntry {
+  id                    String                 @id @default(cuid())
+  organizationId        String
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId                String
+  case                  Case                   @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  obligationId          String
+  obligation            PaymentObligation      @relation(fields: [obligationId], references: [id], onDelete: Restrict)
+  payerPartyId          String?
+  payerParty            CaseParty?             @relation(fields: [payerPartyId], references: [id], onDelete: Restrict)
+  type                  PaymentLedgerEntryType
+  direction             LedgerDirection
+  amountKopecks         Int
+  currency              String
+  occurredAt            DateTime
+  method                PaymentMethod?
+  source                String
+  externalTransactionId String?
+  evidenceReference     String
+  actorMembershipId     String?
+  actor                 Membership?            @relation("PaymentLedgerActor", fields: [actorMembershipId], references: [id], onDelete: Restrict)
+  actorType             String                 @default("member")
+  idempotencyKey        String
+  correlationId         String
+  approvalRequired      Boolean                @default(false)
+  relatedEntryId        String?
+  relatedEntry          PaymentLedgerEntry?    @relation("LedgerEntryRelation", fields: [relatedEntryId], references: [id], onDelete: Restrict)
+  relatedEntries        PaymentLedgerEntry[]   @relation("LedgerEntryRelation")
+  approval              PaymentLedgerApproval?
+  webhookReceipt        PaymentWebhookReceipt?
+  createdAt             DateTime               @default(now())
+
+  @@unique([organizationId, idempotencyKey])
+  @@unique([organizationId, source, externalTransactionId])
+  @@index([organizationId, caseId, createdAt])
+  @@index([obligationId, createdAt])
+  @@index([relatedEntryId])
+}
+
+model PaymentLedgerApproval {
+  id                      String                  @id @default(cuid())
+  organizationId          String
+  organization            Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  ledgerEntryId           String                  @unique
+  ledgerEntry             PaymentLedgerEntry      @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  requestedByMembershipId String
+  requestedBy             Membership              @relation("PaymentApprovalRequester", fields: [requestedByMembershipId], references: [id], onDelete: Restrict)
+  decidedByMembershipId   String?
+  decidedBy               Membership?             @relation("PaymentApprovalDecider", fields: [decidedByMembershipId], references: [id], onDelete: Restrict)
+  decision                LedgerApprovalDecision?
+  decidedAt               DateTime?
+  policyVersion           Int
+  requestReason           String
+  decisionReason          String?
+  idempotencyKey          String
+  correlationId           String
+  createdAt               DateTime                @default(now())
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, decision, createdAt])
+}
+
+model FinancialControlPolicy {
+  id                         String         @id @default(cuid())
+  organizationId             String
+  organization               Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  version                    Int
+  status                     M3PolicyStatus @default(DRAFT_POLICY)
+  correctionThresholdKopecks Int?
+  source                     String
+  approvedAt                 DateTime?
+  createdAt                  DateTime       @default(now())
+
+  @@unique([organizationId, version])
+  @@index([organizationId, status])
+}
+
+model PaymentWebhookReceipt {
+  id                String              @id @default(cuid())
+  organizationId    String
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  caseId            String
+  case              Case                @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  provider          String
+  externalEventId   String
+  eventVersion      String
+  payloadHash       String
+  signatureVerified Boolean
+  rejectedReason    String?
+  ledgerEntryId     String?             @unique
+  ledgerEntry       PaymentLedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  receivedAt        DateTime            @default(now())
+
+  @@unique([organizationId, provider, externalEventId])
+  @@index([organizationId, caseId, receivedAt])
+}
+
 // ============================================================
 // Enums (все NEW). Order.status намеренно оставлен String — см. выше.
 // ============================================================
@@ -842,6 +1320,8 @@ enum MembershipRole {
   AGENT
   MANAGER
   ADMIN
+  DOCUMENT_REVIEWER
+  FINANCE
 }
 
 enum MembershipStatus {
@@ -1013,6 +1493,102 @@ enum QuoteLineRelation {
 enum QuoteClientDecisionType {
   ACCEPTED
   CHANGES_REQUESTED
+}
+
+enum CasePartyRole {
+  APPLICANT
+  DECISION_MAKER
+  PAYER
+  RESPONSIBLE_FOR_BURIAL
+  ADDITIONAL_CONTACT
+}
+
+enum M3CommunicationChannel {
+  PHONE
+  EMAIL
+  MESSENGER
+  IN_PERSON
+  NONE
+}
+
+enum M3ConsentStatus {
+  UNKNOWN
+  NOT_REQUESTED
+  GRANTED
+  WITHDRAWN
+  RESTRICTED
+}
+
+enum M3PartyVisibility {
+  CASE_TEAM
+  FINANCE_LIMITED
+  REVIEWER_REDACTED
+}
+
+enum M3PolicyStatus {
+  DRAFT_POLICY
+  APPROVED
+  RETIRED
+}
+
+enum M3RequirementKind {
+  REQUIRED
+  CONDITIONAL
+}
+
+enum M3RequirementSatisfaction {
+  NOT_SATISFIED
+  SATISFIED
+  BLOCKED
+}
+
+enum DocumentLifecycleStatus {
+  REQUIRED
+  UPLOADED
+  QUARANTINED
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum DocumentScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  ERROR
+}
+
+enum DocumentAccessAction {
+  VIEW
+  DOWNLOAD
+}
+
+enum ContractLifecycleStatus {
+  DRAFT
+  ISSUED
+  SIGNED
+  CANCELLED
+  SUPERSEDED
+}
+
+enum PaymentLedgerEntryType {
+  OBLIGATION
+  PAYMENT
+  REFUND
+  CORRECTION
+  REVERSAL
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum LedgerApprovalDecision {
+  APPROVED
+  REJECTED
 }
 
 // NEW (B2B): хранит хэш одноразового кода для SMS-аутентификации агента.

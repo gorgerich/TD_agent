@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/Toast";
 import { buildInvitationUrl } from "@/lib/invitationLink";
 
-type Role = "AGENT" | "MANAGER" | "ADMIN";
+type Role = "AGENT" | "MANAGER" | "ADMIN" | "DOCUMENT_REVIEWER" | "FINANCE";
 type MemberStatus = "INVITED" | "ACTIVE" | "SUSPENDED";
 
 export type TeamSnapshot = {
@@ -44,6 +44,8 @@ const ROLE_LABELS: Record<Role, string> = {
   AGENT: "Агент",
   MANAGER: "Руководитель",
   ADMIN: "Администратор",
+  DOCUMENT_REVIEWER: "Проверяющий документы",
+  FINANCE: "Финансы",
 };
 
 const ADMIN_CONFIRMATION = "НАЗНАЧИТЬ АДМИНИСТРАТОРА";
@@ -200,6 +202,8 @@ export function TeamAccessClient({
                   <option value="AGENT">Агент</option>
                   <option value="MANAGER">Руководитель</option>
                   <option value="ADMIN">Администратор</option>
+                  <option value="DOCUMENT_REVIEWER">Проверяющий документы</option>
+                  <option value="FINANCE">Финансы</option>
                 </select>
               </label>
               <Button type="submit" loading={busy === "invite"} disabled={role === "ADMIN" && confirmation !== ADMIN_CONFIRMATION}>
@@ -260,6 +264,8 @@ export function TeamAccessClient({
                     <option value="AGENT">Агент</option>
                     <option value="MANAGER">Руководитель</option>
                     <option value="ADMIN">Администратор</option>
+                    <option value="DOCUMENT_REVIEWER">Проверяющий документы</option>
+                    <option value="FINANCE">Финансы</option>
                   </select>
                 </label>
                 <span className={`inline-flex w-fit items-center gap-2 text-[12px] font-semibold ${membership.status === "ACTIVE" ? "text-success" : "text-ink-3"}`}>

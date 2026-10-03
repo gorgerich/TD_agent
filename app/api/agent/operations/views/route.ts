@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { appendOperationalAudit } from "@/lib/operationalAudit";
-import { assertCapability } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         organizationId: session.organizationId,
         OR: [
           { ownerMembershipId: session.membershipId },
-          ...(session.role === "AGENT" ? [] : [{ scope: "TEAM" as const }]),
+          ...(hasTeamOperationalScope(session.role) ? [{ scope: "TEAM" as const }] : []),
         ],
       },
       orderBy: { updatedAt: "desc" },

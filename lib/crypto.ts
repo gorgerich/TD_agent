@@ -12,6 +12,15 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 const PREFIX = "enc1:";
 const IV_LEN = 12;
 
+export class EncryptedDataUnavailableError extends Error {
+  readonly code = "PII_DECRYPTION_UNAVAILABLE";
+
+  constructor() {
+    super("Encrypted personal data is unavailable");
+    this.name = "EncryptedDataUnavailableError";
+  }
+}
+
 function getKey({ allowMissing = false }: { allowMissing?: boolean } = {}): Buffer | null {
   const secret = process.env.APP_ENCRYPTION_KEY;
   if (process.env.NODE_ENV === "production" && !secret) {
@@ -39,18 +48,34 @@ export function encryptString(plain: string): string {
  * "enc1:" (легаси-плейнтекст в БД) — возвращает её как есть.
  */
 export function decryptString(stored: string): string {
+  return decryptStoredString(stored, false);
+}
+
+/** Strict PII read: never converts a missing/wrong key or damaged ciphertext into blank data. */
+export function decryptStringStrict(stored: string): string {
+  return decryptStoredString(stored, true);
+}
+
+function decryptStoredString(stored: string, strict: boolean): string {
   if (!stored.startsWith(PREFIX)) return stored; // легаси-плейнтекст
   const [ivB64, tagB64, ctB64] = stored.slice(PREFIX.length).split(".");
-  if (!ivB64 || !tagB64 || !ctB64) throw new Error("Повреждённый шифртекст");
+  if (!ivB64 || !tagB64 || !ctB64) {
+    if (strict) throw new EncryptedDataUnavailableError();
+    throw new Error("Повреждённый шифртекст");
+  }
   const key = getKey({ allowMissing: true });
   // Если prod env ещё не получил APP_ENCRYPTION_KEY, не роняем MVP-экраны.
   // Зашифрованное ПДн без ключа не показываем.
-  if (!key) return "";
+  if (!key) {
+    if (strict) throw new EncryptedDataUnavailableError();
+    return "";
+  }
   try {
     const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
     decipher.setAuthTag(Buffer.from(tagB64, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
   } catch {
+    if (strict) throw new EncryptedDataUnavailableError();
     // Старые demo-данные могли быть зашифрованы другим ключом после сброса env.
     // Не показываем ciphertext и не роняем рабочие экраны.
     return "";
@@ -65,4 +90,9 @@ export function encryptField<T extends string | null | undefined>(v: T): T {
 /** Расшифровка nullable-поля ПДн при чтении. null — без изменений; легаси-плейнтекст проходит насквозь. */
 export function decryptField<T extends string | null | undefined>(v: T): T {
   return (v == null ? v : (decryptString(v) as T));
+}
+
+/** Strict nullable PII read. Legacy plaintext passes through; encrypted failures are explicit. */
+export function decryptFieldStrict<T extends string | null | undefined>(v: T): T {
+  return (v == null ? v : (decryptStringStrict(v) as T));
 }

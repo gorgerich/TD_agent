@@ -5,6 +5,12 @@ import { enforceRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
+export async function GET() {
+  return NextResponse.json({ available: isDemoMode() }, {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
 export async function POST(req: Request) {
   if (!isDemoMode()) return NextResponse.json({ error: "Демо-режим отключён" }, { status: 404 });
   const limited = enforceRateLimit(req, "demo", 10, 60_000);

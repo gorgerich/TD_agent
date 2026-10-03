@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { encryptField, decryptField } from "@/lib/crypto";
 import { handleApiError } from "@/lib/apiAuth";
 import { ensureCanonicalCaseForLead } from "@/lib/caseService";
-import { assertCapability } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       where: {
         case: {
           tenantId: session.organizationId,
-          ...(session.role === "AGENT" ? { ownerId: session.agentId } : {}),
+          ...(!hasTeamOperationalScope(session.role) ? { ownerId: session.agentId } : {}),
         },
       },
       orderBy: { createdAt: "desc" },
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         },
       });
       if (replay) {
-        if (session.role === "AGENT" && replay.case.ownerId !== session.agentId) {
+        if (!hasTeamOperationalScope(session.role) && replay.case.ownerId !== session.agentId) {
           return NextResponse.json({ error: "Кейс не найден" }, { status: 404 });
         }
         if (replay.eventType !== "case.created.v1") {

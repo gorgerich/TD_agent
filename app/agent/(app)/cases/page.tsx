@@ -7,7 +7,7 @@ import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { type Stage, relTime } from "@/lib/case";
-import { type StatusTone, type WaitingOn } from "@/lib/caseStatus";
+import { countCasesWaitingOnPayment, isCaseInWorklist, type StatusTone, type WaitingOn } from "@/lib/caseStatus";
 import { getCanonicalCases } from "@/lib/caseReadModel";
 import { zonedDayBounds } from "@/lib/zonedDateTime";
 
@@ -39,6 +39,7 @@ type CaseRow = {
   riskDeadline: string;
   publishedQuote: boolean;
   paymentBalanceLabel: string;
+  paymentBalanceKopecks: number | null;
   documentReadiness: string;
 };
 
@@ -108,6 +109,7 @@ async function getCases(session: AgentSession): Promise<CasesData> {
         riskDeadline: primaryRisk?.deadline ? `${fmtDate.format(primaryRisk.deadline)}, ${fmtTime.format(primaryRisk.deadline)}` : "",
         publishedQuote: Boolean(record.publishedQuote),
         paymentBalanceLabel: record.payment.balanceKopecks == null ? "сумма не опубликована" : fmtMoney.format(record.payment.balanceKopecks / 100),
+        paymentBalanceKopecks: record.payment.balanceKopecks,
         documentReadiness: record.documents.required === 0 ? "сценарий не выбран" : `${record.documents.verified}/${record.documents.required} проверено`,
       };
     });
@@ -119,7 +121,7 @@ async function getCases(session: AgentSession): Promise<CasesData> {
       if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
       return 0;
     });
-    const active = sorted.filter((c) => c.stage !== "Завершено");
+    const active = sorted.filter(isCaseInWorklist);
 
     const todayMeetings = rows
       .filter((c) => c.nextMeetingAt !== null && c.nextMeetingAt <= todayEndMs)
@@ -163,7 +165,7 @@ export default async function CasesPage() {
   const kpiTodayEnd = zonedDayBounds(kpiDate, session.timezone).end;
   const attentionCases = active.filter((c) => c.urgent).length;
   const ceremonyToday = active.filter((c) => c.ceremonyAt && c.ceremonyAt >= kpiNow && c.ceremonyAt <= kpiTodayEnd.getTime()).length;
-  const awaitingPayment = active.filter((c) => c.bucket === "awaitPayment").length;
+  const awaitingPayment = countCasesWaitingOnPayment(active);
 
   return (
     <div className="td-page mx-auto w-full max-w-[1280px] overflow-x-hidden px-4 py-6 sm:px-7 sm:py-8">
@@ -183,7 +185,7 @@ export default async function CasesPage() {
             <b className={`tnum ${attentionCases > 0 ? "text-danger" : "text-ink"}`}>{attentionCases}</b> требуют внимания
           </span>
           <span className="text-ink-3" aria-hidden="true">·</span>
-          <span><b className="tnum text-ink">{ceremonyToday}</b> сегодня</span>
+          <span><b className="tnum text-ink">{ceremonyToday}</b> церемоний сегодня</span>
           <span className="text-ink-3" aria-hidden="true">·</span>
           <span><b className="tnum text-ink">{awaitingPayment}</b> ждут оплату</span>
         </div>
@@ -230,7 +232,7 @@ export default async function CasesPage() {
           {overdueTasks.length > 0 && (
             <div className="td-shell p-3.5">
               <p className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-danger">
-                <Warning size={14} weight="fill" /> Просрочено: {overdueTasks.length}
+                <Warning size={14} weight="fill" /> Просроченные задачи: {overdueTasks.length}
               </p>
               <div className="divide-y divide-line">
                 {overdueTasks.slice(0, 3).map((t, i) => (
@@ -261,7 +263,7 @@ export default async function CasesPage() {
           {todayMeetings.length > 0 ? (
             <div className="td-shell p-3.5">
               <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-3">
-                <CalendarDots size={14} weight="duotone" /> Сегодня
+                <CalendarDots size={14} weight="duotone" /> Встречи сегодня
               </p>
               <div className="divide-y divide-line">
                 {todayMeetings.map((c) => (

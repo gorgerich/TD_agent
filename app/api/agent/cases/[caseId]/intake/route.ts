@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 const Schema = z.object({
   ceremonyType: z.string().max(40).optional().nullable(),
   budget: z.string().max(60).optional().nullable(),
-  religion: z.string().max(60).optional().nullable(),
+  religion: z.never().optional(),
   needs: z.string().max(2000).optional().nullable(),
   // P0-домен: усопший и церемония
   deceasedName: z.string().max(200).optional().nullable(),
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     const parsed = Schema.safeParse(await req.json());
     if (!parsed.success) return NextResponse.json({ error: "Проверьте поля" }, { status: 400 });
 
-    const { ceremonyType, budget, religion, needs, deceasedName, deceasedDate, morgue, ceremonyAt, ceremonyPlace } = parsed.data;
+    const { ceremonyType, budget, needs, deceasedName, deceasedDate, morgue, ceremonyAt, ceremonyPlace } = parsed.data;
     const parsedCeremonyAt = parseCeremonyDate(ceremonyAt, session.timezone);
     if (ceremonyAt && !parsedCeremonyAt) {
       return NextResponse.json({ error: "Проверьте дату, время и часовой пояс организации" }, { status: 400 });
@@ -64,7 +64,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
       data: {
         ceremonyType: ceremonyType ?? null,
         budget: budget ?? null,
-        religion: religion ?? null,
         needs: needs ? encryptField(needs) : null, // ПДн — шифруем
         deceasedName: deceasedName ? encryptField(deceasedName) : null, // ПДн усопшего — шифруем
         deceasedDate: parseDate(deceasedDate),

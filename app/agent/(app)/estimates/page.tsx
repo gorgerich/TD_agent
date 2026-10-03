@@ -7,8 +7,9 @@ import { dateShort, moneyFromKopecks } from "@/lib/format";
 import { buttonClasses } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SegmentedTabs } from "@/components/ui/SegmentedTabs";
+import { isCurrentPublishedVersion, quoteRegistryStatus } from "@/lib/quotePublicationTruth";
 
-type EstimateFilter = "all" | "drafts" | "sent" | "agreed";
+type EstimateFilter = "all" | "drafts" | "sent" | "agreed" | "legacy";
 
 type EstimateRow = {
   id: number;
@@ -18,7 +19,7 @@ type EstimateRow = {
   total: number | null;
   version: number | null;
   priceBlocked: boolean;
-  status: "Черновик" | "Отправлена" | "Нужны изменения" | "Согласована";
+  status: "Черновик" | "Отправлена" | "Нужны изменения" | "Согласована" | "Требует разбора";
   filter: Exclude<EstimateFilter, "all">;
   createdAt: Date | null;
 };
@@ -28,6 +29,7 @@ const FILTERS: Array<{ id: EstimateFilter; label: string }> = [
   { id: "drafts", label: "Черновики" },
   { id: "sent", label: "Отправлены" },
   { id: "agreed", label: "Согласованы" },
+  { id: "legacy", label: "Требуют разбора" },
 ];
 
 async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
@@ -44,7 +46,10 @@ async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
           select: {
             total: true,
             totalState: true,
+            state: true,
             versionNumber: true,
+            snapshotChecksum: true,
+            validUntil: true,
             publishedAt: true,
             decisions: { orderBy: { createdAt: "desc" }, take: 1, select: { type: true } },
           },
@@ -54,15 +59,18 @@ async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
     });
 
     return quotes.map((q) => {
-      const published = q.latestPublishedVersion;
+      const published = isCurrentPublishedVersion(q.latestPublishedVersion, new Date()) ? q.latestPublishedVersion : null;
       const draft = q.activeDraftVersion;
       // Derive both client decisions from the durable decision row, symmetrically. Reading
       // acceptance from Quote.status made the agreement signal the fragile one: any later
       // lifecycle write (opening review, publishing again) moved the status and the row
       // silently fell back to "Отправлена" while the client's decision still existed.
-      const changesRequested = published?.decisions[0]?.type === "CHANGES_REQUESTED";
-      const agreed = published?.decisions[0]?.type === "ACCEPTED" || q.status === "ACCEPTED";
-      const status = agreed ? "Согласована" : changesRequested ? "Нужны изменения" : published ? "Отправлена" : "Черновик";
+      const status = quoteRegistryStatus({
+        hasCurrentPublished: published != null,
+        hasDraft: draft != null,
+        lifecycleStatus: q.status,
+        latestDecision: published?.decisions[0]?.type ?? null,
+      });
       const source = published ?? draft;
       return {
         id: q.id,
@@ -73,7 +81,7 @@ async function getEstimates(session: AgentSession): Promise<EstimateRow[]> {
         version: published?.versionNumber ?? null,
         priceBlocked: draft ? draft.totalState !== "KNOWN" : source?.totalState !== "KNOWN",
         status,
-        filter: status === "Черновик" ? "drafts" : status === "Согласована" ? "agreed" : "sent",
+        filter: status === "Требует разбора" ? "legacy" : status === "Черновик" ? "drafts" : status === "Согласована" ? "agreed" : "sent",
         createdAt: published?.publishedAt ?? draft?.updatedAt ?? null,
       };
     });
@@ -97,6 +105,7 @@ export default async function EstimatesPage({
     drafts: estimates.filter((row) => row.filter === "drafts").length,
     sent: estimates.filter((row) => row.filter === "sent").length,
     agreed: estimates.filter((row) => row.filter === "agreed").length,
+    legacy: estimates.filter((row) => row.filter === "legacy").length,
   };
   const knownTotal = estimates.reduce((sum, row) => row.total === null ? sum : sum + row.total, 0);
   const blockedPrices = estimates.filter((row) => row.priceBlocked).length;
@@ -165,7 +174,7 @@ export default async function EstimatesPage({
                           </span>
                           {estimate.version && <span className="text-ink-3">v{estimate.version}</span>}
                           {estimate.priceBlocked && (
-                            <span className="font-medium text-danger">Черновик: нужна цена</span>
+                            <span className="font-medium text-danger">{estimate.status === "Требует разбора" ? "Нет подтверждённой версии" : "Черновик: нужна цена"}</span>
                           )}
                           <span className="text-ink-3">·</span>
                           <span className="text-ink-3">{dateShort(estimate.createdAt)}</span>

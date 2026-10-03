@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { createMeeting } from "@/lib/meetingService";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -22,13 +23,14 @@ const MeetingStatusSchema = z.enum(["TENTATIVE", "SCHEDULED", "CONFIRMED", "COMP
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAgent(req);
+    assertCapability(session, "work:read");
     const rawStatus = new URL(req.url).searchParams.get("status");
     const parsedStatus = rawStatus ? MeetingStatusSchema.safeParse(rawStatus) : null;
     if (parsedStatus && !parsedStatus.success) return jsonError(400, "Неизвестный статус встречи");
     const meetings = await prisma.meeting.findMany({
       where: {
         organizationId: session.organizationId,
-        ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+        ...(!hasTeamOperationalScope(session.role) ? { ownerMembershipId: session.membershipId } : {}),
         ...(parsedStatus?.success ? { operationalStatus: parsedStatus.data } : {}),
       },
       orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],

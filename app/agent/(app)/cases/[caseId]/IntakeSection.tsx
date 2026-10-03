@@ -8,7 +8,6 @@ import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/
 export type Intake = {
   ceremonyType: string;
   budget: string;
-  religion: string;
   needs: string;
   deceasedName: string;
   deceasedDate: string;
@@ -108,9 +107,6 @@ export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: n
           </Field>
           <Field label="Ориентир по бюджету">
             <input aria-label="Ориентир по бюджету" className="td-field" placeholder="Например, 80-120 тыс. ₽" value={value.budget} onChange={(e) => set("budget", e.target.value)} />
-          </Field>
-          <Field label="Традиция / конфессия">
-            <input aria-label="Традиция или конфессия" className="td-field" placeholder="Например, православная" value={value.religion} onChange={(e) => set("religion", e.target.value)} />
           </Field>
           <Field label="Особые пожелания" className="sm:col-span-2" help="Ограничения, важные детали и всё, что должно сохраниться для команды.">
             <textarea

@@ -32,6 +32,7 @@ function AgentLoginContent() {
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
+  const [demoAvailable, setDemoAvailable] = useState(false);
   const registrationAvailable = process.env.NODE_ENV !== "production" || Boolean(inviteToken);
 
   useEffect(() => {
@@ -44,6 +45,15 @@ function AgentLoginContent() {
         setMode("register");
       }, 0);
     }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/agent/auth/demo", { signal: controller.signal, cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (!controller.signal.aborted) setDemoAvailable(data?.available === true); })
+      .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   async function submitAuth(e: React.FormEvent) {
@@ -137,7 +147,7 @@ function AgentLoginContent() {
             агентская платформа
           </span>
           <h1 className="td-display rise rise-2 mt-6 text-[54px] leading-[1.02] text-on-accent">
-            Кабинет для реальной работы агента и отдельный безопасный демо-вход.
+            Рабочий кабинет агента ритуальной службы.
           </h1>
         </div>
 
@@ -295,23 +305,26 @@ function AgentLoginContent() {
                 </Button>
               </form>
 
-              <div className="my-6 flex items-center gap-3">
-                <span className="h-px flex-1 bg-line" />
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">или</span>
-                <span className="h-px flex-1 bg-line" />
-              </div>
-
-              <button
-                type="button"
-                onClick={enterDemo}
-                disabled={loading !== null}
-                className={buttonClasses({ variant: "secondary", size: "lg", className: "w-full" })}
-              >
-                {loading === "demo" ? "Открываю демо…" : "Войти в демо-кабинет"}
-              </button>
-              <p className="mt-3 text-center text-[12px] leading-5 text-ink-3">
-                Демо использует тестового агента и засеянные данные. Боевые аккаунты создаются отдельно.
-              </p>
+              {demoAvailable && (
+                <>
+                  <div className="my-6 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-line" />
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">или</span>
+                    <span className="h-px flex-1 bg-line" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={enterDemo}
+                    disabled={loading !== null}
+                    className={buttonClasses({ variant: "secondary", size: "lg", className: "w-full" })}
+                  >
+                    {loading === "demo" ? "Открываю демо…" : "Войти в демо-кабинет"}
+                  </button>
+                  <p className="mt-3 text-center text-[12px] leading-5 text-ink-3">
+                    Демо использует тестового агента и засеянные данные. Боевые аккаунты создаются отдельно.
+                  </p>
+                </>
+              )}
             </div>
           </section>
         </div>

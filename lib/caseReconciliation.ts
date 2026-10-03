@@ -2,7 +2,7 @@ import type { CaseStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { CASE_STAGES } from "@/lib/caseDomain";
 import { tenantIdForAgent } from "@/lib/caseService";
-import type { OperationalContext } from "@/lib/operationalAuth";
+import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 
 export type CaseReconciliationIssue = {
   code: "MISSING_CASE" | "TENANT_OWNER_MISMATCH" | "STAGE_BEHIND_ARTIFACTS" | "DOCUMENT_TENANT_MISMATCH";
@@ -23,7 +23,7 @@ export async function reconcileCaseState(scope: number | OperationalContext): Pr
   const legacy = typeof scope === "number";
   const agentId = legacy ? scope : scope.agentId;
   const tenantId = legacy ? tenantIdForAgent(agentId) : scope.organizationId;
-  const agentIds = legacy || scope.role === "AGENT"
+  const agentIds = legacy || !hasTeamOperationalScope(scope.role)
     ? [agentId]
     : (await prisma.membership.findMany({
         where: { organizationId: tenantId, agentId: { not: null } },

@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { CaseCommandContext } from "@/lib/caseService";
 import { prisma } from "@/lib/prisma";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
-import type { OperationalContext } from "@/lib/operationalAuth";
+import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 
 type CaseProjectionInput = {
   eventId: string;
@@ -103,7 +103,7 @@ export async function ensurePastMeetingEscalations(scope: string | OperationalCo
   const meetings = await prisma.meeting.findMany({
     where: {
       organizationId,
-      ...(typeof scope !== "string" && scope.role === "AGENT"
+      ...(typeof scope !== "string" && !hasTeamOperationalScope(scope.role)
         ? { ownerMembershipId: scope.membershipId }
         : {}),
       operationalStatus: { in: ["SCHEDULED", "CONFIRMED"] },

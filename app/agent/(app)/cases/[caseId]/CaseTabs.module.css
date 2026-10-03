@@ -131,6 +131,7 @@
   display: flex;
   min-height: 28px;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 13px;
@@ -139,7 +140,7 @@
 .sectionTitle { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .sectionTitle h3 { margin: 0; color: var(--color-ink); font-size: 15px; font-weight: 680; letter-spacing: -0.01em; }
 .sectionIcon { color: var(--color-accent); }
-.sectionMeta { color: var(--color-ink-3); font-size: 12px; font-weight: 600; }
+.sectionMeta { margin-left: auto; white-space: nowrap; color: var(--color-ink-3); font-size: 12px; font-weight: 600; }
 .sectionHint { max-width: 54ch; margin: -4px 0 13px; color: var(--color-ink-3); font-size: 12px; line-height: 1.45; }
 
 .context { max-width: 68ch; margin: 0; white-space: pre-line; color: var(--color-ink-2); font-size: 14px; line-height: 1.65; }

@@ -3,11 +3,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
 import { createUserSession, normalizeEmail, setAgentSessionCookie } from "@/lib/agentAuth";
-import { enforceRateLimit } from "@/lib/rateLimit";
+import {
+  enforcePersistentIdentityRateLimit,
+  enforcePersistentRateLimit,
+} from "@/lib/persistentRateLimit";
 import {
   decryptPlatformMfaSecret,
   verifyPlatformMfaCode,
 } from "@/lib/platformMfa";
+import { operationalLanding } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -18,8 +22,8 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(req, "login", 10, 60_000);
-  if (limited) return limited;
+  const clientLimited = await enforcePersistentRateLimit(req, "login-ip", 10, 60_000);
+  if (clientLimited) return clientLimited;
 
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -27,6 +31,8 @@ export async function POST(req: NextRequest) {
   }
 
   const email = normalizeEmail(parsed.data.email);
+  const accountLimited = await enforcePersistentIdentityRateLimit("login-account", email, 10, 60_000);
+  if (accountLimited) return accountLimited;
   const user = await prisma.user.findUnique({
     where: { email },
     select: {
@@ -57,8 +63,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Рабочий доступ приостановлен или не назначен" }, { status: 403 });
   }
 
+  const mfaRequiredForRole = user.platformRole === "SUPER_ADMIN" || activeMembership?.role === "FINANCE";
   let mfaVerified = false;
-  if (user.platformRole === "SUPER_ADMIN" && user.platformMfaEnabledAt) {
+  if (mfaRequiredForRole && user.platformMfaEnabledAt) {
     const secret = user.platformMfaSecretEncrypted
       ? decryptPlatformMfaSecret(user.platformMfaSecretEncrypted)
       : "";
@@ -77,11 +84,11 @@ export async function POST(req: NextRequest) {
     mfaVerified,
     name: user.name,
   });
-  const redirectTo = user.platformRole === "SUPER_ADMIN"
-    ? user.platformMfaEnabledAt
+  const redirectTo = mfaRequiredForRole && !user.platformMfaEnabledAt
+    ? "/setup/platform-admin-mfa"
+    : user.platformRole === "SUPER_ADMIN"
       ? "/platform-admin"
-      : "/setup/platform-admin-mfa"
-    : "/agent/cases";
+      : operationalLanding(activeMembership!.role);
 
   return setAgentSessionCookie(NextResponse.json({ ok: true, redirectTo }), token);
 }

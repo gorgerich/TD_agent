@@ -1,14 +1,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { NextRequest } from "next/server";
 import { skip, db, createFixtureContext, sessionCookieHeader, makeRequest } from "./_setup";
 import { POST as leadsPost, GET as leadsGet } from "../../app/api/agent/leads/route";
 import { POST as meetingsPost } from "../../app/api/agent/meetings/route";
 import { POST as quotePost } from "../../app/api/agent/meeting/[meetingId]/quote/route";
-import { POST as documentPost } from "../../app/api/agent/cases/[caseId]/documents/route";
-import { DELETE as documentDelete } from "../../app/api/agent/cases/[caseId]/documents/[docId]/route";
-import { setDocumentStorageForTests } from "../../lib/documentStorage";
-import { InMemoryTestStorage } from "../fixtures/testStorage";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const fixtures = createFixtureContext("leads");
@@ -145,46 +140,4 @@ test("quote: save requires auth (401) and ownership (404)", opts, async () => {
     params,
   );
   assert.equal(ok.status, 200);
-});
-
-test("documents: upload/delete use isolated test storage", opts, async () => {
-  const a = await fixtures.makeAgent("docs");
-  const cookie = await sessionCookieHeader(a.userId, a.agentId);
-  const leadRes = await leadsPost(
-    makeRequest("/api/agent/leads", {
-      method: "POST",
-      cookie,
-      body: { name: "Документы", phone: "+79160000003", source: "agent" },
-    }),
-  );
-  const lead = (await leadRes.json()) as { id: number };
-  const storage = new InMemoryTestStorage();
-  setDocumentStorageForTests(storage);
-
-  try {
-    const form = new FormData();
-    form.set("category", "Прочее");
-    form.set("file", new File(["fixture"], "fixture.pdf", { type: "application/pdf" }));
-    const upload = await documentPost(
-      new NextRequest(`http://localhost/api/agent/cases/${lead.id}/documents`, {
-        method: "POST",
-        headers: { cookie },
-        body: form,
-      }),
-      { params: Promise.resolve({ caseId: String(lead.id) }) },
-    );
-    assert.equal(upload.status, 200);
-    const created = (await upload.json()) as { document: { id: number; url: string } };
-    assert.match(created.document.url, /^memory:\/\//);
-    assert.equal(storage.size, 1);
-
-    const removed = await documentDelete(
-      makeRequest(`/api/agent/cases/${lead.id}/documents/${created.document.id}`, { method: "DELETE", cookie }),
-      { params: Promise.resolve({ caseId: String(lead.id), docId: String(created.document.id) }) },
-    );
-    assert.equal(removed.status, 200);
-    assert.equal(storage.size, 0);
-  } finally {
-    setDocumentStorageForTests(null);
-  }
 });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, parseId, requireAgent } from "@/lib/apiAuth";
 import { rescheduleMeeting, updateMeetingStatus } from "@/lib/meetingService";
+import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
 
 export const runtime = "nodejs";
 
@@ -23,11 +24,12 @@ const PatchMeetingSchema = z.discriminatedUnion("action", [
 export async function GET(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
   try {
     const session = await requireAgent(req);
+    assertCapability(session, "work:read");
     const meeting = await prisma.meeting.findFirst({
       where: {
         id: parseId((await params).meetingId, "meetingId"),
         organizationId: session.organizationId,
-        ...(session.role === "AGENT" ? { ownerMembershipId: session.membershipId } : {}),
+        ...(!hasTeamOperationalScope(session.role) ? { ownerMembershipId: session.membershipId } : {}),
       },
       include: { lead: { select: { name: true, phone: true } } },
     });

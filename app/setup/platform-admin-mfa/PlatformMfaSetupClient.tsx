@@ -6,7 +6,7 @@ import { ShieldCheck, WarningCircle } from "@phosphor-icons/react";
 
 type Setup = { secret: string; uri: string };
 
-export function PlatformMfaSetupClient() {
+export function PlatformMfaSetupClient({ purpose, redirectTo }: { purpose: "PLATFORM" | "FINANCE"; redirectTo: string }) {
   const router = useRouter();
   const started = useRef(false);
   const [setup, setSetup] = useState<Setup | null>(null);
@@ -51,7 +51,7 @@ export function PlatformMfaSetupClient() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error ?? "Не удалось подтвердить код");
-      router.replace("/platform-admin");
+      router.replace(data.redirectTo ?? redirectTo);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Нет связи");
@@ -63,7 +63,9 @@ export function PlatformMfaSetupClient() {
     <main className="grid min-h-[100dvh] place-items-center bg-[#f3f5f4] px-4 py-8">
       <section className="w-full max-w-[520px] rounded-[16px] bg-white px-5 py-7 shadow-[0_2px_12px_rgba(13,47,42,0.08)] sm:px-8 sm:py-9">
         <ShieldCheck size={26} weight="fill" className="text-[#176b5d]" aria-hidden />
-        <h1 className="mt-5 text-[29px] font-semibold leading-tight text-[#132421]">Защитите доступ владельца</h1>
+        <h1 className="mt-5 text-[29px] font-semibold leading-tight text-[#132421]">
+          {purpose === "FINANCE" ? "Защитите финансовый доступ" : "Защитите доступ владельца"}
+        </h1>
         <p className="mt-3 text-[14px] leading-6 text-[#536762]">
           Добавьте ключ в приложение-аутентификатор, затем введите шестизначный код.
         </p>

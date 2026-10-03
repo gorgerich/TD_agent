@@ -7,7 +7,7 @@ import { ADMIN_CONFIRMATION, assertAdminRoleConfirmation, assertNotLastActiveAdm
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
 
 const Body = z.object({
-  role: z.enum(["AGENT", "MANAGER", "ADMIN"]).optional(),
+  role: z.enum(["AGENT", "MANAGER", "ADMIN", "DOCUMENT_REVIEWER", "FINANCE"]).optional(),
   status: z.enum(["ACTIVE", "SUSPENDED"]).optional(),
   confirmation: z.string().trim().max(120).optional(),
   reason: z.string().trim().min(3).max(240),

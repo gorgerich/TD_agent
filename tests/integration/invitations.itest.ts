@@ -88,6 +88,12 @@ test("M1 invitations are admin-only, tenant-scoped, single-use, recipient-bound 
     assert.equal(acceptedUser.agent?.membership?.organizationId, organizationId);
     assert.equal(acceptedUser.agent?.membership?.role, "AGENT");
     assert.equal(acceptedUser.agent?.membership?.status, "ACTIVE");
+    assert.ok(acceptedUser.agent?.membership);
+    fixtures.trackCreatedMember({
+      userId: acceptedUser.id,
+      agentId: acceptedUser.agent.id,
+      membershipId: acceptedUser.agent.membership.id,
+    });
     assert.ok((await db.organizationInvite.findUniqueOrThrow({ where: { id: createdBody.id } })).acceptedAt);
 
     const reused = await register(registrationRequest(acceptedEmail, createdBody.token));
@@ -124,19 +130,7 @@ test("M1 invitations are admin-only, tenant-scoped, single-use, recipient-bound 
     assert.equal(expired.status, 403);
     assert.equal(await db.user.count({ where: { email: expiredEmail } }), 0);
 
-    if (acceptedUser.agent?.membership) {
-      await db.membership.delete({ where: { id: acceptedUser.agent.membership.id } });
-    }
-    if (acceptedUser.agent) await db.agent.delete({ where: { id: acceptedUser.agent.id } });
-    await db.user.delete({ where: { id: acceptedUser.id } });
   } finally {
-    const leftover = await db.user.findUnique({
-      where: { email: acceptedEmail },
-      select: { id: true, agent: { select: { id: true, membership: { select: { id: true } } } } },
-    });
-    if (leftover?.agent?.membership) await db.membership.delete({ where: { id: leftover.agent.membership.id } });
-    if (leftover?.agent) await db.agent.delete({ where: { id: leftover.agent.id } });
-    if (leftover) await db.user.delete({ where: { id: leftover.id } });
     await fixtures.cleanup();
     await fixtures.assertNoResidue();
   }

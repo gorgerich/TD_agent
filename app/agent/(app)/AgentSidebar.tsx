@@ -8,7 +8,9 @@ import {
   Briefcase,
   CalendarDots,
   CheckSquare,
+  CurrencyCircleDollar,
   FileText,
+  FileMagnifyingGlass,
   Files,
   GearSix,
   SignOut,
@@ -22,6 +24,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import type { AgentSession } from "@/lib/auth";
+import { isCoreOperationalRole } from "@/lib/operationalAuth";
 import { TOURS, TOUR_START_EVENT } from "@/lib/tour";
 import { COMMAND_OPEN_EVENT } from "@/components/CommandPalette";
 
@@ -58,10 +61,20 @@ const TOOL_NAV = [
   { href: "/agent/settings", icon: GearSix, label: "Настройки" },
 ] satisfies Array<{ href: string; icon: Icon; label: string }>;
 
+const REVIEWER_NAV = [
+  { href: "/agent/document-review", icon: FileMagnifyingGlass, label: "Проверка документов" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
+const FINANCE_NAV = [
+  { href: "/agent/finance", icon: CurrencyCircleDollar, label: "Финансы" },
+] satisfies Array<{ href: string; icon: Icon; label: string }>;
+
 const ROLE_LABELS: Record<string, string> = {
   AGENT: "Агент",
   MANAGER: "Руководитель",
   ADMIN: "Администратор",
+  DOCUMENT_REVIEWER: "Проверяющий документов",
+  FINANCE: "Финансы",
 };
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -97,6 +110,26 @@ function NavLinks({
   onNavigate?: () => void;
   overdue?: number;
 }) {
+  if (role === "DOCUMENT_REVIEWER" || role === "FINANCE") {
+    return (
+      <div className="space-y-6">
+        <NavGroup
+          label={role === "DOCUMENT_REVIEWER" ? "Проверка" : "Расчёты"}
+          items={role === "DOCUMENT_REVIEWER" ? REVIEWER_NAV : FINANCE_NAV}
+          pathname={pathname}
+          overdue={0}
+          onNavigate={onNavigate}
+        />
+        <NavGroup
+          label="Аккаунт"
+          items={[{ href: "/agent/settings", icon: GearSix, label: "Настройки" }]}
+          pathname={pathname}
+          overdue={0}
+          onNavigate={onNavigate}
+        />
+      </div>
+    );
+  }
   const canSeeTeam = role === "MANAGER" || role === "ADMIN";
   return (
     <div className="space-y-6">
@@ -199,14 +232,16 @@ function UserBlock({
           Команда и доступы
         </Link>
       )}
-      <button
-        type="button"
-        onClick={onStartTour}
-        className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-2"
-      >
-        <GraduationCap size={16} weight="fill" className="text-ink-3" />
-        Обучение
-      </button>
+      {session && isCoreOperationalRole(session.role) && (
+        <button
+          type="button"
+          onClick={onStartTour}
+          className="td-mini-row flex w-full items-center gap-2.5 px-3 py-2 text-[12px] font-medium text-ink-2"
+        >
+          <GraduationCap size={16} weight="fill" className="text-ink-3" />
+          Обучение
+        </button>
+      )}
       <button
         type="button"
         onClick={onLogout}
@@ -256,7 +291,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
           <Brand />
         </div>
         <div className="mx-4 mb-5">
-          <CommandTrigger />
+          {session && isCoreOperationalRole(session.role) && <CommandTrigger />}
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
           <NavLinks pathname={pathname} role={session?.role} overdue={overdue} />
@@ -311,7 +346,7 @@ export default function AgentSidebar({ session, overdue = 0 }: { session: AgentS
             </button>
           </div>
           <div className="mx-4 mt-4">
-            <CommandTrigger />
+            {session && isCoreOperationalRole(session.role) && <CommandTrigger />}
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-5">
             <NavLinks pathname={pathname} role={session?.role} onNavigate={() => setOpen(false)} overdue={overdue} />

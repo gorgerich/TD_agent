@@ -19,6 +19,7 @@ const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;
 let offlineProbeActive = false;
+let meetingNavigationRetries = 0;
 page.on("console", (message) => {
   if (message.type() !== "error") return;
   const location = message.location().url;
@@ -55,6 +56,7 @@ try {
     accessibilityCriticalSerious: 0,
     mobile: "PASS",
     zoom200: "PASS",
+    meetingNavigationRetries,
     skipped: 0,
   })}\n`);
 } finally {
@@ -178,7 +180,26 @@ async function agentFlow(target, browserContext) {
       headings: Array.from(document.querySelectorAll("h1, h2"), (heading) => heading.textContent?.trim()).filter(Boolean),
       bodyText: document.body.innerText.replace(/\s+/g, " ").trim().slice(0, 320),
     }));
-    throw new Error(`Meeting detail navigation failed: ${JSON.stringify({
+    const retryableRscCancellation = new URL(pageState.url).pathname === meetingHref
+      && meetingResponses.some((response) => response.status === 200 && response.rsc)
+      && meetingResponses.every((response) => response.status < 500)
+      && meetingRequestFailures.length > 0
+      && meetingRequestFailures.every((failure) => failure.rsc && failure.error === "net::ERR_ABORTED");
+    if (retryableRscCancellation) {
+      meetingNavigationRetries += 1;
+      try {
+        await target.goto(`${baseUrl}${meetingHref}`, { waitUntil: "networkidle" });
+        await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
+      } catch (retryError) {
+        throw new Error(`Meeting detail read-only recovery failed: ${JSON.stringify({
+          pageState,
+          responses: meetingResponses,
+          requestFailures: meetingRequestFailures,
+          firstCause: error instanceof Error ? error.message : String(error),
+          retryCause: retryError instanceof Error ? retryError.message : String(retryError),
+        })}`);
+      }
+    } else throw new Error(`Meeting detail navigation failed: ${JSON.stringify({
       pageState,
       responses: meetingResponses,
       requestFailures: meetingRequestFailures,
@@ -191,8 +212,23 @@ async function agentFlow(target, browserContext) {
   await target.getByText("Подтверждена", { exact: true }).waitFor();
   await target.getByRole("button", { name: "Зафиксировать итог" }).click();
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
-  await target.getByRole("button", { name: "Сохранить" }).click();
-  await target.getByRole("status").filter({ hasText: "результат встречи сохранены" }).waitFor();
+  const meetingApiPattern = "**/api/agent/meetings/*";
+  let updatedMeeting;
+  await target.route(meetingApiPattern, async (route) => {
+    if (route.request().method() !== "PATCH") return route.continue();
+    const response = await route.fetch();
+    assert.equal(response.status(), 200, "Meeting outcome update must succeed");
+    updatedMeeting = await response.json();
+    await route.fulfill({ response });
+  });
+  await Promise.all([
+    target.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === meetingHref),
+    target.getByRole("button", { name: "Сохранить" }).click(),
+  ]);
+  await target.unroute(meetingApiPattern);
+  assert.equal(updatedMeeting.meeting?.status, "COMPLETED", "Meeting command must persist completed status");
+  await target.getByText("Завершена", { exact: true }).waitFor();
+  await target.getByText("Синтетический исход встречи зафиксирован", { exact: true }).waitFor();
   return "PASS";
 }
 

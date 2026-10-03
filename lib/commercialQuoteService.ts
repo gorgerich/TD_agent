@@ -18,7 +18,7 @@ import {
 } from "@/lib/commercialQuote";
 import { transitionCaseInTransaction, type CaseCommandContext } from "@/lib/caseService";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
-import type { OperationalContext } from "@/lib/operationalAuth";
+import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 
@@ -179,7 +179,7 @@ export async function getCommercialQuoteForMeeting(
     where: {
       meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       activeDraftVersion: { include: { lineItems: { orderBy: { position: "asc" } } } },
@@ -202,7 +202,7 @@ export async function requireCommercialMeetingAccess(
     where: {
       id: meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     select: { id: true },
   });
@@ -368,6 +368,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
   validateMeta(input.meta);
 
   return runOperationalTransaction(async (tx) => {
+    await lockQuoteAggregate(tx, input.quoteId, input.context);
     const quote = await loadQuoteForMutation(tx, input.quoteId, input.context);
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
@@ -499,7 +500,10 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
       result: json(result),
     });
     return result;
-  }, COMMERCIAL_COMMAND_ATTEMPTS);
+  }, {
+    maxAttempts: COMMERCIAL_COMMAND_ATTEMPTS,
+    isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+  });
 }
 
 export async function createCommercialClientLink(input: {
@@ -658,7 +662,7 @@ export async function getCommercialPresentation(id: string, context: Operational
     where: {
       id,
       quote: { organizationId: context.organizationId },
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       quote: {
@@ -693,7 +697,7 @@ export async function endCommercialPresentation(input: {
       where: {
         id: input.presentationId,
         quote: { organizationId: input.context.organizationId },
-        ...(input.context.role === "AGENT" ? { ownerMembershipId: input.context.membershipId } : {}),
+        ...(!hasTeamOperationalScope(input.context.role) ? { ownerMembershipId: input.context.membershipId } : {}),
       },
     });
     if (!session) throw new OperationalCommandError(404, "Презентация не найдена");
@@ -922,7 +926,7 @@ function loadMeetingForMutation(tx: Prisma.TransactionClient, meetingId: number,
     where: {
       id: meetingId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     select: { id: true, caseId: true, ownerMembershipId: true, case: { select: { scenarioId: true } } },
   }).then((meeting) => {
@@ -940,7 +944,7 @@ async function loadQuoteForMutation(
     where: {
       id: quoteId,
       organizationId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerMembershipId: context.membershipId } : {}),
+      ...(!hasTeamOperationalScope(context.role) ? { ownerMembershipId: context.membershipId } : {}),
     },
     include: {
       case: true,
@@ -952,6 +956,25 @@ async function loadQuoteForMutation(
     throw new OperationalCommandError(404, "Смета не найдена");
   }
   return quote;
+}
+
+async function lockQuoteAggregate(
+  tx: Prisma.TransactionClient,
+  quoteId: number,
+  context: OperationalContext,
+): Promise<void> {
+  const ownerScope = hasTeamOperationalScope(context.role)
+    ? Prisma.empty
+    : Prisma.sql`AND "ownerMembershipId" = ${context.membershipId}`;
+  const rows = await tx.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+    SELECT "id"
+    FROM "Quote"
+    WHERE "id" = ${quoteId}
+      AND "organizationId" = ${context.organizationId}
+      ${ownerScope}
+    FOR UPDATE
+  `);
+  if (rows.length !== 1) throw new OperationalCommandError(404, "Смета не найдена");
 }
 
 async function publishReplayResult(

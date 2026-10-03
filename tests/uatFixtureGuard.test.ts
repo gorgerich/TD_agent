@@ -8,6 +8,7 @@ import {
   findForeignRows,
   m1UatNamespace,
   m2UatNamespace,
+  m3UatNamespace,
   type UatCensus,
 } from "./e2e/uatFixtureGuard";
 
@@ -82,6 +83,15 @@ test("synthetic rows mixed with one unknown row still block", () => {
 test("a foreign run id is not the same namespace, even with the right shape", () => {
   const otherRun = censusOf([m1UatNamespace("someone-elses-run")]);
   assert.throws(() => assertOnlyRecognisedSyntheticData(otherRun, [m1, m2], "M1 UAT"), /refusing to run/);
+});
+
+test("M3 owner seed admits only its exact retained Preview run alongside its new run", () => {
+  const retained = m3UatNamespace("preview-eb568f5");
+  const current = m3UatNamespace("owner-preview-20260925");
+  const allowed = [retained, current];
+  assert.deepEqual(findForeignRows(censusOf([retained]), allowed), []);
+  assert.deepEqual(findForeignRows(censusOf([retained, current]), allowed), []);
+  assert.notDeepEqual(findForeignRows(censusOf([m3UatNamespace("other-run")]), allowed), []);
 });
 
 test("the production fingerprint is refused unconditionally", () => {

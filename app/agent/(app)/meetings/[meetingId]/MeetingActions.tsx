@@ -122,7 +122,11 @@ export default function MeetingActions({
       setNotice(selected === "reschedule" ? "Новое время и причина сохранены." : "Статус и результат встречи сохранены.");
       clearCommandId(command);
       setSelected(null);
-      router.refresh();
+      if (selected === "complete" || selected === "no_show" || selected === "cancel") {
+        window.location.reload();
+      } else {
+        router.refresh();
+      }
     } catch {
       setError("Связь прервалась. Изменение не сохранено.");
     } finally {
