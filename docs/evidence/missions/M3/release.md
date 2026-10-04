@@ -16,7 +16,7 @@ Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816
 - Production fingerprint: `0257665af2dd90a4`; NOX excluded by prior Railway endpoint/volume isolation proof.
 - Original M3 migration and CPO provisioning committed under operator authorization before the intake incident. Failed intake rolled back its transaction; Lead 57 / Case `case_16785ce6b182455ca421fdab8f18cd74` remain INTAKE, one creation event, requirements/meetings/quotes/ledger zero.
 - Read-only real-customer baseline MATCH for 34 tables; volatile security table explicitly excluded. Real customer records changed during this repair: 0.
-- Fresh encrypted backup/real restore PASS for 52 tables; receipt `intake-2026-10-03T23-18-31.198Z`; keys separate; plaintext clone removed. Check freshness before merge.
+- Fresh encrypted backup/real restore PASS for 52 tables; receipt `intake-2026-10-04T09-33-06.999Z`; keys separate; plaintext clone removed. Check freshness before merge.
 
 ## Remaining Controlled Steps
 

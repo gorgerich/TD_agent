@@ -61,7 +61,7 @@
     "keychainOrProductionUsedByReviewer": false
   },
   "freshBackupRestore": {
-    "receiptTimestamp": "2026-10-03T23-18-31.198Z",
+    "receiptTimestamp": "2026-10-04T09-33-06.999Z",
     "fingerprint": "0257665af2dd90a4",
     "encryptedBackup": "PASS",
     "realIsolatedRestore": "PASS",
