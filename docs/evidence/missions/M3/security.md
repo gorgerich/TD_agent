@@ -1,3 +1,13 @@
+## Current Intake Hotfix Validation, 2026-10-04
+
+Implementation `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`; PR #33; Preview `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Current authenticated UAT passed both complete scenarios with reconciliation=0, unexpected 5xx=0, skipped=0, mobile/200% zoom and critical/serious accessibility=0. The previous interrupted Preview and continuation-harness omission are retained in intake-validation-current.json; neither is counted as PASS.
+
+Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816398. All technical steps passed; overall FAIL at stale authoritative evidence is NOT green overall CI. Green evidence-head CI remains required before merge. Independent exact-source review: P0=0/P1=0, one unchanged documented P2. Human verdicts remain PENDING and broad rollout CLOSED.
+
+Current production remains on verified frozen rollback deployment. Preview-only scoped credentials/resources changed; no Production business/schema/env writes during hotfix validation. Server CPO organization allowlist remains unchanged; production scanner is NOT configured and verification remains fail-closed. No professional verdict is implied by synthetic policies.
+
+## Historical Baseline Security Evidence
+
 # M3 security evidence
 
 ## Tenant and role boundaries

@@ -1,0 +1,87 @@
+{
+  "scope": "M3 intake incident hotfix validation; not a release verdict",
+  "implementationSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+  "repairPr": "https://github.com/gorgerich/TD_agent/pull/33",
+  "sourceCi": {
+    "url": "https://github.com/gorgerich/TD_agent/actions/runs/37159816398",
+    "overall": "FAIL",
+    "technicalSteps": "PASS",
+    "remainingFailure": "authoritative evidence validation",
+    "latencyTargetRepeats": [
+      18,
+      18,
+      18,
+      18,
+      18
+    ],
+    "skipped": 0,
+    "maximumParallelTransactionMs": 4164,
+    "transactionDeadlineMs": 5000
+  },
+  "local": {
+    "unit": 143,
+    "integrationTests": 91,
+    "integrationFiles": 15,
+    "lintTypecheckBuild": "PASS",
+    "e2eScripts": 5,
+    "migrationFixturesNoopParity": "PASS",
+    "skipped": 0,
+    "desktopLatencyOutliers": "RETAINED; not represented as five local passes"
+  },
+  "independentReview": {
+    "normalIntakeTests": 18,
+    "passed": 18,
+    "skipped": 0,
+    "p0": 0,
+    "p1": 0,
+    "p2": 1
+  },
+  "preview": {
+    "deploymentId": "dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC",
+    "url": "https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app",
+    "sha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+    "fingerprint": "545a187f9e9d66b0",
+    "productionFingerprintDifferent": true,
+    "initialIntakeBothScenarios": "PASS",
+    "parallelDuplicateEachScenario": "one original, four truthful replays",
+    "fullUat": "PASS",
+    "failure": "document upload UI wait timed out; committed UPLOADED/CLEAN and subsequent GET 200 verified; historical read-back cause not yet proven",
+    "resumedLifecycle": "STOPPED: continuation harness omitted payerPartyId; no webhook side effects committed",
+    "diagnosticWebhookFive": "PASS: one original and four replays, same ledger entry",
+    "freshFullUatRepeat": "PASS on fresh owned schema; source assertions unchanged",
+    "reconciliation": 0,
+    "unexpected5xx": 0,
+    "skipped": 0
+  },
+  "backupHelperIndependentReview": {
+    "sha256": "86da54719c217240c6b246ce74ce85432df35063d05cc660e76fc17f8814c686",
+    "p0": 0,
+    "p1": 0,
+    "syntheticFailurePathTests": "16/16 PASS; affected receipt failure test 1/1 PASS after fix",
+    "keychainOrProductionUsedByReviewer": false
+  },
+  "freshBackupRestore": {
+    "receiptTimestamp": "2026-10-04T09-33-06.999Z",
+    "fingerprint": "0257665af2dd90a4",
+    "encryptedBackup": "PASS",
+    "realIsolatedRestore": "PASS",
+    "tableCount": 52,
+    "countsAndDigests": "MATCH",
+    "schemaParity": "PASS",
+    "repeatedDeploy": "NO_OP",
+    "plaintextClone": "STOPPED_AND_REMOVED",
+    "comparisonFix": "explicit UTC/ISO serialization, including _prisma_migrations",
+    "excludedVolatileTable": "SecurityRateLimitBucket"
+  },
+  "productionDuringHotfixValidation": {
+    "deploymentId": "dpl_PZHnvWjMdhWAMYthAChf3gBCXM5f",
+    "runtimeSha": "20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4",
+    "freeze": "enabled",
+    "writes": "NONE",
+    "schemaChanges": "NONE",
+    "priorM3Migration": "already applied by authorized operator; not reapplied on production"
+  },
+  "humanVerdicts": "PENDING",
+  "fullAgentRollout": "CLOSED",
+  "release": "NOT_PERFORMED"
+}

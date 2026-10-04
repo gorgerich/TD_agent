@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { inspectDirectMigrationUrl } from "@/lib/migrationTarget";
-import { isApprovedM3PreviewDatabase } from "@/lib/m3AuditMode";
+import { isApprovedM3PreviewBranch, isApprovedM3PreviewDatabase } from "@/lib/m3AuditMode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PRODUCTION_FINGERPRINT = "0257665af2dd90a4";
-const PREVIEW_BRANCH = "mission/m3-fulfilment-money-trust";
 
 function authorized(): boolean {
   if (process.env.VERCEL_ENV !== "preview"
-    || process.env.VERCEL_GIT_COMMIT_REF !== PREVIEW_BRANCH
+    || !isApprovedM3PreviewBranch()
     || process.env.PREVIEW_DB_ISOLATION !== "PASS") return false;
   return true;
 }

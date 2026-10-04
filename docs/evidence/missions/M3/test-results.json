@@ -1,17 +1,17 @@
 {
   "mission": "M3-FULFILMENT-MONEY-TRUST",
   "state": "BLOCKED_HUMAN_JUDGMENT",
-  "implementationSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/37116487974",
-  "previewDeploymentId": "dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5",
-  "previewDeploymentSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
-  "previewUrl": "https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app",
+  "implementationSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/37159816398",
+  "previewDeploymentId": "dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC",
+  "previewDeploymentSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+  "previewUrl": "https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app",
   "previewDatabaseFingerprint": "545a187f9e9d66b0",
   "checks": {
     "sourceCi": {
       "status": "PASS",
-      "runId": 37116487974,
-      "headSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+      "runId": 37159816398,
+      "headSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
       "testSkipped": 0,
       "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
     },
@@ -28,10 +28,10 @@
     },
     "integration": {
       "status": "PASS",
-      "files": 14,
-      "passed": 73,
+      "files": 15,
+      "passed": 91,
       "skipped": 0,
-      "parallelism": "Canonical runner: isolated schema per file, up to four ordinary concurrent workers; same 14 files locally and in CI.",
+      "parallelism": "Canonical isolated schemas per file, ordinary concurrency; same 15 files and 91 tests locally and in CI.",
       "residue": 0
     },
     "targetedRecovery": {
@@ -105,9 +105,9 @@
     },
     "previewUat": {
       "status": "PASS",
-      "deploymentId": "dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5",
-      "deploymentSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
-      "previewUrl": "https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app",
+      "deploymentId": "dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC",
+      "deploymentSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+      "previewUrl": "https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app",
       "databaseFingerprint": "545a187f9e9d66b0",
       "productionFingerprint": "0257665af2dd90a4",
       "storageId": "store_Ov8erHstuvfJ52Og",
@@ -131,14 +131,17 @@
       "skipped": 0,
       "syntheticOrganizations": 2,
       "syntheticUsers": 6,
-      "syntheticCases": 2,
-      "syntheticSchema": "m3_uat_20261003_ced3fad",
-      "syntheticRunId": "preview-20261003-ced3fad",
-      "postCommitRecovery": "PASS_EXACT_ENVELOPE_ONE_ENTRY"
+      "syntheticCases": 6,
+      "syntheticSchema": "m3_intake_preview_1791105181548",
+      "syntheticRunId": "intake-1791105181548",
+      "postCommitRecovery": "PASS_EXACT_ENVELOPE_ONE_ENTRY",
+      "initialIntakeBothScenarios": "PASS",
+      "parallelInitialIntake": "one original and four replays per scenario",
+      "historicalIncompleteRun": "dpl_X2oYBn9FhpScNovdumrKz56opm67 retained; not relabelled PASS"
     },
     "independentReview": {
       "status": "PASS",
-      "reviewedSha": "ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f",
+      "reviewedSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
       "p0": 0,
       "p1": 0,
       "p2": 1,
@@ -148,19 +151,30 @@
     "evidenceHeadCi": "PENDING",
     "discoveryParity": {
       "status": "PASS",
-      "localIntegrationFiles": 14,
-      "ciIntegrationFiles": 14,
-      "localIntegrationTests": 73,
-      "ciIntegrationTests": 73
+      "localIntegrationFiles": 15,
+      "ciIntegrationFiles": 15,
+      "localIntegrationTests": 91,
+      "ciIntegrationTests": 91
     },
     "skipped": 0,
     "notRun": 0,
     "targetedFinanceRecovery": {
       "status": "PASS",
       "testsPerRun": 11,
-      "consecutiveRuns": 5,
+      "consecutiveRuns": 1,
       "skipped": 0,
-      "contract": "Exact envelope, synchronous lock, unreadable acknowledgement, confirmed-commit monotonicity, modal dismissal and single alert"
+      "contract": "Exact envelope, synchronous lock, unreadable acknowledgement, confirmed-commit monotonicity, modal dismissal and single alert",
+      "note": "Current full unit gate; ancestral five repeats preserved in historical packet, not attributed to this run."
+    },
+    "targetedIntakeLatency": {
+      "status": "PASS",
+      "testsPerRun": 18,
+      "consecutiveRuns": 5,
+      "runner": "exact-source isolated CI",
+      "skipped": 0,
+      "maximumParallelTransactionMs": 4164,
+      "transactionDeadlineMs": 5000,
+      "desktopOutliers": "Historical local failures retained in intake-review.md; not represented as five local passes"
     }
   },
   "humanGates": {
@@ -173,10 +187,13 @@
     "databaseSchemaChanges": "NONE",
     "environmentChanges": "NONE",
     "deployment": "UNCHANGED",
-    "deploymentId": "dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g",
-    "databaseFingerprint": "0257665af2dd90a4"
+    "deploymentId": "dpl_PZHnvWjMdhWAMYthAChf3gBCXM5f",
+    "databaseFingerprint": "0257665af2dd90a4",
+    "runtimeSha": "20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4",
+    "freeze": "enabled",
+    "scope": "Hotfix validation interval since c9; authorized original M3 migration/provision and runtime rollback preceded this interval."
   },
   "fullRolloutStatus": "PENDING_HUMAN_VERDICTS",
-  "cpoAuditReleaseStatus": "BLOCKED_EXTERNAL_ACCESS",
-  "localBuildLimitation": "Turbopack worker port binding denied by local environment. Optional webpack fallback rejected node:crypto client import. Canonical build passed exact source CI and Vercel Preview; no local build PASS claimed."
+  "cpoAuditReleaseStatus": "PENDING_GREEN_EVIDENCE_HEAD_CI",
+  "localBuild": "PASS canonical build"
 }

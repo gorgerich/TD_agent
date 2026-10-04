@@ -1,13 +1,52 @@
 ---
 schema: m3-independent-review-v1
-reviewed_sha: ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f
+reviewed_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
 reviewer: independent cumulative M3 source reviewer (Codex)
 verdict: PASS
 p0: 0
 p1: 0
 p2: 1
 ---
-# Independent exact-SHA repair review, 2026-10-03
+# Independent Exact-SHA Intake Review, 2026-10-04
+
+Reviewed source: `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`. Independent source findings: P0=0, P1=0, P2=1 (the unchanged Finance Case-payment read ownership restriction below). Frontmatter PASS means technical source review only, not green overall CI, Preview UAT, human signoff, production safety execution or release approval.
+
+## Review Scope And Contracts
+
+This review carries forward the historical baseline contracts documented below, verifies that ced3fad-to-c9 changes are evidence-only, and independently reviews the complete c9-to-4bc intake repair and relevant caller/domain/schema boundaries. Targeted high-risk tracing is not an exhaustive reread or proof of every legacy endpoint. Historical reviewer executions are not attributed to this reviewer as current-SHA executions.
+
+- Atomicity and replay: all intake Lead/Case mutations, derived events, requirements, audit, task projections and final receipt remain on one transaction. Parent replay stays behind the tenant/owner Case lock, before mutation/policy wait, and returns the original stored result. No P2028 retry or transaction deadline increase was added.
+- Stage guards: only intake.completed and scenario.selected use initial-stage facts. Public transition callers retain locked authoritative loading for later stages, including current published quote, valid signed contract, approved ledger adjustments, required verified documents and scenario closure guards. The private helper has no new external caller or guard bypass.
+- Lock order and tenant isolation: Case tenant/owner filtering remains exact; materializing paths acquire Case before scenario policy, including inferred ceremony type on partial intake. Later-stage edits skip only the policy lock that cannot lead to materialization. They still hold the Case lock and refresh existing tenant/case requirements, without selecting a replacement policy.
+- Requirements: joined SQL preserves effective role boundaries and no-party cases. Preload includes historical tenant/case rows and their own conditions. Current policy updates and historical refresh retain their respective audits and parent command metadata; no-policy fallback retains full refresh. Other document/party/policy callers remain on their existing argument paths.
+- Projection batching: two task rows retain fields/defaults/unique constraints. Audits use actual returned IDs/snapshots; receipt task IDs are mapped back to deterministic input-type order. Task/audit/receipt effects remain atomic.
+- Baseline Finance/ledger/document contracts: retained exact client recovery identity, readable-success acknowledgement, synchronous submission/dismissal lock and monotonic confirmed durability are unchanged. Server capability/tenant checks, immutable signed obligation, append-only ledger, amount bounds, webhook signature/replay and four-eyes approval remain unchanged by the intake diff. Later transition facts continue deriving payment and latest clean verified document truth rather than trusting mutable display status.
+- Preview branch configuration adds only the exact repair branch and retains isolation/fingerprint checks. Production organization allowlist is unchanged. No migration or production capability expansion is in this repair.
+- CI latency step repeats the same 18-test target five times with fail-fast shell behavior. The 5000ms transaction deadline, <=4500ms normal/parallel budget, full policy fixtures and within-target parallel requests are unchanged. Harness diagnostics do not alter forwarding or acceptance thresholds.
+
+## Actual Checks And Remaining Gates
+
+At exact 4bc03e2, this reviewer independently ran m3RecoveryContracts, financeAmount, m3Domain, m3AuditMode and m3PreviewIdentity: 33/33 PASS, failed 0, skipped 0. Exact-range whitespace checks and the committed latency script's Node 24 syntax check passed. HEAD was verified as the full reviewed SHA. No exact-source typecheck, full unit/integration suite, build, browser E2E, remote UAT or production operation was performed by this reviewer. No local DB tests were run while parent E2E work was active; the subsequent targeted run below followed explicit authorization after its completion.
+
+Latest parent report: CI `37159816398` at this exact SHA completed every technical step including E2E, but overall failed only evidence validation. Downloaded CI proof is reported as five latency runs x18 PASS, initial transactions 2492-2529ms and parallel maximum 4164ms. Parent also reports local 143 unit tests, 91 integration tests across 15 files with owned-schema cleanup, build, all five E2E scripts and migration no-op/schema parity PASS. Those are parent-reported results, not independently executed or remotely fetched here. Overall evidence-head CI remains a gate; a technically successful job with an evidence failure is not green overall CI.
+
+Subsequent independent normal integration check: canonical `npm run test:integration -- tests/integration/m3IntakePerformance.itest.ts` at exact reviewed_sha, Node 24.12.0 and local PostgreSQL 18 tooling, approved `td_agent_m3_20260811_a` on 127.0.0.1:5432, dummy test encryption key. First sandbox attempt was blocked by local TCP permissions before test execution; authorized local-only retry completed exit 0, 18/18 PASS, failed 0, skipped 0. Runner owned schema `it_48487_0_m3intakeperformance`, applied the existing 11 migrations, performed fixture cleanup and emitted DROP SCHEMA. Both scenario rollback and historical-refresh tests passed. No latency proxy was enabled: initial transactions measured 267/110ms; parallel timings 162,174,131,136,144ms and 513,535,516,550,513ms. This is one normal target run, not five injected-latency repeats or full integration-suite execution. Exact c9-to-reviewed_sha Prisma schema/migration diff is empty; migration no-op/parity execution remains parent-reported, not claimed from this target setup.
+
+Previous 34/32/30-query failures and later 28-query v4/v5/v6 failures remain preserved in intake-review.md. A later passing run does not retroactively relabel them. Proxy scheduling diagnostics do not establish local environment/compiler causation for the unexplained long operations. Detailed static assessment, execution provenance and residual coverage limits are in intake-review.md.
+
+Current evidence-only review: independently inspected the safe external intake-preview-uat-result-v2.json, not executed UAT. It binds exact reviewed_sha to deployment dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app, fingerprint 545a187f9e9d66b0 and schema m3_intake_preview_1791105181548. Its four initial intake results pass both scenarios; parallel duplicates each have one original/four replays. Parsed lifecycle output confirms both journeys, document review/replacement, contract, refund/reversal, exact-envelope recovery with one ledger entry, webhook one entry/one original/four replays, reconciliation=0, unexpected5xx=0, skipped=0, mobile/zoom PASS and accessibility critical/serious=0. This verifies artifact consistency, not independent deployment metadata attestation or remote execution. Structured local assertions passed; all 11 archived packet bodies byte-match their stated c9 commit.
+
+Evidence finding [P2]: acceptance.json:93,99,105,111 still presents ced3fad/old deployment and CI 37116487974 with 73 integrations/14 files as the current acceptance evidence, while the updated authoritative packet binds 4bc and 91/15. Refresh these four acceptance references or explicitly classify them as historical and link current evidence before the evidence-head gate. This is separate from the unchanged source P2 counted in frontmatter; no new P0/P1 was identified. Only review files are authorized for this reviewer, so acceptance.json was not edited.
+
+Closure recheck, 2026-10-04: the preceding documentation P2 is historical and CLOSED. Independently reread all four corrected acceptance records: current UX/UAT bind 4bc and dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC; review binds the full source SHA and independent 18-test run; technical gates cite source CI 37159816398, five x18 latency targets, local 143 units/91 integrations/15 files and canonical build. Overall source CI FAIL and pending final evidence-head CI are explicit. The cancelled first evidence CI is not a passing execution; corrected evidence-head CI remains required. No acceptance file was edited by this reviewer. The unchanged source Finance P2 remains open and frontmatter source counts are unchanged.
+
+Finance/Accounting, Legal/Privacy and Ritual SME verdicts remain PENDING, not PASS. CPO-only authorization remains the ceiling; broad rollout is closed. Packet production state remains frozen on rolled-back runtime 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4, not the candidate runtime. Source CI retains overall FAIL despite technical-step PASS; evidence-head CI remains pending. Production state, CI execution and full local gates are attributed evidence, not independently connected/fetched here. Fresh permitted backup/restore and production preflight remain distinct operational gates. External checkpoint/backup helper failure checks used synthetic mocks only, never a real backup/production execution; they are not part of this repository SHA. Prior credential/provisioning denial was not rerouted.
+
+Only review evidence was edited; no code changes, commits, pushes, deployments or production connections were made by this reviewer.
+
+# Historical Baseline Review, 2026-10-03
+
+The following retained report is bound to ced3fad, not to current reviewed_sha. Its checks and UAT limitations remain historical. The current frontmatter and the preceding section are authoritative for the intake candidate.
 
 Reviewed exact source `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`, combining the full-release-scope review of `18e130990264813bde61ce7bc3b55aecec4d7d6c` in final-review-20261003.md with inspection of the complete subsequent repair diff, the harness fix at `0c3659ffef1a9f5a07929082982157477155dae6`, and the latest two-file alert/regression patch. All changes since 18e are confined to eight files: FinanceClient, payment webhook route, shared recovery helper, ledger service, amount parser, M3 E2E, M3 integration and recovery-contract tests. HEAD was independently verified and tracked source was clean.
 

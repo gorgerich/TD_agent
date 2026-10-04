@@ -1,3 +1,17 @@
+# M3 Intake Incident Repair
+
+## Current Intake Hotfix Validation, 2026-10-04
+
+Implementation `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`; PR #33; Preview `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Current authenticated UAT passed both complete scenarios with reconciliation=0, unexpected 5xx=0, skipped=0, mobile/200% zoom and critical/serious accessibility=0. The previous interrupted Preview and continuation-harness omission are retained in intake-validation-current.json; neither is counted as PASS.
+
+Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816398. All technical steps passed; overall FAIL at stale authoritative evidence is NOT green overall CI. Green evidence-head CI remains required before merge. Independent exact-source review: P0=0/P1=0, one unchanged documented P2. Human verdicts remain PENDING and broad rollout CLOSED.
+
+Initial intake reduced 76 SQL operations / six row-lock operations to 28 / three. Redundant full aggregate reads removed only from guarded initial transitions; later-stage public transition guards remain authoritative. All required writes/audit/projections stay in one unchanged 5000 ms transaction. Five exact-source CI latency repeats passed 18/18 each; maximum parallel transaction 4164 ms. Original P2028 was 5074 ms. Mac RTT is not Vercel-to-DB RTT, and historical server lock-wait timing was not captured.
+
+## Historical Baseline Implementation
+
+The following baseline implementation narrative is historical; its candidate identifiers are not the current UAT.
+
 # M3 implementation record
 
 ## Contract lock

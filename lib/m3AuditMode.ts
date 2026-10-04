@@ -4,9 +4,14 @@ import { inspectDirectMigrationUrl } from "@/lib/migrationTarget";
 export const M3_CPO_AUDIT_ORGANIZATION_ID = "m3-cpo-audit-20260923";
 export const M3_PREVIEW_DATABASE_FINGERPRINT = "545a187f9e9d66b0";
 
+export function isApprovedM3PreviewBranch(): boolean {
+  return ["mission/m3-fulfilment-money-trust", "fix/m3-intake-transaction"]
+    .includes(process.env.VERCEL_GIT_COMMIT_REF ?? "");
+}
+
 export function isApprovedM3PreviewDatabase(): boolean {
   if (process.env.VERCEL_ENV !== "preview"
-    || process.env.VERCEL_GIT_COMMIT_REF !== "mission/m3-fulfilment-money-trust"
+    || !isApprovedM3PreviewBranch()
     || process.env.PREVIEW_DB_ISOLATION !== "PASS") return false;
   try {
     const direct = inspectDirectMigrationUrl(process.env.DATABASE_URL_UNPOOLED);

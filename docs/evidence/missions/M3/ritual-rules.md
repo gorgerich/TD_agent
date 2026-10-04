@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: ritualOperationsSme
-preview_url: https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5
-deployment_sha: ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f
-implementation_sha: ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f
+preview_url: https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC
+deployment_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
+implementation_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,9 +15,9 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-- Exact Preview: `https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5`
-- Implementation: `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`
+- Exact Preview: `https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`
+- Implementation: `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`
 - Preview policies and records are explicitly synthetic, not legal or ritual verdicts.
 - Cremation and burial in a family plot have different versioned requirement sets.
 - Unapproved policy fails closed and cannot open a Case stage.
