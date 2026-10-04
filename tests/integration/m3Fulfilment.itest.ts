@@ -1136,6 +1136,54 @@ test("M3: contract signing cannot bind a policy retired by a concurrent activati
   }), 0);
 });
 
+test("M3: missing documents block readiness without a tenant mismatch; foreign documents still fail", opts, async () => {
+  for (const scenarioId of ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const) {
+    const incomplete = await fixtures.makeCase(agent, `missing-documents-${scenarioId}`);
+    await db.case.update({ where: { id: incomplete.id }, data: { scenarioId } });
+    await materializeCaseRequirements(agent.context, incomplete.id, meta(`missing-documents-${scenarioId}`));
+    const requirements = await db.caseDocumentRequirement.findMany({ where: { caseId: incomplete.id } });
+    assert.ok(requirements.length >= 3);
+    assert.equal(await db.caseDocument.count({ where: { caseId: incomplete.id } }), 0);
+    const missing = await reconcileM3Case(manager.context, incomplete.id);
+    assert.equal(missing.discrepancies.some((item) => item.code === "DOCUMENT_TENANT_MISMATCH"), false);
+    assert.equal(missing.fulfilment.ready, false);
+    assert.equal(missing.fulfilment.blockers.some((item) => item.code === "DOCUMENT_NOT_VERIFIED"), true);
+
+    const deathRequirement = requirements.find((item) => item.stableKey === "death-record");
+    assert.ok(deathRequirement);
+    const quarantined = await uploadCaseDocument(agent.context, {
+      caseId: incomplete.id,
+      requirementId: deathRequirement.id,
+      documentTypeCode: deathTypeCode,
+      file: new File(["synthetic scanner failure"], "pending.pdf", { type: "application/pdf" }),
+    }, meta(`missing-documents-upload-${scenarioId}`), { storage, scanner: throwingScanner });
+    assert.equal(quarantined.status, "QUARANTINED");
+    const mixed = await reconcileM3Case(manager.context, incomplete.id);
+    assert.equal(mixed.discrepancies.some((item) => item.code === "DOCUMENT_TENANT_MISMATCH"), false);
+    assert.equal(mixed.fulfilment.ready, false);
+    assert.equal(mixed.fulfilment.blockers.some((item) => item.code === "DOCUMENT_NOT_VERIFIED"), true);
+
+    const documentType = await db.documentTypeDefinition.findFirstOrThrow({
+      where: { organizationId: agent.organizationId }, select: { id: true },
+    });
+    // Deliberately corrupt an owned fixture to exercise reconciliation, not an authorized write path.
+    const foreign = await db.caseDocument.create({ data: {
+      organizationId: outsider.organizationId,
+      caseId: incomplete.id,
+      requirementId: requirements.find((item) => item.id !== deathRequirement.id)!.id,
+      documentTypeId: documentType.id,
+    } });
+    try {
+      const mismatch = await reconcileM3Case(manager.context, incomplete.id);
+      assert.deepEqual(mismatch.discrepancies.filter((item) => item.code === "DOCUMENT_TENANT_MISMATCH")
+        .map((item) => item.entityId), [foreign.requirementId]);
+      assert.equal(mismatch.fulfilment.ready, false);
+    } finally {
+      await db.caseDocument.delete({ where: { id: foreign.id } });
+    }
+  }
+});
+
 test("M3: cremation and relative-burial policies remain distinct", opts, async () => {
   const burialCase = await fixtures.makeCase(agent, "burial");
   await db.case.update({ where: { id: burialCase.id }, data: { scenarioId: "FAMILY_PLOT_BURIAL_V1" } });
