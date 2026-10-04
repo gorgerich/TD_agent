@@ -1,17 +1,17 @@
 {
   "mission": "M3-FULFILMENT-MONEY-TRUST",
   "state": "BLOCKED_HUMAN_JUDGMENT",
-  "implementationSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
-  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/37159816398",
-  "previewDeploymentId": "dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC",
-  "previewDeploymentSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
-  "previewUrl": "https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app",
+  "implementationSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/37197375921",
+  "previewDeploymentId": "dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa",
+  "previewDeploymentSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+  "previewUrl": "https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app",
   "previewDatabaseFingerprint": "545a187f9e9d66b0",
   "checks": {
     "sourceCi": {
       "status": "PASS",
-      "runId": 37159816398,
-      "headSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+      "runId": 37197375921,
+      "headSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
       "testSkipped": 0,
       "note": "Every required source step passed. GitHub concluded failure only at the expected stale-evidence validator boundary; final evidence-head CI is required to pass completely."
     },
@@ -29,9 +29,9 @@
     "integration": {
       "status": "PASS",
       "files": 15,
-      "passed": 91,
+      "passed": 92,
       "skipped": 0,
-      "parallelism": "Canonical isolated schemas per file, ordinary concurrency; same 15 files and 91 tests locally and in CI.",
+      "parallelism": "Canonical isolated schemas per file, ordinary concurrency; 15 files and 92 tests including the missing/mixed/foreign document regression.",
       "residue": 0
     },
     "targetedRecovery": {
@@ -105,9 +105,9 @@
     },
     "previewUat": {
       "status": "PASS",
-      "deploymentId": "dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC",
-      "deploymentSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
-      "previewUrl": "https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app",
+      "deploymentId": "dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa",
+      "deploymentSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+      "previewUrl": "https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app",
       "databaseFingerprint": "545a187f9e9d66b0",
       "productionFingerprint": "0257665af2dd90a4",
       "storageId": "store_Ov8erHstuvfJ52Og",
@@ -132,8 +132,8 @@
       "syntheticOrganizations": 2,
       "syntheticUsers": 6,
       "syntheticCases": 6,
-      "syntheticSchema": "m3_intake_preview_1791105181548",
-      "syntheticRunId": "intake-1791105181548",
+      "syntheticSchema": "m3_intake_preview_1791111530558",
+      "syntheticRunId": "intake-1791111530558",
       "postCommitRecovery": "PASS_EXACT_ENVELOPE_ONE_ENTRY",
       "initialIntakeBothScenarios": "PASS",
       "parallelInitialIntake": "one original and four replays per scenario",
@@ -141,7 +141,7 @@
     },
     "independentReview": {
       "status": "PASS",
-      "reviewedSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
+      "reviewedSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
       "p0": 0,
       "p1": 0,
       "p2": 1,
@@ -153,8 +153,8 @@
       "status": "PASS",
       "localIntegrationFiles": 15,
       "ciIntegrationFiles": 15,
-      "localIntegrationTests": 91,
-      "ciIntegrationTests": 91
+      "localIntegrationTests": 92,
+      "ciIntegrationTests": 92
     },
     "skipped": 0,
     "notRun": 0,
@@ -172,7 +172,7 @@
       "consecutiveRuns": 5,
       "runner": "exact-source isolated CI",
       "skipped": 0,
-      "maximumParallelTransactionMs": 4164,
+      "historicalMaximumParallelTransactionMs": 4164,
       "transactionDeadlineMs": 5000,
       "desktopOutliers": "Historical local failures retained in intake-review.md; not represented as five local passes"
     }
@@ -187,11 +187,11 @@
     "databaseSchemaChanges": "NONE",
     "environmentChanges": "NONE",
     "deployment": "UNCHANGED",
-    "deploymentId": "dpl_PZHnvWjMdhWAMYthAChf3gBCXM5f",
+    "deploymentId": "dpl_4sFF8Boy1yHkyx2kbb8N3GXVySwo",
     "databaseFingerprint": "0257665af2dd90a4",
     "runtimeSha": "20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4",
     "freeze": "enabled",
-    "scope": "Hotfix validation interval since c9; authorized original M3 migration/provision and runtime rollback preceded this interval."
+    "scope": "Technical validation interval after frozen rollback dpl_4sFF. Earlier authorized Case57 writes and runtime rollbacks are preserved in reconciliation-incident.md, not claimed absent. No Production writes/env/deployment/schema changes within this validation interval."
   },
   "fullRolloutStatus": "PENDING_HUMAN_VERDICTS",
   "cpoAuditReleaseStatus": "PENDING_GREEN_EVIDENCE_HEAD_CI",

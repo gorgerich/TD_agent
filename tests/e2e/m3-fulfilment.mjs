@@ -179,6 +179,10 @@ try {
 
 async function prepareAgentCase(target, caseFixture, options) {
   const leadId = await openCase(target, caseFixture.name);
+  const missingDocuments = await reconcile(target, leadId);
+  assert.equal(missingDocuments.discrepancies.some((item) => item.code === "DOCUMENT_TENANT_MISMATCH"), false);
+  assert.equal(missingDocuments.fulfilment.ready, false);
+  assert.equal(missingDocuments.fulfilment.blockers.some((item) => item.code === "DOCUMENT_NOT_VERIFIED"), true);
   await target.getByRole("tab", { name: /Семья/ }).click();
   await target.getByRole("button", { name: "Добавить участника" }).click();
   const form = target.locator('form[aria-label="Добавить участника кейса"]');

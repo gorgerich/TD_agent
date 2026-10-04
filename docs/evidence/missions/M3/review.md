@@ -1,13 +1,23 @@
 ---
 schema: m3-independent-review-v1
-reviewed_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
+reviewed_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
 reviewer: independent cumulative M3 source reviewer (Codex)
 verdict: PASS
 p0: 0
 p1: 0
 p2: 1
 ---
-# Independent Exact-SHA Intake Review, 2026-10-04
+# Independent Exact-SHA Reconciliation Review, 2026-10-04
+
+Current source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, base `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`: independent reviewer inspected the complete three-file committed delta and relevant reconciliation/transition boundaries. P0=0/P1=0; the inherited Finance Case-detail read P2 below remains open. Presence guard does not weaken requirement/document-version tenant checks or readiness blockers. Both-scenario integration covers absent documents, a quarantined document alongside absent requirements and an actually foreign empty document. Browser assertions run before uploads in both scenarios. No schema/migration changes.
+
+Reviewer independently executed the initial affected canonical PostgreSQL target 8/8 PASS, skipped0, schema dropped. That execution preceded the added mixed-state coverage. Exact committed mixed-state 8/8 PASS is implementer execution, not attributed to the reviewer. Whitespace and E2E syntax checks passed. Independent reviewer did not execute remote UAT, full CI or Production. Fresh exact-source Preview UAT and complete local gates are implementer facts recorded separately, not independent attestation.
+
+External resume harness was separately reviewed: strict predecessor/source ancestry, exact retained Case57 PAYMENT state, fresh read-only scope, immutable QuoteVersion44 and three ledger entries, and no repeated intake/payment writes. Two P2 harness guard gaps were fixed and independently checked (six synthetic assertions and syntax PASS); no P0/P1 remains. Harness SHA256 `5b07db45bfafdad3441844a4bbc41b857956418d7f3063970bc5868566de8e77`. No protected credentials or Production were accessed by the reviewer.
+
+## Historical Intake Review, Superseded
+
+The following report remains bound to 4bc and is not relabelled as a new execution.
 
 Reviewed source: `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`. Independent source findings: P0=0, P1=0, P2=1 (the unchanged Finance Case-payment read ownership restriction below). Frontmatter PASS means technical source review only, not green overall CI, Preview UAT, human signoff, production safety execution or release approval.
 

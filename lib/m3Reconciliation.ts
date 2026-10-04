@@ -193,7 +193,8 @@ export async function reconcileM3Case(
           "Stored applicability расходится с независимо вычисленной truth",
         );
       }
-      if (requirement.organizationId !== record.tenantId || requirement.document?.organizationId !== record.tenantId) {
+      if (requirement.organizationId !== record.tenantId
+        || (requirement.document != null && requirement.document.organizationId !== record.tenantId)) {
         push("DOCUMENT_TENANT_MISMATCH", "document_requirement", requirement.id, "Requirement/document не принадлежат tenant кейса");
       }
       if (requirement.policy.status !== "APPROVED" && requirement.policy.status !== "RETIRED") {

@@ -1,0 +1,42 @@
+{
+  "classification": "CURRENT_TECHNICAL_VALIDATION_NOT_PRODUCTION_RELEASE",
+  "implementationSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+  "baseSha": "8deda6c3dbeb79dd15f3897a44ee16a492f55cca",
+  "sourceCi": {
+    "runId": 37197375921,
+    "technicalSteps": "PASS",
+    "overall": "FAIL_STALE_EVIDENCE_VALIDATOR_ONLY",
+    "evidenceHeadCi": "REQUIRED_BEFORE_MERGE"
+  },
+  "local": { "unit": 143, "integration": 92, "integrationFiles": 15, "e2eScripts": 5, "skipped": 0, "cleanup": "PASS", "build": "PASS", "lint": "PASS", "typecheck": "PASS", "schemaParity": "PASS", "repeatedDeploy": "NO_OP" },
+  "preview": {
+    "deploymentId": "dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa",
+    "sha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+    "url": "https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app",
+    "databaseFingerprint": "545a187f9e9d66b0",
+    "productionFingerprint": "0257665af2dd90a4",
+    "storageId": "store_Ov8erHstuvfJ52Og",
+    "schema": "m3_intake_preview_1791111530558",
+    "syntheticRun": "intake-1791111530558",
+    "cremation": "PASS",
+    "relativeBurial": "PASS",
+    "preUploadReconciliation": "PASS_DOCUMENT_BLOCKER_WITHOUT_FALSE_TENANT_MISMATCH",
+    "webhookReplayFive": { "uniqueEntries": 1, "original": 1, "replayed": 4 },
+    "financeLostResponse": "PASS_SAME_ENVELOPE_ONE_ENTRY",
+    "crossTenant": "PASS",
+    "reconciliation": 0,
+    "unexpected5xx": 0,
+    "skipped": 0,
+    "criticalSeriousAccessibility": 0,
+    "mobile": "PASS",
+    "zoom200": "PASS",
+    "normalIntakeHttpMs": { "cremation": 3973, "burial": 3632 },
+    "parallelIntakeResponsesPerScenario": { "original": 1, "replayed": 4 },
+    "httpTimesAreNotTransactionTimings": true
+  },
+  "backupRestore": { "receipt": "intake-2026-10-04T11-05-23.102Z", "tableCount": 52, "countsAndDigests": "MATCH", "schemaParity": "PASS", "repeatedDeploy": "NO_OP", "plaintextClone": "STOPPED_AND_REMOVED" },
+  "productionValidationInterval": "After dpl_4sFF frozen rollback, no writes/env/schema/deployment changes during this technical validation",
+  "precedingIncident": "reconciliation-incident.md",
+  "humanVerdicts": "PENDING",
+  "fullAgentRollout": "CLOSED"
+}

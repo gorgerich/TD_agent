@@ -1,16 +1,16 @@
 mission: M3-FULFILMENT-MONEY-TRUST
 name: Fulfilment & Money Trust
 state: BLOCKED_HUMAN_JUDGMENT
-base_sha: c9e8a9373d10e1e2c1b2f2d6a4bcbb49654e7de1
-implementation_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
-pull_request: https://github.com/gorgerich/TD_agent/pull/33
-source_ci: https://github.com/gorgerich/TD_agent/actions/runs/37159816398
-preview_deployment_id: dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC
-preview_deployment_sha: 4bc03e2f228d64f9d12325cfe21b683ee143d5a1
-preview_url: https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app
+base_sha: 8deda6c3dbeb79dd15f3897a44ee16a492f55cca
+implementation_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+pull_request: https://github.com/gorgerich/TD_agent/pull/34
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/37197375921
+preview_deployment_id: dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa
+preview_deployment_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+preview_url: https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app
 preview_database_fingerprint: 545a187f9e9d66b0
 preview_storage_id: store_Ov8erHstuvfJ52Og
-production_deployment_id: dpl_PZHnvWjMdhWAMYthAChf3gBCXM5f
+production_deployment_id: dpl_4sFF8Boy1yHkyx2kbb8N3GXVySwo
 production_deployment_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
 production_runtime_source_sha: 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4
 production_database_fingerprint: 0257665af2dd90a4
@@ -55,7 +55,7 @@ open_risks:
 production_release_authorized: false
 production_release: NOT_PERFORMED
 
-validation_scope: intake hotfix since c9; original operator M3 migration and rollback are retained history
+validation_scope: technical reconciliation repair after frozen rollback dpl_4sFF; preceding synthetic writes and rollback preserved in reconciliation-incident.md
 cpo_audit_release_authorized: true
 cpo_audit_release: PENDING_GREEN_EVIDENCE_HEAD_CI
 full_agent_rollout: PENDING_HUMAN_VERDICTS
