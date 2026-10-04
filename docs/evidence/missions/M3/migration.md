@@ -1,3 +1,15 @@
+# Intake Hotfix Migration Safety
+
+## Current Intake Hotfix Validation, 2026-10-04
+
+Implementation `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`; PR #33; Preview `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Current authenticated UAT passed both complete scenarios with reconciliation=0, unexpected 5xx=0, skipped=0, mobile/200% zoom and critical/serious accessibility=0. The previous interrupted Preview and continuation-harness omission are retained in intake-validation-current.json; neither is counted as PASS.
+
+Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816398. All technical steps passed; overall FAIL at stale authoritative evidence is NOT green overall CI. Green evidence-head CI remains required before merge. Independent exact-source review: P0=0/P1=0, one unchanged documented P2. Human verdicts remain PENDING and broad rollout CLOSED.
+
+No schema or migration files changed from c9 to the repair source. Original M3 migration is already applied in Production and was not reapplied there. Fresh encrypted Production backup and real isolated local restore receipt: `intake-2026-10-03T23-18-31.198Z`. All 52 table counts/digests MATCH including `_prisma_migrations`; volatile `SecurityRateLimitBucket` excluded explicitly. UTC/ISO serialization corrected an initial metadata digest mismatch, without excluding migration history. Local restore Prisma connection uses explicit local user. Repeated deploy NO_OP; schema parity PASS; plaintext clone STOPPED_AND_REMOVED. Backup key retained separately, never in Git. Backup helper independently reviewed P0/P1=0; 16 failure-path checks plus affected receipt-failure retest PASS. Freshness must be rechecked at release preflight.
+
+## Historical Baseline Rehearsal
+
 # M3 migration evidence
 
 ## Identity and checksum
