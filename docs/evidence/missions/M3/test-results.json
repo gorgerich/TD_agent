@@ -194,6 +194,26 @@
     "scope": "Technical validation interval after frozen rollback dpl_4sFF. Earlier authorized Case57 writes and runtime rollbacks are preserved in reconciliation-incident.md, not claimed absent. No Production writes/env/deployment/schema changes within this validation interval."
   },
   "fullRolloutStatus": "PENDING_HUMAN_VERDICTS",
-  "cpoAuditReleaseStatus": "PENDING_GREEN_EVIDENCE_HEAD_CI",
+  "cpoAuditReleaseStatus": "PRODUCTION_SMOKE_PASS_PENDING_CLOSURE",
+  "postReleaseRecord": "cpo-post-release-20261004.md",
+  "cpoProduction": {
+    "scope": "Only m3-cpo-audit-20260923; separate from the explicitly historical production validation interval above",
+    "mergeSha": "9071393f9f3539d1df9fd61d645e34dd548eeb4a",
+    "implementationSha": "c0567d11d4a80d1488a1e8bca6dc1815ffc83806",
+    "deploymentId": "dpl_5gcgvFzauaTUCWUDL13AwXFhUSFG",
+    "mainCi": "https://github.com/gorgerich/TD_agent/actions/runs/37199362950",
+    "mainCiStatus": "PASS",
+    "smoke": "SYNTHETIC_API_SMOKE_PASS",
+    "reconciliationDiscrepancies": 0,
+    "unexpected5xx": 0,
+    "realCustomerBaseline": "MATCH_34_TABLES",
+    "realCustomerRecordsChanged": 0,
+    "productionWrites": "AUTHORIZED_SYNTHETIC_CPO_ONLY",
+    "schemaChangesByHotfix": "NONE",
+    "freeze": "disabled",
+    "scanner": "FAIL_CLOSED_PROVIDER_REQUIRED",
+    "humanVerdicts": "PENDING",
+    "broadRollout": "CLOSED"
+  },
   "localBuild": "PASS canonical build"
 }
