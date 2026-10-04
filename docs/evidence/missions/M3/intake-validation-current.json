@@ -1,4 +1,5 @@
 {
+  "classification": "HISTORICAL_SUPERSEDED_BY_c0567d11_RECONCILIATION_REPAIR",
   "scope": "M3 intake incident hotfix validation; not a release verdict",
   "implementationSha": "4bc03e2f228d64f9d12325cfe21b683ee143d5a1",
   "repairPr": "https://github.com/gorgerich/TD_agent/pull/33",
