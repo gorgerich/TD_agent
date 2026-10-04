@@ -1,8 +1,8 @@
 # Controlled Intake Hotfix CPO Release Packet
 
-Full-agent mission state: `BLOCKED_HUMAN_JUDGMENT`. This is distinct from the owner-authorized, synthetic-organization-only CPO audit release, which remains pending the final green evidence-head CI and controlled production gates.
+Full-agent mission state: `BLOCKED_HUMAN_JUDGMENT`. This is distinct from the owner-authorized, synthetic-organization-only CPO audit release. Current post-release facts are in [cpo-post-release-20261004.md](cpo-post-release-20261004.md): PR #34 merge `9071393f9f3539d1df9fd61d645e34dd548eeb4a`, main CI PASS, Production READY, synthetic API smoke/reconciliation PASS, freeze disabled. The sections below are retained pre-release/historical evidence and must not be interpreted as current deployment state. Evidence-only closure remains a separate gate.
 
-## Current Reconciliation Repair, 2026-10-04
+## Historical Pre-release Reconciliation Validation, 2026-10-04
 
 Source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, PR #34, based on main `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`. Exact Preview `dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa`, https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Fresh synthetic schema `m3_intake_preview_1791111530558`, run `intake-1791111530558`. Both full authenticated journeys PASS, including the new pre-upload reconciliation API regression, document review/replacement, immutable contract/ledger, partial/full/refund/reversal, four-eyes, webhook replay, cross-tenant and failure recovery. Reconciliation=0, unexpected5xx=0, skipped=0, critical/serious accessibility=0, mobile/200% zoom PASS.
 

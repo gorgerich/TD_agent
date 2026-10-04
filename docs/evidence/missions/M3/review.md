@@ -9,6 +9,13 @@ p2: 1
 ---
 # Independent Exact-SHA Reconciliation Review, 2026-10-04
 
+Post-release packet qualification: [cpo-post-release-20261004.md](cpo-post-release-20261004.md)
+records the later Production smoke and inherited PAYMENT-stage registry label P2.
+The original one-P2 frontmatter remains the exact-source delta review, not an
+exhaustive application-wide finding count or a claim that current UI has no debt.
+Native browser zoom is not certified by the CSS zoom captures; effective viewport
+reflow and real read-only control clicks are separate operator evidence.
+
 Current source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, base `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`: independent reviewer inspected the complete three-file committed delta and relevant reconciliation/transition boundaries. P0=0/P1=0; the inherited Finance Case-detail read P2 below remains open. Presence guard does not weaken requirement/document-version tenant checks or readiness blockers. Both-scenario integration covers absent documents, a quarantined document alongside absent requirements and an actually foreign empty document. Browser assertions run before uploads in both scenarios. No schema/migration changes.
 
 Reviewer independently executed the initial affected canonical PostgreSQL target 8/8 PASS, skipped0, schema dropped. That execution preceded the added mixed-state coverage. Exact committed mixed-state 8/8 PASS is implementer execution, not attributed to the reviewer. Whitespace and E2E syntax checks passed. Independent reviewer did not execute remote UAT, full CI or Production. Fresh exact-source Preview UAT and complete local gates are implementer facts recorded separately, not independent attestation.
