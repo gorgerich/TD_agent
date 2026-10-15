@@ -170,8 +170,12 @@ test("CPO-06/24/25: scenario correction is explicit, atomic and payload-bound", 
     }), { params: Promise.resolve({ caseId: String(fixture.lead.id) }) },
   );
   const whitespace = await save("it:scenario:whitespace", "кремация", false, "   ");
-  assert.equal(whitespace.status, 400);
-  assert.equal((await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } })).stage, "INTAKE");
+  assert.equal(whitespace.status, 200);
+  const partialCase = await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } });
+  assert.equal(partialCase.stage, "INTAKE");
+  assert.equal(partialCase.scenarioId, "UNSELECTED");
+  assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).deceasedName, null);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: { in: ["intake.completed.v1", "scenario.selected.v1"] } } }), 0);
   assert.equal((await save("it:scenario:initial", "кремация")).status, 200);
   const before = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } });
   assert.equal((await save("it:scenario:unconfirmed", "погребение")).status, 422);
