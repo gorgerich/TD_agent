@@ -1,7 +1,54 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import ts from "typescript";
 import test from "node:test";
 import { fillProtected, sanitizedCpoFailure } from "./e2e/protectedInput.mjs";
+
+test("CPO routes and auth-infrastructure waiters have explicit async ownership", () => {
+  for (const file of ["cpo-repair.mjs", "cpo-auth-infrastructure.mjs"]) {
+    const source = readFileSync(new URL(`./e2e/${file}`, import.meta.url), "utf8");
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    const guarded = new Set<string>();
+    let routes = 0, waiters = 0;
+    const bindings = (node: ts.Node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer?.getText(ast).startsWith("asyncScope.guard(")) guarded.add(node.name.getText(ast));
+      ts.forEachChild(node, bindings);
+    };
+    bindings(ast);
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        if (node.expression.name.text === "route") {
+          const callback = node.arguments[1]!.getText(ast);
+          assert.ok(callback.startsWith("asyncScope.guard(") || guarded.has(callback), file);
+          routes++;
+        }
+        if (/^waitFor(Response|Request|URL|Event|Navigation)$/.test(node.expression.name.text)) {
+          assert.ok(ts.isCallExpression(node.parent));
+          assert.equal(node.parent.expression.getText(ast), "observeLegacyPromise", file);
+          waiters++;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ast);
+    assert.ok(waiters > 0, file);
+    assert.equal(routes, file === "cpo-repair.mjs" ? 3 : 0, file);
+  }
+});
+
+test("CPO preflight sanitizes malformed input before importing a browser or launching resources", () => {
+  const result = spawnSync(process.execPath, ["tests/e2e/cpo-repair.mjs"], {
+    encoding: "utf8", timeout: 10_000,
+    env: { ...process.env, M3_CPO_REPAIR_FIXTURE: "1", M3_UAT_RUN_ID: "secret-policy-unit",
+      M3_UAT_PASSWORD: "synthetic-password-canary-not-for-output", M3_UAT_MFA_SECRET: "A".repeat(32),
+      E2E_BASE_URL: "synthetic-secret-malformed-url-canary", M3_CPO_REPAIR_FIXTURE_JSON: "null" },
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /^E2E_CPO_REPAIR_FAILED(?: cpo-repair\.mjs:\d{1,7}:\d{1,7})?\n$/);
+  assert.doesNotMatch(result.stdout + result.stderr, /synthetic-secret-malformed-url-canary|synthetic-password-canary-not-for-output/);
+});
 
 test("protected fill preserves the requested action and discards secret-bearing failures", async () => {
   const secret = "synthetic-secret-canary";

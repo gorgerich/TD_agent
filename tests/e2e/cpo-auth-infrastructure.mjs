@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { mkdtemp, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fillProtected } from "./protectedInput.mjs";
+import { fillProtected, observeLegacyPromise } from "./protectedInput.mjs";
 
 async function main() {
 const base = new URL(process.env.E2E_BASE_URL ?? "");
@@ -69,14 +69,14 @@ try {
   await page.goto(`${base.origin}/agent/login`);
   await page.locator("#agent-email").fill(fixture.ownerEmail);
   await fillProtected(page.locator("#agent-password"), password);
-  let pending = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/agent/auth/login" && r.request().method() === "POST");
+  let pending = observeLegacyPromise(page.waitForResponse((r) => new URL(r.url()).pathname === "/api/agent/auth/login" && r.request().method() === "POST"));
   await page.locator('form button[type="submit"]').click();
   assert.equal((await pending).status(), 200);
   await fillProtected(page.locator("#platform-mfa-code"), totp());
-  pending = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/agent/auth/login" && r.request().method() === "POST");
+  pending = observeLegacyPromise(page.waitForResponse((r) => new URL(r.url()).pathname === "/api/agent/auth/login" && r.request().method() === "POST"));
   await page.locator('form button[type="submit"]').click();
   assert.equal((await pending).status(), 200);
-  await page.waitForURL((url) => url.pathname === "/platform-admin");
+  await observeLegacyPromise(page.waitForURL((url) => url.pathname === "/platform-admin"));
   await page.getByRole("heading", { name: "Обзор платформы", exact: true }).waitFor();
   assert.equal((await context.cookies()).some((cookie) => cookie.name === "tihiydom_agent_session" && cookie.secure), true);
   await start("");
@@ -97,7 +97,7 @@ try {
   const retry = page.getByRole("button", { name: "Повторить загрузку", exact: true });
   await retry.focus();
   assert.equal(await retry.evaluate((element) => element === document.activeElement), true);
-  await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }), retry.press("Enter")]);
+  await Promise.all([observeLegacyPromise(page.waitForNavigation({ waitUntil: "domcontentloaded" })), retry.press("Enter")]);
   await unavailable.waitFor();
   const directory = await mkdtemp(path.join(tmpdir(), "cpo-auth-unavailable-ui-"));
   await chmod(directory, 0o700);

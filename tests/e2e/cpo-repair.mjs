@@ -1,14 +1,24 @@
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
-import { chromium } from "playwright";
-import { fillProtected, sanitizedCpoFailure } from "./protectedInput.mjs";
+import { fillProtected, sanitizedCpoFailure, observeLegacyPromise, createLegacyAsyncScope } from "./protectedInput.mjs";
 import { mkdtemp, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url);
-const axePath = require.resolve("axe-core/axe.min.js");
+let browser;
+const contexts = [];
+async function closeResources() {
+  let failed = false;
+  for (const context of contexts) {
+    try { await context.close(); } catch { failed = true; }
+  }
+  try { await browser?.close(); } catch { failed = true; }
+  if (failed) throw new Error("E2E_CPO_CLEANUP_FAILED");
+}
+const asyncScope = createLegacyAsyncScope(closeResources);
+
+async function run() {
 
 const runId = process.env.M3_UAT_RUN_ID;
 const password = process.env.M3_UAT_PASSWORD;
@@ -50,8 +60,10 @@ for (const key of ["safe", "published"]) {
 const ownerMfa = [...createHmac("sha256", mfa).update(`cpo-repair-owner:${runId}`).digest()]
   .map((byte) => "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[byte & 31]).join("");
 const identities = Object.fromEntries(["agent", "foreign", "manager", "reviewer", "finance-a"].map((role) => [role, `m3-${role}-${runId}@synthetic.invalid`]));
-const browser = await chromium.launch({ headless: true });
-const contexts = [];
+const { chromium } = await import("playwright");
+const require = createRequire(import.meta.url);
+const axePath = require.resolve("axe-core/axe.min.js");
+browser = await chromium.launch({ headless: true });
 const failures = [];
 const firstAdminUi = [];
 const mockedLogoutFailures = new Set();
@@ -80,19 +92,19 @@ async function login(page, email, secret, landing) {
   await page.goto(`${origin}/agent/login`);
   await page.locator("#agent-email").fill(email);
   await fillProtected(page.locator("#agent-password"), password);
-  let pending = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/agent/auth/login" && response.request().method() === "POST");
+  let pending = observeLegacyPromise(page.waitForResponse((response) => new URL(response.url()).pathname === "/api/agent/auth/login" && response.request().method() === "POST"));
   await page.locator('form button[type="submit"]').click();
   let response = await pending;
   const body = await response.json();
   if (secret) {
     assert.equal(body.mfaRequired, true, "MFA challenge required for protected identity");
     await fillProtected(page.locator("#platform-mfa-code"), totp(secret));
-    pending = page.waitForResponse((next) => new URL(next.url()).pathname === "/api/agent/auth/login" && next.request().method() === "POST");
+    pending = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === "/api/agent/auth/login" && next.request().method() === "POST"));
     await page.locator('form button[type="submit"]').click();
     response = await pending;
   }
   assert.equal(response.status(), 200, "Authenticated fixture login must succeed");
-  await page.waitForURL((url) => url.pathname === landing);
+  await observeLegacyPromise(page.waitForURL((url) => url.pathname === landing));
 }
 
 async function command(context, pathname, method, data) {
@@ -115,7 +127,7 @@ async function intake(page, leadId, confirmed) {
     await page.getByLabel("Подтверждаю исправление сценария").check();
     await page.getByLabel("Причина исправления сценария").fill(correctionBody.scenarioCorrection.reason);
   }
-  const response = page.waitForResponse((next) => new URL(next.url()).pathname === `/api/agent/cases/${leadId}/intake` && next.request().method() === "PATCH");
+  const response = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === `/api/agent/cases/${leadId}/intake` && next.request().method() === "PATCH"));
   await page.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
   return response;
 }
@@ -238,7 +250,6 @@ async function assertFirstAdminViewports(page) {
 }
 
 async function main() {
- try {
   const anonymous = await session();
   await anonymous.page.goto(`${origin}/agent/login`);
   assert.equal((await command(anonymous.context, firstAdminPath, "POST", bootstrapBody)).status(), 401);
@@ -271,16 +282,16 @@ async function main() {
   let firstKey;
   let firstPayload;
   // Forward the real commit, discard only its response, then exercise the UI's replay.
-  await owner.page.route(`${origin}${firstAdminPath}`, async (route) => {
+  await owner.page.route(`${origin}${firstAdminPath}`, asyncScope.guard(async (route) => {
     firstKey = route.request().headers()["idempotency-key"];
     firstPayload = route.request().postData();
     const response = await route.fetch();
     assert.equal(response.status(), 201);
     await route.abort("failed");
-  }, { times: 1 });
+  }), { times: 1 });
   await assign.click();
   await owner.page.getByRole("status").filter({ hasText: "Нет связи" }).waitFor();
-  const replayPending = owner.page.waitForResponse((response) => new URL(response.url()).pathname === firstAdminPath && response.request().method() === "POST");
+  const replayPending = observeLegacyPromise(owner.page.waitForResponse((response) => new URL(response.url()).pathname === firstAdminPath && response.request().method() === "POST"));
   await assign.click();
   const replay = await replayPending;
   assert.equal(replay.status(), 200);
@@ -307,7 +318,7 @@ async function main() {
     const inviteForm = admin.page.locator("form").filter({ has: admin.page.getByLabel("Рабочий email") });
     await inviteForm.getByText("Роль", { exact: true }).waitFor();
     await inviteForm.getByRole("combobox").selectOption(role);
-    const pending = admin.page.waitForResponse((response) => new URL(response.url()).pathname === "/api/agent/invitations" && response.request().method() === "POST");
+    const pending = observeLegacyPromise(admin.page.waitForResponse((response) => new URL(response.url()).pathname === "/api/agent/invitations" && response.request().method() === "POST"));
     await admin.page.getByRole("button", { name: "Создать ссылку", exact: true }).click();
     assert.equal((await pending).status(), 201);
     const row = admin.page.locator("article").filter({ hasText: email });
@@ -354,11 +365,11 @@ async function main() {
   const shell = owner.page.locator("aside");
   const revokeUrl = `${origin}/api/platform-admin/sessions/revoke`;
   let revokeCalls = 0;
-  const revokeFailure = async (route) => {
+  const revokeFailure = asyncScope.guard(async (route) => {
     if (route.request().method() !== "POST") { await route.fallback(); return; }
     revokeCalls++;
     await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "Synthetic mocked stale session" }) });
-  };
+  });
   await owner.page.route(revokeUrl, revokeFailure);
   try {
     await shell.getByRole("button", { name: "Завершить другие сеансы", exact: true }).click();
@@ -373,12 +384,12 @@ async function main() {
 
   const logoutUrl = `${origin}/api/agent/auth/logout`;
   let logoutCalls = 0;
-  const logoutFailure = async (route) => {
+  const logoutFailure = asyncScope.guard(async (route) => {
     if (route.request().method() !== "POST") { await route.fallback(); return; }
     logoutCalls++;
     mockedLogoutFailures.add(route.request());
     await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Synthetic mocked logout outage" }) });
-  };
+  });
   await owner.page.route(logoutUrl, logoutFailure);
   try {
     await shell.getByRole("button", { name: "Выйти", exact: true }).click();
@@ -389,28 +400,22 @@ async function main() {
     assert.equal(mockedLogoutFailures.size, 0);
   } finally { await owner.page.unroute(logoutUrl, logoutFailure); }
 
-  const actualLogout = owner.page.waitForResponse((response) => response.url() === logoutUrl && response.request().method() === "POST");
+  const actualLogout = observeLegacyPromise(owner.page.waitForResponse((response) => response.url() === logoutUrl && response.request().method() === "POST"));
   await Promise.all([
-    owner.page.waitForURL((url) => url.pathname === "/agent/login"),
+    observeLegacyPromise(owner.page.waitForURL((url) => url.pathname === "/agent/login")),
     shell.getByRole("button", { name: "Выйти", exact: true }).click(),
   ]);
   assert.equal((await actualLogout).status(), 200);
   assert.equal((await owner.context.cookies()).some((cookie) => cookie.name === "tihiydom_agent_session"), false);
   await owner.page.goto(`${origin}/platform-admin`);
-  await owner.page.waitForURL((url) => url.pathname === "/agent/login");
+  await observeLegacyPromise(owner.page.waitForURL((url) => url.pathname === "/agent/login"));
   assert.deepEqual(failures, []);
+  await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({ firstAdmin: "PASS", lostResponseReplay: "PASS", invites: 3, scenarioCorrection: "PASS", publicationGuard: "PASS", permissions: "PASS",
     sessionFailureFeedback: "PASS_MOCKED_UI_ONLY_409_503", logout: "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT", firstAdminUi, skipped: 0 })}\n`);
-} finally {
-  for (const context of contexts) await context.close();
-  await browser.close();
-}
 }
 
-await main().catch((error) => {
-  process.stderr.write(sanitizedCpoFailure(error));
-  process.exitCode = 1;
-});
+await main();
 
 function totp(secret) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -426,4 +431,20 @@ function totp(secret) {
   const digest = createHmac("sha1", Buffer.from(bytes)).update(counter).digest();
   const offset = digest.at(-1) & 15;
   return String((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+}
+
+try {
+  await run();
+} catch (error) {
+  process.stderr.write(sanitizedCpoFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try { await closeResources(); } finally { await asyncScope.settle(); }
+  } catch (error) {
+    process.stderr.write(sanitizedCpoFailure(error));
+    process.exitCode = 1;
+  }
 }
