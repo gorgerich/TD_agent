@@ -4,6 +4,7 @@ import { assertCapability, hasTeamOperationalScope, type OperationalContext } fr
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { closeMeetingEscalationInTransaction, projectPastMeetingEscalationInTransaction } from "@/lib/operationsProjection";
 import { prisma } from "@/lib/prisma";
+import { assertClientCommandKey, serverCommandKey } from "@/lib/commandNamespace";
 
 export type MeetingCommandMeta = {
   idempotencyKey: string;
@@ -305,6 +306,7 @@ async function commandReplay(
 }
 
 function validateMeta(meta: MeetingCommandMeta) {
+  assertClientCommandKey(meta.idempotencyKey);
   if (!meta.idempotencyKey.trim() || !meta.correlationId.trim()) {
     throw new OperationalCommandError(400, "Нужны Idempotency-Key и X-Correlation-Id");
   }
@@ -372,7 +374,7 @@ async function cancelStaleMeetingEscalations(
       after: meetingEscalationSnapshot(updated),
       correlationId: meta.correlationId,
       causationId: String(meeting.id),
-      idempotencyKey: `${meta.idempotencyKey}:escalation:${task.id}`,
+      idempotencyKey: serverCommandKey("meeting-escalation", `${meta.idempotencyKey}:${task.id}`),
       result: { taskId: task.id, status: updated.status },
     });
   }

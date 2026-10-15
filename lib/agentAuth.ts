@@ -15,14 +15,16 @@ export function normalizeOptionalPhone(phone?: string | null): string | undefine
 export function setAgentSessionCookie(
   res: NextResponse,
   token: string,
+  options: { maxAge?: number } = {},
 ): NextResponse {
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 8 * 60 * 60,
+    maxAge: options.maxAge ?? 8 * 60 * 60,
   });
+  res.headers.set("Cache-Control", "no-store");
   return res;
 }
 

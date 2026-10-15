@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { normalizeSelection, type AttrSelection } from "./attributes";
-import { encryptString, decryptString } from "./crypto";
+import { encryptString, decryptStringStrict, EncryptedDataUnavailableError } from "./crypto";
 import type { PublicEstimateItem, PublicExternalExpense } from "./calculationUtils";
 
 /*
@@ -22,49 +22,47 @@ export interface CoState {
   _ts?: number;
 }
 
-export async function readCoState(meetingId: number): Promise<{ state: CoState; updatedAt: number } | null> {
+export async function readCoState(meetingId: number, db = prisma): Promise<{ state: CoState; updatedAt: number } | null> {
+  const row = await db.agentSession.findUnique({ where: { meetingId } });
+  if (!row) return null;
+  const state = parseCoState(row.state);
+  return { state, updatedAt: state._ts ?? 0 };
+}
+
+function parseCoState(stored: string): CoState {
   try {
-    const row = await prisma.agentSession.findUnique({ where: { meetingId } });
-    if (!row) return null;
-    const state = JSON.parse(decryptString(row.state)) as CoState;
-    return { state, updatedAt: state._ts ?? 0 };
+    const state: unknown = JSON.parse(decryptStringStrict(stored));
+    if (!state || typeof state !== "object" || Array.isArray(state)) throw new EncryptedDataUnavailableError();
+    return state as CoState;
   } catch {
-    return null;
+    throw new EncryptedDataUnavailableError();
   }
 }
 
 /** Полная запись состояния (агент). */
-export async function writeCoState(meetingId: number, state: CoState): Promise<boolean> {
+export async function writeCoState(meetingId: number, state: CoState, db = prisma): Promise<boolean> {
   const payload = encryptString(JSON.stringify({ ...state, _ts: Date.now() }));
   const expiresAt = new Date(Date.now() + TTL_MS);
-  try {
-    await prisma.agentSession.upsert({
-      where: { meetingId },
-      update: { state: payload, expiresAt },
-      create: { meetingId, state: payload, expiresAt },
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  await db.agentSession.upsert({
+    where: { meetingId },
+    update: { state: payload, expiresAt },
+    create: { meetingId, state: payload, expiresAt },
+  });
+  return true;
 }
 
 /** Частичная правка только атрибутики (клиент). Мержит в существующее состояние. */
-export async function mergeCoAttributes(meetingId: number, rawAttributes: unknown): Promise<boolean> {
+export async function mergeCoAttributes(meetingId: number, rawAttributes: unknown, db = prisma): Promise<boolean> {
   const attributes = normalizeSelection(rawAttributes);
   const expiresAt = new Date(Date.now() + TTL_MS);
-  try {
-    const existing = await prisma.agentSession.findUnique({ where: { meetingId } });
-    const base: CoState = existing ? (JSON.parse(decryptString(existing.state)) as CoState) : {};
-    const next: CoState = { ...base, attributes, _ts: Date.now() };
-    const payload = encryptString(JSON.stringify(next));
-    await prisma.agentSession.upsert({
-      where: { meetingId },
-      update: { state: payload, expiresAt },
-      create: { meetingId, state: payload, expiresAt },
-    });
-    return true;
-  } catch {
-    return false;
-  }
+  const existing = await db.agentSession.findUnique({ where: { meetingId } });
+  const base: CoState = existing ? parseCoState(existing.state) : {};
+  const next: CoState = { ...base, attributes, _ts: Date.now() };
+  const payload = encryptString(JSON.stringify(next));
+  await db.agentSession.upsert({
+    where: { meetingId },
+    update: { state: payload, expiresAt },
+    create: { meetingId, state: payload, expiresAt },
+  });
+  return true;
 }

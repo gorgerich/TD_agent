@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { serverCommandKey } from "@/lib/commandNamespace";
 import type { CaseCommandContext } from "@/lib/caseService";
 import { prisma } from "@/lib/prisma";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
@@ -286,7 +287,7 @@ export async function closeMeetingEscalationInTransaction(
         after: projectionTaskSnapshot(updated),
         correlationId: context.correlationId,
         causationId: task.sourceEventId,
-        idempotencyKey: `${idempotencyKey}:${task.id}`,
+        idempotencyKey: serverCommandKey("meeting-outcome-audit", `${idempotencyKey}:${task.id}`),
         result: { taskId: task.id, status: updated.status },
       },
     });

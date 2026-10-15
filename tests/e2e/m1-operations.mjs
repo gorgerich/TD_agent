@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+
+let browser;
+let context;
+try {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -13,8 +18,8 @@ const password = process.env.M1_UAT_PASSWORD;
 
 if (!password) throw new Error("M1_UAT_PASSWORD is required for authenticated M1 E2E");
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+browser = await chromium.launch({ headless: true });
+context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
 const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;
@@ -36,7 +41,6 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
 
-try {
   await login(page, agentEmail, password);
   const agentResult = await agentFlow(page, context);
   await context.clearCookies();
@@ -59,15 +63,11 @@ try {
     meetingNavigationRetries,
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 async function login(target, email, secret) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
   await target.locator("#agent-email").fill(email);
-  await target.locator("#agent-password").fill(secret);
+  await fillProtected(target.locator("#agent-password"), secret);
   await Promise.all([
     target.waitForURL(/\/agent\/cases(?:\?|$)/),
     target.locator('form button[type="submit"]').click(),
@@ -372,4 +372,16 @@ async function assertNoHorizontalOverflow(target, label) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.clientWidth + 1, `${label} horizontally overflows: ${JSON.stringify(dimensions)}`);
+}
+
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try { await context?.close(); } finally { await browser?.close(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
+  }
 }

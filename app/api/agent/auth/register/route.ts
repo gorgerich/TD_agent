@@ -11,6 +11,7 @@ import {
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { hashInvitationToken, productionRegistrationRequiresInvite } from "@/lib/invitations";
 import { ensureLegacyOrganizationForAgent } from "@/lib/operationalAuth";
+import { requireAppEncryptionKey } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -18,11 +19,16 @@ const Body = z.object({
   name: z.string().trim().min(2, "Укажите имя"),
   email: z.string().trim().email("Укажите email"),
   phone: z.string().trim().optional(),
-  password: z.string().min(8, "Пароль должен быть не короче 8 символов"),
+  password: z.string().min(8, "Пароль должен быть не короче 8 символов").max(200),
   inviteToken: z.string().min(32).optional(),
 });
 
 export async function POST(req: NextRequest) {
+  try {
+    requireAppEncryptionKey();
+  } catch {
+    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503, headers: { "Retry-After": "5" } });
+  }
   const limited = enforceRateLimit(req, "register", 5, 60_000);
   if (limited) return limited;
 
@@ -152,7 +158,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof RegistrationError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
-    throw error;
+    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503, headers: { "Retry-After": "5" } });
   }
 }
 

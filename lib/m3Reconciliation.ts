@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { isAcceptedImmutableQuote } from "@/lib/quotePublicationTruth";
 import {
   deriveLedgerSummary,
   evaluateDocumentRequirement,
@@ -26,11 +27,26 @@ export async function reconcileM3Case(
   client: Prisma.TransactionClient | typeof prisma = prisma,
 ) {
   assertCapability(context, "fulfilment:read");
+  return reconcileM3CaseIntegrity(client, { organizationId: context.organizationId, ownerId: context.role === "AGENT" ? context.agentId : undefined }, caseId);
+}
+
+export async function reconcileM3CaseForTransition(
+  client: Prisma.TransactionClient,
+  input: { organizationId: string; ownerId: number; caseId: string },
+) {
+  return reconcileM3CaseIntegrity(client, input, input.caseId);
+}
+
+async function reconcileM3CaseIntegrity(
+  client: Prisma.TransactionClient | typeof prisma,
+  context: { organizationId: string; ownerId?: number },
+  caseId: string,
+) {
   const record = await client.case.findFirst({
     where: {
       id: caseId,
       tenantId: context.organizationId,
-      ...(context.role === "AGENT" ? { ownerId: context.agentId } : {}),
+      ...(context.ownerId !== undefined ? { ownerId: context.ownerId } : {}),
     },
     select: {
       id: true,
@@ -55,11 +71,12 @@ export async function reconcileM3Case(
           stableKey: true,
           kind: true,
           isApplicable: true,
+          supersededAt: true,
           dueAt: true,
           ownerMembershipId: true,
           satisfactionStatus: true,
           satisfiedByVersionId: true,
-          policy: { select: { status: true } },
+          policy: { select: { status: true, scenario: true } },
           rule: { select: { ownerRole: true, conditionKey: true } },
           document: {
             select: {
@@ -95,6 +112,7 @@ export async function reconcileM3Case(
             select: { organizationId: true, version: true, status: true, approvedAt: true, effectiveFrom: true, retiredAt: true },
           },
           quoteVersionId: true,
+          payerParty: { select: { organizationId: true, caseId: true, roles: { select: { role: true, validFrom: true, validUntil: true } } } },
           totalObligationKopecks: true,
           currency: true,
           validUntil: true,
@@ -128,6 +146,8 @@ export async function reconcileM3Case(
               totalState: true,
               total: true,
               currency: true,
+              snapshotChecksum: true,
+              decisions: { select: { type: true } },
               quote: { select: { status: true, organizationId: true, caseId: true } },
             },
           },
@@ -173,7 +193,7 @@ export async function reconcileM3Case(
     })),
   };
   const requiredDocuments = record.documentRequirements.flatMap((requirement) => {
-      const derivedApplicability = requirement.kind === "REQUIRED"
+      const derivedApplicability = requirement.supersededAt != null || requirement.policy.scenario !== record.scenarioId ? false : requirement.kind === "REQUIRED"
         ? true
         : evaluateRequirementCondition(requirement.rule.conditionKey, requirementFacts);
       if (derivedApplicability == null) {
@@ -229,6 +249,15 @@ export async function reconcileM3Case(
     });
 
   const signedContracts = record.contractVersions.filter((version) => version.status === "SIGNED");
+  for (const version of record.contractVersions.filter((candidate) => (
+    (candidate.status === "ISSUED" || candidate.status === "SIGNED") && candidate.supersededBy == null
+  ))) {
+    const payer = version.payerParty;
+    if (!payer || payer.organizationId !== record.tenantId || payer.caseId !== record.id
+      || !payer.roles.some((role) => role.role === "PAYER" && role.validFrom <= now && (role.validUntil == null || role.validUntil > now))) {
+      push("CONTRACT_PAYER_DRIFT", "contract_version", version.id, "Действующий договор не имеет действующей роли плательщика своего кейса");
+    }
+  }
   const contractualTruthVersions = record.contractVersions.filter((version) => (
     version.status === "SIGNED" || version.status === "SUPERSEDED"
   ));
@@ -239,20 +268,18 @@ export async function reconcileM3Case(
     if (version.supersededBy != null) {
       push("SIGNED_CONTRACT_SUPERSEDED", "contract_version", version.id, "SIGNED contract имеет замещающую версию");
     }
-    if (version.quoteVersionId !== record.publishedQuoteVersionId) {
-      push("SIGNED_CONTRACT_NOT_CURRENT_QUOTE", "contract_version", version.id, "SIGNED contract не связан с текущей принятой QuoteVersion");
-    }
   }
   const activeSigned = signedContracts.filter((version) => (
     version.supersededBy == null
     && (version.validUntil == null || version.validUntil > now)
-    && version.quoteVersionId === record.publishedQuoteVersionId
+    && isAcceptedImmutableQuote(version.quoteVersion)
   ));
   if (activeSigned.length > 1) {
     push("MULTIPLE_ACTIVE_SIGNED_CONTRACTS", "case", record.id, "У кейса больше одной активной SIGNED ContractVersion");
   }
   const contract = activeSigned[0] ?? null;
   let paymentStatus: Parameters<typeof evaluateFulfilmentGuards>[0]["paymentStatus"] = "LEGACY_INCOMPLETE";
+  let paymentSummary: ReturnType<typeof deriveLedgerSummary> | null = null;
   let pendingFinancialAdjustments = 0;
   for (const historicalContract of contractualTruthVersions) {
     const signedAt = historicalContract.signedAt;
@@ -278,8 +305,7 @@ export async function reconcileM3Case(
     if (
       quote.quote.organizationId !== record.tenantId
       || quote.quote.caseId !== record.id
-      || quote.state !== "PUBLISHED"
-      || quote.totalState !== "KNOWN"
+      || !isAcceptedImmutableQuote(quote)
     ) {
       push("CONTRACT_QUOTE_TRUTH_MISMATCH", "contract_version", historicalContract.id, "Contract history не связана с immutable PUBLISHED QuoteVersion того же tenant/case");
     }
@@ -337,7 +363,10 @@ export async function reconcileM3Case(
           remainingSourceCapacityKopecks(projectionEntries, source.id);
         }
         const summary = deriveLedgerSummary(projectionEntries, obligation.currency);
-        if (historicalContract.id === contract?.id) paymentStatus = summary.status ?? "LEGACY_INCOMPLETE";
+        if (historicalContract.id === contract?.id) {
+          paymentStatus = summary.status ?? "LEGACY_INCOMPLETE";
+          paymentSummary = summary;
+        }
       } catch (error) {
         push("LEDGER_PROJECTION_INVALID", "payment_obligation", obligation.id, error instanceof Error ? error.message : "Ledger projection failed");
       }
@@ -406,6 +435,7 @@ export async function reconcileM3Case(
     requiredDocuments,
     contractStatus: contract?.status ?? "MISSING",
     paymentStatus,
+    paymentSummary,
     pendingFinancialAdjustments,
     reconciliationDiscrepancies: discrepancies.length,
   });

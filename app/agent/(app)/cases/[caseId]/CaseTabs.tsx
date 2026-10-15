@@ -185,7 +185,7 @@ export function CaseTabs({
           {tab === "family" && (
             <div className={s.stack}>
               <Section title="Участники и роли" meta={parties.length ? String(parties.length) : "пусто"}>
-                <CasePartiesSection caseId={caseId} parties={parties} canMutate={canMutateCase} />
+                <CasePartiesSection caseId={caseId} parties={parties} canMutate={canMutateCase} timezone={timezone} />
               </Section>
               <Section title="Потребности семьи">
                 <IntakeSection caseId={caseId} initial={intake} canMutate={canMutateCase} />

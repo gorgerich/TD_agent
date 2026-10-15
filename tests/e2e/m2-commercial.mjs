@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+
+let browser;
+let context;
+try {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -28,12 +33,12 @@ if (!foreignEmail || !foreignPassword) {
   throw new Error("M2_UAT_RUN_ID and M2_UAT_PASSWORD are required for commercial cross-tenant E2E");
 }
 
-const browser = await chromium.launch({ headless: true });
+browser = await chromium.launch({ headless: true });
 // A protected Vercel Preview answers 302 to vercel.com/sso-api unless the request carries
 // the automation bypass. Supplied only via env so the secret never enters the repository,
 // and absent locally, where the target is an unprotected dev server.
 const protectionBypass = process.env.E2E_PROTECTION_BYPASS?.trim();
-const context = await browser.newContext({
+context = await browser.newContext({
   viewport: { width: 1365, height: 900 },
   locale: "ru-RU",
   timezoneId: "Europe/Moscow",
@@ -76,7 +81,6 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
-try {
   await login(page, email, password);
   const cremation = await commercialJourney(page, "Семья Кремова · синтетика", "CREMATION_V1", true);
   const burial = await commercialJourney(page, "Семья Участкова · синтетика", "FAMILY_PLOT_BURIAL_V1", false);
@@ -143,10 +147,6 @@ try {
     throttledLoginsRetried: throttledLogins,
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 /**
  * `npm run test:e2e` runs four suites back to back against one server, and the login route
@@ -162,7 +162,7 @@ async function login(target, identity, identityPassword) {
   for (let attempt = 1; ; attempt += 1) {
     await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
     await target.locator("#agent-email").fill(identity);
-    await target.locator("#agent-password").fill(identityPassword);
+    await fillProtected(target.locator("#agent-password"), identityPassword);
     const [response] = await Promise.all([
       target.waitForResponse((res) => res.url().includes("/api/agent/auth/login") && res.request().method() === "POST"),
       target.locator('form button[type="submit"]').click(),
@@ -838,5 +838,17 @@ async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
     await target.unroute(quotePattern);
     await target.unroute(reviewPattern);
     await target.unroute(publishPattern);
+  }
+}
+
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try { await context?.close(); } finally { await browser?.close(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
   }
 }

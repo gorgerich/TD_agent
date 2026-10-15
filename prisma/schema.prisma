@@ -996,6 +996,7 @@ model CaseDocumentRequirement {
   reviewChecklist           Json
   isApplicable              Boolean                   @default(true)
   applicabilityEvaluatedAt  DateTime                  @default(now())
+  supersededAt              DateTime?
   satisfactionStatus        M3RequirementSatisfaction @default(NOT_SATISFIED)
   satisfiedByVersionId      String?                   @unique
   satisfiedByVersion        CaseDocumentVersion?      @relation("RequirementSatisfiedBy", fields: [satisfiedByVersionId], references: [id], onDelete: Restrict)

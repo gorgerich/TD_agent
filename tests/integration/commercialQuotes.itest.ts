@@ -21,6 +21,7 @@ import {
 } from "../../lib/commercialQuoteService";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
 import { GET as getMeetingQuoteRoute } from "../../app/api/agent/meeting/[meetingId]/quote/route";
+import { POST as requestClientChanges } from "../../app/api/co/[code]/request-changes/route";
 import {
   createFixtureContext,
   db,
@@ -31,6 +32,33 @@ import {
 } from "./_setup";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+
+test("CPO-24: concurrent client decisions with changed comments create one receipt and a truthful conflict", opts, async () => {
+  const fixtures = createFixtureContext("cpo-client-decision-conflict");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const record = await fixtures.makeCase(owner, "decision-conflict");
+    await db.case.update({ where: { id: record.id }, data: { stage: "QUOTING", scenarioId: "CREMATION_V1" } });
+    const meeting = await makeCommercialMeeting(owner, record.id, record.leadId, fixtures.runId);
+    const saved = await saveCommercialDraft({ meetingId: meeting.id, scenario: "CREMATION_V1", lines: [knownLine("service:ceremony", "CREMATION_V1")], context: owner.context, meta: meta(fixtures.runId, "draft") });
+    await markCommercialQuoteInReview({ quoteId: saved.quoteId, context: owner.context, meta: meta(fixtures.runId, "review") });
+    const published = await publishCommercialQuote({ quoteId: saved.quoteId, validUntil: new Date(Date.now() + 86400000), channel: "link", context: owner.context, meta: meta(fixtures.runId, "publish") });
+    const link = await createCommercialClientLink({ quoteId: saved.quoteId, expiresAt: new Date(Date.now() + 3600000), context: owner.context, meta: meta(fixtures.runId, "link") });
+    const command = { token: link.token, type: "CHANGES_REQUESTED" as const, ...meta(fixtures.runId, "decision") };
+    const outcomes = await Promise.allSettled(["Synthetic change A", "Synthetic change B"].map((comment) => recordCommercialClientDecision({ ...command, comment })));
+    assert.equal(outcomes.filter((outcome) => outcome.status === "fulfilled").length, 1);
+    const rejected = outcomes.find((outcome) => outcome.status === "rejected");
+    assert.ok(rejected?.status === "rejected" && rejected.reason instanceof OperationalCommandError && rejected.reason.status === 409);
+    const decisions = await db.quoteClientDecision.findMany({ where: { quoteVersionId: published.quoteVersionId } });
+    assert.equal(decisions.length, 1);
+    assert.equal(decisions[0]!.idempotencyKey, command.idempotencyKey);
+    assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: owner.organizationId, action: "quote.client_changes_requested" } }), 1);
+    assert.equal(await db.task.count({ where: { caseId: record.id, type: "QUOTE_SEND", status: "OPEN" } }), 1);
+    const replay = await recordCommercialClientDecision({ ...command, comment: decisions[0]!.comment! });
+    assert.equal(replay.replayed, true);
+    assert.equal(replay.decisionId, decisions[0]!.id);
+  } finally { await fixtures.cleanup(); await fixtures.assertNoResidue(); }
+});
 
 function meta(runId: string, action: string) {
   return {
@@ -243,9 +271,27 @@ test("M2 canonical draft, review, publish and client decision preserve immutable
       }),
     ]);
     assert.equal(changeReplay.decisionId, changeDecision.decisionId);
+    assert.deepEqual([changeDecision.replayed, changeReplay.replayed].sort(), [false, true]);
     assert.equal(await db.quoteClientDecision.count({
       where: { quoteVersionId: Number(publishedV1.quoteVersionId) },
     }), 1);
+
+    const decisionSideEffects = () => Promise.all([
+      db.caseEvent.count({ where: { caseId: canonicalCase.id } }),
+      db.task.count({ where: { caseId: canonicalCase.id } }),
+      db.operationalAuditEvent.count({ where: { organizationId: owner.organizationId } }),
+    ]);
+    const beforeDecisionReplay = await decisionSideEffects();
+    const changesRequest = (comment: string) => requestClientChanges(makeRequest("/api/co/synthetic/request-changes", {
+      method: "POST", headers: { "idempotency-key": changeInput.idempotencyKey, "x-correlation-id": changeInput.correlationId }, body: { comment },
+    }), { params: Promise.resolve({ code: linkV1.token }) });
+    const sameDecision = await changesRequest(changeInput.comment);
+    assert.equal(sameDecision.status, 200);
+    assert.equal((await sameDecision.json()).replayed, true);
+    const changedDecision = await changesRequest("Другой запрос изменений");
+    assert.equal(changedDecision.status, 409);
+    assert.deepEqual(await decisionSideEffects(), beforeDecisionReplay);
+    assert.equal(await db.quoteClientDecision.count({ where: { quoteVersionId: Number(publishedV1.quoteVersionId) } }), 1);
 
     const v1RowBefore = await db.quoteVersion.findUniqueOrThrow({
       where: { id: Number(publishedV1.quoteVersionId) },

@@ -7,6 +7,7 @@ import { assertCapability } from "@/lib/operationalAuth";
 import { createInvitationToken, hashInvitationToken } from "@/lib/invitations";
 import { normalizeEmail } from "@/lib/agentAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { commandMetaFromHeaders } from "@/lib/m3Api";
 
 export const runtime = "nodejs";
 
@@ -26,9 +27,7 @@ export async function POST(req: NextRequest) {
     if (parsed.data.role === "ADMIN" && parsed.data.confirmation !== "НАЗНАЧИТЬ АДМИНИСТРАТОРА") {
       return jsonError(422, "Для назначения ADMIN введите «НАЗНАЧИТЬ АДМИНИСТРАТОРА»");
     }
-    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
-    const correlationId = req.headers.get("x-correlation-id")?.trim();
-    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
+    const { idempotencyKey, correlationId } = commandMetaFromHeaders(req);
 
     const token = createInvitationToken();
     let invite;

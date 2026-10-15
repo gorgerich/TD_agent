@@ -23,6 +23,10 @@ import {
 } from "@/lib/m3Domain";
 import { advanceCaseFulfilment } from "@/lib/caseFulfilment";
 import { MAX_LEDGER_AMOUNT_KOPECKS } from "@/lib/financeAmount";
+import { validPaymentTerms } from "@/lib/contractTerms";
+import { assertConfiguredPaymentProvider } from "@/lib/paymentWebhookProvider";
+import { serverCommandKey } from "@/lib/commandNamespace";
+import { isAcceptedImmutableQuote } from "@/lib/quotePublicationTruth";
 
 type CommandResult<T> = T & { replayed: boolean };
 
@@ -52,6 +56,7 @@ export async function createContractVersion(
   meta: M3CommandMeta,
 ): Promise<CommandResult<{ contractVersionId: string; versionNumber: number; status: "DRAFT" }>> {
   assertCapability(context, "contracts:manage");
+  if (!validPaymentTerms(input.paymentTerms)) throw new OperationalCommandError(400, "Проверьте структуру и размер условий оплаты");
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, validUntil: input.validUntil?.toISOString() ?? null });
   return runOperationalTransaction(async (tx) => {
@@ -67,9 +72,10 @@ export async function createContractVersion(
     const quoteVersion = await tx.quoteVersion.findFirst({
       where: {
         id: caseRecord.publishedQuoteVersionId,
-        state: "PUBLISHED",
+        state: { in: ["PUBLISHED", "SUPERSEDED", "EXPIRED"] },
         totalState: "KNOWN",
-        quote: { caseId: caseRecord.id, organizationId: context.organizationId, status: "ACCEPTED" },
+        quote: { caseId: caseRecord.id, organizationId: context.organizationId },
+        decisions: { some: { type: "ACCEPTED" } },
       },
       select: {
         id: true,
@@ -77,9 +83,12 @@ export async function createContractVersion(
         currency: true,
         snapshotChecksum: true,
         versionNumber: true,
+        state: true,
+        totalState: true,
+        decisions: { select: { type: true } },
       },
     });
-    if (!quoteVersion || quoteVersion.total <= 0 || !quoteVersion.snapshotChecksum) {
+    if (!quoteVersion || !isAcceptedImmutableQuote(quoteVersion)) {
       throw new OperationalCommandError(422, "Принятая смета не содержит подтверждённого immutable snapshot");
     }
     const now = new Date();
@@ -190,6 +199,7 @@ export async function issueContractVersion(
   context: OperationalContext,
   contractVersionId: string,
   meta: M3CommandMeta,
+  expectedCaseId?: string,
 ): Promise<CommandResult<{ contractVersionId: string; status: "ISSUED" }>> {
   assertCapability(context, "contracts:manage");
   validateM3CommandMeta(meta);
@@ -198,14 +208,18 @@ export async function issueContractVersion(
     const replay = await readAuditReplay<{ contractVersionId: string; status: "ISSUED" }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
-    if (replay) return { ...replay, replayed: true };
+    if (replay) {
+      if (expectedCaseId) await requireContractVersionParent(tx, context.organizationId, contractVersionId, expectedCaseId);
+      return { ...replay, replayed: true };
+    }
     const version = await tx.contractVersion.findFirst({
-      where: { id: contractVersionId, organizationId: context.organizationId, status: "DRAFT" },
-      select: { id: true, caseId: true, validUntil: true },
+      where: { id: contractVersionId, organizationId: context.organizationId, status: "DRAFT", ...(expectedCaseId ? { caseId: expectedCaseId } : {}) },
+      select: { id: true, caseId: true, validUntil: true, payerPartyId: true },
     });
     if (!version) throw new OperationalCommandError(404, "Черновик договора не найден");
     if (version.validUntil && version.validUntil <= new Date()) throw new OperationalCommandError(409, "Срок договора истёк");
     await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
+    await requireCurrentContractPayer(tx, context.organizationId, version.caseId, version.payerPartyId);
     await authorizeContractTransition(tx, context, meta, {
       entityId: version.id,
       command: "issue",
@@ -235,6 +249,7 @@ export async function signContractVersion(
     contractVersionId: string;
     signatureEvidence: { type: string; reference: string };
     signaturePolicyVersion: string;
+    caseId?: string;
   },
   meta: M3CommandMeta,
 ): Promise<CommandResult<{ contractVersionId: string; obligationId: string; ledgerEntryId: string; status: "SIGNED" }>> {
@@ -244,13 +259,17 @@ export async function signContractVersion(
     throw new OperationalCommandError(422, "Нужно подтверждение подписания без секретных данных");
   }
   if (!input.signaturePolicyVersion.trim()) throw new OperationalCommandError(422, "Нужна версия политики подписания");
-  const fingerprint = commandFingerprint(input);
+  const { caseId: expectedCaseId, ...signatureCommand } = input;
+  const fingerprint = commandFingerprint(signatureCommand);
   const result = await runOperationalTransaction(async (tx) => {
     await lockOrganizationPolicyBoundary(tx, context.organizationId);
     const replay = await readAuditReplay<{
       contractVersionId: string; obligationId: string; ledgerEntryId: string; status: "SIGNED";
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
-    if (replay) return { ...replay, replayed: true };
+    if (replay) {
+      if (expectedCaseId) await requireContractVersionParent(tx, context.organizationId, input.contractVersionId, expectedCaseId);
+      return { ...replay, replayed: true };
+    }
     const policyNow = new Date();
     const signingPolicy = await tx.contractSigningPolicy.findFirst({
       where: {
@@ -269,7 +288,7 @@ export async function signContractVersion(
       throw new OperationalCommandError(422, "Политика и тип подтверждения подписания не утверждены Legal");
     }
     let version = await tx.contractVersion.findFirst({
-      where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED" },
+      where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED", ...(input.caseId ? { caseId: input.caseId } : {}) },
       select: {
         id: true,
         contractId: true,
@@ -285,7 +304,7 @@ export async function signContractVersion(
     if (!version) throw new OperationalCommandError(404, "Выданная версия договора не найдена");
     await lockContract(tx, version.contractId);
     version = await tx.contractVersion.findFirst({
-      where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED" },
+      where: { id: input.contractVersionId, organizationId: context.organizationId, status: "ISSUED", ...(input.caseId ? { caseId: input.caseId } : {}) },
       select: {
         id: true,
         contractId: true,
@@ -301,8 +320,16 @@ export async function signContractVersion(
     if (!version) throw new OperationalCommandError(409, "Версия договора уже изменилась");
     if (version.validUntil && version.validUntil <= new Date()) throw new OperationalCommandError(409, "Срок договора истёк");
     const caseRecord = await requireTenantCase(tx, context, version.caseId, { requireOwnerForAgent: true });
+    await requireCurrentContractPayer(tx, context.organizationId, version.caseId, version.payerPartyId);
     if (caseRecord.publishedQuoteVersionId !== version.quoteVersionId) {
       throw new OperationalCommandError(409, "Подписать можно только договор текущей принятой версии сметы");
+    }
+    const acceptedQuote = await tx.quoteVersion.findFirst({
+      where: { id: version.quoteVersionId, quote: { caseId: version.caseId, organizationId: context.organizationId } },
+      select: { state: true, totalState: true, total: true, snapshotChecksum: true, decisions: { select: { type: true } } },
+    });
+    if (!acceptedQuote || acceptedQuote.state !== "PUBLISHED" || !isAcceptedImmutableQuote(acceptedQuote)) {
+      throw new OperationalCommandError(409, "Для подписания нужна принятая опубликованная версия сметы");
     }
     const latestVersion = await tx.contractVersion.findFirst({
       where: { contractId: version.contractId },
@@ -342,7 +369,7 @@ export async function signContractVersion(
         after: prismaJson({ status: "SUPERSEDED", supersededByVersionId: version.id }),
         correlationId: meta.correlationId,
         causationId: version.id,
-        idempotencyKey: `${meta.idempotencyKey}:supersede`,
+        idempotencyKey: serverCommandKey("contract-supersede", meta.idempotencyKey),
         reason: meta.reason,
         result: prismaJson({ contractVersionId: activeSigned[0].id, supersededByVersionId: version.id }),
       });
@@ -376,7 +403,7 @@ export async function signContractVersion(
         amountKopecks: version.totalObligationKopecks,
         currency: version.currency,
         createdByMembershipId: context.membershipId,
-        idempotencyKey: `${meta.idempotencyKey}:obligation`,
+        idempotencyKey: serverCommandKey("obligation", meta.idempotencyKey),
         correlationId: meta.correlationId,
       },
       select: { id: true },
@@ -393,7 +420,7 @@ export async function signContractVersion(
       source: "signed-contract",
       relatedEntryId: null,
       externalTransactionId: null,
-      idempotencyKey: `${meta.idempotencyKey}:ledger-obligation`,
+      idempotencyKey: serverCommandKey("ledger-obligation", meta.idempotencyKey),
     }, meta);
     const ledger = await tx.paymentLedgerEntry.create({
       data: {
@@ -409,7 +436,7 @@ export async function signContractVersion(
         source: "signed-contract",
         evidenceReference: `contract-version:${version.id}`,
         actorMembershipId: context.membershipId,
-        idempotencyKey: `${meta.idempotencyKey}:ledger-obligation`,
+        idempotencyKey: serverCommandKey("ledger-obligation", meta.idempotencyKey),
         correlationId: meta.correlationId,
       },
       select: { id: true },
@@ -439,7 +466,7 @@ export async function signContractVersion(
       after: prismaJson({ amountKopecks: version.totalObligationKopecks, currency: version.currency }),
       correlationId: meta.correlationId,
       causationId: meta.idempotencyKey,
-      idempotencyKey: `${meta.idempotencyKey}:obligation-audit`,
+      idempotencyKey: serverCommandKey("obligation-audit", meta.idempotencyKey),
       result: prismaJson({ obligationId: obligation.id }),
     });
     await appendOperationalAudit(tx, context, {
@@ -450,7 +477,7 @@ export async function signContractVersion(
       after: prismaJson({ type: "OBLIGATION", direction: "DEBIT", amountKopecks: version.totalObligationKopecks }),
       correlationId: meta.correlationId,
       causationId: meta.idempotencyKey,
-      idempotencyKey: `${meta.idempotencyKey}:ledger-obligation-audit`,
+      idempotencyKey: serverCommandKey("ledger-obligation-audit", meta.idempotencyKey),
       result: prismaJson({ ledgerEntryId: ledger.id }),
     });
     return { ...data, replayed: false };
@@ -560,7 +587,7 @@ export async function recordRefund(
   validateLedgerInput(input.amountKopecks, "RUB", input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  return runOperationalTransaction(async (tx) => {
+  const result = await runOperationalTransaction(async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -636,6 +663,8 @@ export async function recordRefund(
     await appendLedgerAudit(tx, context, entry.id, "ledger.refund_appended.v1", input, meta, fingerprint, data);
     return { ...data, replayed: false };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+  await advanceLedgerEntryCaseAfterCommit(context, input.paymentEntryId, result.ledgerEntryId, meta);
+  return result;
 }
 
 export async function requestLedgerAdjustment(
@@ -655,7 +684,7 @@ export async function requestLedgerAdjustment(
   validateLedgerInput(input.amountKopecks, "RUB", input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  return runOperationalTransaction(async (tx) => {
+  const result = await runOperationalTransaction(async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; approvalRequired: boolean; policyVersion: number }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -706,9 +735,22 @@ export async function requestLedgerAdjustment(
       where: { organizationId: context.organizationId, status: "APPROVED" },
       orderBy: { version: "desc" },
     });
+    const unapproved = await tx.paymentLedgerEntry.aggregate({
+      where: {
+        organizationId: context.organizationId,
+        obligationId: lockedRelated.obligationId,
+        type: { in: ["CORRECTION", "REVERSAL"] },
+        OR: [{ approvalRequired: false }, { approval: { is: { decision: null } } }],
+      },
+      _sum: { amountKopecks: true },
+    });
+    const cumulativeAmount = input.amountKopecks + (unapproved._sum.amountKopecks ?? 0);
+    if (!Number.isSafeInteger(cumulativeAmount)) {
+      throw new OperationalCommandError(422, "Накопительная сумма коррекций превышает допустимый диапазон");
+    }
     const approvalRequired = requiresFourEyesApproval({
       type: input.type,
-      amountKopecks: input.amountKopecks,
+      amountKopecks: cumulativeAmount,
       thresholdKopecks: policy?.correctionThresholdKopecks ?? null,
     });
     const policyVersion = policy?.version ?? 0;
@@ -765,7 +807,7 @@ export async function requestLedgerAdjustment(
           requestedByMembershipId: context.membershipId,
           policyVersion,
           requestReason: input.reason.trim(),
-          idempotencyKey: `${meta.idempotencyKey}:approval-request`,
+          idempotencyKey: serverCommandKey("approval-request", meta.idempotencyKey),
           correlationId: meta.correlationId,
         },
         select: { id: true },
@@ -787,13 +829,15 @@ export async function requestLedgerAdjustment(
         after: prismaJson({ ledgerEntryId: entry.id, policyVersion }),
         correlationId: meta.correlationId,
         causationId: entry.id,
-        idempotencyKey: `${meta.idempotencyKey}:approval-request-audit`,
+        idempotencyKey: serverCommandKey("approval-request-audit", meta.idempotencyKey),
         reason: input.reason,
         result: prismaJson({ approvalId, ledgerEntryId: entry.id }),
       });
     }
     return { ...data, replayed: false };
   });
+  await advanceLedgerEntryCaseAfterCommit(context, input.relatedEntryId, result.ledgerEntryId, meta);
+  return result;
 }
 
 export async function decideLedgerAdjustment(
@@ -1060,7 +1104,7 @@ export async function processPaymentWebhook(
         },
         select: { id: true },
       });
-      const webhookIdempotencyKey = `webhook:${provider}:${command.externalEventId}`;
+      const webhookIdempotencyKey = serverCommandKey("webhook-ledger", `${provider}:${command.externalEventId}`);
       await authorizeLedgerInsert(tx, { organizationId: command.organizationId }, {
         organizationId: command.organizationId,
         caseId: command.caseId,
@@ -1117,7 +1161,7 @@ export async function processPaymentWebhook(
           currency: command.currency,
         }),
         correlationId: command.externalEventId,
-        idempotencyKey: `webhook-audit:${provider}:${command.externalEventId}`,
+        idempotencyKey: serverCommandKey("webhook-audit", `${provider}:${command.externalEventId}`),
         actorType: "payment-provider",
         result: prismaJson({ receiptId: receipt.id, ledgerEntryId: entry.id }),
       });
@@ -1267,7 +1311,7 @@ async function advanceWebhookCaseAfterCommit(
     actorAgentId: owner.ownerId,
     actorMembershipId: owner.owner.membership.id,
     actorType: "payment-provider",
-    idempotencyKey: `webhook:${provider}:${command.externalEventId}`,
+    idempotencyKey: serverCommandKey("webhook-case", `${provider}:${command.externalEventId}`),
     correlationId: command.externalEventId,
     causationId,
   });
@@ -1291,7 +1335,7 @@ async function authorizeLedgerInsert(
     after: prismaJson(command),
     correlationId: meta.correlationId,
     causationId: meta.idempotencyKey,
-    idempotencyKey: `${meta.idempotencyKey}:db-auth:ledger`,
+    idempotencyKey: serverCommandKey("db-auth-ledger", meta.idempotencyKey),
     reason: meta.reason,
     actorType,
     result: prismaJson({ authorized: true }),
@@ -1334,7 +1378,7 @@ async function authorizeContractTransition(
     after: prismaJson({ command: transition.command, status: transition.toStatus }),
     correlationId: meta.correlationId,
     causationId: meta.idempotencyKey,
-    idempotencyKey: `${meta.idempotencyKey}:db-auth:contract:${transition.entityId}:${transition.command}`,
+    idempotencyKey: serverCommandKey("db-auth-contract", `${meta.idempotencyKey}:${transition.entityId}:${transition.command}`),
     reason: meta.reason,
     result: prismaJson({ authorized: true }),
   });
@@ -1452,6 +1496,21 @@ async function appendLedgerAudit(
   });
 }
 
+async function requireCurrentContractPayer(tx: Prisma.TransactionClient, organizationId: string, caseId: string, payerPartyId: string | null) {
+  const now = new Date();
+  const payer = payerPartyId ? await tx.caseParty.findFirst({
+    where: { id: payerPartyId, organizationId, caseId, roles: { some: {
+      role: "PAYER", validFrom: { lte: now }, OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+    } } }, select: { id: true },
+  }) : null;
+  if (!payer) throw new OperationalCommandError(409, "Роль плательщика изменилась. Подготовьте новую версию договора");
+}
+
+async function requireContractVersionParent(tx: Prisma.TransactionClient, organizationId: string, contractVersionId: string, caseId: string) {
+  const version = await tx.contractVersion.findFirst({ where: { id: contractVersionId, organizationId, caseId }, select: { id: true } });
+  if (!version) throw new OperationalCommandError(404, "Версия договора не найдена");
+}
+
 function validateLedgerInput(amountKopecks: number, currency: string, evidenceReference: string, reason: string) {
   if (!Number.isSafeInteger(amountKopecks) || amountKopecks <= 0 || amountKopecks > MAX_LEDGER_AMOUNT_KOPECKS) {
     throw new OperationalCommandError(422, "Сумма должна быть положительным целым числом копеек");
@@ -1463,8 +1522,8 @@ function validateLedgerInput(amountKopecks: number, currency: string, evidenceRe
 }
 
 function verifyWebhookSignature(provider: string, rawBody: string, signature: string) {
-  const secret = process.env.M3_PAYMENT_WEBHOOK_SECRET;
-  if (!secret) throw new OperationalCommandError(422, "Webhook provider не настроен");
+  assertConfiguredPaymentProvider(provider);
+  const secret = process.env.M3_PAYMENT_WEBHOOK_SECRET!;
   const expected = createHmac("sha256", secret).update(`${provider}.${rawBody}`).digest("hex");
   const received = signature.replace(/^sha256=/, "");
   const left = Buffer.from(expected, "hex");

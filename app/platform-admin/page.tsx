@@ -77,9 +77,9 @@ export default async function PlatformAdminDashboard() {
 
 export function PageHeader({ title, description }: { title: string; description: string }) {
   return (
-    <header className="max-w-[760px]">
+    <header className="max-w-[760px] [overflow-wrap:anywhere]">
       <p className="text-[12px] font-semibold text-[#176b5d]">Администрирование платформы</p>
-      <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.02em] text-[#132421] sm:text-[36px]">{title}</h1>
+      <h1 className="mt-2 text-[30px] font-semibold text-[#132421] sm:text-[36px]">{title}</h1>
       <p className="mt-2 text-[14px] leading-6 text-[#536762]">{description}</p>
     </header>
   );
@@ -112,5 +112,6 @@ export function auditLabel(action: string) {
     PLATFORM_ACCOUNT_ACTIVATION_REVOKED: "Ссылка активации отозвана",
     ORGANIZATION_SUSPENDED: "Организация приостановлена",
     ORGANIZATION_REACTIVATED: "Организация возобновлена",
+    ORGANIZATION_FIRST_ADMIN_ASSIGNED: "Назначен первый ADMIN организации",
   }[action] ?? action;
 }

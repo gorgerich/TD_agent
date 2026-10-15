@@ -11,6 +11,7 @@ import { OperationalAuthError, isCoreOperationalRole, type OperationalRole } fro
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import { CommercialQuoteError } from "@/lib/commercialQuote";
 import { EncryptedDataUnavailableError } from "@/lib/crypto";
+import { ApplicationSecurityKeyUnavailableError, requireAppEncryptionKey } from "@/lib/session";
 
 /**
  * Единые помощники для API-роутов агента: авторизация, проверка владения
@@ -29,21 +30,24 @@ export class ApiError extends Error {
 }
 
 export function jsonError(status: number, message: string): NextResponse {
-  return NextResponse.json({ error: message }, { status });
+  return NextResponse.json({ error: message }, {
+    status,
+    headers: status === 503 ? { "Retry-After": "5" } : undefined,
+  });
 }
 
-/** Достаёт сессию агента или бросает 401. Fail-closed: dev-заглушка
- *  (agentId 0) допустима ТОЛЬКО в development; в проде такая сессия = 401. */
+/** Requires a real, hydrated operational session in every environment. */
 export async function requireAgent(
   req: Request,
   options: { allowAdminMutation?: boolean; allowedRoles?: readonly OperationalRole[] } = {},
 ): Promise<AgentSession> {
+  requireAppEncryptionKey();
   const session = await getSessionFromRequest(req);
   if (!session) {
     const user = await getCurrentUserSessionFromRequest(req);
     throw new ApiError(user ? 403 : 401, user ? "Operational access unavailable" : "Unauthorized");
   }
-  if (session.agentId <= 0 && process.env.NODE_ENV !== "development") {
+  if (session.agentId <= 0) {
     throw new ApiError(401, "Unauthorized");
   }
   if (session.role === "FINANCE" && session.mfaVerified !== true) {
@@ -63,29 +67,23 @@ export async function requireAgent(
   return session;
 }
 
-/** True для dev-заглушки без агента (проверки владения пропускаются,
- *  но только в development — requireAgent уже отсёк её в проде). */
-function isDevStub(session: AgentSession): boolean {
-  return session.agentId <= 0;
-}
-
 /** Безусловная проверка доступа к лиду. Вместо fail-open паттерна
  *  `if (session.agentId) await assertLeadOwned(...)` на месте вызова. */
 export async function assertLeadAccess(leadId: number, session: AgentSession): Promise<void> {
-  if (isDevStub(session)) return; // только development
+  if (session.agentId <= 0) throw new ApiError(401, "Unauthorized");
   await assertLeadOwned(leadId, session);
 }
 
 /** Безусловная проверка доступа к встрече (см. assertLeadAccess). */
 export async function assertMeetingAccess(meetingId: number, session: AgentSession): Promise<void> {
-  if (isDevStub(session)) return; // только development
+  if (session.agentId <= 0) throw new ApiError(401, "Unauthorized");
   await assertMeetingOwned(meetingId, session);
 }
 
 /** Парсит positive-int id из строки роута или бросает 400. */
 export function parseId(raw: string, label = "id"): number {
   const id = Number(raw);
-  if (!Number.isInteger(id) || id <= 0) throw new ApiError(400, `Некорректный ${label}`);
+  if (!Number.isSafeInteger(id) || id <= 0 || id > 2_147_483_647) throw new ApiError(400, `Некорректный ${label}`);
   return id;
 }
 
@@ -142,7 +140,8 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
       { error: err.message, code: err.code },
       {
         status: err.status,
-        headers: err.code === "CASE_PROJECTION_RETRY" ? { "Retry-After": "2" } : undefined,
+        headers: err.code === "CASE_PROJECTION_RETRY" ? { "Retry-After": "2" }
+          : err.status === 503 ? { "Retry-After": "5" } : undefined,
       },
     );
   }
@@ -151,7 +150,7 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
     if (err.code === "CLIENT_LINK_SECRET_MISSING") {
       return NextResponse.json(
         { error: "Сервис защищённых ссылок временно недоступен", code: err.code },
-        { status: 503 },
+        { status: 503, headers: { "Retry-After": "5" } },
       );
     }
     return NextResponse.json({ error: err.message, code: err.code }, { status: 422 });
@@ -161,7 +160,15 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
     console.error("[api]%s PII_DECRYPTION_UNAVAILABLE", context ? ` ${context}` : "");
     return NextResponse.json(
       { error: "Зашифрованные данные временно недоступны", code: err.code },
-      { status: 503 },
+      { status: 503, headers: { "Retry-After": "5" } },
+    );
+  }
+
+  if (err instanceof ApplicationSecurityKeyUnavailableError) {
+    console.error("[api]%s AUTH_CRYPTO_UNAVAILABLE", context ? ` ${context}` : "");
+    return NextResponse.json(
+      { error: "Сервис временно недоступен", code: "AUTH_CRYPTO_UNAVAILABLE" },
+      { status: 503, headers: { "Retry-After": "5" } },
     );
   }
 
@@ -172,7 +179,6 @@ export function handleApiError(err: unknown, context?: string): NextResponse {
     return jsonError(503, "База данных недоступна. Попробуйте ещё раз через минуту.");
   }
 
-  console.error("[api]%s", context ? ` ${context}` : "", err);
-  const detail = process.env.NODE_ENV === "production" ? undefined : (err as Error)?.message;
-  return NextResponse.json({ error: "Внутренняя ошибка", detail }, { status: 500 });
+  console.error("[api]%s INTERNAL_ERROR", context ? ` ${context}` : "");
+  return NextResponse.json({ error: "Внутренняя ошибка" }, { status: 500 });
 }

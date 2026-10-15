@@ -3,12 +3,15 @@ import { z } from "zod";
 import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { createContractVersion, issueContractVersion, signContractVersion } from "@/lib/contractLedgerService";
 import { canonicalCaseIdFromLead, commandMetaFromHeaders } from "@/lib/m3Api";
+import { PaymentTermsSchema } from "@/lib/contractTerms";
+import { prisma } from "@/lib/prisma";
+import { readBoundedRequestText } from "@/lib/boundedRequestBody";
 
 const Body = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("CREATE"),
     payerPartyId: z.string().min(1).max(120),
-    paymentTerms: z.record(z.string().min(1).max(120), z.unknown()),
+    paymentTerms: PaymentTermsSchema,
     validUntil: z.string().datetime().nullable().optional(),
   }),
   z.object({ action: z.literal("ISSUE"), contractVersionId: z.string().min(1).max(120) }),
@@ -23,11 +26,14 @@ const Body = z.discriminatedUnion("action", [
 export async function POST(req: Request, { params }: { params: Promise<{ caseId: string }> }) {
   try {
     const context = await requireAgent(req);
-    const parsed = Body.safeParse(await req.json().catch(() => null));
+    const rawBody = await readBoundedRequestText(req, 16_384);
+    let body: unknown;
+    try { body = JSON.parse(rawBody); } catch { return jsonError(400, "Некорректный JSON"); }
+    const parsed = Body.safeParse(body);
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректная команда договора");
     const meta = commandMetaFromHeaders(req, "Изменение lifecycle договора");
+    const caseId = await canonicalCaseIdFromLead(context, (await params).caseId);
     if (parsed.data.action === "CREATE") {
-      const caseId = await canonicalCaseIdFromLead(context, (await params).caseId);
       return NextResponse.json(await createContractVersion(context, {
         caseId,
         payerPartyId: parsed.data.payerPartyId,
@@ -35,10 +41,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ caseId:
         validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
       }, meta));
     }
+    const ownedVersion = await prisma.contractVersion.findFirst({
+      where: { id: parsed.data.contractVersionId, organizationId: context.organizationId, caseId },
+      select: { id: true },
+    });
+    if (!ownedVersion) return jsonError(404, "Версия договора не найдена в этом кейсе");
     if (parsed.data.action === "ISSUE") {
-      return NextResponse.json(await issueContractVersion(context, parsed.data.contractVersionId, meta));
+      return NextResponse.json(await issueContractVersion(context, parsed.data.contractVersionId, meta, caseId));
     }
-    return NextResponse.json(await signContractVersion(context, parsed.data, meta));
+    return NextResponse.json(await signContractVersion(context, { ...parsed.data, caseId }, meta));
   } catch (error) {
     return handleApiError(error, "m3/contracts");
   }

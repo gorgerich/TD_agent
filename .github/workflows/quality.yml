@@ -33,6 +33,10 @@ jobs:
       DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@127.0.0.1:5432/td_agent_test
       APP_ENCRYPTION_KEY: ci-only-test-key-not-valid-for-production
       DEMO_MODE: "1"
+      E2E_BASE_URL: http://127.0.0.1:3001
+      M3_CPO_REPAIR_FIXTURE: "1"
+      M3_CPO_REPAIR_SCHEMA: public
+      M3_PRODUCTION_DATABASE_FINGERPRINT: 0257665af2dd90a4
 
     steps:
       - uses: actions/checkout@v4
@@ -72,6 +76,9 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m2-commercial-assertions.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-fixtures.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20260811172829_m3_fulfilment_money_trust/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013183000_cpo_document_review_repair/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013190000_case_requirement_supersession/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-assertions.sql
       - name: Configure SSI predicate lock granularity
         # Every operational command runs at SERIALIZABLE. With the Postgres default of
@@ -119,7 +126,14 @@ jobs:
             npm run test:integration -- \
               tests/integration/m3Fulfilment.itest.ts \
               tests/integration/m3PolicyActivation.itest.ts \
-              tests/integration/rateLimitRetention.itest.ts
+              tests/integration/rateLimitRetention.itest.ts \
+              tests/integration/cpo02FirstOrganizationAdmin.itest.ts \
+              tests/integration/cpoAuditFinance.itest.ts \
+              tests/integration/cpoAuditDocuments.itest.ts \
+              tests/integration/cpoMfaEnrollment.itest.ts \
+              tests/integration/cpoSessionRevocation.itest.ts \
+              tests/integration/commercialQuotes.itest.ts \
+              tests/integration/cpoScenarioCorrection.itest.ts
           done
       - name: Provision isolated M1 browser UAT fixture
         run: |
@@ -195,6 +209,7 @@ jobs:
             printf 'M3_UAT_RUN_ID=ci-%s-%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
             printf 'M3_UAT_PASSWORD=%s\n' "$password"
             printf 'M3_PAYMENT_WEBHOOK_SECRET=%s\n' "$webhook_secret"
+            printf 'M3_PAYMENT_WEBHOOK_PROVIDER=synthetic\n'
             printf 'M3_UAT_MFA_SECRET=%s\n' "$mfa_secret"
           } >> "$GITHUB_ENV"
           touch "$RUNNER_TEMP/m3-uat-ready"
@@ -204,6 +219,12 @@ jobs:
           M3_UAT_PASSWORD="$password" \
           M3_UAT_MFA_SECRET="$mfa_secret" \
           npx tsx tests/e2e/m3-fixture.ts provision
+      - name: Provision isolated CPO repair browser fixture
+        run: |
+          set -euo pipefail
+          touch "$RUNNER_TEMP/cpo-repair-ready"
+          fixture="$(npx tsx tests/e2e/cpo-repair-fixture.ts provision)"
+          printf 'M3_CPO_REPAIR_FIXTURE_JSON=%s\n' "$fixture" >> "$GITHUB_ENV"
       - name: Verify encrypted production-like backup and real restore
         run: |
           set -euo pipefail
@@ -291,9 +312,19 @@ jobs:
           exit 1
       - name: End-to-end tests
         run: npm run test:e2e
+      - name: Auth infrastructure failure and recovery browser regression
+        run: node tests/e2e/cpo-auth-infrastructure.mjs
+      - name: Document component browser regressions
+        run: npm run test:ui-components
       - name: Show server diagnostics after an E2E failure
         if: failure()
         run: test ! -f /tmp/td-agent-next.log || tail -n 200 /tmp/td-agent-next.log
+      - name: Cleanup isolated CPO repair browser fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/cpo-repair-ready" ]; then
+            npx tsx tests/e2e/cpo-repair-fixture.ts cleanup
+          fi
       - name: Cleanup isolated M3 browser UAT fixture
         if: always()
         run: |

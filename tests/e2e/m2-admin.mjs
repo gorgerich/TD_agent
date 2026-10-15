@@ -3,6 +3,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHmac } from "node:crypto";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+
+let browser;
+let context;
+try {
 
 const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M2_UAT_RUN_ID ?? "mission-2";
@@ -25,8 +30,8 @@ if (!recoveryToken) throw new Error("M2_UAT_RECOVERY_TOKEN is required");
 if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+browser = await chromium.launch({ headless: true });
+context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
 const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
@@ -52,7 +57,6 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
-try {
   await page.setViewportSize({ width: 390, height: 844 });
   await openRecovery(page, recoveryToken);
   await page.getByRole("heading", { name: "Восстановление доступа владельца" }).waitFor();
@@ -61,12 +65,12 @@ try {
   } catch {
     throw new Error("Raw recovery token was not removed from browser URL");
   }
-  await page.getByLabel("Новый пароль").fill(password);
-  await page.getByLabel("Повторите пароль").fill(password);
+  await fillProtected(page.getByLabel("Новый пароль"), password);
+  await fillProtected(page.getByLabel("Повторите пароль"), password);
   await page.getByRole("img", { name: "QR-код для приложения-аутентификатора" }).waitFor();
   await assertNoOverflow(page, "platform owner recovery mobile");
   await recoveryScreenshot(page, "platform-owner-recovery-mobile.png");
-  await page.getByLabel("Код из приложения").fill(totp(mfaSecret));
+  await fillProtected(page.getByLabel("Код из приложения"), totp(mfaSecret));
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/platform-admin"),
     page.getByRole("button", { name: "Обновить пароль" }).click(),
@@ -84,9 +88,9 @@ try {
   } catch {
     throw new Error("Raw activation token was not removed from browser URL");
   }
-  await page.getByLabel("Новый пароль").fill(password);
-  await page.getByLabel("Повторите пароль").fill(password);
-  await page.getByLabel("Код подтверждения").fill(totp(mfaSecret));
+  await fillProtected(page.getByLabel("Новый пароль"), password);
+  await fillProtected(page.getByLabel("Повторите пароль"), password);
+  await fillProtected(page.getByLabel("Код подтверждения"), totp(mfaSecret));
   await screenshot(page, "platform-activation-mobile.png");
   await Promise.all([
     page.waitForURL((url) => url.pathname === "/platform-admin"),
@@ -184,18 +188,14 @@ try {
     mobile: "PASS",
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 async function login(target, email, expectedPath) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
   await target.locator("#agent-email").fill(email);
-  await target.locator("#agent-password").fill(password);
+  await fillProtected(target.locator("#agent-password"), password);
   if (email === emails.platform) {
     await target.locator('form button[type="submit"]').click();
-    await target.locator("#platform-mfa-code").fill(totp(mfaSecret));
+    await fillProtected(target.locator("#platform-mfa-code"), totp(mfaSecret));
   }
   await Promise.all([
     target.waitForURL((url) => url.pathname === expectedPath),
@@ -288,5 +288,17 @@ async function waitForHeading(target, name) {
   } catch {
     const text = (await target.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 600);
     throw new Error(`Heading "${name}" missing at ${new URL(target.url()).pathname}. Body: ${text}`);
+  }
+}
+
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try { await context?.close(); } finally { await browser?.close(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
   }
 }

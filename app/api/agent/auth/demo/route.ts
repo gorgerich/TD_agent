@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAgentSession, setAgentSessionCookie } from "@/lib/agentAuth";
 import { ensureDemoAgent, isDemoMode } from "@/lib/demo";
 import { enforceRateLimit } from "@/lib/rateLimit";
+import { requireAppEncryptionKey } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
   if (limited) return limited;
 
   try {
+    requireAppEncryptionKey();
     const demo = await ensureDemoAgent();
     const token = await createAgentSession({
       userId: demo.userId,
@@ -25,10 +27,10 @@ export async function POST(req: Request) {
     });
 
     return setAgentSessionCookie(NextResponse.json({ ok: true }), token);
-  } catch (e) {
+  } catch {
     return NextResponse.json(
-      { error: "Демо недоступно: " + (e instanceof Error ? e.message : "ошибка") },
-      { status: 500 },
+      { error: "Демо временно недоступно" },
+      { status: 503, headers: { "Retry-After": "5" } },
     );
   }
 }

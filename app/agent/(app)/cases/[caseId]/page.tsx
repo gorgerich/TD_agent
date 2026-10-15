@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import { getAgentSession, type AgentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { decryptField } from "@/lib/crypto";
+import { decryptFieldStrict } from "@/lib/crypto";
 import { phone as fmtPhone, dateTime, moneyFromKopecks } from "@/lib/format";
 import { STAGE_ORDER } from "@/lib/case";
 import { isCaseStageConfirmed, type StatusTone } from "@/lib/caseStatus";
@@ -149,7 +149,7 @@ export default async function CasePage({
   }));
   const notes = rawNotes.map((n) => ({
     id: n.id,
-    body: decryptField(n.body) ?? n.body,
+    body: decryptFieldStrict(n.body) ?? n.body,
     createdAt: n.createdAt.toISOString(),
   }));
 
@@ -160,12 +160,12 @@ export default async function CasePage({
   const curIdx = Math.max(0, STAGE_ORDER.indexOf(canonicalCase.legacyStage));
 
   const firstMeeting = meetings[0] ?? null;
-  const context = decryptField(lead.context);
+  const context = decryptFieldStrict(lead.context);
   const intake = {
     ceremonyType: lead.ceremonyType ?? "",
     budget: lead.budget ?? "",
-    needs: decryptField(lead.needs) ?? "",
-    deceasedName: decryptField(lead.deceasedName) ?? "",
+    needs: decryptFieldStrict(lead.needs) ?? "",
+    deceasedName: decryptFieldStrict(lead.deceasedName) ?? "",
     deceasedDate: lead.deceasedDate ? lead.deceasedDate.toISOString().slice(0, 10) : "",
     morgue: lead.morgue ?? "",
     ceremonyAt: lead.ceremonyAt ? zonedLocalInput(lead.ceremonyAt.toISOString(), session.timezone) : "",
@@ -176,6 +176,7 @@ export default async function CasePage({
     ...requirement,
     dueAt: requirement.dueAt?.toISOString() ?? null,
     applicabilityEvaluatedAt: requirement.applicabilityEvaluatedAt.toISOString(),
+    supersededAt: requirement.supersededAt?.toISOString() ?? null,
     document: requirement.document ? {
       ...requirement.document,
       versions: requirement.document.versions.map((version) => ({

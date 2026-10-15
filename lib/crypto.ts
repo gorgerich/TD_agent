@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { requireAppEncryptionKey } from "./session";
 
 /**
  * Симметричное шифрование строк для ПДн «на уровне приложения» (ФЗ-152):
@@ -22,14 +23,14 @@ export class EncryptedDataUnavailableError extends Error {
 }
 
 function getKey({ allowMissing = false }: { allowMissing?: boolean } = {}): Buffer | null {
-  const secret = process.env.APP_ENCRYPTION_KEY;
-  if (process.env.NODE_ENV === "production" && !secret) {
+  let secret: string;
+  try {
+    secret = requireAppEncryptionKey();
+  } catch {
     if (allowMissing) return null;
-    throw new Error("APP_ENCRYPTION_KEY must be set in production");
+    throw new EncryptedDataUnavailableError();
   }
-  return createHash("sha256")
-    .update(secret ?? "dev-key-tihiydom-not-for-production-ok")
-    .digest();
+  return createHash("sha256").update(secret).digest();
 }
 
 /** Шифрует строку. Возвращает "enc1:iv.tag.ciphertext" (всё base64). */
@@ -58,8 +59,9 @@ export function decryptStringStrict(stored: string): string {
 
 function decryptStoredString(stored: string, strict: boolean): string {
   if (!stored.startsWith(PREFIX)) return stored; // легаси-плейнтекст
-  const [ivB64, tagB64, ctB64] = stored.slice(PREFIX.length).split(".");
-  if (!ivB64 || !tagB64 || !ctB64) {
+  const parts = stored.slice(PREFIX.length).split(".");
+  const [ivB64, tagB64, ctB64] = parts;
+  if (parts.length !== 3 || !ivB64 || !tagB64 || ctB64 === undefined) {
     if (strict) throw new EncryptedDataUnavailableError();
     throw new Error("Повреждённый шифртекст");
   }
@@ -71,9 +73,16 @@ function decryptStoredString(stored: string, strict: boolean): string {
     return "";
   }
   try {
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
-    decipher.setAuthTag(Buffer.from(tagB64, "base64"));
-    return Buffer.concat([decipher.update(Buffer.from(ctB64, "base64")), decipher.final()]).toString("utf8");
+    const iv = Buffer.from(ivB64, "base64");
+    const tag = Buffer.from(tagB64, "base64");
+    const ciphertext = Buffer.from(ctB64, "base64");
+    if (iv.length !== IV_LEN || tag.length !== 16 || iv.toString("base64") !== ivB64
+      || tag.toString("base64") !== tagB64 || ciphertext.toString("base64") !== ctB64) {
+      throw new EncryptedDataUnavailableError();
+    }
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
   } catch {
     if (strict) throw new EncryptedDataUnavailableError();
     // Старые demo-данные могли быть зашифрованы другим ключом после сброса env.

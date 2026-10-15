@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { Prisma } from "@prisma/client";
 import { GET as auditGet } from "../../app/api/agent/operations/audit/route";
 import { GET as operationsGet } from "../../app/api/agent/operations/route";
 import { GET as searchGet } from "../../app/api/agent/operations/search/route";
 import { GET as viewsGet, POST as viewsPost } from "../../app/api/agent/operations/views/route";
 import { transitionCase } from "../../lib/caseService";
+import { encryptField } from "../../lib/crypto";
 import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
 import { createMeeting, rescheduleMeeting, updateMeetingStatus } from "../../lib/meetingService";
 import { OperationalAuthError } from "../../lib/operationalAuth";
@@ -580,17 +580,19 @@ test("M1 meeting confirmation rolls back status and stale escalation when projec
     assert.equal((await ensurePastMeetingEscalations(owner.organizationId, now)).created, 1);
     const oldSource = `meeting:${meeting.id}:past-due:v${meeting.version}`;
     const conflictingProjectionKey = `projection:meeting:${meeting.id}:past-due:v${meeting.version + 1}:task`;
-    await createTask(owner.context, {
+    const conflict = await createTask(owner.context, {
       leadId: canonicalCase.leadId,
       title: "Synthetic projection conflict",
-    }, meta(conflictingProjectionKey));
+    }, meta(`m1:${fixtures.runId}:projection-conflict-fixture`));
+    // Simulate corrupt internal state directly; public commands cannot claim projection keys.
+    await db.task.update({ where: { id: conflict.id }, data: { idempotencyKey: conflictingProjectionKey } });
 
     await assert.rejects(updateMeetingStatus(owner.context, meeting.id, {
       status: "CONFIRMED",
       version: meeting.version,
     }, meta(`m1:${fixtures.runId}:confirm`)), (error: unknown) => {
-      assert.ok(error instanceof Prisma.PrismaClientKnownRequestError);
-      assert.equal(error.code, "P2002");
+      assert.ok(error instanceof OperationalCommandError);
+      assert.equal(error.status, 409);
       return true;
     });
 
@@ -781,7 +783,7 @@ test("M1 cremation and family-plot pilots reach commercial readiness through one
       });
       await db.clientLead.update({
         where: { id: canonicalCase.leadId },
-        data: { deceasedName: "enc1:synthetic", ceremonyType: scenario.ceremonyType },
+        data: { deceasedName: encryptField("Synthetic deceased"), ceremonyType: scenario.ceremonyType },
       });
 
       await transitionCase({

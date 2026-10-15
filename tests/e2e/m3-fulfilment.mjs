@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { syntheticDocumentPdf } from "../cpoAuditDocuments.fixture.mjs";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+
+let browser;
+let context;
+try {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -13,8 +19,8 @@ const mfaSecret = process.env.M3_UAT_MFA_SECRET;
 const financeBMfaSecret = process.env.M3_UAT_MFA_SECRET_B ?? mfaSecret;
 if (!password || password.length < 32) throw new Error("M3_UAT_PASSWORD is required");
 if (!webhookSecret || webhookSecret.length < 32) throw new Error("M3_PAYMENT_WEBHOOK_SECRET is required");
-if (!mfaSecret || !/^[A-Z2-7]{32,}$/.test(mfaSecret)) throw new Error("M3_UAT_MFA_SECRET is required");
-if (!financeBMfaSecret || !/^[A-Z2-7]{32,}$/.test(financeBMfaSecret)) throw new Error("M3_UAT_MFA_SECRET_B is invalid");
+if (!mfaSecret || !/^[A-Z2-7]{32}$/.test(mfaSecret)) throw new Error("M3_UAT_MFA_SECRET is required");
+if (!financeBMfaSecret || !/^[A-Z2-7]{32}$/.test(financeBMfaSecret)) throw new Error("M3_UAT_MFA_SECRET_B is invalid");
 
 const identities = {
   agent: `m3-agent-${runId}@synthetic.invalid`,
@@ -48,9 +54,9 @@ const cases = {
   },
 };
 
-const browser = await chromium.launch({ headless: true });
+browser = await chromium.launch({ headless: true });
 const protectionBypass = process.env.E2E_PROTECTION_BYPASS?.trim();
-const context = await browser.newContext({
+context = await browser.newContext({
   viewport: { width: 1365, height: 900 },
   locale: "ru-RU",
   timezoneId: "Europe/Moscow",
@@ -73,7 +79,6 @@ page.on("response", (response) => {
   unexpected5xx.push(`${response.status()} ${new URL(response.url()).pathname}`);
 });
 
-try {
   await login(page, identities.agent, password, /\/agent\/cases/);
   const cremation = await prepareAgentCase(page, cases.cremation, {
     roles: ["Заявитель", "Плательщик"],
@@ -172,10 +177,6 @@ try {
     unexpected5xx: 0,
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 async function prepareAgentCase(target, caseFixture, options) {
   const leadId = await openCase(target, caseFixture.name);
@@ -188,14 +189,18 @@ async function prepareAgentCase(target, caseFixture, options) {
   const form = target.locator('form[aria-label="Добавить участника кейса"]');
   await form.getByLabel("Имя", { exact: true }).fill(options.partyName);
   await form.getByLabel("Email", { exact: true }).fill(`m3-party-${leadId}@synthetic.invalid`);
+  await form.locator('select[name="preferredChannel"]').selectOption("EMAIL");
   for (const role of options.roles) await form.getByLabel(role, { exact: true }).check();
   await form.locator('select[name="consentStatus"]').selectOption("GRANTED");
   await form.locator('input[name="consentSource"]').fill("Synthetic isolated UAT");
+  await form.locator('input[name="consentAt"]').fill("2026-08-11T12:00");
   const partyResponsePromise = target.waitForResponse((response) => response.url().includes(`/cases/${leadId}/parties`) && response.request().method() === "POST");
   await form.getByRole("button", { name: "Сохранить участника" }).click();
   const partyResponse = await partyResponsePromise;
   assert.equal(partyResponse.status(), 201);
   const party = await partyResponse.json();
+  await form.waitFor({ state: "hidden" });
+  await target.getByText(options.partyName, { exact: true }).waitFor();
 
   await target.getByRole("tab", { name: /Документы/ }).click();
   if (options.exerciseFailure) {
@@ -234,7 +239,7 @@ async function openCase(target, name) {
 async function uploadDocument(target, requirement, filename, content) {
   const row = target.locator("li").filter({ hasText: requirement });
   const input = row.locator('input[type="file"]');
-  await input.setInputFiles({ name: filename, mimeType: "application/pdf", buffer: Buffer.from(content) });
+  await input.setInputFiles({ name: filename, mimeType: "application/pdf", buffer: syntheticDocumentPdf(content) });
   if (!expectedStorageFailure) {
     await row.getByText(/Загружен, ожидает проверки|Карантин/).waitFor();
     await target.locator('[aria-label="Сценарные документы"][aria-busy="false"]').waitFor();
@@ -642,7 +647,7 @@ async function login(target, email, identityPassword, landing) {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
     await target.locator("#agent-email").fill(email);
-    await target.locator("#agent-password").fill(identityPassword);
+    await fillProtected(target.locator("#agent-password"), identityPassword);
     let responsePromise = target.waitForResponse((response) => response.url().includes("/api/agent/auth/login") && response.request().method() === "POST");
     await target.locator('form button[type="submit"]').click();
     let response = await responsePromise;
@@ -653,7 +658,7 @@ async function login(target, email, identityPassword, landing) {
     }
     const body = await response.json().catch(() => null);
     if (body?.mfaRequired === true) {
-      await target.locator("#platform-mfa-code").fill(totp(email === identities.financeB ? financeBMfaSecret : mfaSecret));
+      await fillProtected(target.locator("#platform-mfa-code"), totp(email === identities.financeB ? financeBMfaSecret : mfaSecret));
       responsePromise = target.waitForResponse((next) => next.url().includes("/api/agent/auth/login") && next.request().method() === "POST");
       await target.locator('form button[type="submit"]').click();
       response = await responsePromise;
@@ -695,4 +700,16 @@ function totp(secret) {
     | ((digest[offset + 2] & 0xff) << 8)
     | (digest[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, "0");
+}
+
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try { await context?.close(); } finally { await browser?.close(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
+  }
 }

@@ -26,7 +26,8 @@ export function evaluateDocumentRequirement(
   versions: readonly DocumentVersionProjection[],
   now = new Date(),
 ): DocumentRequirementProjection {
-  const latest = [...versions].sort((left, right) => right.versionNumber - left.versionNumber)[0];
+  const latest = [...versions].filter((version) => version.status === "VERIFIED" && version.scanStatus === "CLEAN")
+    .sort((left, right) => right.versionNumber - left.versionNumber)[0];
   if (
     !latest
     || latest.status !== "VERIFIED"
@@ -87,9 +88,8 @@ export function deriveCaseDocumentTruth(
     required: projected.length,
     uploaded: projected.filter((requirement) => requirement.versions.length > 0).length,
     verified,
-    ready: projected.length > 0 && verified === projected.length,
-    readyForExecution: executionRequirements.length > 0
-      && executionRequirements.every((requirement) => requirement.satisfied),
+    ready: verified === projected.length,
+    readyForExecution: executionRequirements.every((requirement) => requirement.satisfied),
     guardState,
   };
 }
@@ -271,7 +271,9 @@ export function deriveLedgerSummary(
 
   const balanceKopecks = obligationKopecks - netPaidKopecks;
   let status: PaymentTruthStatus;
-  if (refundedKopecks > 0) {
+  if (netPaidKopecks >= obligationKopecks) {
+    status = netPaidKopecks === obligationKopecks ? "PAID" : "OVERPAID";
+  } else if (refundedKopecks > 0) {
     status = netPaidKopecks === 0 ? "REFUNDED" : "PARTIALLY_REFUNDED";
   } else if (netPaidKopecks === 0) {
     status = "UNPAID";
@@ -447,6 +449,7 @@ export function evaluateFulfilmentGuards(input: {
   }[];
   contractStatus: "MISSING" | "DRAFT" | "ISSUED" | "SIGNED" | "CANCELLED" | "SUPERSEDED";
   paymentStatus: PaymentTruthStatus | "LEGACY_INCOMPLETE";
+  paymentSummary: LedgerSummary | null;
   pendingFinancialAdjustments: number;
   reconciliationDiscrepancies: number;
 }): { ready: boolean; blockers: FulfilmentBlocker[] } {
@@ -477,14 +480,14 @@ export function evaluateFulfilmentGuards(input: {
       dueAt: null,
     });
   }
-  if (input.paymentStatus === "LEGACY_INCOMPLETE") {
+  if (input.paymentSummary?.state !== "KNOWN") {
     blockers.push({
       code: "PAYMENT_UNKNOWN",
       reason: "Обязательство или подтверждённый ledger отсутствует.",
       owner: "FINANCE",
       dueAt: null,
     });
-  } else if (!paymentAllowsFulfilment(input.paymentStatus)) {
+  } else if (!paymentAllowsFulfilment(input.paymentSummary)) {
     blockers.push({
       code: "PAYMENT_BALANCE_REMAINS",
       reason: "По обязательству остаётся непогашенный баланс.",
@@ -511,6 +514,10 @@ export function evaluateFulfilmentGuards(input: {
   return { ready: blockers.length === 0, blockers };
 }
 
-function paymentAllowsFulfilment(status: PaymentTruthStatus): boolean {
-  return status === "PAID" || status === "OVERPAID";
+export function paymentAllowsFulfilment(summary: LedgerSummary | null, pendingAdjustments = 0): boolean {
+  return pendingAdjustments === 0 && summary?.state === "KNOWN"
+    && summary.obligationKopecks != null && summary.obligationKopecks > 0
+    && Number.isSafeInteger(summary.obligationKopecks)
+    && summary.balanceKopecks != null && Number.isSafeInteger(summary.balanceKopecks)
+    && summary.balanceKopecks <= 0;
 }

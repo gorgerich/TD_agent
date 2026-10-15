@@ -26,6 +26,10 @@ if (process.env.ALLOW_DB_TESTS === "1" && !approvedIntegrationTarget) {
 export const dbTestsEnabled =
   process.env.ALLOW_DB_TESTS === "1" && approvedIntegrationTarget;
 
+if (dbTestsEnabled) {
+  process.env.APP_ENCRYPTION_KEY = "synthetic-local-integration-key-not-a-deployment-key";
+}
+
 export const skip = !dbTestsEnabled;
 export const db = prisma;
 

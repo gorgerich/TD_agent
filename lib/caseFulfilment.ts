@@ -3,6 +3,7 @@ import { CaseDomainError, type CaseTransitionEvent } from "@/lib/caseDomain";
 import { transitionCaseInTransaction } from "@/lib/caseService";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { backoffBeforeRetry } from "@/lib/serializationBackoff";
+import { serverCommandKey } from "@/lib/commandNamespace";
 
 export type FulfilmentAdvanceResult = {
   stage: string;
@@ -124,7 +125,7 @@ function commandContext(
     agentId: ownerId,
     actorId: input.actorAgentId,
     actorType: input.actorType,
-    idempotencyKey: `${input.idempotencyKey}:${suffix}`,
+    idempotencyKey: serverCommandKey(suffix, input.idempotencyKey),
     correlationId: input.correlationId,
     causationId: input.causationId ?? input.idempotencyKey,
   };

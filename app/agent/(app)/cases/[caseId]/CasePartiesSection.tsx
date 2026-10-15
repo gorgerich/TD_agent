@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { PencilSimple, UserPlus } from "@phosphor-icons/react";
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { zonedLocalInput, zonedLocalToIso } from "@/lib/zonedDateTime";
 
 export type CasePartyItem = {
   id: string;
@@ -35,19 +36,24 @@ const CONSENT_LABELS: Record<string, string> = {
   RESTRICTED: "Ограничено",
 };
 
-export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: number; parties: CasePartyItem[]; canMutate: boolean }) {
+export function CasePartiesSection({ caseId, parties, canMutate, timezone }: { caseId: number; parties: CasePartyItem[]; canMutate: boolean; timezone: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [newPartyRoles, setNewPartyRoles] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const pendingCreate = useRef<{ key: string; body: string } | null>(null);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    if (submitting.current) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const roles = newPartyRoles;
-    const commandId = crypto.randomUUID();
+    const commandId = pendingCreate.current?.key ?? crypto.randomUUID();
+    submitting.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -58,7 +64,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
           "Idempotency-Key": `case-party:${commandId}`,
           "X-Correlation-Id": commandId,
         },
-        body: JSON.stringify({
+        body: (pendingCreate.current ??= { key: commandId, body: JSON.stringify({
           name: form.get("name"),
           phone: String(form.get("phone") ?? "").trim() || null,
           email: String(form.get("email") ?? "").trim() || null,
@@ -66,19 +72,21 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
           preferredChannel: form.get("preferredChannel"),
           consentStatus: form.get("consentStatus"),
           consentSource: String(form.get("consentSource") ?? "").trim() || null,
-          consentAt: form.get("consentStatus") === "GRANTED" ? new Date().toISOString() : null,
+          consentAt: form.get("consentStatus") === "GRANTED" ? zonedLocalToIso(String(form.get("consentAt") ?? ""), timezone) : null,
           visibilityPolicy: "CASE_TEAM",
-        }),
+        }) }).body,
       });
       const result = await response.json().catch(() => null) as { error?: string } | null;
       if (!response.ok) throw new Error(result?.error || "Участник не сохранён");
-      event.currentTarget.reset();
+      formElement.reset();
+      pendingCreate.current = null;
       setNewPartyRoles([]);
       setOpen(false);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Участник не сохранён");
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -106,7 +114,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
           preferredChannel: form.get("preferredChannel"),
           consentStatus,
           consentSource: String(form.get("consentSource") ?? "").trim() || null,
-          consentAt: consentStatus === "GRANTED" ? party.consentAt ?? new Date().toISOString() : null,
+          consentAt: consentStatus === "GRANTED" ? zonedLocalToIso(String(form.get("consentAt") ?? ""), timezone) : null,
           visibilityPolicy: party.visibilityPolicy,
         }),
       });
@@ -124,7 +132,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
-        <p className="text-[12px] leading-relaxed text-ink-3">Роли привязаны к стабильному ID участника, а не к имени или позиции в списке.</p>
+        <p className="text-[12px] leading-relaxed text-ink-3">Участников: {parties.length}</p>
         {canMutate && (
           <Button type="button" size="sm" variant="secondary" onClick={() => setOpen((value) => !value)}>
             <UserPlus size={15} weight="bold" /> {open ? "Закрыть форму" : "Добавить участника"}
@@ -134,7 +142,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
 
       {error && <p role="alert" className="bg-danger-soft px-3 py-2 text-[12px] font-medium text-danger">{error}</p>}
       {open && (
-        <form onSubmit={submit} className="grid gap-4 bg-surface-2 p-4" aria-label="Добавить участника кейса">
+        <form onSubmit={submit} onChange={() => { pendingCreate.current = null; }} className="grid gap-4 bg-surface-2 p-4" aria-label="Добавить участника кейса">
           <div className="grid gap-3 sm:grid-cols-2">
             <label>
               <span className="td-field-label">Имя</span>
@@ -198,6 +206,10 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
               <span className="td-field-label">Источник согласия</span>
               <input className="td-field" name="consentSource" maxLength={240} placeholder="Например, бумажная форма" />
             </label>
+            <label>
+              <span className="td-field-label">Когда получено согласие ({timezone})</span>
+              <input className="td-field" name="consentAt" type="datetime-local" max={zonedLocalInput(new Date().toISOString(), timezone)} />
+            </label>
           </div>
           <div><Button type="submit" size="sm" loading={busy}>Сохранить участника</Button></div>
         </form>
@@ -211,7 +223,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
             <li key={party.id} className="py-3 first:pt-0 last:pb-0">
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(220px,auto)_auto] sm:items-start">
                 <div className="min-w-0">
-                  <strong className="block truncate text-[14px] text-ink">{party.name}</strong>
+                  <strong className="block break-words text-[14px] text-ink">{party.name}</strong>
                   <p className="mt-1 break-words text-[12px] text-ink-3">{[party.phone, party.email].filter(Boolean).join(" · ") || "Контакт не указан"}</p>
                 </div>
                 <div className="sm:text-right">
@@ -224,7 +236,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
                   </button>
                 )}
               </div>
-              {editingId === party.id && <PartyEditForm party={party} busy={busy} onCancel={() => setEditingId(null)} onSubmit={(event) => submitUpdate(event, party)} />}
+              {editingId === party.id && <PartyEditForm party={party} timezone={timezone} busy={busy} onCancel={() => setEditingId(null)} onSubmit={(event) => submitUpdate(event, party)} />}
             </li>
           ))}
         </ul>
@@ -233,7 +245,7 @@ export function CasePartiesSection({ caseId, parties, canMutate }: { caseId: num
   );
 }
 
-function PartyEditForm({ party, busy, onCancel, onSubmit }: { party: CasePartyItem; busy: boolean; onCancel: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
+function PartyEditForm({ party, timezone, busy, onCancel, onSubmit }: { party: CasePartyItem; timezone: string; busy: boolean; onCancel: () => void; onSubmit: (event: React.FormEvent<HTMLFormElement>) => void }) {
   return (
     <form onSubmit={onSubmit} className="mt-3 grid gap-4 bg-surface-2 p-4" aria-label={`Изменить участника ${party.name}`}>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -255,6 +267,7 @@ function PartyEditForm({ party, busy, onCancel, onSubmit }: { party: CasePartyIt
       <div className="grid gap-3 sm:grid-cols-2">
         <label><span className="td-field-label">Согласие</span><select className="td-field" name="consentStatus" defaultValue={party.consentStatus}><option value="UNKNOWN">Не определено</option><option value="NOT_REQUESTED">Не запрашивалось</option><option value="GRANTED">Получено</option><option value="WITHDRAWN">Отозвано</option><option value="RESTRICTED">Ограничено</option></select></label>
         <label><span className="td-field-label">Источник согласия</span><input className="td-field" name="consentSource" defaultValue={party.consentSource ?? ""} maxLength={240} /></label>
+        <label><span className="td-field-label">Когда получено согласие ({timezone})</span><input className="td-field" name="consentAt" type="datetime-local" defaultValue={party.consentAt ? zonedLocalInput(party.consentAt, timezone) : ""} max={zonedLocalInput(new Date().toISOString(), timezone)} /></label>
       </div>
       <div className="flex flex-wrap justify-end gap-2"><button type="button" className={buttonClasses({ variant: "ghost", size: "sm" })} onClick={onCancel}>Отмена</button><Button type="submit" size="sm" loading={busy}>Сохранить</Button></div>
     </form>

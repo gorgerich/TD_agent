@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PrismaClient, type MembershipRole, type Prisma } from "@prisma/client";
+import type { PrismaClient, MembershipRole, Prisma } from "@prisma/client";
 import { hashPassword } from "../../lib/password";
 import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
@@ -18,6 +18,7 @@ const directUrl = process.env.DATABASE_URL_UNPOOLED;
 const target = inspectDirectMigrationUrl(directUrl);
 const productionFingerprint = process.env.M3_PRODUCTION_DATABASE_FINGERPRINT;
 const mfaSecret = process.env.M3_UAT_MFA_SECRET ?? "";
+const financeBMfaSecret = process.env.M3_UAT_MFA_SECRET_B ?? mfaSecret;
 const ownerSeedWithoutMfa = process.env.M3_OWNER_SEED_NO_MFA === "1";
 let fixtureStage = "VERIFY_TARGET";
 const namespace = m3UatNamespace(runId);
@@ -40,8 +41,11 @@ const typeCodes = {
 };
 
 if (process.env.M3_UAT_FIXTURE !== "1") throw new Error("M3_UAT_FIXTURE=1 is required");
-if (!ownerSeedWithoutMfa && (!mfaSecret || !/^[A-Z2-7]{32,}$/.test(mfaSecret))) {
+if (!ownerSeedWithoutMfa && (!mfaSecret || !/^[A-Z2-7]{32}$/.test(mfaSecret))) {
   throw new Error("M3_UAT_MFA_SECRET must be a valid protected Base32 secret");
+}
+if (!ownerSeedWithoutMfa && !/^[A-Z2-7]{32}$/.test(financeBMfaSecret)) {
+  throw new Error("M3_UAT_MFA_SECRET_B must be a valid protected Base32 secret");
 }
 assertExpectedMigrationTarget(target, process.env.EXPECTED_DATABASE_FINGERPRINT);
 if (productionFingerprint && target.fingerprint === productionFingerprint) {
@@ -51,9 +55,11 @@ if (!isLocalTarget(directUrl) && !productionFingerprint) {
   throw new Error("Remote M3 UAT requires reviewed production fingerprint exclusion");
 }
 
-const db = new PrismaClient({ datasources: { db: { url: directUrl } } });
+let db: PrismaClient;
 
 async function main() {
+  const { PrismaClient } = await import("@prisma/client");
+  db = new PrismaClient({ datasources: { db: { url: directUrl } } });
   try {
     await verifyTarget();
     if (command === "provision") await provision();
@@ -127,7 +133,8 @@ async function provision() {
     const reviewer = await createIdentity(tx, tier.id, organizationA, "reviewer", emails.reviewer, "Проверяющий M3", "DOCUMENT_REVIEWER", passwordHash);
     const financeMfa = ownerSeedWithoutMfa ? undefined : encryptPlatformMfaSecret(mfaSecret);
     const financeA = await createIdentity(tx, tier.id, organizationA, "finance-a", emails.financeA, "Финансы M3 A", "FINANCE", passwordHash, financeMfa);
-    const financeB = await createIdentity(tx, tier.id, organizationA, "finance-b", emails.financeB, "Финансы M3 B", "FINANCE", passwordHash, financeMfa);
+    const financeB = await createIdentity(tx, tier.id, organizationA, "finance-b", emails.financeB, "Финансы M3 B", "FINANCE", passwordHash,
+      ownerSeedWithoutMfa ? undefined : encryptPlatformMfaSecret(financeBMfaSecret));
     await createIdentity(tx, tier.id, organizationB, "foreign", emails.foreign, "Другой tenant M3", "AGENT", passwordHash);
     await createPolicies(tx, organizationA, manager.user.id);
     await tx.contractSigningPolicy.create({
@@ -378,6 +385,7 @@ async function createCaseFixture(
     });
     await tx.quoteVersion.update({ where: { id: version.id }, data: { state: "PUBLISHED" } });
     await tx.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: version.id } });
+    await tx.quoteClientDecision.create({ data: { quoteVersionId: version.id, type: "ACCEPTED", source: "SYNTHETIC_UAT_ONLY", idempotencyKey: `m3-uat:${runId}:${key}:accept`, correlationId: `m3-uat:${runId}:${key}` } });
     await tx.case.update({ where: { id: canonicalCase.id }, data: { publishedQuoteVersionId: version.id } });
     return { leadId: lead.id, caseId: canonicalCase.id, quoteVersionId: version.id, key };
   }, { maxWait: 5_000, timeout: 30_000 });

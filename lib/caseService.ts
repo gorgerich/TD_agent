@@ -3,6 +3,7 @@ import { CaseScenario, CaseStage, Prisma, type Case, type PrismaClient } from "@
 import { prisma } from "@/lib/prisma";
 import {
   CaseDomainError,
+  CASE_TRANSITION_MATRIX,
   evaluateCaseTransition,
   type CaseGuardState,
   type CaseTransitionEvent,
@@ -16,7 +17,12 @@ import {
   materializeCaseRequirementsInTransaction,
   refreshCaseRequirementApplicabilityInTransaction,
 } from "@/lib/documentRequirementService";
-import { deriveCaseDocumentTruth, deriveLedgerSummary } from "@/lib/m3Domain";
+import { deriveCaseDocumentTruth, deriveLedgerSummary, paymentAllowsFulfilment } from "@/lib/m3Domain";
+import { commandFingerprint, canonicalJson } from "@/lib/m3Command";
+import { decryptFieldStrict } from "@/lib/crypto";
+import { reconcileM3CaseForTransition } from "@/lib/m3Reconciliation";
+import { prepareCaseScenarioCorrection } from "@/lib/caseScenarioCorrection";
+import { assertClientCommandKey, serverCommandKey } from "@/lib/commandNamespace";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -155,6 +161,7 @@ export async function transitionCase(input: {
         tenantId,
         idempotencyKey: input.context.idempotencyKey,
         eventType: input.eventType,
+        payload,
       });
     }
     throw error;
@@ -165,25 +172,42 @@ export async function saveCaseIntake(input: {
   leadId: number;
   data: CaseIntakeUpdate;
   context: CaseCommandContext;
+  scenarioCorrection?: { confirmed: boolean; reason: string };
 }): Promise<CaseCommandResult> {
   validateCommandContext(input.context);
   const tenantId = input.context.organizationId;
   const eventType = "case.intake_saved.v1";
+  const fingerprint = commandFingerprint({ ...input.data, needs: decryptFieldStrict(input.data.needs), deceasedName: decryptFieldStrict(input.data.deceasedName), scenarioCorrection: input.scenarioCorrection });
+  const intakePayload = { changedFields: Object.keys(input.data), commandFingerprint: fingerprint };
 
   try {
     return await runCaseTransaction(async (tx) => {
       const lockedCase = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
       if (!lockedCase) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
-      const replay = await findCommandReplay(tx, lockedCase.id, tenantId, input.context.idempotencyKey, eventType);
+      const replay = await findCommandReplay(tx, lockedCase.id, tenantId, input.context.idempotencyKey, eventType, intakePayload);
       if (replay) return replayResult(replay.result);
       const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
+      const correctingScenario = await prepareCaseScenarioCorrection(tx, lockedCase, requestedScenario, input.context, input.scenarioCorrection);
       if ((lockedCase.stage === CaseStage.INTAKE || lockedCase.stage === CaseStage.PLANNING)
         && (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1")) {
         await lockDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
       }
       const updatedLead = await tx.clientLead.update({ where: { id: input.leadId }, data: input.data });
       let aggregate = { ...lockedCase, lead: updatedLead };
-      if (aggregate.stage === CaseStage.INTAKE && updatedLead.deceasedName) {
+      if (correctingScenario) {
+        const before = caseSnapshot(aggregate);
+        const corrected = await tx.case.update({ where: { id: lockedCase.id }, data: { scenarioId: requestedScenario, version: { increment: 1 } } });
+        aggregate = { ...corrected, lead: updatedLead };
+        await tx.caseEvent.create({ data: {
+          id: `evt_${randomUUID().replaceAll("-", "")}`, caseId: aggregate.id, tenantId,
+          actorId: input.context.actorId, actorType: input.context.actorType ?? "agent", eventType: "scenario.corrected.v1",
+          idempotencyKey: serverCommandKey("scenario-corrected", input.context.idempotencyKey), correlationId: input.context.correlationId,
+          fromStage: aggregate.stage, toStage: aggregate.stage, before: jsonValue(before), after: jsonValue(caseSnapshot(aggregate)),
+          payload: { scenarioId: requestedScenario, reason: input.scenarioCorrection!.reason }, result: {},
+        } });
+        await materializeCaseRequirementsInTransaction(tx, input.context, aggregate.id, requestedScenario, input.context);
+      }
+      if (aggregate.stage === CaseStage.INTAKE && decryptFieldStrict(updatedLead.deceasedName)?.trim()) {
         const transitioned = await applyLockedCaseTransition(tx, {
           leadId: input.leadId,
           eventType: "intake.completed.v1",
@@ -236,7 +260,7 @@ export async function saveCaseIntake(input: {
           toStage: aggregate.stage,
           before: jsonValue(snapshot),
           after: jsonValue(snapshot),
-          payload: { changedFields: Object.keys(input.data) },
+          payload: intakePayload,
           result: jsonValue(result),
         },
       });
@@ -250,6 +274,7 @@ export async function saveCaseIntake(input: {
         tenantId,
         idempotencyKey: input.context.idempotencyKey,
         eventType,
+        payload: intakePayload,
       });
     }
     throw error;
@@ -268,6 +293,19 @@ export async function transitionCaseInTransaction(
   const tenantId = input.context.organizationId;
   const lockedCaseId = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
   if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
+  const replay = await findCommandReplay(tx, lockedCaseId.id, tenantId, input.context.idempotencyKey, input.eventType, input.payload);
+  if (replay) return replayResult(replay.result);
+  if (!CASE_TRANSITION_MATRIX.some((rule) => rule.from === lockedCaseId.stage && rule.eventType === input.eventType)) {
+    throw new CaseDomainError("INVALID_TRANSITION", `Переход из ${lockedCaseId.stage} по событию ${input.eventType} запрещён`);
+  }
+  if (["payment.requirement_satisfied.v1", "execution.confirmed.v1", "case.closure_requested.v1"].includes(input.eventType)) {
+    const integrity = await reconcileM3CaseForTransition(tx, { organizationId: tenantId, ownerId: input.context.agentId, caseId: lockedCaseId.id });
+    if (integrity.discrepancyCount > 0) {
+      throw new CaseDomainError("GUARD_FAILED", "Reconciliation обнаружила расхождение. Исправление истории автоматически не выполняется", {
+        guard: "reconciliation_satisfied", discrepancies: integrity.discrepancies.map((entry) => entry.code),
+      });
+    }
+  }
   if (
     input.eventType === "scenario.selected.v1"
     && (input.payload.scenarioId === "CREMATION_V1" || input.payload.scenarioId === "FAMILY_PLOT_BURIAL_V1")
@@ -288,9 +326,6 @@ async function applyLockedCaseTransition(
 ): Promise<CaseCommandResult> {
   const tenantId = input.context.organizationId;
   const aggregate = state.aggregate;
-
-  const replay = await findCommandReplay(tx, aggregate.id, tenantId, input.context.idempotencyKey, input.eventType);
-  if (replay) return replayResult(replay.result);
 
   const evaluated = evaluateCaseTransition({
     stage: aggregate.stage,
@@ -378,11 +413,12 @@ async function findCommandReplay(
   tenantId: string,
   idempotencyKey: string,
   eventType: string,
+  payload: unknown,
 ) {
   const replay = await tx.caseEvent.findUnique({
     where: { tenantId_idempotencyKey: { tenantId, idempotencyKey } },
   });
-  if (replay && (replay.caseId !== caseId || replay.eventType !== eventType)) {
+  if (replay && (replay.caseId !== caseId || replay.eventType !== eventType || canonicalJson(replay.payload) !== canonicalJson(payload))) {
     throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Idempotency key уже использован другой командой");
   }
   return replay;
@@ -394,19 +430,21 @@ async function replayAfterUniqueRace(input: {
   tenantId: string;
   idempotencyKey: string;
   eventType: string;
+  payload: unknown;
 }): Promise<CaseCommandResult> {
   const [aggregate, replay] = await Promise.all([
     prisma.case.findFirst({ where: { leadId: input.leadId, tenantId: input.tenantId, ownerId: input.agentId }, select: { id: true } }),
     prisma.caseEvent.findUnique({ where: { tenantId_idempotencyKey: { tenantId: input.tenantId, idempotencyKey: input.idempotencyKey } } }),
   ]);
-  if (aggregate && replay && replay.caseId === aggregate.id && replay.eventType === input.eventType) {
+  if (aggregate && replay && replay.caseId === aggregate.id && replay.eventType === input.eventType
+    && canonicalJson(replay.payload) === canonicalJson(input.payload)) {
     return replayResult(replay.result);
   }
   throw new CaseDomainError("IDEMPOTENCY_CONFLICT", "Idempotency key уже использован другой командой");
 }
 
 function derivedContext(context: CaseCommandContext, suffix: string): CaseCommandContext {
-  return { ...context, idempotencyKey: `${context.idempotencyKey}:${suffix}`, causationId: context.idempotencyKey };
+  return { ...context, idempotencyKey: serverCommandKey(suffix, context.idempotencyKey), causationId: context.idempotencyKey };
 }
 
 async function runCaseTransaction<T>(
@@ -450,6 +488,7 @@ async function loadAggregate(tx: Prisma.TransactionClient, leadId: number, tenan
         },
       },
       documentRequirements: {
+        where: { supersededAt: null },
         select: {
           stableKey: true,
           blockingStage: true,
@@ -507,12 +546,13 @@ async function loadIntakeAggregate(tx: Prisma.TransactionClient, leadId: number,
 
 function intakeTransitionFacts(aggregate: NonNullable<Awaited<ReturnType<typeof loadIntakeAggregate>>>): CaseTransitionFacts {
   return {
-    intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(aggregate.lead.deceasedName),
+    intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(decryptFieldStrict(aggregate.lead.deceasedName)?.trim()),
     availableQuoteVersionIds: [],
     publishedQuoteVersionId: aggregate.publishedQuoteVersionId,
     contractSigned: false,
     paymentSatisfied: false,
     documentsReadyForExecution: false,
+    documentsReadyForClosure: false,
     guardState: normalizedGuardState(aggregate.guardState),
   };
 }
@@ -563,8 +603,7 @@ function transitionFacts(aggregate: LoadedAggregate, documentPolicyComplete: boo
   const signedContract = aggregate.contract?.versions.find((version) =>
     version.status === "SIGNED"
     && version.supersededBy == null
-    && (version.validUntil == null || version.validUntil > now)
-    && version.quoteVersionId === aggregate.publishedQuoteVersionId,
+    && (version.validUntil == null || version.validUntil > now),
   ) ?? null;
   const obligation = signedContract
     ? aggregate.paymentObligations.find((candidate) => candidate.contractVersionId === signedContract.id)
@@ -593,22 +632,23 @@ function transitionFacts(aggregate: LoadedAggregate, documentPolicyComplete: boo
   const guardState = normalizedGuardState(aggregate.guardState);
   Object.assign(guardState, documentTruth.guardState);
   guardState.contract_signed = signedContract != null;
-  const paymentSatisfied = pendingFinancialAdjustments === 0
-    && (ledgerSummary?.status === "PAID" || ledgerSummary?.status === "OVERPAID");
+  const paymentSatisfied = paymentAllowsFulfilment(ledgerSummary, pendingFinancialAdjustments);
   guardState.payment_satisfied = paymentSatisfied;
 
   return {
-    intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(aggregate.lead.deceasedName),
+    intakeComplete: Boolean(aggregate.lead.name.trim()) && Boolean(aggregate.lead.phone.trim()) && Boolean(decryptFieldStrict(aggregate.lead.deceasedName)?.trim()),
     availableQuoteVersionIds,
     publishedQuoteVersionId: aggregate.publishedQuoteVersionId,
     contractSigned: signedContract != null,
     paymentSatisfied,
-    documentsReadyForExecution: documentTruth.readyForExecution,
+    documentsReadyForExecution: documentPolicyComplete && documentTruth.readyForExecution,
+    documentsReadyForClosure: documentPolicyComplete && documentTruth.ready,
     guardState,
   };
 }
 
 function validateCommandContext(context: CaseCommandContext): void {
+  assertClientCommandKey(context.idempotencyKey);
   if (!context.organizationId.trim() || !context.membershipId.trim() || !context.agentId || !context.actorId || !context.idempotencyKey.trim() || !context.correlationId.trim()) {
     throw new CaseDomainError("GUARD_FAILED", "Команда требует tenant, actor, idempotency key и correlation ID");
   }

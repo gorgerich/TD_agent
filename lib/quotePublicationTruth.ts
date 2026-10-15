@@ -5,6 +5,7 @@ type PublishedVersion = {
   versionNumber: number | null;
   snapshotChecksum: string | null;
   validUntil: Date | null;
+  decisions?: readonly { type: string }[];
 };
 
 export function isCurrentPublishedVersion(version: PublishedVersion | null, now: Date): boolean {
@@ -14,7 +15,15 @@ export function isCurrentPublishedVersion(version: PublishedVersion | null, now:
     && version.total > 0
     && version.versionNumber !== null
     && /^[a-f0-9]{64}$/.test(version.snapshotChecksum ?? "")
-    && (version.validUntil === null || version.validUntil > now);
+    && (version.decisions?.some((decision) => decision.type === "ACCEPTED") === true
+      || version.validUntil === null || version.validUntil > now);
+}
+
+export function isAcceptedImmutableQuote(version: Pick<PublishedVersion, "state" | "totalState" | "total" | "snapshotChecksum" | "decisions">): boolean {
+  return ["PUBLISHED", "SUPERSEDED", "EXPIRED"].includes(version.state)
+    && version.totalState === "KNOWN" && Number.isSafeInteger(version.total) && version.total > 0
+    && /^[a-f0-9]{64}$/.test(version.snapshotChecksum ?? "")
+    && version.decisions?.some((decision) => decision.type === "ACCEPTED") === true;
 }
 
 export function quoteRegistryStatus(input: {

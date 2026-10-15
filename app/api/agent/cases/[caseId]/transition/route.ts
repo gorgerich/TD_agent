@@ -14,6 +14,7 @@ const Body = z.object({
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ caseId: string }> }) {
+  try {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
 
@@ -26,7 +27,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Неизвестная команда кейса" }, { status: 400 });
 
-  try {
     assertCapability(session, "work:mutate-own");
     const result = await transitionCase({
       leadId: parseId((await params).caseId, "caseId"),

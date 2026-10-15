@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { assertClientCommandKey } from "@/lib/commandNamespace";
 
 export type M3CommandMeta = {
   idempotencyKey: string;
@@ -10,6 +11,7 @@ export type M3CommandMeta = {
 };
 
 export function validateM3CommandMeta(meta: M3CommandMeta): void {
+  assertClientCommandKey(meta.idempotencyKey);
   if (!meta.idempotencyKey.trim() || !meta.correlationId.trim()) {
     throw new OperationalCommandError(400, "Нужны Idempotency-Key и X-Correlation-Id");
   }

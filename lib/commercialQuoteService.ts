@@ -21,6 +21,7 @@ import { appendOperationalAudit, findOperationalReplay } from "@/lib/operational
 import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
+import { assertClientCommandKey, serverCommandKey } from "@/lib/commandNamespace";
 
 /**
  * Commercial writes are the widest serializable transactions in the product: a single
@@ -31,8 +32,8 @@ import { prisma } from "@/lib/prisma";
  *
  * Retrying is safe by construction for every command below: each one runs entirely inside
  * the transaction, is fully rolled back before a retry, and is keyed by an idempotency
- * key that it re-checks on each attempt. Only P2034 is retried — see
- * runOperationalTransaction; every other error still surfaces on the first attempt.
+ * key that it re-checks on each attempt. The shared runner retries serialization
+ * and idempotency-unique races only; unrelated failures surface immediately.
  */
 const COMMERCIAL_COMMAND_ATTEMPTS = 5;
 
@@ -55,6 +56,7 @@ type PublishInput = {
   quoteId: number;
   validUntil: Date;
   channel: string;
+  recipientPartyId?: string | null;
   context: OperationalContext;
   meta: CommandMeta;
 };
@@ -373,6 +375,19 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
     const replay = await findOperationalReplay(tx, input.context.organizationId, auditKey);
     if (replay) return publishReplayResult(tx, input, replay);
+    if (input.channel === "email" || input.channel === "messenger") {
+      const recipient = input.recipientPartyId ? await tx.caseParty.findFirst({
+        where: { id: input.recipientPartyId, organizationId: input.context.organizationId, caseId: quote.caseId! },
+        select: { consentStatus: true, preferredChannel: true, emailEncrypted: true, phoneEncrypted: true },
+      }) : null;
+      const channel = input.channel === "email" ? "EMAIL" : "MESSENGER";
+      if (!recipient || recipient.consentStatus !== "GRANTED" || recipient.preferredChannel !== channel
+        || !(channel === "EMAIL" ? recipient.emailEncrypted : recipient.phoneEncrypted)) {
+        throw new OperationalCommandError(422, "Выберите участника с действующим согласием и соответствующим каналом связи");
+      }
+    } else if (input.recipientPartyId) {
+      throw new OperationalCommandError(400, "Участник доставки применяется только к email или messenger");
+    }
     if (input.validUntil.getTime() <= Date.now()) {
       throw new OperationalCommandError(422, "Срок действия опубликованной сметы должен быть в будущем");
     }
@@ -468,7 +483,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
       membershipId: input.context.membershipId,
       agentId: quote.case!.ownerId,
       actorId: input.context.agentId,
-      idempotencyKey: `${input.meta.idempotencyKey}:case`,
+      idempotencyKey: serverCommandKey("quote-publish-case", input.meta.idempotencyKey),
       correlationId: input.meta.correlationId,
       causationId: input.meta.idempotencyKey,
     };
@@ -493,7 +508,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
       entityId: String(published.id),
       action: "quote.published",
       before: { latestPublishedVersionId: quote.latestPublishedVersionId, status: quote.status },
-      after: { latestPublishedVersionId: published.id, status: updated.status, versionNumber: nextVersionNumber },
+      after: { latestPublishedVersionId: published.id, status: updated.status, versionNumber: nextVersionNumber, recipientPartyId: input.recipientPartyId ?? null },
       reason: input.meta.reason,
       correlationId: input.meta.correlationId,
       idempotencyKey: auditKey,
@@ -778,6 +793,8 @@ export async function recordCommercialClientDecision(input: {
   correlationId: string;
 }): Promise<DecisionCommandResult> {
   validateMeta({ idempotencyKey: input.idempotencyKey, correlationId: input.correlationId });
+  const normalizedComment = input.type === "CHANGES_REQUESTED" ? input.comment?.trim() || null : null;
+  if (normalizedComment && normalizedComment.length > 2000) throw new OperationalCommandError(400, "Комментарий превышает допустимый размер");
   const tokenHash = tokenDigest(input.token);
   try {
     return await runOperationalTransaction(async (tx) => {
@@ -808,12 +825,20 @@ export async function recordCommercialClientDecision(input: {
     ) {
       throw new OperationalCommandError(409, "Эта версия сметы больше не актуальна");
     }
+    if (!version.quote.caseId || !version.quote.organizationId) throw new OperationalCommandError(404, "Ссылка недоступна");
+    await tx.$queryRaw`
+      SELECT id FROM "Case" WHERE id = ${version.quote.caseId} AND "tenantId" = ${version.quote.organizationId} FOR UPDATE
+    `;
+    await tx.$queryRaw`
+      SELECT id FROM "Quote" WHERE id = ${version.quoteId} AND "caseId" = ${version.quote.caseId}
+        AND "organizationId" = ${version.quote.organizationId} FOR UPDATE
+    `;
     await tx.$queryRaw`SELECT id FROM "QuoteVersion" WHERE id = ${version.id} FOR UPDATE`;
     const existing = await tx.quoteClientDecision.findUnique({
       where: { quoteVersionId: version.id },
     });
     if (existing) {
-      if (existing.type !== input.type) throw new OperationalCommandError(409, "Решение по этой версии уже зафиксировано");
+      if (existing.type !== input.type || existing.comment !== normalizedComment) throw new OperationalCommandError(409, "Решение по этой версии уже зафиксировано с другим содержимым");
       return { decisionId: existing.id, type: existing.type, replayed: true };
     }
     if (input.type === "CHANGES_REQUESTED" && !input.comment?.trim()) {
@@ -824,7 +849,7 @@ export async function recordCommercialClientDecision(input: {
       data: {
         quoteVersionId: version.id,
         type: input.type,
-        comment: input.type === "CHANGES_REQUESTED" ? input.comment?.trim().slice(0, 2000) || null : null,
+        comment: normalizedComment,
         source: "public-client-link",
         idempotencyKey: input.idempotencyKey,
         correlationId: input.correlationId,
@@ -845,7 +870,7 @@ export async function recordCommercialClientDecision(input: {
           membershipId: version.quote.ownerMembershipId!,
           agentId: version.quote.case.ownerId,
           actorId: version.quote.case.ownerId,
-          idempotencyKey: `${input.idempotencyKey}:case`,
+          idempotencyKey: serverCommandKey("quote-decision-case", input.idempotencyKey),
           correlationId: input.correlationId,
           causationId: decision.id,
         },
@@ -914,7 +939,7 @@ export async function recordCommercialClientDecision(input: {
     });
     const decision = replay?.quoteVersion.decisions[0];
     if (!decision) throw error;
-    if (decision.type !== input.type) {
+    if (decision.type !== input.type || decision.comment !== normalizedComment) {
       throw new OperationalCommandError(409, "Решение по этой версии уже зафиксировано");
     }
     return { decisionId: decision.id, type: decision.type, replayed: true };
@@ -963,6 +988,15 @@ async function lockQuoteAggregate(
   quoteId: number,
   context: OperationalContext,
 ): Promise<void> {
+  const caseOwnerScope = hasTeamOperationalScope(context.role)
+    ? Prisma.empty : Prisma.sql`AND quote."ownerMembershipId" = ${context.membershipId}`;
+  const cases = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT record."id" FROM "Case" record JOIN "Quote" quote ON quote."caseId" = record."id"
+    WHERE quote."id" = ${quoteId} AND quote."organizationId" = ${context.organizationId}
+      AND record."tenantId" = ${context.organizationId} ${caseOwnerScope}
+    FOR UPDATE OF record
+  `);
+  if (cases.length !== 1) throw new OperationalCommandError(404, "Кейс сметы не найден");
   const ownerScope = hasTeamOperationalScope(context.role)
     ? Prisma.empty
     : Prisma.sql`AND "ownerMembershipId" = ${context.membershipId}`;
@@ -1008,6 +1042,8 @@ async function publishReplayResult(
     && published.validUntil?.getTime() === input.validUntil.getTime()
     && published.publishChannel === input.channel
     && published.publishReason === expectedReason
+    && (replay.after && typeof replay.after === "object" && !Array.isArray(replay.after)
+      ? (replay.after.recipientPartyId ?? null) === (input.recipientPartyId ?? null) : !input.recipientPartyId)
     && published.idempotencyKey === input.meta.idempotencyKey;
 
   if (!matchesOriginalCommand) {
@@ -1317,6 +1353,7 @@ function normalizedCatalogId(value?: string | null) {
 }
 
 function validateMeta(meta: CommandMeta) {
+  assertClientCommandKey(meta.idempotencyKey);
   if (!meta.idempotencyKey.trim() || !meta.correlationId.trim()) {
     throw new OperationalCommandError(400, "Нужны Idempotency-Key и X-Correlation-Id");
   }

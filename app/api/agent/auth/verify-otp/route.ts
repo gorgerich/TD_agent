@@ -1,98 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { signSession, SESSION_COOKIE } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { isDemoMode, ensureDemoAgent, DEMO_CODE, DEMO_PHONE } from "@/lib/demo";
-import { enforceRateLimit } from "@/lib/rateLimit";
+import { enforcePersistentIdentityRateLimit, enforcePersistentRateLimit } from "@/lib/persistentRateLimit";
 import { verifyOtp, normalizePhone } from "@/lib/otp";
-import { createAgentSession, setAgentSessionCookie } from "@/lib/agentAuth";
+import { createAgentSession, createVersionBoundUserSession, setAgentSessionCookie } from "@/lib/agentAuth";
+import { requireAppEncryptionKey } from "@/lib/session";
 
 export const runtime = "nodejs";
-
-function sessionCookie(res: NextResponse, token: string) {
-  res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true, sameSite: "lax", path: "/", maxAge: 8 * 60 * 60,
-  });
-  return res;
-}
-
-const Body = z.object({
-  phone: z.string().min(10),
-  code: z.string().min(4),
-});
+const Body = z.object({ phone: z.string().min(10).max(30), code: z.string().min(4).max(6) });
+const defaults = {
+  db: prisma,
+  rateLimit: enforcePersistentRateLimit,
+  identityRateLimit: enforcePersistentIdentityRateLimit,
+  createSession: createVersionBoundUserSession,
+  demo: ensureDemoAgent,
+  createDemoSession: createAgentSession,
+};
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(req, "verify-otp", 10, 60_000);
-  if (limited) return limited;
+  return handleVerifyOtp(req);
+}
 
-  const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: "Неверный запрос" }, { status: 400 });
-
-  const { phone, code } = parsed.data;
-
-  // Демо-режим (DEMO_MODE=1): любой входит по коду 0000 и попадает в кабинет
-  // демо-агента с примерами данных. Витрина — НЕ боевой вход.
-  if (isDemoMode() && phone.trim() === DEMO_PHONE) {
-    if (code !== DEMO_CODE) return NextResponse.json({ error: "Демо-код: 0000" }, { status: 401 });
-    try {
-      const demo = await ensureDemoAgent();
-      const token = await signSession({ userId: demo.userId, agentId: demo.agentId, role: "AGENT", name: demo.name });
-      return sessionCookie(NextResponse.json({ ok: true }), token);
-    } catch (e) {
-      return NextResponse.json({ error: "Демо недоступно: " + (e instanceof Error ? e.message : "ошибка") }, { status: 500 });
-    }
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    if (code !== "0000") return NextResponse.json({ error: "Неверный код (dev: 0000)" }, { status: 401 });
-
-    // Try to find a real agent in DB by email (phone not yet in schema); fall back to mock
-    let userId = 0, agentId = 0;
-    try {
-      const agent = await prisma.agent.findFirst({ where: { user: { email: { contains: phone } } }, include: { user: true } });
-      if (agent) { userId = agent.userId; agentId = agent.id; }
-    } catch { /* DB not available */ }
-
-    const token = await signSession({ userId, agentId, role: "AGENT", name: "Агент (dev)" });
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true, sameSite: "lax", path: "/", maxAge: 8 * 60 * 60,
-    });
-    return res;
-  }
-
-  // Production: verify OtpToken (latest non-expired), find user/agent, issue session.
-  const normalized = normalizePhone(phone);
+export async function handleVerifyOtp(req: NextRequest, overrides: Partial<typeof defaults> = {}) {
+  const deps = { ...defaults, ...overrides };
+  const invalid = () => NextResponse.json({ error: "Неверный или просроченный код" }, { status: 401 });
   try {
-    const otp = await prisma.otpToken.findFirst({
-      where: { phone: normalized, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-    });
-    if (!otp || !verifyOtp(code, normalized, otp.codeHash)) {
-      return NextResponse.json({ error: "Неверный или просроченный код" }, { status: 401 });
+    requireAppEncryptionKey();
+    const limited = await deps.rateLimit(req, "verify-otp-ip", 10, 60_000);
+    if (limited) return limited;
+    const parsed = Body.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return NextResponse.json({ error: "Неверный запрос" }, { status: 400 });
+    const { code } = parsed.data;
+    const phone = normalizePhone(parsed.data.phone);
+    if (!/^\+7\d{10}$/.test(phone)) return NextResponse.json({ error: "Неверный запрос" }, { status: 400 });
+    const accountLimited = await deps.identityRateLimit("verify-otp-phone", phone, 10, 60_000);
+    if (accountLimited) return accountLimited;
+    if (isDemoMode() && phone === DEMO_PHONE) {
+      if (code !== DEMO_CODE) return invalid();
+      const demo = await deps.demo();
+      const token = await deps.createDemoSession({ userId: demo.userId, agentId: demo.agentId, name: demo.name });
+      return setAgentSessionCookie(NextResponse.json({ ok: true }), token);
     }
-
-    const user = await prisma.user.findUnique({
-      where: { phone: normalized },
-      include: { agent: true },
+    if (!/^\d{6}$/.test(code)) return invalid();
+    const otp = await deps.db.otpToken.findFirst({
+      where: { phone, expiresAt: { gt: new Date() } }, orderBy: { createdAt: "desc" },
     });
-    if (!user?.agent) {
-      return NextResponse.json({ error: "Профиль агента не найден" }, { status: 401 });
-    }
-    if (user.agent.status !== "ACTIVE") {
-      return NextResponse.json({ error: "Профиль агента не активен" }, { status: 403 });
-    }
-
-    // Код одноразовый — гасим все токены номера.
-    await prisma.otpToken.deleteMany({ where: { phone: normalized } });
-
-    const sessionToken = await createAgentSession({
-      userId: user.id,
-      agentId: user.agent.id,
-      name: user.name,
+    if (!otp || !verifyOtp(code, phone, otp.codeHash)) return invalid();
+    const user = await deps.db.user.findUnique({
+      where: { phone },
+      include: {
+        agent: true,
+        memberships: {
+          where: { status: "ACTIVE", organization: { status: "ACTIVE" }, agent: { status: "ACTIVE" } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
-    return setAgentSessionCookie(NextResponse.json({ ok: true }), sessionToken);
+    const membership = user?.memberships.find((entry) => entry.agentId === user.agent?.id);
+    if (!user?.agent || user.agent.status !== "ACTIVE" || !membership) return invalid();
+    // Claim exactly the verified, still-live token. Concurrent attempts cannot both win.
+    const consumed = await deps.db.otpToken.deleteMany({
+      where: { id: otp.id, phone, codeHash: otp.codeHash, expiresAt: { gt: new Date() } },
+    });
+    if (consumed.count !== 1) return invalid();
+    const token = await deps.createSession({
+      userId: user.id, sessionVersion: user.sessionVersion, activeMembershipId: membership.id, name: user.name,
+    });
+    return setAgentSessionCookie(NextResponse.json({ ok: true }), token);
   } catch {
-    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503 });
+    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503, headers: { "Retry-After": "5" } });
   }
 }

@@ -36,6 +36,7 @@ import { getCanonicalCase } from "../../lib/caseReadModel";
 import { OperationalCommandError } from "../../lib/operationalTransaction";
 import { decryptFieldStrict, EncryptedDataUnavailableError } from "../../lib/crypto";
 import { InMemoryTestStorage } from "../fixtures/testStorage";
+import { syntheticDocumentPdf } from "../cpoAuditDocuments.fixture.mjs";
 import {
   createFixtureContext,
   db,
@@ -175,6 +176,7 @@ async function createAcceptedQuote(caseFixture: FixtureCase, validUntil?: Date) 
     select: { id: true },
   });
   await db.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: published.id } });
+  await db.quoteClientDecision.create({ data: { quoteVersionId: published.id, type: "ACCEPTED", source: "SYNTHETIC_TEST_ONLY", idempotencyKey: `${fixtures.runId}:${caseFixture.id}:accept`, correlationId: `${fixtures.runId}:${caseFixture.id}:accept` } });
   await db.case.update({
     where: { id: caseFixture.id },
     data: { scenarioId: "CREMATION_V1", stage: "CONTRACTING", publishedQuoteVersionId: published.id },
@@ -241,7 +243,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.match(rawParty.nameEncrypted, /^enc1:/);
   assert.match(rawParty.phoneEncrypted ?? "", /^enc1:/);
   assert.match(rawParty.emailEncrypted ?? "", /^enc1:/);
-  const updatedConsentAt = new Date(rawParty.consentAt!.getTime() + 60_000);
+  const updatedConsentAt = new Date(rawParty.consentAt!.getTime() - 60_000);
   await updateCaseParty(agent.context, caseRecord.id, party.partyId, {
     name: "Синтетический заявитель",
     phone: "+70000000000",
@@ -342,7 +344,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     caseId: caseRecord.id,
     requirementId: identityRequirement.id,
     documentTypeCode: identityTypeCode,
-    file: new File(["synthetic identity"], "identity.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic identity")], "identity.pdf", { type: "application/pdf" }),
   }, meta("identity-upload"), { storage, scanner: cleanScanner });
   assert.equal(identityUpload.status, "UPLOADED");
   assert.equal(identityUpload.scanStatus, "CLEAN");
@@ -397,7 +399,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     caseId: caseRecord.id,
     requirementId: deathRequirement.id,
     documentTypeCode: deathTypeCode,
-    file: new File(["synthetic death record"], "death-record.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic death record")], "death-record.pdf", { type: "application/pdf" }),
   }, meta("death-upload"), { storage, scanner: cleanScanner });
   await beginDocumentReview(reviewerOne.context, deathUpload.versionId, meta("death-review-start"));
   await decideDocumentReview(reviewerOne.context, deathUpload.versionId, {
@@ -471,7 +473,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     ),
     404,
   );
-  storage.replaceBytes(storedIdentity.storageKey, new TextEncoder().encode("synthetic identity"));
+  storage.replaceBytes(storedIdentity.storageKey, syntheticDocumentPdf("synthetic identity"));
   await decideDocumentReview(reviewerOne.context, identityUpload.versionId, {
     decision: "VERIFIED",
     checklist: { "identity-match": true },
@@ -492,7 +494,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     caseId: caseRecord.id,
     requirementId: scenarioRequirement.id,
     documentTypeCode: scenarioTypeCode,
-    file: new File(["synthetic infected marker"], "scenario.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic infected marker")], "scenario.pdf", { type: "application/pdf" }),
   }, meta("scenario-infected"), { storage, scanner: infectedScanner });
   assert.equal(infected.status, "QUARANTINED");
   assert.equal(infected.scanStatus, "INFECTED");
@@ -504,7 +506,7 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     caseId: caseRecord.id,
     requirementId: scenarioRequirement.id,
     documentTypeCode: scenarioTypeCode,
-    file: new File(["synthetic scanner failure"], "scan-failure.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic scanner failure")], "scan-failure.pdf", { type: "application/pdf" }),
   }, meta("scenario-scan-failure"), { storage, scanner: throwingScanner });
   assert.equal(scanFailure.status, "QUARANTINED");
   assert.equal(scanFailure.scanStatus, "ERROR");
@@ -512,17 +514,17 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     caseId: caseRecord.id,
     requirementId: scenarioRequirement.id,
     documentTypeCode: scenarioTypeCode,
-    file: new File(["synthetic clean replacement"], "replacement.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic clean replacement")], "replacement.pdf", { type: "application/pdf" }),
   }, meta("scenario-replacement"), { storage, scanner: cleanScanner });
   assert.equal(replacement.versionNumber, 3);
-  assert.equal((await db.caseDocumentVersion.findUniqueOrThrow({ where: { id: infected.versionId } })).status, "SUPERSEDED");
+  assert.equal((await db.caseDocumentVersion.findUniqueOrThrow({ where: { id: infected.versionId } })).status, "QUARANTINED");
   assert.equal(await db.operationalAuditEvent.count({
     where: {
       entityType: "document_version",
       entityId: { in: [infected.versionId, scanFailure.versionId] },
       action: "document.version_superseded.v1",
     },
-  }), 2);
+  }), 0);
   await beginDocumentReview(reviewerOne.context, replacement.versionId, meta("scenario-review-start"));
 
   const published = await createAcceptedQuote(caseRecord, new Date(Date.now() + 30 * 60_000));
@@ -665,8 +667,10 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   }, meta("payment-half")), 409);
 
   const previousSecret = process.env.M3_PAYMENT_WEBHOOK_SECRET;
+  const previousProvider = process.env.M3_PAYMENT_WEBHOOK_PROVIDER;
   const webhookSecret = `${fixtures.runId}:webhook-secret`;
   process.env.M3_PAYMENT_WEBHOOK_SECRET = webhookSecret;
+  process.env.M3_PAYMENT_WEBHOOK_PROVIDER = "synthetic";
   try {
     const command = {
       organizationId: agent.organizationId,
@@ -705,6 +709,8 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   } finally {
     if (previousSecret === undefined) delete process.env.M3_PAYMENT_WEBHOOK_SECRET;
     else process.env.M3_PAYMENT_WEBHOOK_SECRET = previousSecret;
+    if (previousProvider === undefined) delete process.env.M3_PAYMENT_WEBHOOK_PROVIDER;
+    else process.env.M3_PAYMENT_WEBHOOK_PROVIDER = previousProvider;
   }
   const paid = await getPaymentSummary(financeOne.context, signed.obligationId);
   assert.equal(paid.status, "PAID");
@@ -761,6 +767,11 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     decision: "VERIFIED",
     checklist: { "scenario-evidence": true },
   }, meta("scenario-review-decision"), storage);
+  assert.equal((await db.caseDocumentVersion.findUniqueOrThrow({ where: { id: infected.versionId } })).status, "SUPERSEDED");
+  assert.equal((await db.caseDocumentVersion.findUniqueOrThrow({ where: { id: scanFailure.versionId } })).status, "SUPERSEDED");
+  assert.equal(await db.operationalAuditEvent.count({
+    where: { entityType: "document_version", entityId: { in: [infected.versionId, scanFailure.versionId] }, action: "document.version_superseded.v1" },
+  }), 2);
   assert.equal((await db.case.findUniqueOrThrow({ where: { id: caseRecord.id } })).stage, "PAYMENT");
   assert.equal((await getCanonicalCase(manager.context, caseRecord.leadId))?.guardState.payment_satisfied, false);
   assert.equal(await db.caseEvent.count({
@@ -848,7 +859,8 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.equal(afterRefund.statusLabel, "Остаток оплаты требует проверки");
   assert.ok((afterRefund.payment.balanceKopecks ?? 0) > 0);
   const afterOfferExpiry = await getCanonicalCase(manager.context, caseRecord.leadId, new Date(Date.now() + 31 * 60_000));
-  assert.equal(afterOfferExpiry?.publishedQuote, null);
+  assert.deepEqual(afterOfferExpiry?.publishedQuote, afterRefund.publishedQuote);
+  assert.equal(afterOfferExpiry?.publishedQuote?.totalKopecks, 17_600_000);
   assert.equal(afterOfferExpiry?.guardState.contract_signed, true);
   assert.ok((afterOfferExpiry?.payment.balanceKopecks ?? 0) > 0);
   assert.equal(afterOfferExpiry?.waiting, "payment");
@@ -1041,8 +1053,9 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
     }),
     (error: unknown) => error instanceof CaseDomainError
       && error.code === "GUARD_FAILED"
-      && Array.isArray(error.details.missing)
-      && error.details.missing.includes("identity_verified"),
+      && error.details.guard === "reconciliation_satisfied"
+      && Array.isArray(error.details.discrepancies)
+      && error.details.discrepancies.includes("DOCUMENT_REQUIREMENT_POLICY_PARITY_MISMATCH"),
   );
   await db.caseDocumentRequirement.update({
     where: { id: parityTarget.id },
@@ -1073,6 +1086,7 @@ test("M3: contract signing cannot bind a policy retired by a concurrent activati
   await createAcceptedQuote(raceCase);
   const payer = await createCaseParty(agent.context, raceCase.id, {
     name: "Синтетический плательщик гонки",
+    email: "race-payer@synthetic.invalid",
     roles: ["PAYER"],
     preferredChannel: "EMAIL",
     consentStatus: "NOT_REQUESTED",
@@ -1155,7 +1169,7 @@ test("M3: missing documents block readiness without a tenant mismatch; foreign d
       caseId: incomplete.id,
       requirementId: deathRequirement.id,
       documentTypeCode: deathTypeCode,
-      file: new File(["synthetic scanner failure"], "pending.pdf", { type: "application/pdf" }),
+      file: new File([syntheticDocumentPdf("synthetic scanner failure")], "pending.pdf", { type: "application/pdf" }),
     }, meta(`missing-documents-upload-${scenarioId}`), { storage, scanner: throwingScanner });
     assert.equal(quarantined.status, "QUARANTINED");
     const mixed = await reconcileM3Case(manager.context, incomplete.id);
@@ -1196,6 +1210,7 @@ test("M3: cremation and relative-burial policies remain distinct", opts, async (
   assert.equal(conditional.isApplicable, false);
   const responsible = await createCaseParty(agent.context, burialCase.id, {
     name: "Синтетический ответственный",
+    email: "responsible@synthetic.invalid",
     roles: ["RESPONSIBLE_FOR_BURIAL"],
     preferredChannel: "EMAIL",
     consentStatus: "NOT_REQUESTED",
@@ -1216,6 +1231,7 @@ test("M3: cremation and relative-burial policies remain distinct", opts, async (
   await db.caseDocumentRequirement.update({ where: { id: conditional.id }, data: { isApplicable: true } });
   await updateCaseParty(agent.context, burialCase.id, responsible.partyId, {
     name: "Синтетический ответственный",
+    email: "responsible@synthetic.invalid",
     roles: ["ADDITIONAL_CONTACT"],
     preferredChannel: "EMAIL",
     consentStatus: "NOT_REQUESTED",
@@ -1287,6 +1303,7 @@ test("M3: replacement draft preserves signed truth until replacement signing is 
   const replacementCase = await fixtures.makeCase(agent, "contract-replacement");
   const payer = await createCaseParty(agent.context, replacementCase.id, {
     name: "Синтетический плательщик замены договора",
+    email: "replacement-payer@synthetic.invalid",
     roles: ["PAYER"],
     preferredChannel: "EMAIL",
     consentStatus: "NOT_REQUESTED",
@@ -1351,6 +1368,7 @@ test("M3: replacement draft preserves signed truth until replacement signing is 
     where: { id: firstVersion.quoteId },
     data: { latestPublishedVersionId: secondQuoteVersion.id },
   });
+  await db.quoteClientDecision.create({ data: { quoteVersionId: secondQuoteVersion.id, type: "ACCEPTED", source: "SYNTHETIC_TEST_ONLY", idempotencyKey: `${fixtures.runId}:replacement-v2-accept`, correlationId: `${fixtures.runId}:replacement-v2-accept` } });
   await db.case.update({
     where: { id: replacementCase.id },
     data: { publishedQuoteVersionId: secondQuoteVersion.id },
@@ -1408,6 +1426,7 @@ test("M3: upload rechecks conditional applicability after storage and scan", opt
   await materializeCaseRequirements(agent.context, raceCase.id, meta("upload-race-requirements"));
   const responsible = await createCaseParty(agent.context, raceCase.id, {
     name: "Синтетический ответственный race",
+    email: "upload-race@synthetic.invalid",
     roles: ["RESPONSIBLE_FOR_BURIAL"],
     preferredChannel: "EMAIL",
     consentStatus: "NOT_REQUESTED",
@@ -1428,6 +1447,7 @@ test("M3: upload rechecks conditional applicability after storage and scan", opt
     async scan() {
       await updateCaseParty(agent.context, raceCase.id, responsible.partyId, {
         name: "Синтетический ответственный race",
+        email: "upload-race@synthetic.invalid",
         roles: ["ADDITIONAL_CONTACT"],
         preferredChannel: "EMAIL",
         consentStatus: "NOT_REQUESTED",
@@ -1440,7 +1460,7 @@ test("M3: upload rechecks conditional applicability after storage and scan", opt
     caseId: raceCase.id,
     requirementId: requirement.id,
     documentTypeCode,
-    file: new File(["synthetic applicability race"], "race.pdf", { type: "application/pdf" }),
+    file: new File([syntheticDocumentPdf("synthetic applicability race")], "race.pdf", { type: "application/pdf" }),
   }, meta("upload-race"), { storage: raceStorage, scanner: invalidatingScanner }), 409, /не применимо/);
   assert.equal(await db.caseDocumentVersion.count({ where: { caseId: raceCase.id } }), 0);
   assert.equal(raceStorage.size, 0);
@@ -1474,7 +1494,7 @@ test("M3: rejected upload fails closed when orphan cleanup cannot be proved", op
         caseId: uploadCase.id,
         requirementId: requirement.id,
         documentTypeCode,
-        file: new File(["synthetic rejected upload"], "rejected.pdf", { type: "application/pdf" }),
+        file: new File([syntheticDocumentPdf("synthetic rejected upload")], "rejected.pdf", { type: "application/pdf" }),
       }, command, { storage: failingStorage, scanner: invalidatingScanner }),
       (error: unknown) => error instanceof OperationalCommandError
         && error.status === 503

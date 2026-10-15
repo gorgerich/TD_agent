@@ -6,6 +6,7 @@ import type {
 } from "@/lib/calculationUtils";
 import {
   INTERNAL_COST_LINE_SOURCE,
+  logisticsServiceCode,
   type CommercialLine,
   type CommercialScenario,
 } from "@/lib/commercialQuote";
@@ -58,7 +59,7 @@ export function buildCommercialDraftLines(input: {
         push({
           stableKey: `${sectionKey}:item:${slug(item.label)}:${itemIndex}`,
           type: "SERVICE",
-          serviceCode: `${sectionKey}:${itemIndex}`,
+          serviceCode: logisticsServiceCode(item.label) ?? `${sectionKey}:${itemIndex}`,
           description: item.label,
           quantity: item.quantity ?? 1,
           unit: "услуга",

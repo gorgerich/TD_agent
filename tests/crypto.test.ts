@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   decryptField,
@@ -9,6 +9,8 @@ import {
   encryptString,
 } from "../lib/crypto";
 import { handleApiError } from "../lib/apiAuth";
+
+beforeEach(() => { process.env.APP_ENCRYPTION_KEY = "synthetic-unit-crypto-key-not-a-deployment-key"; });
 
 test("crypto: roundtrip preserves content incl. cyrillic", () => {
   const s = JSON.stringify({ attributes: { a: "тест ПДн" }, n: 42 });
@@ -74,4 +76,34 @@ test("crypto: field helpers pass null/empty through, roundtrip non-empty", () =>
   const enc = encryptField("Отец, 78 лет");
   assert.ok(enc!.startsWith("enc1:"));
   assert.equal(decryptField(enc), "Отец, 78 лет");
+});
+
+test("crypto: missing/blank key never encrypts or strictly decrypts in any environment", () => {
+  const encrypted = encryptString("synthetic-key-check");
+  const originalEnv = process.env.NODE_ENV;
+  try {
+    for (const nodeEnv of [undefined, "development", "test", "staging", "production"]) {
+      if (nodeEnv === undefined) delete (process.env as Record<string, string | undefined>).NODE_ENV;
+      else (process.env as Record<string, string | undefined>).NODE_ENV = nodeEnv;
+      for (const key of [undefined, "", "   "]) {
+        if (key === undefined) delete process.env.APP_ENCRYPTION_KEY;
+        else process.env.APP_ENCRYPTION_KEY = key;
+        assert.throws(() => encryptString("x"), EncryptedDataUnavailableError);
+        assert.throws(() => decryptStringStrict(encrypted), EncryptedDataUnavailableError);
+      }
+    }
+  } finally {
+    if (originalEnv === undefined) delete (process.env as Record<string, string | undefined>).NODE_ENV;
+    else (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+  }
+});
+
+test("crypto: strict parsing rejects extra segments and noncanonical GCM encodings", () => {
+  const encrypted = encryptString("synthetic");
+  assert.equal(decryptStringStrict(encryptString("")), "");
+  assert.equal(decryptStringStrict("legacy plaintext"), "legacy plaintext");
+  const [iv, tag, ct] = encrypted.slice(5).split(".");
+  for (const value of [`${encrypted}.extra`, "enc1:bad", `enc1:${iv}.${tag!.slice(0, 4)}.${ct}`, `enc1:${iv}.${tag}.${ct}!`]) {
+    assert.throws(() => decryptStringStrict(value), EncryptedDataUnavailableError);
+  }
 });

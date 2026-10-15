@@ -6,6 +6,7 @@ import { OperationalCommandError, runOperationalTransaction } from "@/lib/operat
 import { evaluateDocumentRequirement } from "@/lib/m3Domain";
 import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 import { prismaJson, requireTenantCase, type M3CommandMeta, validateM3CommandMeta } from "@/lib/m3Command";
+import { serverCommandKey } from "@/lib/commandNamespace";
 
 type RequirementActor = {
   organizationId: string;
@@ -18,7 +19,9 @@ type ApplicabilityRequirement = {
   stableKey: string;
   kind: "REQUIRED" | "CONDITIONAL";
   isApplicable: boolean;
-  rule: { conditionKey: string | null };
+  conditionKey: string | null;
+  policyScenario: CaseScenario;
+  supersededAt: Date | null;
 };
 
 export async function materializeCaseRequirements(
@@ -71,13 +74,7 @@ export async function materializeCaseRequirementsInTransaction(
     select: { id: true },
   });
   const ruleApplicability = new Map(policy.rules.map((rule) => [rule.id, requirementApplies(rule, caseFacts)]));
-  const existingRequirements = await tx.caseDocumentRequirement.findMany({
-    where: { caseId, organizationId: actor.organizationId },
-    select: {
-      id: true, ruleId: true, stableKey: true, kind: true, isApplicable: true,
-      rule: { select: { conditionKey: true } },
-    },
-  });
+  const existingRequirements = await loadApplicabilityRequirements(tx, actor.organizationId, caseId);
   const existingByRuleId = new Map(existingRequirements.map((requirement) => [requirement.ruleId, requirement]));
   const missingRules = policy.rules.filter((rule) => !existingByRuleId.has(rule.id));
   const inserted = missingRules.length === 0
@@ -130,7 +127,7 @@ export async function materializeCaseRequirementsInTransaction(
       after: prismaJson({ policyId: policy.id, policyVersion: policy.version, scenario, ruleCount: policy.rules.length }),
       correlationId: meta.correlationId,
       causationId: meta.idempotencyKey,
-      idempotencyKey: `${meta.idempotencyKey}:document-requirements`,
+      idempotencyKey: serverCommandKey("document-requirements", meta.idempotencyKey),
       reason: meta.reason,
       result: prismaJson({ created, existing, notApplicable, applicabilityChanged: applicabilityChanges.length, policyId: policy.id }),
       actorType: actor.actorType,
@@ -164,16 +161,7 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
   if (!isM3ProductionWriteAllowed(actor.organizationId)) return { changed: 0 };
   const [caseFacts, requirements] = await Promise.all([
     facts ?? loadRequirementFacts(tx, caseId, now),
-    existingRequirements ?? tx.caseDocumentRequirement.findMany({
-      where: { caseId, organizationId: actor.organizationId },
-      select: {
-        id: true,
-        stableKey: true,
-        kind: true,
-        isApplicable: true,
-        rule: { select: { conditionKey: true } },
-      },
-    }),
+    existingRequirements ?? loadApplicabilityRequirements(tx, actor.organizationId, caseId),
   ]);
   const changed = requirements.flatMap((requirement) => {
     const next = requirementApplies(requirement, caseFacts);
@@ -192,7 +180,7 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
       after: prismaJson({ changed: changed.map((item) => ({ stableKey: item.stableKey, isApplicable: item.next })) }),
       correlationId: meta.correlationId,
       causationId: meta.idempotencyKey,
-      idempotencyKey: `${meta.idempotencyKey}:document-requirements-applicability`,
+      idempotencyKey: serverCommandKey("document-requirements-applicability", meta.idempotencyKey),
       reason: meta.reason,
       result: prismaJson({ changed: changed.length }),
       actorType: actor.actorType,
@@ -232,7 +220,7 @@ export async function checkCaseRequirementMaterializationParity(
     return { ok: false, reason: "CASE_SCENARIO_UNSUPPORTED", policyId: null, expected: 0, actual: 0 };
   }
   const requirements = await client.caseDocumentRequirement.findMany({
-    where: { organizationId, caseId },
+    where: { organizationId, caseId, supersededAt: null, policy: { scenario } },
     select: {
       policyId: true,
       ruleId: true,
@@ -314,6 +302,7 @@ export async function checkCaseRequirementMaterializationParity(
 }
 
 export type RequirementFacts = {
+  scenarioId?: CaseScenario;
   lead: { ceremonyAt: Date | null };
   parties: Array<{ roles: Array<{ role: string }> }>;
 };
@@ -321,8 +310,8 @@ export type RequirementFacts = {
 async function loadRequirementFacts(tx: Prisma.TransactionClient, caseId: string, now: Date): Promise<RequirementFacts> {
   // Applicability consumes only the date and the set of effective roles, not
   // the party records. One joined read avoids four relation round trips.
-  const rows = await tx.$queryRaw<Array<{ ceremonyAt: Date | null; role: string | null }>>`
-    SELECT lead."ceremonyAt", assignment."role"::text AS "role"
+  const rows = await tx.$queryRaw<Array<{ ceremonyAt: Date | null; role: string | null; scenarioId: CaseScenario }>>`
+    SELECT lead."ceremonyAt", record."scenarioId", assignment."role"::text AS "role"
     FROM "Case" AS record
     JOIN "ClientLead" AS lead ON lead."id" = record."leadId"
     LEFT JOIN "CaseParty" AS party
@@ -335,17 +324,30 @@ async function loadRequirementFacts(tx: Prisma.TransactionClient, caseId: string
   `;
   if (!rows.length) throw new OperationalCommandError(404, "Кейс не найден");
   return {
+    scenarioId: rows[0].scenarioId,
     lead: { ceremonyAt: rows[0].ceremonyAt },
     parties: [{ roles: rows.flatMap(({ role }) => role ? [{ role }] : []) }],
   };
 }
 
+async function loadApplicabilityRequirements(tx: Prisma.TransactionClient, organizationId: string, caseId: string) {
+  return tx.$queryRaw<Array<ApplicabilityRequirement & { ruleId: string }>>`
+    SELECT requirement."id", requirement."ruleId", requirement."stableKey", requirement."kind",
+      requirement."isApplicable", requirement."supersededAt", rule."conditionKey", policy."scenario" AS "policyScenario"
+    FROM "CaseDocumentRequirement" requirement
+    JOIN "DocumentRequirementRule" rule ON rule."id" = requirement."ruleId"
+    JOIN "DocumentRequirementPolicy" policy ON policy."id" = requirement."policyId"
+    WHERE requirement."organizationId" = ${organizationId} AND requirement."caseId" = ${caseId}
+  `;
+}
+
 function requirementApplies(
-  rule: { kind: "REQUIRED" | "CONDITIONAL"; conditionKey?: string | null; rule?: { conditionKey: string | null } },
+  rule: { kind: "REQUIRED" | "CONDITIONAL"; conditionKey?: string | null; policyScenario?: CaseScenario; supersededAt?: Date | null },
   facts: RequirementFacts,
 ): boolean {
+  if (rule.supersededAt || (facts.scenarioId && rule.policyScenario && rule.policyScenario !== facts.scenarioId)) return false;
   if (rule.kind === "REQUIRED") return true;
-  const applies = evaluateRequirementCondition(rule.conditionKey ?? rule.rule?.conditionKey ?? null, facts);
+  const applies = evaluateRequirementCondition(rule.conditionKey ?? null, facts);
   if (applies === null) {
     throw new OperationalCommandError(422, "Условие requirement не поддержано безопасным engine");
   }
@@ -407,7 +409,8 @@ export async function listCaseDocumentRequirements(context: OperationalContext, 
       dueAt: requirement.dueAt,
       ownerRole: requirement.ownerRole,
       ownerMembershipId: requirement.ownerMembershipId,
-      isApplicable: requirement.isApplicable,
+      isApplicable: requirement.supersededAt == null && requirement.isApplicable,
+      supersededAt: requirement.supersededAt,
       applicabilityEvaluatedAt: requirement.applicabilityEvaluatedAt,
       blockingStage: requirement.blockingStage,
       acceptedDocumentTypeCodes: stringArray(requirement.acceptedDocumentTypeCodes),

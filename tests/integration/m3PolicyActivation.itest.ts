@@ -37,7 +37,7 @@ import {
   makeRequest,
   skip,
 } from "./_setup";
-import { signSession, SESSION_COOKIE } from "../../lib/session";
+import { signSession, SESSION_COOKIE, requireAppEncryptionKey } from "../../lib/session";
 import { enforcePersistentRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
@@ -1036,7 +1036,7 @@ function reviewerAuthoritySessionAt(userId: number, sessionVersion: number, issu
     exp: issuedAt + (8 * 60 * 60),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const secret = process.env.APP_ENCRYPTION_KEY ?? "dev-key-tihiydom-not-for-production-ok";
+  const secret = requireAppEncryptionKey();
   const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
   return `${encoded}.${signature}`;
 }

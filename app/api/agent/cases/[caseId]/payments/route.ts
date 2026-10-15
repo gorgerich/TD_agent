@@ -20,7 +20,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ caseId: 
     const context = await requireAgent(req, {
       allowedRoles: ["AGENT", "MANAGER", "ADMIN", "FINANCE"],
     });
-    const caseId = await canonicalCaseIdFromLead(context, (await params).caseId);
+    const caseId = await canonicalCaseIdFromLead(context, (await params).caseId, "financial");
     return NextResponse.json(await listCaseContractAndLedger(context, caseId));
   } catch (error) {
     return handleApiError(error, "m3/payments/read");

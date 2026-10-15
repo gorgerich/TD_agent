@@ -134,6 +134,19 @@ export async function updateCaseParty(
     if (!current) throw new OperationalCommandError(404, "Участник кейса не найден");
 
     const nextRoles = new Set(normalized.roles);
+    if (!nextRoles.has("PAYER") && current.roles.some((role) => role.role === "PAYER")) {
+      const committedPayer = await tx.contractVersion.findFirst({
+        where: {
+          organizationId: context.organizationId,
+          caseId,
+          payerPartyId: partyId,
+          status: { in: ["ISSUED", "SIGNED"] },
+          supersededBy: { is: null },
+        },
+        select: { id: true },
+      });
+      if (committedPayer) throw new OperationalCommandError(409, "Плательщик закреплён в выданном договоре. Изменение требует новой версии договора");
+    }
     const previousRoles = current.roles.map((role) => role.role);
     const removedIds = current.roles.filter((role) => !nextRoles.has(role.role)).map((role) => role.id);
     const existingRoles = new Set(current.roles.map((role) => role.role));
@@ -212,6 +225,8 @@ function consentAuditSnapshot(
     status,
     sourceEncrypted: encryptField(source),
     consentAt: consentAt?.toISOString() ?? null,
+    consentTimeSource: "reported_by_actor",
+    registrationTimeSource: "audit.createdAt",
   };
 }
 
@@ -254,10 +269,17 @@ function validatePartyInput(input: CasePartyInput): Required<Omit<CasePartyInput
   if (input.consentStatus === "GRANTED" && (!consentSource || !consentAt)) {
     throw new OperationalCommandError(422, "Согласие требует источника и времени");
   }
+  if (consentAt && (!Number.isFinite(consentAt.getTime()) || consentAt > new Date())) {
+    throw new OperationalCommandError(422, "Сообщённое время согласия не может находиться в будущем");
+  }
+  const phone = input.phone?.trim() || null;
+  const email = input.email?.trim().toLowerCase() || null;
+  if (input.preferredChannel === "EMAIL" && !email) throw new OperationalCommandError(422, "Для связи по email нужен адрес");
+  if (["PHONE", "MESSENGER"].includes(input.preferredChannel) && !phone) throw new OperationalCommandError(422, "Для выбранного канала нужен телефон");
   return {
     name,
-    phone: input.phone?.trim() || null,
-    email: input.email?.trim().toLowerCase() || null,
+    phone,
+    email,
     roles,
     preferredChannel: input.preferredChannel,
     consentStatus: input.consentStatus,

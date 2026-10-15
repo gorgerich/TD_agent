@@ -34,17 +34,6 @@ export type AuthenticatedUserSession = {
 
 export type AgentSession = OperationalContext;
 
-const DEV_SESSION: AgentSession = {
-  userId: 0,
-  agentId: 0,
-  membershipId: "development",
-  organizationId: "development",
-  role: "AGENT",
-  timezone: "Europe/Moscow",
-  name: "Агент (dev)",
-  platformRole: "USER",
-};
-
 async function hydrateUserSession(payload: SessionPayload): Promise<AuthenticatedUserSession | null> {
   const user = await prisma.user.findUnique({
     where: { id: payload.userId },
@@ -96,15 +85,11 @@ async function payloadFromCookieHeader(cookieHeader: string): Promise<SessionPay
 }
 
 export async function getCurrentUserSession(): Promise<AuthenticatedUserSession | null> {
-  try {
-    const store = await cookies();
-    const token = store.get(SESSION_COOKIE)?.value;
-    if (!token) return null;
-    const payload = await verifySession(token);
-    return payload ? hydrateUserSession(payload) : null;
-  } catch {
-    return null;
-  }
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const payload = await verifySession(token);
+  return payload ? hydrateUserSession(payload) : null;
 }
 
 export async function getCurrentUserSessionFromRequest(req: Request): Promise<AuthenticatedUserSession | null> {
@@ -142,20 +127,11 @@ export async function requireOperationalContext(req?: Request): Promise<AgentSes
 
 // Backward-compatible wrappers while existing agent routes migrate.
 export async function getAgentSession(): Promise<AgentSession | null> {
-  try {
-    const session = await getOperationalContext();
-    if (!session && process.env.NODE_ENV === "development") return DEV_SESSION;
-    return session;
-  } catch {
-    if (process.env.NODE_ENV === "development") return DEV_SESSION;
-    return null;
-  }
+  return getOperationalContext();
 }
 
 export async function getSessionFromRequest(req: Request): Promise<AgentSession | null> {
-  const session = await getOperationalContextFromRequest(req);
-  if (!session && process.env.NODE_ENV === "development") return DEV_SESSION;
-  return session;
+  return getOperationalContextFromRequest(req);
 }
 
 export class AuthenticationError extends Error {

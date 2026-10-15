@@ -19,6 +19,7 @@ const transitionFacts: CaseTransitionFacts = {
   contractSigned: true,
   paymentSatisfied: true,
   documentsReadyForExecution: true,
+  documentsReadyForClosure: true,
   guardState: {},
 };
 
