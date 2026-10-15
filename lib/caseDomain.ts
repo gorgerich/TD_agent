@@ -164,6 +164,9 @@ export function evaluateCaseTransition(input: {
       if (!isSupportedScenario(input.scenarioId)) {
         throw new CaseDomainError("UNSUPPORTED_SCENARIO", "Исполнение нельзя подтвердить без пилотного сценария");
       }
+      requireGuard(input.facts.contractSigned, "Подписанный договор не найден", "contract_signed");
+      requireGuard(input.facts.documentsReadyForExecution, "Обязательные документы ещё не проверены", "verified_documents_for_execution");
+      requireGuard(input.facts.paymentSatisfied, "Требование по оплате ещё не выполнено", "payment_satisfied");
       requireGuard(
         input.payload.confirmationSource === "OPERATOR_CONFIRMED",
         "Подтвердите фактическое исполнение сценария",

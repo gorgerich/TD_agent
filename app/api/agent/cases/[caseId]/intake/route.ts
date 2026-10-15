@@ -16,7 +16,7 @@ const Schema = z.object({
   religion: z.never().optional(),
   needs: z.string().max(2000).optional().nullable(),
   // P0-домен: усопший и церемония
-  deceasedName: z.string().trim().min(1).max(200).optional().nullable(),
+  deceasedName: z.string().trim().max(200).transform((value) => value || null).optional().nullable(),
   deceasedDate: z.string().max(30).optional().nullable(),  // ISO date
   morgue: z.string().max(200).optional().nullable(),
   ceremonyAt: z.string().max(30).optional().nullable(),    // ISO datetime

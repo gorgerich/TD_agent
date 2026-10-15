@@ -7,6 +7,56 @@ export async function fillProtected(locator, value) {
   }
 }
 
+// Keep delayed awaits owned even when their triggering action fails first.
+export function observeLegacyPromise(promise) {
+  void promise.catch(() => {});
+  return promise;
+}
+
+export function createLegacyAsyncScope(closeResources) {
+  let failed = false;
+  const pending = new Set();
+  return {
+    guard(callback) {
+      return (...args) => {
+        const task = (async () => {
+          try {
+            return await callback(...args);
+          } catch {
+            failed = true;
+            // Release an intercepted request before closing the page that owns it.
+            try { await args[0]?.abort?.("failed"); } catch { /* Already closed. */ }
+            try { await closeResources(); } catch { /* The outer finally retries cleanup. */ }
+          }
+        })();
+        pending.add(task);
+        void task.then(() => pending.delete(task));
+        return task;
+      };
+    },
+    async settle() {
+      while (pending.size) await Promise.all([...pending]);
+      this.check();
+    },
+    check() {
+      if (failed) throw new Error("E2E_LEGACY_ASYNC_FAILED");
+    },
+  };
+}
+
+export function legacySecretScreenshotOptions(page) {
+  const fields = 'input[type="password"], input[autocomplete="one-time-code"], input[autocomplete="new-password"]';
+  return {
+    // Hide glyph/QR pixels outside their layout bounds as well as masking the bounds.
+    style: `code, [role="img"][aria-label="QR-код для приложения-аутентификатора"], ${fields} { visibility: hidden !important; }`,
+    mask: [
+      page.locator("code"),
+      page.getByRole("img", { name: "QR-код для приложения-аутентификатора" }),
+      page.locator(fields),
+    ],
+  };
+}
+
 export function sanitizedCpoFailure(error) {
   let location = "";
   try {

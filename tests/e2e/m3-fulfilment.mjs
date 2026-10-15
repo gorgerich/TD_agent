@@ -3,11 +3,15 @@ import { createHmac } from "node:crypto";
 import { syntheticDocumentPdf } from "../cpoAuditDocuments.fixture.mjs";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
-import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope } from "./protectedInput.mjs";
 
 let browser;
 let context;
-try {
+const asyncScope = createLegacyAsyncScope(async () => {
+  try { await context?.close(); } finally { await browser?.close(); }
+});
+
+async function main() {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -136,6 +140,18 @@ page.on("response", (response) => {
   );
   await recordRefundAndReversal(page, cases.burial.publicRef);
   await context.clearCookies();
+  await login(page, identities.agent, password, /\/agent\/cases/);
+  const executionAfterRefundKey = `m3-uat:${runId}:execution-after-refund:${crypto.randomUUID()}`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const rejected = await browserRequest(page, `/api/agent/cases/${burial.leadId}/transition`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": executionAfterRefundKey, "X-Correlation-Id": executionAfterRefundKey },
+      body: JSON.stringify({ eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } }),
+    });
+    assert.equal(rejected.status, 422, "Execution must remain blocked after a refund, including the same-key retry");
+    assert.equal(JSON.parse(rejected.body).details.guard, "payment_satisfied");
+  }
+  await context.clearCookies();
   await login(page, identities.financeB, password, /\/agent\/finance/);
   await approvePendingAdjustment(page);
   await obligationRow(page, cases.burial.publicRef).getByText("Оплачено", { exact: true }).waitFor();
@@ -158,12 +174,14 @@ page.on("response", (response) => {
   assert.equal(observedInjectedProjectionFailures, 1, "exactly the controlled post-commit failure must be observed");
   assert.equal(injectedProjectionFailures.size, 0);
   assert.deepEqual(unexpected5xx, [], `Unexpected 5xx: ${unexpected5xx.join("; ")}`);
+  await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     cremation: "PASS",
     relativeBurial: "PASS",
     documentQuarantineReviewReplacement: "PASS",
     contractObligation: "PASS",
     partialFullRefundReversal: "PASS",
+    executionAfterRefundGuard: "PASS",
     webhookReplayFive: webhook,
     financeLostResponseRetry: financeRetry,
     financeVisibility: "PASS",
@@ -194,7 +212,7 @@ async function prepareAgentCase(target, caseFixture, options) {
   await form.locator('select[name="consentStatus"]').selectOption("GRANTED");
   await form.locator('input[name="consentSource"]').fill("Synthetic isolated UAT");
   await form.locator('input[name="consentAt"]').fill("2026-08-11T12:00");
-  const partyResponsePromise = target.waitForResponse((response) => response.url().includes(`/cases/${leadId}/parties`) && response.request().method() === "POST");
+  const partyResponsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes(`/cases/${leadId}/parties`) && response.request().method() === "POST"));
   await form.getByRole("button", { name: "Сохранить участника" }).click();
   const partyResponse = await partyResponsePromise;
   assert.equal(partyResponse.status(), 201);
@@ -205,9 +223,9 @@ async function prepareAgentCase(target, caseFixture, options) {
   await target.getByRole("tab", { name: /Документы/ }).click();
   if (options.exerciseFailure) {
     expectedStorageFailure = true;
-    await target.route("**/api/agent/cases/*/documents", async (route) => {
+    await target.route("**/api/agent/cases/*/documents", asyncScope.guard(async (route) => {
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Synthetic isolated storage outage" }) });
-    }, { times: 1 });
+    }), { times: 1 });
     await uploadDocument(target, caseFixture.requirements[0], "failure.pdf", "synthetic failure probe");
     await target.getByRole("alert").getByText("Synthetic isolated storage outage", { exact: true }).waitFor();
     await target.unroute("**/api/agent/cases/*/documents");
@@ -229,7 +247,7 @@ async function openCase(target, name) {
   const href = await link.getAttribute("href");
   assert.ok(href, `Case link missing for ${name}`);
   await link.click();
-  await target.waitForURL(/\/agent\/cases\/\d+/);
+  await observeLegacyPromise(target.waitForURL(/\/agent\/cases\/\d+/));
   await target.waitForLoadState("networkidle");
   const match = target.url().match(/\/agent\/cases\/(\d+)/);
   assert.ok(match);
@@ -253,9 +271,9 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   await target.waitForLoadState("networkidle");
   row = reviewRow(target, publicRef, typeName);
   await row.getByText("Назначен вам", { exact: true }).waitFor();
-  const documentResponsePromise = target.waitForResponse((response) => (
+  const documentResponsePromise = observeLegacyPromise(target.waitForResponse((response) => (
     response.url().includes("/documents/") && response.request().method() === "GET"
-  ));
+  )));
   const openButton = row.getByRole("button", { name: "Открыть" });
   await openButton.focus();
   await target.keyboard.press("Enter");
@@ -276,14 +294,14 @@ async function reviewDocument(target, publicRef, typeName, decision) {
   if (decision === "REJECT") {
     await row.getByRole("button", { name: "Отклонить" }).click();
     await row.getByLabel("Причина отклонения").fill("Synthetic UAT: требуется новая читаемая версия");
-    const responsePromise = target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST");
+    const responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST"));
     await row.getByRole("button", { name: "Сохранить решение" }).click();
     assert.equal((await responsePromise).status(), 200);
     return;
   }
   const checks = row.getByRole("checkbox");
   for (let index = 0; index < await checks.count(); index += 1) await checks.nth(index).check();
-  const responsePromise = target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST");
+  const responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/decision") && response.request().method() === "POST"));
   await row.getByRole("button", { name: "Проверено" }).click();
   assert.equal((await responsePromise).status(), 200);
 }
@@ -304,7 +322,7 @@ async function completeContract(target, caseFixture, leadId) {
   await target.goto(`${baseUrl}/agent/cases/${leadId}`, { waitUntil: "networkidle" });
   await target.getByRole("button", { name: "Создать черновик договора" }).click();
   await target.getByLabel("Условия оплаты").fill("Synthetic isolated UAT: оплата по подтверждённому ledger");
-  let responsePromise = target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST");
+  let responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST"));
   await target.getByRole("button", { name: "Создать", exact: true }).click();
   const createResponse = await responsePromise;
   assert.equal(createResponse.status(), 200);
@@ -318,7 +336,7 @@ async function completeContract(target, caseFixture, leadId) {
   const issueButton = target.getByRole("button", { name: "Выдать договор" });
   assert.equal(await issueButton.isEnabled(), true, "Issue action must be enabled after the canonical draft refresh");
   const [issueResponse] = await Promise.all([
-    target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST"),
+    observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST")),
     issueButton.click(),
   ]);
   assert.equal(issueResponse.status(), 200);
@@ -328,7 +346,7 @@ async function completeContract(target, caseFixture, leadId) {
   await target.getByLabel("Тип подтверждения").fill("SYNTHETIC_UAT_ACK");
   await target.getByLabel("Ссылка или реестр подтверждения").fill(`synthetic-evidence:${caseFixture.canonicalId}`);
   await target.getByLabel("Версия Legal policy").fill("SYNTHETIC-UAT-V1");
-  responsePromise = target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST");
+  responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/contract") && response.request().method() === "POST"));
   await target.getByRole("button", { name: "Сохранить immutable evidence" }).click();
   const signedResponse = await responsePromise;
   assert.equal(signedResponse.status(), 200);
@@ -369,7 +387,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   if (options.exerciseLostResponse || options.exerciseProjectionRetry) {
     let originalRequest = null;
     let originalResult = null;
-    await target.route("**/api/agent/cases/*/payments", async (route) => {
+    await target.route("**/api/agent/cases/*/payments", asyncScope.guard(async (route) => {
       originalRequest = {
         idempotencyKey: route.request().headers()["idempotency-key"],
         correlationId: route.request().headers()["x-correlation-id"],
@@ -384,7 +402,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
       } else {
         await route.abort("failed");
       }
-    }, { times: 1 });
+    }), { times: 1 });
     await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     await target.getByRole("alert").getByText(/fetch|network|команд/i).waitFor();
     if (options.exerciseProjectionRetry) await target.getByRole("status").getByText(/Команда сохранена/).waitFor();
@@ -394,7 +412,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
     await target.keyboard.press("Escape");
     assert.equal(await dialog.isVisible(), true);
     await target.unroute("**/api/agent/cases/*/payments");
-    const replayPromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
+    const replayPromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST"));
     await target.getByRole("button", { name: "Повторить синхронизацию", exact: true }).click();
     const replayResponse = await replayPromise;
     const replayRequest = {
@@ -410,7 +428,7 @@ async function recordPayment(target, publicRef, rubles, reason, options = {}) {
     assert.deepEqual(replayRequest, originalRequest);
     retryEvidence = { original: false, replay: true, sameCommandEnvelope: true, oneLedgerEntry: true };
   } else {
-    const responsePromise = target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST");
+    const responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/payments") && response.request().method() === "POST"));
     await dialog.getByRole("button", { name: "Добавить в реестр" }).click();
     const response = await responsePromise;
     assert.equal(response.status(), 201);
@@ -461,7 +479,7 @@ async function recordRefundAndReversal(target, publicRef) {
   await actionDialog.getByLabel("Сумма, ₽").fill("1000");
   await actionDialog.getByLabel("Подтверждение").fill("synthetic-refund-evidence");
   await actionDialog.getByLabel("Причина").fill("Synthetic UAT refund");
-  let responsePromise = target.waitForResponse((response) => response.url().includes("/finance/refunds") && response.request().method() === "POST");
+  let responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/finance/refunds") && response.request().method() === "POST"));
   await actionDialog.getByRole("button", { name: "Добавить в реестр" }).click();
   assert.equal((await responsePromise).status(), 201);
 
@@ -476,7 +494,7 @@ async function recordRefundAndReversal(target, publicRef) {
   await actionDialog.getByLabel("Сумма, ₽").fill("1000");
   await actionDialog.getByLabel("Подтверждение").fill("synthetic-reversal-evidence");
   await actionDialog.getByLabel("Причина").fill("Synthetic UAT four-eyes reversal");
-  responsePromise = target.waitForResponse((response) => response.url().endsWith("/finance/adjustments") && response.request().method() === "POST");
+  responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().endsWith("/finance/adjustments") && response.request().method() === "POST"));
   await actionDialog.getByRole("button", { name: "Создать запрос" }).click();
   assert.equal((await responsePromise).status(), 201);
 }
@@ -486,7 +504,7 @@ async function approvePendingAdjustment(target) {
   await section.getByRole("button", { name: "Одобрить" }).click();
   const dialog = target.getByRole("dialog", { name: "Одобрить коррекцию" });
   await dialog.getByLabel("Основание решения").fill("Independent synthetic Finance approval");
-  const responsePromise = target.waitForResponse((response) => /\/finance\/adjustments\//.test(response.url()) && response.request().method() === "POST");
+  const responsePromise = observeLegacyPromise(target.waitForResponse((response) => /\/finance\/adjustments\//.test(response.url()) && response.request().method() === "POST"));
   await dialog.getByRole("button", { name: "Сохранить решение" }).click();
   assert.equal((await responsePromise).status(), 200);
 }
@@ -648,7 +666,7 @@ async function login(target, email, identityPassword, landing) {
     await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
     await target.locator("#agent-email").fill(email);
     await fillProtected(target.locator("#agent-password"), identityPassword);
-    let responsePromise = target.waitForResponse((response) => response.url().includes("/api/agent/auth/login") && response.request().method() === "POST");
+    let responsePromise = observeLegacyPromise(target.waitForResponse((response) => response.url().includes("/api/agent/auth/login") && response.request().method() === "POST"));
     await target.locator('form button[type="submit"]').click();
     let response = await responsePromise;
     if (response.status() === 429 && attempt < 3) {
@@ -659,7 +677,7 @@ async function login(target, email, identityPassword, landing) {
     const body = await response.json().catch(() => null);
     if (body?.mfaRequired === true) {
       await fillProtected(target.locator("#platform-mfa-code"), totp(email === identities.financeB ? financeBMfaSecret : mfaSecret));
-      responsePromise = target.waitForResponse((next) => next.url().includes("/api/agent/auth/login") && next.request().method() === "POST");
+      responsePromise = observeLegacyPromise(target.waitForResponse((next) => next.url().includes("/api/agent/auth/login") && next.request().method() === "POST"));
       await target.locator('form button[type="submit"]').click();
       response = await responsePromise;
       if (response.status() === 429 && attempt < 3) {
@@ -669,7 +687,7 @@ async function login(target, email, identityPassword, landing) {
       }
     }
     assert.equal(response.status(), 200, `Login ${email}: ${response.status()}`);
-    await target.waitForURL(landing);
+    await observeLegacyPromise(target.waitForURL(landing));
     return;
   }
   throw new Error(`Login remained rate-limited for ${email}`);
@@ -702,12 +720,19 @@ function totp(secret) {
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
+}
+
+try {
+  await main();
+  asyncScope.check();
 } catch (error) {
   process.stderr.write(sanitizedLegacyFailure(error));
   process.exitCode = 1;
 } finally {
   try {
-    try { await context?.close(); } finally { await browser?.close(); }
+    try {
+      try { await context?.close(); } finally { await browser?.close(); }
+    } finally { await asyncScope.settle(); }
   } catch (error) {
     process.stderr.write(sanitizedLegacyFailure(error));
     process.exitCode = 1;

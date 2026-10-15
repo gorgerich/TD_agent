@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
-import { fillProtected, sanitizedLegacyFailure } from "./protectedInput.mjs";
+import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope } from "./protectedInput.mjs";
 
 let browser;
 let context;
-try {
+const asyncScope = createLegacyAsyncScope(async () => {
+  try { await context?.close(); } finally { await browser?.close(); }
+});
+
+async function main() {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -130,6 +134,7 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   assert.ok(expectedPublishBlocks >= 1, "Unknown-price publish must be observed as blocked in the browser");
   assert.ok(expectedCrossTenantMisses >= 1, "Cross-tenant quote read must be observed as not found in the browser");
   assert.ok(expectedQuoteLoadFailures >= 1, "Quote load failure must be observed and rendered honestly");
+  await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     cremation: cremation.status,
     relativeBurial: burial.status,
@@ -164,7 +169,7 @@ async function login(target, identity, identityPassword) {
     await target.locator("#agent-email").fill(identity);
     await fillProtected(target.locator("#agent-password"), identityPassword);
     const [response] = await Promise.all([
-      target.waitForResponse((res) => res.url().includes("/api/agent/auth/login") && res.request().method() === "POST"),
+      observeLegacyPromise(target.waitForResponse((res) => res.url().includes("/api/agent/auth/login") && res.request().method() === "POST")),
       target.locator('form button[type="submit"]').click(),
     ]);
     if (response.status() === 429) {
@@ -177,7 +182,7 @@ async function login(target, identity, identityPassword) {
       continue;
     }
     assert.equal(response.status(), 200, `login for ${identity} failed with ${response.status()}`);
-    await target.waitForURL(/\/agent\/cases(?:\?|$)/);
+    await observeLegacyPromise(target.waitForURL(/\/agent\/cases(?:\?|$)/));
     return;
   }
 }
@@ -381,8 +386,8 @@ function readQuoteStatus(target, meetingId) {
 
 async function assertUnknownPriceBlocksPublish(target, meetingId, scenario) {
   const saved = await saveDraftOnly(target, meetingId, scenario, 25_000, "unknown-price", "REQUESTED");
-  const quoteRead = target.waitForResponse((response) =>
-    response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+  const quoteRead = observeLegacyPromise(target.waitForResponse((response) =>
+    response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET"));
   await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
   assert.equal((await quoteRead).status(), 200);
   await target.getByTestId("quote-visible-total").waitFor();
@@ -577,13 +582,13 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
     }
   };
   target.on("request", recordWrite);
-  await target.route(routePattern, async (route) => {
+  await target.route(routePattern, asyncScope.guard(async (route) => {
     if (route.request().method() === "GET" && failRead) {
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
       return;
     }
     await route.continue();
-  });
+  }));
   try {
     await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
     await target.getByTestId("quote-visible-total").waitFor();
@@ -611,8 +616,8 @@ async function assertQuoteLoadFailureIsHonest(target, meetingId) {
 
     await target.keyboard.press("Escape");
     failRead = false;
-    const recoveredRead = target.waitForResponse((response) =>
-      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    const recoveredRead = observeLegacyPromise(target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET"));
     await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
     assert.equal((await recoveredRead).status(), 200);
     await target.waitForFunction(() =>
@@ -719,7 +724,7 @@ async function assertStagedMutationStopsOnRouteChange(target, meetingId) {
       await target.keyboard.press("Escape");
       const caseLink = target.locator('a[href^="/agent/cases/"]').first();
       await caseLink.click();
-      await target.waitForURL(/\/agent\/cases\/\d+(?:\?|$)/);
+      await observeLegacyPromise(target.waitForURL(/\/agent\/cases\/\d+(?:\?|$)/));
       await target.evaluate(() => window.__m2ReleaseDelayedBody?.());
       await target.waitForTimeout(750);
       assert.deepEqual(
@@ -764,14 +769,14 @@ async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
   };
 
   target.on("request", recordWrite);
-  await target.route(quotePattern, async (route) => {
+  await target.route(quotePattern, asyncScope.guard(async (route) => {
     if (route.request().method() === "GET" && failCanonicalRefresh) {
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "temporarily unavailable" }) });
       return;
     }
     await route.continue();
-  });
-  await target.route(reviewPattern, (route) => route.fulfill({
+  }));
+  await target.route(reviewPattern, asyncScope.guard((route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({
@@ -780,12 +785,12 @@ async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
       diff: { added: [], removed: [], changed: [] },
       totalDelta: 0,
     }),
-  }));
-  await target.route(publishPattern, (route) => route.fulfill({
+  })));
+  await target.route(publishPattern, asyncScope.guard((route) => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ status: "PUBLISHED", versionNumber: 99 }),
-  }));
+  })));
 
   try {
     await target.goto(`${baseUrl}/agent/meetings/${meetingId}/quote`, { waitUntil: "networkidle" });
@@ -824,8 +829,8 @@ async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
 
     await target.keyboard.press("Escape");
     failCanonicalRefresh = false;
-    const recoveredRead = target.waitForResponse((response) =>
-      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET");
+    const recoveredRead = observeLegacyPromise(target.waitForResponse((response) =>
+      response.url().endsWith(`/api/agent/meeting/${meetingId}/quote`) && response.request().method() === "GET"));
     await target.getByRole("button", { name: "Повторить загрузку", exact: true }).click();
     assert.equal((await recoveredRead).status(), 200);
     await target.waitForFunction(() =>
@@ -841,12 +846,19 @@ async function assertPostPublishRefreshFailureClosesGate(target, meetingId) {
   }
 }
 
+}
+
+try {
+  await main();
+  asyncScope.check();
 } catch (error) {
   process.stderr.write(sanitizedLegacyFailure(error));
   process.exitCode = 1;
 } finally {
   try {
-    try { await context?.close(); } finally { await browser?.close(); }
+    try {
+      try { await context?.close(); } finally { await browser?.close(); }
+    } finally { await asyncScope.settle(); }
   } catch (error) {
     process.stderr.write(sanitizedLegacyFailure(error));
     process.exitCode = 1;

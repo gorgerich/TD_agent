@@ -287,3 +287,34 @@ No previous UAT is relabelled as verification of these changes.
 - Receipt `td-agent-cpo-gate-Plc9JM` was deliberately interrupted during lint
   before DB/build work to apply that repair; owned-child termination and cleanup
   PASS. It is not a lint or full-gate PASS. A new full-tree run has started.
+- Initial committed repair `920035b6391ea43700e89ce0f7e5239072e6bc0e` is in
+  Draft PR36. CI38704803053 failed lint on the test-local identifier `module`;
+  later steps were skipped, not passed. The matching local gate `tudDQG` also
+  failed lint and cleaned its owned resources. Validator was not disabled.
+- Preview `dpl_Gz6Z2qqsHEMLNVYydY2iKzTYMq3c` is READY on920035b. No UAT is
+  claimed for it; subsequent independent findings require a new runtime.
+- Independent review of920035b found a remaining execution-confirmation P1:
+  consistent refund history can leave an outstanding balance after entry into
+  EXECUTION. Current contract/document/payment guards are now added to that
+  event; both-scenario domain tests6/6 pass. PostgreSQL/API refusal, atomicity,
+  repayment and replay verification is pending.
+- The same review found a partial-intake P2: an initially blank name prevented
+  unrelated fields from being saved. Empty/whitespace input now normalizes to
+  null; it must not complete intake. Both-scenario API regressions are pending.
+- Separate independent review reproduced unowned asynchronous E2E interception
+  failure leaking a synthetic header, abandoned response-waiter rejections, and
+  an activation screenshot containing synthetic MFA material. These are active
+  rework items, not waived or declared PASS by earlier formatter tests.
+- Live read-only Production check remains87550178 / dpl_8rqT8aRp2x75wfxHVpmJBaMigytY,
+  READY, login200, freeze disabled. Historical backup/migration fields from that
+  status helper are not a fresh release preflight.
+- New refund/execution and partial-intake API/PostgreSQL regressions completed
+  five ordinary-concurrency runs:31/31 each (finance9, intake22), skipped=0,
+  failures=0, both owned schemas dropped after every run. First receipt:
+  `cpo-execution-refund-Gg16Ct`; remaining four:
+  `cpo-execution-refund-repeat-vvht9P/receipt.json`.
+  Repeated rejected execution requests preserved Case/events/tasks/audit; restored
+  payment coverage allowed one confirmation and truthful side-effect-free replay.
+  Both scenarios retained partial forms with null normalized names and no false
+  intake completion. Independent narrow review found no further concrete defect;
+  it ran domain6/6 and schema probes, not these PostgreSQL executions.

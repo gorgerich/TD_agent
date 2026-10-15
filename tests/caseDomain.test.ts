@@ -106,6 +106,18 @@ test("M3: execution confirmation is explicit and scenario closure remains guarde
   }
 });
 
+test("CPO: execution confirmation rechecks current contract, documents and payment after stage entry", () => {
+  for (const scenarioId of ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const) {
+    for (const [fact, guard] of [["contractSigned", "contract_signed"], ["documentsReadyForExecution", "verified_documents_for_execution"], ["paymentSatisfied", "payment_satisfied"]] as const) {
+      assert.throws(() => evaluateCaseTransition({
+        stage: "EXECUTION", scenarioId, eventType: "execution.confirmed.v1",
+        payload: { confirmationSource: "OPERATOR_CONFIRMED" },
+        facts: { ...transitionFacts, [fact]: false },
+      }), (error: unknown) => error instanceof CaseDomainError && error.code === "GUARD_FAILED" && error.details.guard === guard);
+    }
+  }
+});
+
 test("AC-W2-05: risk projection gives exact reason and deadline", () => {
   const updatedAt = new Date("2026-07-01T09:00:00.000Z");
   const dueAt = new Date("2026-07-13T09:00:00.000Z");

@@ -4,12 +4,73 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
-import { fillProtected, sanitizedLegacyFailure } from "./e2e/protectedInput.mjs";
+import * as protectedInput from "./e2e/protectedInput.mjs";
+const { sanitizedLegacyFailure } = protectedInput;
 
 const require = createRequire(import.meta.url);
 const files = ["m1-operations.mjs", "m2-admin.mjs", "m2-commercial.mjs", "m3-fulfilment.mjs"];
 const canaries = ["synthetic-dynamic-client-link-canary", "synthetic-invite-url-canary", "synthetic-bypass-header-canary"];
 const diagnostic = canaries.join(" ");
+
+test("callback failures stay static and failed abort/cleanup cannot escape ownership", async () => {
+  let closed = 0;
+  let aborted = 0;
+  const scope = protectedInput.createLegacyAsyncScope(async () => { closed++; throw new Error(diagnostic); });
+  const callback = scope.guard(async () => { throw new assert.AssertionError({ message: diagnostic }); });
+  await callback({ abort: async () => { aborted++; throw new Error(diagnostic); } });
+  assert.equal(closed, 1);
+  assert.equal(aborted, 1);
+  assert.throws(() => scope.check(), { message: "E2E_LEGACY_ASYNC_FAILED" });
+  await assert.rejects(scope.settle(), { message: "E2E_LEGACY_ASYNC_FAILED" });
+});
+
+test("callback ownership preserves concurrent execution and waiter rejection identity", async () => {
+  const scope = protectedInput.createLegacyAsyncScope(async () => { assert.fail("successful callbacks must not close resources"); });
+  const started: number[] = [];
+  let release!: () => void;
+  const barrier = new Promise<void>((resolve) => { release = resolve; });
+  const callback = scope.guard(async (id: number) => { started.push(id); await barrier; return id; });
+  const first = callback(1), second = callback(2);
+  assert.deepEqual(started, [1, 2]);
+  release();
+  assert.deepEqual(await Promise.all([first, second]), [1, 2]);
+  await scope.settle();
+  const failure = new Error(diagnostic);
+  const pending = Promise.reject(failure);
+  assert.equal(protectedInput.observeLegacyPromise(pending), pending);
+  await assert.rejects(pending, (error: unknown) => error === failure);
+});
+
+test("every legacy route/dialog callback and browser waiter has explicit async ownership", () => {
+  for (const file of files) {
+    const source = readFileSync(new URL(`./e2e/${file}`, import.meta.url), "utf8");
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    let routes = 0;
+    let waiters = 0;
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        const method = node.expression.name.text;
+        if (method === "route" || (method === "once" && node.arguments[0]?.getText(ast) === '"dialog"')) {
+          assert.match(node.arguments[1]!.getText(ast), /^asyncScope\.guard\(/, `${file}:${method}`);
+          routes++;
+        }
+        if (/^waitFor(Response|Request|URL|Event|Navigation)$/.test(method)) {
+          assert.ok(ts.isCallExpression(node.parent));
+          assert.equal(node.parent.expression.getText(ast), "observeLegacyPromise", `${file}:${method}`);
+          waiters++;
+        }
+        if (file === "m2-admin.mjs" && method === "screenshot") {
+          assert.match(node.arguments[0]!.getText(ast), /\.\.\.legacySecretScreenshotOptions\(target\)/);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ast);
+    assert.ok(waiters > 0, file);
+    assert.ok(routes > 0, file);
+    assert.match(source, /await asyncScope\.settle\(\)/, file);
+  }
+});
 
 test("legacy failure formatter emits only static code and allowlisted file/line/column", () => {
   for (const file of [...files, "protectedInput.mjs"]) {
@@ -84,14 +145,14 @@ test("all four actual legacy scripts sanitize startup, journey and cleanup failu
       };
       const dependencies: Record<string, unknown> = {
         playwright: { chromium: { launch: async () => stage === "launch" ? failure() : browser } },
-        "./protectedInput.mjs": { fillProtected, sanitizedLegacyFailure },
+        "./protectedInput.mjs": protectedInput,
         "node:module": { createRequire: () => ({ resolve: () => "synthetic-axe-path" }) },
         "../cpoAuditDocuments.fixture.mjs": { syntheticDocumentPdf: () => new Uint8Array() },
       };
-      const module = { exports: {} };
+      const testModule = { exports: {} };
       await new AsyncFunction("require", "module", "exports", "process", code)(
         (key: string) => Object.hasOwn(dependencies, key) ? dependencies[key] : require(key),
-        module, module.exports, fakeProcess,
+        testModule, testModule.exports, fakeProcess,
       );
       assert.equal(fakeProcess.exitCode, 1, `${file}:${stage} must fail`);
       assert.equal(state.browserClosed, stage === "launch" ? 0 : 1, `${file}:${stage} browser cleanup`);

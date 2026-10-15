@@ -223,6 +223,24 @@ function assertReadOnlyReplay(trace: Trace) {
 }
 
 for (const scenario of scenarios) {
+  for (const [index, emptyName] of ["", "   "].entries()) {
+    test(`M3 intake ${scenario.id}: partial form ${index} saves without completing intake`, opts, async () => {
+      const fixture = await makeFixture(scenario, `partial-empty-${index}`);
+      const key = `${fixtures.runId}:${scenario.id}:partial-empty-${index}`;
+      const body = { ...intakeBody(scenario), deceasedName: emptyName, budget: "176000" };
+      const saved = await successful(await submit(fixture, scenario, key, body));
+      assert.equal(saved.stage, "INTAKE");
+      assert.equal(saved.scenarioId, "UNSELECTED");
+      const state = await snapshot(fixture);
+      assert.equal(state.lead.deceasedName, null);
+      assert.equal(state.lead.budget, "176000");
+      assert.deepEqual(state.events.map((event) => event.eventType), ["case.intake_saved.v1"]);
+      const replay = await submit(fixture, scenario, key, body);
+      assert.equal((await successful(replay)).replayed, true);
+      assertReadOnlyReplay(replay.trace);
+      assert.deepEqual(await snapshot(fixture), state);
+    });
+  }
   test(`M3 intake ${scenario.id}: incomplete intake remains INTAKE`, opts, async () => {
     const fixture = await makeFixture(scenario, "incomplete");
     const initial = await snapshot(fixture);

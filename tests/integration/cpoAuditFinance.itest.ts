@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { GET as readPayments } from "../../app/api/agent/cases/[caseId]/payments/route";
 import { POST as contractCommand } from "../../app/api/agent/cases/[caseId]/contract/route";
 import { POST as createLead } from "../../app/api/agent/leads/route";
+import { POST as transitionCommand } from "../../app/api/agent/cases/[caseId]/transition/route";
 import {
   createContractVersion, decideLedgerAdjustment, getPaymentSummary,
   issueContractVersion, recordManualPayment, recordRefund,
@@ -248,6 +249,50 @@ test("CPO finance: refund then repayment reopens coverage without reversing real
   assert.equal((await db.case.findUniqueOrThrow({ where: { id: state.record.id } })).stage, "EXECUTION");
   assert.equal(await db.paymentLedgerEntry.count({ where: { obligationId: state.obligationId, type: "REVERSAL" } }), 0);
   await closeCase(state.record);
+});
+
+test("CPO finance: refund after EXECUTION entry blocks confirmation atomically until coverage returns", opts, async () => {
+  const state = await signedContract("execution-refund", true);
+  const paid = await recordManualPayment(finance.context, paymentInput(state.obligationId, state.payerId, AMOUNT), meta("execution-pay"));
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: state.record.id } })).stage, "EXECUTION");
+  await recordRefund(finance.context, {
+    paymentEntryId: paid.ledgerEntryId, amountKopecks: AMOUNT, occurredAt: new Date(),
+    method: "BANK_TRANSFER", evidenceReference: "synthetic-execution-refund", reason: "Synthetic full refund before confirmation",
+  }, meta("execution-refund"));
+  const reconciliation = await reconcileM3Case(manager.context, state.record.id);
+  assert.equal(reconciliation.discrepancyCount, 0);
+  assert.equal((await getPaymentSummary(finance.context, state.obligationId)).balanceKopecks, AMOUNT);
+  const snapshot = async () => ({
+    record: await db.case.findUniqueOrThrow({ where: { id: state.record.id } }),
+    events: await db.caseEvent.count({ where: { caseId: state.record.id } }),
+    tasks: await db.task.count({ where: { caseId: state.record.id } }),
+    audit: await db.operationalAuditEvent.count({ where: { organizationId: agent.organizationId } }),
+  });
+  const before = await snapshot();
+  const command = meta("execution-confirm");
+  const ownerCookie = await cookie(agent);
+  const invoke = () => transitionCommand(makeRequest(`/api/agent/cases/${state.record.leadId}/transition`, {
+    method: "POST", cookie: ownerCookie,
+    body: { eventType: "execution.confirmed.v1", payload: { confirmationSource: "OPERATOR_CONFIRMED" } },
+    headers: { "Idempotency-Key": command.idempotencyKey, "X-Correlation-Id": command.correlationId },
+  }), { params: Promise.resolve({ caseId: String(state.record.leadId) }) });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const rejected = await invoke();
+    assert.equal(rejected.status, 422);
+    assert.equal((await rejected.json()).details.guard, "payment_satisfied");
+    assert.deepEqual(await snapshot(), before);
+  }
+  await recordManualPayment(finance.context, paymentInput(state.obligationId, state.payerId, AMOUNT), meta("execution-repay"));
+  const accepted = await invoke();
+  assert.equal(accepted.status, 200);
+  const first = await accepted.json();
+  assert.equal(first.replayed, false);
+  const after = await snapshot();
+  const replay = await invoke();
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { ...first, replayed: true });
+  assert.deepEqual(await snapshot(), after);
+  assert.equal((await reconcileM3Case(manager.context, state.record.id)).discrepancyCount, 0);
 });
 
 test("CPO finance: cumulative sub-threshold corrections across source payments require a second actor", opts, async () => {
