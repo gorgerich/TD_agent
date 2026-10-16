@@ -254,6 +254,7 @@ export async function listCaseParties(context: OperationalContext, caseId: strin
     visibilityPolicy: party.visibilityPolicy,
     roles: party.roles.map((role) => role.role),
     createdAt: party.createdAt,
+    updatedAt: party.updatedAt,
   }));
 }
 

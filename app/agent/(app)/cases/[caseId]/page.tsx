@@ -196,6 +196,7 @@ export default async function CasePage({
     ...party,
     consentAt: party.consentAt?.toISOString() ?? null,
     createdAt: party.createdAt.toISOString(),
+    updatedAt: party.updatedAt.toISOString(),
   }));
 
   // Derived activity feed

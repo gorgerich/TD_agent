@@ -274,6 +274,11 @@ test("M3: parties, versioned documents, immutable obligation and ledger remain t
   assert.equal(afterConsent.consentAt, updatedConsentAt.toISOString());
   const listedParties = await listCaseParties(agent.context, caseRecord.id);
   assert.deepEqual(listedParties[0]?.roles.sort(), ["APPLICANT", "PAYER"]);
+  const persistedPartyRevision = await db.caseParty.findUniqueOrThrow({
+    where: { id: party.partyId }, select: { updatedAt: true },
+  });
+  assert.equal(listedParties[0]?.updatedAt.toISOString(), persistedPartyRevision.updatedAt.toISOString());
+  assert.ok(listedParties[0]!.updatedAt.getTime() >= rawParty.updatedAt.getTime());
   assert.equal((await listCaseParties(outsider.context, caseRecord.id)).length, 0);
   const previousEncryptionKey = process.env.APP_ENCRYPTION_KEY;
   process.env.APP_ENCRYPTION_KEY = "synthetic-wrong-key-for-case-party-read";
