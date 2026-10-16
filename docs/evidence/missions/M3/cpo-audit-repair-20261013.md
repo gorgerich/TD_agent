@@ -391,3 +391,33 @@ No previous UAT is relabelled as verification of these changes.
   `RELEASE_WRITE_FREEZE=disabled`. An initial Vercel metadata403 was resolved
   through normal CLI identity refresh; no alternate Production credential or
   denied provisioning route was used.
+- Final canonical PostgreSQL rerun at92169538 passed163/163, skipped=0,
+  with22 owned schemas dropped (`cpo-final-pg-N1eIhy`). Full local unit rerun
+  passed254/254, skipped=0 (`cpo-final-unit-1UQ5Nh`). These executions supersede
+  earlier failed local runs as later outcomes, without erasing those failures.
+- Source CI38929699167 passed unit, full integration, five targeted repetitions,
+  migration/restore/parity, build and all six main E2E journeys. It then FAILED
+  the separate auth-infrastructure browser check in approximately one second.
+  No overall CI PASS or stale-evidence-only exception is claimed. The old output
+  has no rejecting stage/status, so shared-IP throttling remains an unconfirmed
+  explanation for this particular failure.
+- Fresh synthetic restore6ff9abe0c88dc772e007d745be4c9033 passed53-table UTC
+  counts/digests, no-op/parity and cleanup for92169538. Exact Preview
+  `dpl_72HYZ7u4cg4U94GF6f3FqXMnAxZG` passed the authenticated schema sentinel.
+  Its full UAT FAILED waiting for the reviewer-assignment label after replacement.
+  Read-only diagnostics found one committed IN_REVIEW version assigned to the
+  expected reviewer with exactly one start audit. Fresh read-only browser queue
+  rendered that assignment. Neither observation substitutes for full UAT PASS;
+  response-loss versus stale-render cause remains unproven.
+- Subsequent test-only diagnostics require successful claim acknowledgement,
+  the exact requested version ID, boolean replay flag and the original rendered
+  assignment. Auth diagnostics expose only allowlisted stages/statuses/source
+  locations. Focused checks13/13 and typecheck passed, with no deadline/limiter/
+  password-cost changes. A development local auth-failure/recovery check passed
+  with owned-process/schema cleanup (`cpo-local-auth-infrastructure-t7P51Z`),
+  using the existing compatible application build, not a fresh deployed UAT.
+- Independent source-only operator review found three P1 and two P2: missing
+  verified runtime rollback; active synthetic leftovers; missing allowed-effects
+  census; omitted canonical CI steps; and cookie cleanup before malformed login
+  acknowledgement parsing. The owner command is NOT CLEARED and must not run.
+  Reviewer-service usage limits do not waive the remaining independent review.

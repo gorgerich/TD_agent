@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 
+/** @returns {() => Record<string, string>} */
 export function createLocalClientHeaders(origin) {
   const url = new URL(origin);
   const local = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname)

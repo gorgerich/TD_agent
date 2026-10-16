@@ -267,10 +267,29 @@ async function uploadDocument(target, requirement, filename, content) {
 async function reviewDocument(target, publicRef, typeName, decision) {
   await target.goto(`${baseUrl}/agent/document-review`, { waitUntil: "networkidle" });
   let row = reviewRow(target, publicRef, typeName);
+  const claimResponse = observeLegacyPromise(target.waitForResponse((response) => (
+    /\/api\/agent\/document-review\/[^/]+\/start$/.test(new URL(response.url()).pathname)
+      && response.request().method() === "POST"
+  )));
   await row.getByRole("button", { name: "Взять в работу" }).click();
+  const claimed = await claimResponse;
+  if (claimed.status() !== 200) console.error(`E2E_M3_REVIEW_CLAIM_STATUS ${claimed.status()}`);
+  assert.equal(claimed.status(), 200, "Document claim must receive a successful acknowledgement");
+  const acknowledgement = await claimed.json();
+  assert.ok(typeof acknowledgement.versionId === "string" && acknowledgement.versionId.length > 0);
+  assert.equal(acknowledgement.versionId, decodeURIComponent(new URL(claimed.url()).pathname.split("/").at(-2)));
+  assert.equal(typeof acknowledgement.replayed, "boolean");
   await target.waitForLoadState("networkidle");
   row = reviewRow(target, publicRef, typeName);
-  await row.getByText("Назначен вам", { exact: true }).waitFor();
+  try {
+    await row.getByText("Назначен вам", { exact: true }).waitFor();
+  } catch (error) {
+    console.error(JSON.stringify({ code: "E2E_M3_REVIEW_RENDER_NOT_CONFIRMED", acknowledgementStatus: claimed.status(),
+      matchingRows: await row.count(), assignedLabels: await row.getByText("Назначен вам", { exact: true }).count(),
+      claimButtons: await row.getByRole("button", { name: "Взять в работу", exact: true }).count(),
+      alertCount: await target.getByRole("alert").count() }));
+    throw error;
+  }
   const documentResponsePromise = observeLegacyPromise(target.waitForResponse((response) => (
     response.url().includes("/documents/") && response.request().method() === "GET"
   )));
