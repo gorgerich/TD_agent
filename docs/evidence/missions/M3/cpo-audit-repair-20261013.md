@@ -1,6 +1,6 @@
 # CPO Audit Repair: 2026-10-13
 
-State: IMPLEMENTING. Not release evidence or a PASS declaration.
+State: VERIFYING / REWORK_REQUIRED. Not release evidence or a PASS declaration.
 
 Baseline: GitHub main 87550178d6b4ba60b3f752880fd08674c6fd2835;
 serving Production dpl_8rqT8aRp2x75wfxHVpmJBaMigytY at the same SHA,
@@ -318,3 +318,76 @@ No previous UAT is relabelled as verification of these changes.
   Both scenarios retained partial forms with null normalized names and no false
   intake completion. Independent narrow review found no further concrete defect;
   it ran domain6/6 and schema probes, not these PostgreSQL executions.
+
+### October 16 Continuation
+
+- PR36 is OPEN / DRAFT / MERGEABLE at
+  `944015151be81a241956a077ebda62ee0d53d61b`; main remains
+  `87550178d6b4ba60b3f752880fd08674c6fd2835`. Quality run38862285314
+  failed the CPO browser login assertion. Earlier technical steps and the M3
+  browser journey passed, but this is not an overall CI PASS. Subsequent skipped
+  workflow steps are not accepted as verified.
+- Actual authenticated Preview UAT passed on94401515, deployment
+  `dpl_59ezN1XMp5FYWwZGh36k3ZCAk1R7`, isolated DB fingerprint
+  `545a187f9e9d66b0`, private storage `store_Ov8erHstuvfJ52Og`.
+  Both scenarios, replacement/review, immutable obligations, partial/full/refund/
+  reversal, webhook replay, RBAC, tenant isolation and reconciliation passed.
+  Unexpected5xx=0; critical/serious accessibility findings=0; skipped=0.
+  Protected operator receipt: `cpo-repair-preview-result.json`.
+  This proof does not apply to later source commits.
+- Actual isolated restore operation9f2bee06d44d7e531a7ffb40344a2605 verified
+  all53 synthetic tables and row digests in UTC, no-op and schema parity. The
+  earlier digest discrepancy was session time-zone serialization, not missing
+  rows. Production was not a restore target and no unknown remote rows were
+  deleted. Previous checkpoints remain historical.
+- Full local gate `td-agent-cpo-gate-6XESS4` passed diff/lint/typecheck and
+  unit252/252, then failed canonical integration154/157, skipped=0. Two failures
+  expired the unchanged transaction deadline; one rate-limit test consumed its
+  real SQL60-second window while repeatedly calculating password hashes.
+  Build/E2E later in this attempt did not execute. Narrow unchanged Case/
+  operations rerun passed29/29 with both schemas removed; this does not erase
+  the failed full run or establish a final concurrency verdict.
+- The SQL window test now isolates ten rejected verifier results while retaining
+  the real persistent limiter, real eleventh login and subsequent password/MFA
+  checks. Targeted policy activation PostgreSQL suite passed6/6, skipped=0,
+  with owned schema removal (`cpo-mfa-window-idoVwv/test.log`). No security
+  parameters, limiter policy or transaction deadlines changed.
+- Independent local auth-budget diagnostic `cpo-local-auth-budget-UpP85X`
+  reproduced200 -> exhausted owned IP429 -> distinct client200 -> original
+  IP429. Original counters/reset and account limiter remained protected.
+  Logout, process stop and owned-schema cleanup passed. It reused an existing
+  build with unchanged auth paths, not a fresh full-runtime build. A redundant
+  diagnostic `mqBBNl` stopped at local DB readiness, before fixture writes;
+  cleanup passed. Neither run proves the original CI HTTP status, which was not
+  recorded by that failed job.
+- Browser test clients now receive independent documentation IPv6 proxy
+  identities only on bare HTTP loopback. Deployed Preview/Production requests
+  are unchanged. Focused secret-policy and identity tests passed9/9, skipped=0.
+  Independent source review found no P0/P1; its status-before-JSON diagnostic P2
+  was corrected. Final browser execution and exact-head CI remain required.
+- New CPO09/CPO10 payer-lifecycle and delivery-consent server regressions are
+  under verification in an isolated worktree, not declared PASS here.
+- No Production writes, configuration, migrations, merge or deployment were
+  performed in this continuation. Human verdicts remain PENDING; broad rollout
+  remains restricted and M4 remains NOT_STARTED.
+- Subsequent local browser rework `td-agent-cpo-gate-iiWSuj` passed diff, lint,
+  typecheck, build, migration/no-op/parity, encrypted real53-table fixture
+  restore, CPO browser journey, actual auth-infrastructure failure/recovery and
+  component browser suites. Cleanup PASS. CPO widths1365/390/195 had no
+  horizontal overflow, clipped navigation or critical/serious axe findings;
+  screenshots were inspected. This scope did not rerun full unit/integration
+  suites and is not deployed UAT.
+- CPO09/CPO10 six new PostgreSQL regressions passed in the detached review
+  worktree. Both-file total18/19 remained FAIL because the pre-existing CPO24
+  initial publish expired at6553ms against the unchanged5000ms deadline.
+  Its root cause is not declared proven by the coincident host load304.
+  Receipt `/tmp/td-cpo09-cpo10-pg-review-944.md` records both runs and all four
+  owned schemas absent. Independent review confirmed meaningful lifecycle,
+  concurrent payer mutation,22 recipient denials and expanded no-write checks.
+  The reviewed test diff is now imported; final canonical PostgreSQL rerun is
+  pending. No existing assertion, deadline or application behavior was weakened.
+- Fresh read-only deployment verification confirmed serving87550178,
+  `dpl_8rqT8aRp2x75wfxHVpmJBaMigytY`, READY, login page200 and production-only
+  `RELEASE_WRITE_FREEZE=disabled`. An initial Vercel metadata403 was resolved
+  through normal CLI identity refresh; no alternate Production credential or
+  denied provisioning route was used.

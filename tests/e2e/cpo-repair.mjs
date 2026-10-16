@@ -5,6 +5,7 @@ import { mkdtemp, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { createLocalClientHeaders } from "./localClientIdentity.mjs";
 
 let browser;
 const contexts = [];
@@ -39,6 +40,7 @@ assert.notEqual(fixture.fingerprint, "0257665af2dd90a4", "Known production targe
 assert.equal(fixture.fingerprint, process.env.EXPECTED_DATABASE_FINGERPRINT);
 assert.notEqual(fixture.fingerprint, process.env.M3_PRODUCTION_DATABASE_FINGERPRINT);
 const loopback = ["localhost", "127.0.0.1"].includes(targetUrl.hostname);
+const nextLocalClientHeaders = createLocalClientHeaders(origin);
 assert.equal(fixture.local, loopback, "Browser origin and fixture target must share local/remote provenance");
 if (!(loopback && fixture.local === true && fixture.database === "td_agent_test" && fixture.schema === "public")) assert.match(fixture.schema, /^m3_cpo_repair_[a-z0-9_]+$/);
 assert.equal(fixture.schema, process.env.M3_CPO_REPAIR_SCHEMA);
@@ -74,7 +76,8 @@ const correctionBody = { ceremonyType: "погребение", scenarioCorrectio
 
 async function session() {
   const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow",
-    ...(process.env.E2E_PROTECTION_BYPASS ? { extraHTTPHeaders: { "x-vercel-protection-bypass": process.env.E2E_PROTECTION_BYPASS } } : {}) });
+    extraHTTPHeaders: { ...nextLocalClientHeaders(),
+      ...(process.env.E2E_PROTECTION_BYPASS ? { "x-vercel-protection-bypass": process.env.E2E_PROTECTION_BYPASS } : {}) } });
   contexts.push(context);
   const page = await context.newPage();
   page.on("pageerror", () => failures.push("Browser page error"));
@@ -95,6 +98,7 @@ async function login(page, email, secret, landing) {
   let pending = observeLegacyPromise(page.waitForResponse((response) => new URL(response.url()).pathname === "/api/agent/auth/login" && response.request().method() === "POST"));
   await page.locator('form button[type="submit"]').click();
   let response = await pending;
+  if (response.status() !== 200) console.error(`E2E_CPO_LOGIN_STATUS ${response.status()} phase=PASSWORD`);
   const body = await response.json();
   if (secret) {
     assert.equal(body.mfaRequired, true, "MFA challenge required for protected identity");
@@ -102,6 +106,7 @@ async function login(page, email, secret, landing) {
     pending = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === "/api/agent/auth/login" && next.request().method() === "POST"));
     await page.locator('form button[type="submit"]').click();
     response = await pending;
+    if (response.status() !== 200) console.error(`E2E_CPO_LOGIN_STATUS ${response.status()} phase=MFA`);
   }
   assert.equal(response.status(), 200, "Authenticated fixture login must succeed");
   await observeLegacyPromise(page.waitForURL((url) => url.pathname === landing));

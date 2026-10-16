@@ -22,6 +22,8 @@ import {
 import { OperationalCommandError } from "../../lib/operationalTransaction";
 import { GET as getMeetingQuoteRoute } from "../../app/api/agent/meeting/[meetingId]/quote/route";
 import { POST as requestClientChanges } from "../../app/api/co/[code]/request-changes/route";
+import { POST as publishQuoteRoute } from "../../app/api/agent/quotes/[quoteId]/publish/route";
+import { createCaseParty, type CasePartyInput } from "../../lib/casePartyService";
 import {
   createFixtureContext,
   db,
@@ -107,6 +109,129 @@ async function makeCommercialMeeting(owner: FixtureMember, caseId: string, leadI
     },
   });
 }
+
+async function recipientPublishState(owner: FixtureMember, caseId: string, quoteId: number) {
+  return {
+    quote: await db.quote.findUniqueOrThrow({ where: { id: quoteId } }),
+    versions: await db.quoteVersion.findMany({ where: { quoteId }, include: { lineItems: { orderBy: { id: "asc" } } }, orderBy: { id: "asc" } }),
+    decisions: await db.quoteClientDecision.findMany({ where: { quoteVersion: { quoteId } }, orderBy: { id: "asc" } }),
+    links: await db.quoteClientLink.findMany({ where: { quoteVersion: { quoteId } }, orderBy: { id: "asc" } }),
+    presentations: await db.quotePresentationSession.findMany({ where: { quoteId }, orderBy: { id: "asc" } }),
+    case: await db.case.findUniqueOrThrow({ where: { id: caseId } }),
+    events: await db.caseEvent.findMany({ where: { caseId }, orderBy: { id: "asc" } }),
+    tasks: await db.task.findMany({ where: { caseId }, orderBy: { id: "asc" } }),
+    projections: await db.projectionReceipt.findMany({ where: { organizationId: owner.organizationId }, orderBy: { id: "asc" } }),
+    parties: await db.caseParty.findMany({ where: { caseId }, include: { roles: { orderBy: { id: "asc" } } }, orderBy: { id: "asc" } }),
+    audits: await db.operationalAuditEvent.findMany({ where: { organizationId: owner.organizationId }, orderBy: { id: "asc" } }),
+  };
+}
+
+function syntheticRecipient(channel: "EMAIL" | "MESSENGER", overrides: Partial<CasePartyInput> = {}): CasePartyInput {
+  return { name: "Synthetic consent recipient", phone: "+79160000002", email: "recipient@synthetic.invalid",
+    roles: ["ADDITIONAL_CONTACT"], preferredChannel: channel, consentStatus: "GRANTED",
+    consentSource: "SYNTHETIC_TEST_ONLY_NOT_A_LEGAL_VERDICT", consentAt: new Date(Date.now() - 1000),
+    visibilityPolicy: "CASE_TEAM", ...overrides };
+}
+
+test("CPO10: API email/messenger publish rejects unauthorized recipient or consent without business writes", opts, async () => {
+  const fixtures = createFixtureContext("cpo-recipient-denials");
+  try {
+    const owner = await fixtures.makeAgent("owner");
+    const foreign = await fixtures.makeAgent("foreign");
+    const record = await fixtures.makeCase(owner, "recipient-quote");
+    const wrongCase = await fixtures.makeCase(owner, "wrong-recipient-case");
+    const foreignCase = await fixtures.makeCase(foreign, "foreign-recipient-case");
+    await db.case.update({ where: { id: record.id }, data: { stage: "QUOTING", scenarioId: "CREMATION_V1" } });
+    const meeting = await makeCommercialMeeting(owner, record.id, record.leadId, fixtures.runId);
+    const draft = await saveCommercialDraft({ meetingId: meeting.id, scenario: "CREMATION_V1", lines: [knownLine("recipient:service", "CREMATION_V1")], context: owner.context, meta: meta(fixtures.runId, "draft") });
+    await markCommercialQuoteInReview({ quoteId: draft.quoteId, context: owner.context, meta: meta(fixtures.runId, "review") });
+    const cookie = await sessionCookieHeader(owner.userId, owner.agentId);
+    const validUntil = new Date(Date.now() + 86400000).toISOString();
+    for (const channel of ["email", "messenger"] as const) {
+      const preferred = channel === "email" ? "EMAIL" : "MESSENGER";
+      const wrong = await createCaseParty(owner.context, wrongCase.id, syntheticRecipient(preferred), meta(fixtures.runId, `${channel}-wrong-case`));
+      const outside = await createCaseParty(foreign.context, foreignCase.id, syntheticRecipient(preferred), meta(fixtures.runId, `${channel}-foreign`));
+      const attempts: { label: string; recipientPartyId?: string }[] = [
+        { label: "missing" }, { label: "not-found", recipientPartyId: `missing-${fixtures.runId}` },
+        { label: "foreign", recipientPartyId: outside.partyId }, { label: "wrong-case", recipientPartyId: wrong.partyId },
+      ];
+      const invalid: { label: string; overrides: Partial<CasePartyInput> }[] = [
+        ...(["WITHDRAWN", "RESTRICTED", "UNKNOWN", "NOT_REQUESTED"] as const).map((consentStatus) => ({ label: consentStatus, overrides: { consentStatus } })),
+        { label: "none-channel", overrides: { preferredChannel: "NONE" } },
+        { label: "wrong-channel", overrides: { preferredChannel: channel === "email" ? "MESSENGER" : "EMAIL" } },
+        { label: "missing-contact", overrides: {} },
+      ];
+      for (const entry of invalid) {
+        const party = await createCaseParty(owner.context, record.id, syntheticRecipient(preferred, entry.overrides), meta(fixtures.runId, `${channel}-party-${entry.label}`));
+        if (entry.label === "missing-contact") {
+          // Canonical creation disallows missing contact. Inject only this owned legacy row
+          // to prove publish revalidates stored contact rather than trusting create-time checks.
+          const legacy = await db.caseParty.update({ where: { id: party.partyId },
+            data: channel === "email" ? { emailEncrypted: null } : { phoneEncrypted: null } });
+          assert.equal(legacy.consentStatus, "GRANTED");
+          assert.equal(legacy.preferredChannel, preferred);
+          assert.equal(channel === "email" ? legacy.emailEncrypted : legacy.phoneEncrypted, null);
+        }
+        attempts.push({ label: entry.label, recipientPartyId: party.partyId });
+      }
+      const beforeState = await recipientPublishState(owner, record.id, draft.quoteId);
+      for (const attempt of attempts) {
+        const command = meta(fixtures.runId, `${channel}-deny-${attempt.label}`);
+        const response = await publishQuoteRoute(makeRequest(`/api/agent/quotes/${draft.quoteId}/publish`, {
+          method: "POST", cookie, body: { validUntil, channel, reason: "Synthetic recipient guard regression", recipientPartyId: attempt.recipientPartyId },
+          headers: { "Idempotency-Key": command.idempotencyKey, "X-Correlation-Id": command.correlationId },
+        }), { params: Promise.resolve({ quoteId: String(draft.quoteId) }) });
+        assert.equal(response.status, 422, `${channel}/${attempt.label}`);
+        assert.match((await response.json()).error, /действующим согласием и соответствующим каналом связи/, `${channel}/${attempt.label}`);
+        assert.deepEqual(await recipientPublishState(owner, record.id, draft.quoteId), beforeState, `${channel}/${attempt.label} must not mutate quote/version/lines/decision/link/presentation/case/events/tasks/projection/party/audit`);
+      }
+    }
+  } finally { await fixtures.cleanup(); await fixtures.assertNoResidue(); }
+});
+
+test("CPO10: canonical EMAIL/MESSENGER publish is synthetic, replays stably and changed recipient conflicts", opts, async () => {
+  for (const channel of ["email", "messenger"] as const) {
+    const fixtures = createFixtureContext(`cpo-recipient-positive-${channel}`);
+    try {
+      const owner = await fixtures.makeAgent("owner");
+      const record = await fixtures.makeCase(owner, "recipient-publish");
+      await db.case.update({ where: { id: record.id }, data: { stage: "QUOTING", scenarioId: "CREMATION_V1" } });
+      const preferred = channel === "email" ? "EMAIL" : "MESSENGER";
+      const recipient = await createCaseParty(owner.context, record.id, syntheticRecipient(preferred), meta(fixtures.runId, "recipient"));
+      const alternate = await createCaseParty(owner.context, record.id, syntheticRecipient(preferred, { name: "Synthetic alternate recipient" }), meta(fixtures.runId, "alternate"));
+      const meeting = await makeCommercialMeeting(owner, record.id, record.leadId, fixtures.runId);
+      const draft = await saveCommercialDraft({ meetingId: meeting.id, scenario: "CREMATION_V1", lines: [knownLine("recipient:service", "CREMATION_V1")], context: owner.context, meta: meta(fixtures.runId, "draft") });
+      await markCommercialQuoteInReview({ quoteId: draft.quoteId, context: owner.context, meta: meta(fixtures.runId, "review") });
+      const command = meta(fixtures.runId, "publish");
+      const body = { validUntil: new Date(Date.now() + 86400000).toISOString(), channel, reason: "Synthetic publish metadata only; no outreach", recipientPartyId: recipient.partyId };
+      const cookie = await sessionCookieHeader(owner.userId, owner.agentId);
+      const invoke = (recipientPartyId: string) => publishQuoteRoute(makeRequest(`/api/agent/quotes/${draft.quoteId}/publish`, {
+        method: "POST", cookie, body: { ...body, recipientPartyId },
+        headers: { "Idempotency-Key": command.idempotencyKey, "X-Correlation-Id": command.correlationId },
+      }), { params: Promise.resolve({ quoteId: String(draft.quoteId) }) });
+      const response = await invoke(recipient.partyId);
+      assert.equal(response.status, 200);
+      const published = await response.json();
+      assert.equal(published.replayed, false);
+      const version = await db.quoteVersion.findUniqueOrThrow({ where: { id: published.quoteVersionId } });
+      assert.equal(version.state, "PUBLISHED"); assert.equal(version.publishChannel, channel);
+      assert.equal(await db.quoteVersion.count({ where: { quoteId: draft.quoteId, state: "PUBLISHED" } }), 1);
+      const audit = await db.operationalAuditEvent.findUniqueOrThrow({ where: { organizationId_idempotencyKey: {
+        organizationId: owner.organizationId, idempotencyKey: `quote:publish:${command.idempotencyKey}`,
+      } } });
+      assert.equal((audit.after as { recipientPartyId: string }).recipientPartyId, recipient.partyId);
+      const afterPublish = await recipientPublishState(owner, record.id, draft.quoteId);
+      const replay = await invoke(recipient.partyId);
+      assert.equal(replay.status, 200);
+      assert.deepEqual(await replay.json(), { ...published, replayed: true });
+      assert.deepEqual(await recipientPublishState(owner, record.id, draft.quoteId), afterPublish);
+      const conflict = await invoke(alternate.partyId);
+      assert.equal(conflict.status, 409);
+      assert.equal((await conflict.json()).code, "IDEMPOTENCY_CONFLICT");
+      assert.deepEqual(await recipientPublishState(owner, record.id, draft.quoteId), afterPublish);
+    } finally { await fixtures.cleanup(); await fixtures.assertNoResidue(); }
+  }
+});
 
 test("M2 canonical draft, review, publish and client decision preserve immutable versions", opts, async () => {
   const fixtures = createFixtureContext("m2-commercial-life");

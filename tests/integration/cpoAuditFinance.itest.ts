@@ -4,12 +4,13 @@ import { GET as readPayments } from "../../app/api/agent/cases/[caseId]/payments
 import { POST as contractCommand } from "../../app/api/agent/cases/[caseId]/contract/route";
 import { POST as createLead } from "../../app/api/agent/leads/route";
 import { POST as transitionCommand } from "../../app/api/agent/cases/[caseId]/transition/route";
+import { PATCH as updatePartyRoute } from "../../app/api/agent/cases/[caseId]/parties/[partyId]/route";
 import {
   createContractVersion, decideLedgerAdjustment, getPaymentSummary,
   issueContractVersion, recordManualPayment, recordRefund,
   requestLedgerAdjustment, signContractVersion,
 } from "../../lib/contractLedgerService";
-import { createCaseParty } from "../../lib/casePartyService";
+import { createCaseParty, updateCaseParty, type CasePartyInput } from "../../lib/casePartyService";
 import { getCanonicalCase } from "../../lib/caseReadModel";
 import { transitionCase } from "../../lib/caseService";
 import { advanceCaseFulfilment } from "../../lib/caseFulfilment";
@@ -176,6 +177,116 @@ async function signedContract(label: string, documentsReady = false) {
   const signed = await signContractVersion(agent.context, signature(state.contractVersionId), meta("sign"));
   return { ...state, ...signed };
 }
+
+function payerChange(roles: CasePartyInput["roles"]): CasePartyInput {
+  return { name: PRIVATE_PAYER, phone: "+79160000001", email: "private-payer@synthetic.invalid",
+    roles, preferredChannel: "NONE", consentStatus: "NOT_REQUESTED", visibilityPolicy: "FINANCE_LIMITED" };
+}
+
+async function payerBoundaryState(record: FixtureCase, payerId: string) {
+  return {
+    party: await db.caseParty.findUniqueOrThrow({ where: { id: payerId } }),
+    roles: await db.casePartyRoleAssignment.findMany({ where: { casePartyId: payerId }, orderBy: { id: "asc" } }),
+    case: await db.case.findUniqueOrThrow({ where: { id: record.id } }),
+    contractRoots: await db.contract.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    contracts: await db.contractVersion.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    obligations: await db.paymentObligation.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    ledger: await db.paymentLedgerEntry.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    events: await db.caseEvent.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    requirements: await db.caseDocumentRequirement.findMany({ where: { caseId: record.id }, orderBy: { id: "asc" } }),
+    audits: await db.operationalAuditEvent.findMany({ where: { organizationId: agent.organizationId }, orderBy: { id: "asc" } }),
+  };
+}
+
+test("CPO09: issued and signed bound PAYER removal is 409 through API with no state or audit writes", opts, async () => {
+  const ownerCookie = await cookie(agent);
+  for (const status of ["ISSUED", "SIGNED"] as const) {
+    const state = await draftContract(`payer-bound-${status}`);
+    await issueContractVersion(agent.context, state.contractVersionId, meta(`payer-${status}-issue`));
+    if (status === "SIGNED") await signContractVersion(agent.context, signature(state.contractVersionId), meta("payer-bound-sign"));
+    const beforeState = await payerBoundaryState(state.record, state.payerId);
+    assert.equal(beforeState.contracts.find((version) => version.id === state.contractVersionId)?.status, status);
+    const command = meta(`payer-${status}-remove`);
+    const invoke = () => updatePartyRoute(makeRequest(`/api/agent/cases/${state.record.leadId}/parties/${state.payerId}`, {
+      method: "PATCH", cookie: ownerCookie, body: payerChange(["ADDITIONAL_CONTACT"]),
+      headers: { "Idempotency-Key": command.idempotencyKey, "X-Correlation-Id": command.correlationId },
+    }), { params: Promise.resolve({ caseId: String(state.record.leadId), partyId: state.payerId }) });
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await invoke();
+      assert.equal(response.status, 409);
+      assert.match((await response.json()).error, /Плательщик закреплён в выданном договоре/);
+      assert.deepEqual(await payerBoundaryState(state.record, state.payerId), beforeState);
+    }
+  }
+});
+
+test("CPO09: multiple active payers are allowed and an unbound draft payer can change role", opts, async () => {
+  const state = await draftContract("payer-unbound");
+  const other = await createCaseParty(agent.context, state.record.id, { ...payerChange(["PAYER", "APPLICANT"]), name: "Synthetic second payer" }, meta("second-payer"));
+  assert.equal(await db.casePartyRoleAssignment.count({ where: { caseParty: { caseId: state.record.id }, role: "PAYER", validUntil: null } }), 2);
+  const command = meta("unbound-role-change");
+  const changed = await updateCaseParty(agent.context, state.record.id, state.payerId, payerChange(["ADDITIONAL_CONTACT"]), command);
+  assert.equal(changed.partyId, state.payerId);
+  assert.equal(changed.replayed, false);
+  assert.deepEqual(await updateCaseParty(agent.context, state.record.id, state.payerId, payerChange(["ADDITIONAL_CONTACT"]), command), { ...changed, replayed: true });
+  assert.equal(await db.casePartyRoleAssignment.count({ where: { casePartyId: state.payerId, role: "PAYER", validUntil: null } }), 0);
+  assert.equal(await db.casePartyRoleAssignment.count({ where: { casePartyId: other.partyId, role: "PAYER", validUntil: null } }), 1);
+  assert.equal((await db.contractVersion.findUniqueOrThrow({ where: { id: state.contractVersionId } })).status, "DRAFT");
+});
+
+test("CPO09: injected payer-role drift blocks ISSUE and SIGN atomically and reconciles issued contract drift", opts, async () => {
+  const state = await draftContract("payer-role-drift");
+  const ownerCookie = await cookie(agent);
+  const expirePayer = () => db.casePartyRoleAssignment.updateMany({
+    where: { casePartyId: state.payerId, role: "PAYER", validUntil: null },
+    data: { validFrom: new Date(Date.now() - 2000), validUntil: new Date(Date.now() - 1000) },
+  });
+  for (const action of ["ISSUE", "SIGN"] as const) {
+    // Deliberate out-of-band corruption, not an application command: exercises revalidation.
+    assert.equal((await expirePayer()).count, 1);
+    const beforeState = await payerBoundaryState(state.record, state.payerId);
+    const command = meta(`drift-${action}`);
+    const response = await contractCommand(makeRequest(`/api/agent/cases/${state.record.leadId}/contract`, {
+      method: "POST", cookie: ownerCookie,
+      body: action === "ISSUE" ? { action, contractVersionId: state.contractVersionId } : { action, ...signature(state.contractVersionId) },
+      headers: { "Idempotency-Key": command.idempotencyKey, "X-Correlation-Id": command.correlationId },
+    }), { params: Promise.resolve({ caseId: String(state.record.leadId) }) });
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /Роль плательщика изменилась/);
+    assert.deepEqual(await payerBoundaryState(state.record, state.payerId), beforeState);
+    const reconciliation = await reconcileM3Case(manager.context, state.record.id);
+    assert.equal(reconciliation.discrepancies.some((item) => item.code === "CONTRACT_PAYER_DRIFT" && item.entityId === state.contractVersionId), action === "SIGN",
+      "payer drift is reported for the issued contract, not an unissued draft");
+    if (action === "ISSUE") {
+      await updateCaseParty(agent.context, state.record.id, state.payerId, payerChange(["PAYER"]), meta("restore-draft-payer"));
+      await issueContractVersion(agent.context, state.contractVersionId, meta("issue-restored-payer"));
+    }
+  }
+});
+
+test("CPO09: concurrent ISSUE and payer removal cannot both commit or leave issued payer drift", opts, async () => {
+  const state = await draftContract("payer-issue-race");
+  const issueMeta = meta("race-issue");
+  const removeMeta = meta("race-remove");
+  const results = await Promise.allSettled([
+    issueContractVersion(agent.context, state.contractVersionId, issueMeta),
+    updateCaseParty(agent.context, state.record.id, state.payerId, payerChange(["ADDITIONAL_CONTACT"]), removeMeta),
+  ]);
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1, "exactly one conflicting command commits");
+  const rejected = results.find((result) => result.status === "rejected");
+  assert.ok(rejected?.status === "rejected" && rejected.reason instanceof OperationalCommandError && rejected.reason.status === 409);
+  const issued = results[0].status === "fulfilled";
+  assert.equal((await db.contractVersion.findUniqueOrThrow({ where: { id: state.contractVersionId } })).status, issued ? "ISSUED" : "DRAFT");
+  assert.equal(await db.casePartyRoleAssignment.count({ where: { casePartyId: state.payerId, role: "PAYER", validUntil: null } }), issued ? 1 : 0);
+  for (const [index, command] of [issueMeta, removeMeta].entries()) {
+    assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: agent.organizationId, idempotencyKey: command.idempotencyKey } }), results[index].status === "fulfilled" ? 1 : 0);
+  }
+  assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: agent.organizationId,
+    idempotencyKey: serverCommandKey("db-auth-contract", `${issueMeta.idempotencyKey}:${state.contractVersionId}:issue`),
+    action: "m3.lifecycle_transition_authorized.v1",
+  } }), issued ? 1 : 0);
+  assert.equal((await reconcileM3Case(manager.context, state.record.id)).discrepancies.some((item) => item.code === "CONTRACT_PAYER_DRIFT"), false);
+});
 
 async function verifyDocuments(record: FixtureCase) {
   const requirements = await db.caseDocumentRequirement.findMany({ where: { caseId: record.id, isApplicable: true } });
