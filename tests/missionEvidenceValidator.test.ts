@@ -21,16 +21,21 @@ const SOURCE_CI_REQUIRED_STEPS = [
   "Lint",
   "Typecheck",
   "Unit tests",
+  "M3 intake deadline regression with 80ms network round-trip delay",
   "Integration tests",
   "Repeat M3 concurrency and policy gates five times",
   "Provision isolated M1 browser UAT fixture",
   "Provision isolated M1 RBAC Hardening browser UAT fixture",
   "Provision isolated M3 browser UAT fixture",
+  "Provision isolated CPO repair browser fixture",
   "Verify encrypted production-like backup and real restore",
   "Production build",
   "Start production server",
   "Wait for server",
   "End-to-end tests",
+  "Auth infrastructure failure and recovery browser regression",
+  "Document component browser regressions",
+  "Cleanup isolated CPO repair browser fixture",
   "Cleanup isolated M3 browser UAT fixture",
   "Cleanup isolated M1 browser UAT fixture",
   "Cleanup isolated M1 RBAC Hardening browser UAT fixture",
@@ -204,6 +209,22 @@ test("M3 human packets and machine sign-offs control every terminal state", () =
     const unverifiedCi = runValidator(fixture.root);
     assert.notEqual(unverifiedCi.status, 0);
     assert.match(unverifiedCi.stderr, /source CI attestation unavailable/);
+
+    writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
+    for (const step of [
+      "M3 intake deadline regression with 80ms network round-trip delay",
+      "Provision isolated CPO repair browser fixture",
+      "Auth infrastructure failure and recovery browser regression",
+      "Document component browser regressions",
+      "Cleanup isolated CPO repair browser fixture",
+    ]) {
+      const omitted = runValidator(fixture.root, { omittedSourceStep: step });
+      assert.notEqual(omitted.status, 0, `missing source gate: ${step}`);
+      assert.ok(omitted.stderr.includes(step));
+      const failed = runValidator(fixture.root, { failedSourceStep: step });
+      assert.notEqual(failed.status, 0, `failed source gate: ${step}`);
+      assert.ok(failed.stderr.includes(step));
+    }
 
     writeEvidenceFiles(fixture.root, releaseReadyState(), fixture.implementationSha);
     const staleSchema = JSON.parse(readFileSync(signoffsPath, "utf8"));
@@ -550,7 +571,7 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-function runValidator(cwd: string, options: { trustSignoffs?: boolean } = {}) {
+function runValidator(cwd: string, options: { trustSignoffs?: boolean; omittedSourceStep?: string; failedSourceStep?: string } = {}) {
   const evidenceDir = join(cwd, "docs", "evidence", "missions", "M3");
   const signoffs = JSON.parse(readFileSync(join(evidenceDir, "human-signoffs.json"), "utf8"));
   const keyFor = (key: keyof typeof CHECKLISTS) => signoffs.gates[key].attestation?.signature?.keyFingerprint ?? "";
@@ -571,7 +592,8 @@ function runValidator(cwd: string, options: { trustSignoffs?: boolean } = {}) {
           name: "verify",
           conclusion: "success",
           steps: [
-            ...SOURCE_CI_REQUIRED_STEPS.map((name) => ({ name, status: "completed", conclusion: "success" })),
+            ...SOURCE_CI_REQUIRED_STEPS.filter((name) => name !== options.omittedSourceStep)
+              .map((name) => ({ name, status: "completed", conclusion: name === options.failedSourceStep ? "failure" : "success" })),
             { name: "Validate authoritative mission evidence", status: "completed", conclusion: "success" },
           ],
         }],
