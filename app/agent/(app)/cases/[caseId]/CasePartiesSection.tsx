@@ -69,7 +69,7 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
     abort.current = new AbortController();
     return () => { active.current = false; abort.current?.abort(); };
   }, []);
-  const [pendingAcknowledgement, setPendingAcknowledgement] = useState(false);
+  const [pendingAcknowledgement, setPendingAcknowledgement] = useState<"create" | "update" | null>(null);
   const [savedParties, setSavedParties] = useState<CasePartyItem[]>([]);
   const [previousParties, setPreviousParties] = useState(parties);
   const [pendingSync, setPendingSync] = useState<{ partyId: string } | null>(null);
@@ -148,17 +148,17 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
       const result = await response.json().catch(() => null) as { error?: string; partyId?: string } | null;
       if (!active.current) return;
       if (!response.ok) {
-        if (response.status >= 500) setPendingAcknowledgement(true);
-        else { pendingCreate.current = null; setPendingAcknowledgement(false); }
+        if (response.status >= 500) setPendingAcknowledgement("create");
+        else { pendingCreate.current = null; setPendingAcknowledgement(null); }
         throw new Error(result?.error || "Участник не сохранён");
       }
       if (typeof result?.partyId !== "string" || !result.partyId.trim()) {
-        setPendingAcknowledgement(true);
+        setPendingAcknowledgement("create");
         throw new Error("Сохранение не подтверждено. Повторите сохранение: будет отправлена та же команда.");
       }
       formElement.reset();
       pendingCreate.current = null;
-      setPendingAcknowledgement(false);
+      setPendingAcknowledgement(null);
       setNewPartyRoles([]);
       setOpen(false);
       const sync = { partyId: result.partyId };
@@ -167,7 +167,7 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
         setError("Участник сохранён, но список недоступен. Повторите синхронизацию.");
       }
     } catch (cause) {
-      if (pendingCreate.current) setPendingAcknowledgement(true);
+      if (pendingCreate.current) setPendingAcknowledgement("create");
       setError(cause instanceof Error ? cause.message : "Участник не сохранён");
     } finally {
       submitting.current = false;
@@ -208,23 +208,23 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
       const result = await response.json().catch(() => null) as { error?: string; partyId?: string } | null;
       if (!active.current) return;
       if (!response.ok) {
-        if (response.status >= 500) setPendingAcknowledgement(true);
-        else { pendingUpdate.current = null; setPendingAcknowledgement(false); }
+        if (response.status >= 500) setPendingAcknowledgement("update");
+        else { pendingUpdate.current = null; setPendingAcknowledgement(null); }
         throw new Error(result?.error || "Изменения не сохранены");
       }
       if (result?.partyId !== party.id) {
-        setPendingAcknowledgement(true);
+        setPendingAcknowledgement("update");
         throw new Error("Сохранение не подтверждено. Повторите сохранение: будет отправлена та же команда.");
       }
       pendingUpdate.current = null;
-      setPendingAcknowledgement(false);
+      setPendingAcknowledgement(null);
       setEditingId(null);
       setPendingSync({ partyId: party.id });
       try { await synchronize(party.id); } catch {
         setError("Участник сохранён, но список недоступен. Повторите синхронизацию.");
       }
     } catch (cause) {
-      if (pendingUpdate.current) setPendingAcknowledgement(true);
+      if (pendingUpdate.current) setPendingAcknowledgement("update");
       setError(cause instanceof Error ? cause.message : "Изменения не сохранены");
     } finally {
       submitting.current = false;
@@ -237,7 +237,7 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3">
         <p className="text-[12px] leading-relaxed text-ink-3">Участников: {visibleParties.length}</p>
         {canMutate && (
-          <Button type="button" size="sm" variant="secondary" disabled={busy || !!pendingSync || pendingAcknowledgement} onClick={() => setOpen((value) => !value)}>
+          <Button type="button" size="sm" variant="secondary" disabled={busy || !!pendingSync || !!pendingAcknowledgement} onClick={() => setOpen((value) => !value)}>
             <UserPlus size={15} weight="bold" /> {open ? "Закрыть форму" : "Добавить участника"}
           </Button>
         )}
@@ -247,7 +247,7 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
       {pendingSync && <Button type="button" size="sm" variant="secondary" loading={busy} onClick={retrySynchronization}>Повторить синхронизацию</Button>}
       {open && (
         <form onSubmit={submit} onChange={() => { if (!pendingAcknowledgement) pendingCreate.current = null; }} className="grid gap-4 bg-surface-2 p-4" aria-label="Добавить участника кейса">
-          <fieldset disabled={busy || pendingAcknowledgement} className="grid gap-4">
+          <fieldset disabled={busy || !!pendingAcknowledgement} className="grid gap-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label>
               <span className="td-field-label">Имя</span>
@@ -317,7 +317,7 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
             </label>
           </div>
           </fieldset>
-          <div><Button type="submit" size="sm" loading={busy} disabled={!!pendingUpdate.current}>Сохранить участника</Button></div>
+          <div><Button type="submit" size="sm" loading={busy} disabled={pendingAcknowledgement === "update"}>Сохранить участника</Button></div>
         </form>
       )}
 
@@ -337,12 +337,12 @@ function CasePartiesContent({ caseId, parties, canMutate, timezone }: CasePartie
                   <p className="mt-1 text-[11px] text-ink-3">Согласие: {CONSENT_LABELS[party.consentStatus] ?? party.consentStatus}</p>
                 </div>
                 {canMutate && (
-                  <button type="button" disabled={busy || !!pendingSync || pendingAcknowledgement} className={buttonClasses({ variant: "secondary", size: "sm", className: "h-11 w-11 p-0" })} onClick={() => setEditingId(editingId === party.id ? null : party.id)} aria-label={`Изменить ${party.name}`}>
+                  <button type="button" disabled={busy || !!pendingSync || !!pendingAcknowledgement} className={buttonClasses({ variant: "secondary", size: "sm", className: "h-11 w-11 p-0" })} onClick={() => setEditingId(editingId === party.id ? null : party.id)} aria-label={`Изменить ${party.name}`}>
                     <PencilSimple size={15} />
                   </button>
                 )}
               </div>
-              {editingId === party.id && <PartyEditForm party={party} timezone={timezone} busy={busy} locked={pendingAcknowledgement} onCancel={() => setEditingId(null)} onSubmit={(event) => submitUpdate(event, party)} />}
+              {editingId === party.id && <PartyEditForm party={party} timezone={timezone} busy={busy} locked={!!pendingAcknowledgement} onCancel={() => setEditingId(null)} onSubmit={(event) => submitUpdate(event, party)} />}
             </li>
           ))}
         </ul>
