@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: legalPrivacy
-preview_url: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5
-deployment_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
-implementation_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
+preview_url: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg
+deployment_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
+implementation_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,12 +15,12 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-PR36 / base875 technical candidate, 2026-10-17. Both authenticated synthetic journeys passed on this exact runtime. Technical PASS is not this human gate's approval; all checklist answers and attestations remain awaiting. Current CPO release NOT_PERFORMED; Production unchanged875 with freeze disabled. Prior packet is archived in historical/pre-pr36-b0-packet-20261017. Protected fixture credentials remain retained outside Git; browser logout is not credential destruction.
+PR37 / base055 technical candidate,2026-10-17. Actual exacte9 Preview journeys passed; this does not approve any human checklist. PR36 release failed and is recorded in INCIDENT-PR36-20261017.md. Current serving875 is rebuilt/frozen; PR37 release pending. Protected synthetic material retained; no credentials in this packet.
 
 
-- Exact Preview: `https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`
-- Implementation: `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4`
+- Exact Preview: `https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`
+- Implementation: `e9c23c516adf4b136b94a8825ec1cc45626b66a0`
 - Case-party contacts use the existing encrypted adapter and stable role assignments.
 - Document storage is private, server-authorized, audited, and short lived; permanent URLs are absent.
 - Upload is quarantined and is never represented as verified.

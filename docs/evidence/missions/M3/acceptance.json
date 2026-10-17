@@ -6,19 +6,19 @@
       "id": "M3-W7-01",
       "status": "PASS",
       "requirement": "Stable Case parties support multiple effective family roles, consent provenance, encrypted contact data, and tenant ownership.",
-      "evidence": "CPO09 payer lifecycle regression, multiple roles, canonical saved-DTO/list recovery and authoritative readback; unit/integration and dedicated Parties browser passed in exact b0 CI. Cumulative review chain and current registry record boundaries."
+      "evidence": "CPO09 payer lifecycle regression, multiple roles, canonical saved-DTO/list recovery and authoritative readback; unit/integration and dedicated Parties browser passed in exact e9 CI. Cumulative review chain and current registry record boundaries."
     },
     {
       "id": "M3-W7-02",
       "status": "PASS",
       "requirement": "Versioned cremation and relative-burial requirement policies differ and unapproved policy fails closed.",
-      "evidence": "Canonical policy activation and scenario correction tests passed in b0 CI; exact b0 Preview both scenarios PASS. Synthetic rules do not constitute legal or ritual approval."
+      "evidence": "Canonical policy activation and scenario correction tests passed in e9 CI; exact e9 Preview both scenarios PASS. Synthetic rules do not constitute legal or ritual approval."
     },
     {
       "id": "M3-W7-03",
       "status": "PASS",
       "requirement": "Uploaded, quarantined, reviewed, verified, rejected, expired, and superseded document states preserve immutable version history.",
-      "evidence": "Exact b0 Preview documentQuarantineReviewReplacement PASS; current trigger/immutable-version repair and uploader identity guards reviewed cumulatively. Historical failed replacement-label run at921 is not relabelled."
+      "evidence": "Exact e9 Preview documentQuarantineReviewReplacement PASS; current trigger/immutable-version repair and uploader identity guards reviewed cumulatively. Historical failed replacement-label run at921 is not relabelled."
     },
     {
       "id": "M3-W7-04",
@@ -30,13 +30,13 @@
       "id": "M3-W7-05",
       "status": "PASS",
       "requirement": "Document Reviewer has an organization-scoped queue and cannot read ledger or unrelated family context.",
-      "evidence": "Exact b0 Preview reviewerVisibility PASS, current assigned-label assertion retained after HTTP acknowledgment; role-purpose and cross-tenant tests in CI. Human reviewer credentials not fabricated."
+      "evidence": "Exact e9 Preview reviewerVisibility PASS, current assigned-label assertion retained after HTTP acknowledgment; role-purpose and cross-tenant tests in CI. Human reviewer credentials not fabricated."
     },
     {
       "id": "M3-W6-01",
       "status": "PASS",
       "requirement": "ContractVersion and PaymentObligation immutably bind one accepted QuoteVersion without equating acceptance to signing.",
-      "evidence": "CPO09 contract-bound PAYER removal/drift/ISSUE/SIGN/concurrent mutation regressions passed in b0 canonical163 and repeated90 tests; exact Preview contractObligation PASS."
+      "evidence": "CPO09 contract-bound PAYER removal/drift/ISSUE/SIGN/concurrent mutation regressions passed in e9 canonical174 and repeated90 tests; exact Preview contractObligation PASS."
     },
     {
       "id": "M3-W6-02",
@@ -60,55 +60,55 @@
       "id": "M3-W6-05",
       "status": "PASS",
       "requirement": "Finance workspace exposes only necessary obligation, payer, evidence, reconciliation, and approval data.",
-      "evidence": "CPO12 Finance own-organization payment read is FIXED, foreign tenant404 and purpose-limited projection maintained. Old Finance Case-detail read P2 is not carried as open. Exact b0 Preview financeVisibility PASS."
+      "evidence": "CPO12 Finance own-organization payment read is FIXED, foreign tenant404 and purpose-limited projection maintained. Old Finance Case-detail read P2 is not carried as open. Exact e9 Preview financeVisibility PASS."
     },
     {
       "id": "M3-GUARD-01",
       "status": "PASS",
       "requirement": "Case stages use verified requirements, signed contract evidence, ledger truth, and unresolved blockers through the canonical transition service.",
-      "evidence": "Canonical current facts govern transitions and post-refund execution.confirmed guard; two requests reject payment_satisfied with no side effects. b0 CI and exact Preview executionAfterRefundGuard PASS."
+      "evidence": "Canonical current facts govern transitions and post-refund execution.confirmed guard; two requests reject payment_satisfied with no side effects. e9 CI and exact Preview executionAfterRefundGuard PASS."
     },
     {
       "id": "M3-RECON-01",
       "status": "PASS",
       "requirement": "Document, contract, ledger, task, tenant, webhook, and audit reconciliation is deterministic and fail closed.",
-      "evidence": "Exact b0 Preview reconciliation0 and CI document/contract/ledger/audit/tenant/task tests; reconciliation is diagnostic, not automatic financial/document truth repair."
+      "evidence": "Exacte9 full M3 Preview reconciliation0; new initial intake API+readonly complete census for both ceremonies gives0 discrepancy while all three fulfilment blockers remain. Advanced/stale lifecycle drift negatives11/11 PG PASS. Diagnostic only, no automatic financial/document repair."
     },
     {
       "id": "M3-SEC-01",
       "status": "PASS",
       "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
-      "evidence": "All37 current CPO registry rows mapped to source/tests. Cumulative944/921/b0 source reviews establish no unclosed runtime P0/P1/P2; independent latest13 tests PASS. Owner helper re-review is separate and not cleared by runtime review."
+      "evidence": "Historical37canonical CPO rows retain source/test mapping. Exacte9 independent source delta review has no blocking finding; Preview tenant/role negatives PASS. Dependency P2 applicability risk is explicitly open with owner/due date; no universal vulnerability-free or live scanner claim."
     },
     {
       "id": "M3-MIG-01",
       "status": "PASS",
       "requirement": "Migration is additive, historical checksums remain unchanged, restore/deploy/no-op/parity pass, and legacy truth is not invented.",
-      "evidence": "Exactly two additive repair migrations, unchanged eleven historical migrations. CI encrypted synthetic backup/real restore, migration/no-op/parity passed. Fresh Preview restore9b3 UTC53-table digest/no-op/parity and local cleanup PASS. No Production migration; fresh owner backup/restore remains required."
+      "evidence": "PR37 has no migration/schema delta; all13 approved migration bytes unchanged. Exacte9 CI encrypted synthetic backup/real restore/no-op/parity PASS; new Preview synthetic operationa42f15088dff15e1faffe412276eab41 counts/digests/no-op/parity/local cleanup PASS. PR36 native owner already applied October2; preserve history, do not reapply. Fresh native backup/restore remains a continuation gate."
     },
     {
       "id": "M3-UX-01",
       "status": "PASS",
       "requirement": "Affected failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard and 200%-equivalent reflow states are honest and accessible.",
-      "evidence": "Exact b0 Preview affected operational controls at1365/390/195 CSS px: axe critical/serious0, no overflow/truncated nav. Parent inspected390/195 screenshots. 195px is equivalent reflow, NOT native200% zoom certification or full-app design compliance."
+      "evidence": "Exacte9 Preview affected controls1365/390/195 CSSpx axecritical/serious0, nooverflow/navtruncation; new390/195 captures visually inspected. 195px is equivalent reflow, NOT native200% zoom or full-app design compliance. Failure feedback409/503 is mocked UI, logout actual."
     },
     {
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Actual receipt pr36-b0-preview-result.json binds b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4, dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5, https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app, isolated fp545a187f9e9d66b0/schemam3_cpo_repair_1792184661797936430, private store. Both M3 journeys PASS with reconciliation0/5xx0/skipped0. Separate CPO repair PASS/skipped0; zero observed unexpected5xx follows its empty-failure-list assertion and successful child exit. No CPO reconciliation measurement is claimed."
+      "evidence": "Actual receipt pr37-e9-preview-result.json binds e9c23c516adf4b136b94a8825ec1cc45626b66a0, dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg, https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app, isolated fp545a187f9e9d66b0/schemam3_cpo_repair_179224926421011217041, private store. Both M3 journeys PASS with reconciliation0/5xx0/skipped0. Separate CPO repair PASS/skipped0; zero observed unexpected5xx follows its empty-failure-list assertion and successful child exit. No CPO reconciliation measurement is claimed."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Current review.md binds exact b0 and preserves cumulative944/921/b0 independent receipts and their execution limits. Latest reviewer ran13 unit/preflight tests, not remote UAT/full CI/Production. R944-01/02 coverage gaps closed at921; evidence rebinding requires independent packet review."
+      "evidence": "Exact055..e9 immutable diff independently reviewed, no P0/P1/P2 in narrow runtime delta; CR-INTAKE-01 closed. Reviewer independently inspected exacte9 CI counts. External helper/proof review and final evidence-head CI are separate gates; see review.md."
     },
     {
       "id": "M3-GATE-01",
       "status": "PASS",
       "requirement": "Source technical gates, exact Preview UAT, local evidence validation, and independent runtime review pass with skipped=0; final evidence-head CI is a separate pre-merge gate.",
-      "evidence": "Source CI38966224443 exact b0:258unit/163PG, five90 concurrency, five22 latency(max2948ms), six E2E, auth failure/recovery, three component browser scripts, all fixture cleanup passed. Overall FAIL only stale evidence; final evidence-head CI remains PENDING."
+      "evidence": "Exacte9 CI39043091834:258unit/174PG, five90concurrency, five22latency max4052ms, sixE2E/auth/component/4cleanup PASS, testskip0. Overall FAIL only stale evidence. Actual exacte9 Preview UAT PASS; final evidence-head CI remains pending."
     }
   ]
 }
