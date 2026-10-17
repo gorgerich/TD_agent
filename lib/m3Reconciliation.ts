@@ -53,7 +53,29 @@ async function reconcileM3CaseIntegrity(
       tenantId: true,
       scenarioId: true,
       stage: true,
+      closedAt: true,
       publishedQuoteVersionId: true,
+      contract: { select: { id: true } },
+      _count: {
+        select: {
+          caseDocuments: true,
+          documentVersions: true,
+          commercialQuotes: true,
+          paymentObligations: true,
+          paymentLedgerEntries: true,
+          paymentWebhookReceipts: true,
+          events: {
+            where: {
+              OR: [
+                { fromStage: { not: "INTAKE" } },
+                { toStage: { not: "INTAKE" } },
+                { eventType: { notIn: ["case.created.v1", "case.intake_saved.v1"] } },
+                { tenantId: { not: context.organizationId } },
+              ],
+            },
+          },
+        },
+      },
       lead: { select: { ceremonyAt: true } },
       parties: {
         select: {
@@ -174,7 +196,16 @@ async function reconcileM3CaseIntegrity(
     record.id,
     record.scenarioId,
   );
-  if (!documentParity.ok) {
+  const pendingInitialScenario = record.stage === "INTAKE"
+    && record.scenarioId === "UNSELECTED"
+    && record.closedAt == null
+    && record.contract == null
+    && Object.values(record._count).every((count) => count === 0)
+    && record.documentRequirements.length === 0
+    && record.contractVersions.length === 0
+    && record.publishedQuoteVersionId == null;
+  // An untouched intake is incomplete, not corrupt; fulfilment still requires an approved policy.
+  if (!documentParity.ok && !pendingInitialScenario) {
     push(
       documentParity.reason ?? "DOCUMENT_REQUIREMENT_POLICY_PARITY_MISMATCH",
       "case",
