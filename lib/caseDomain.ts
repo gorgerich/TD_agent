@@ -49,6 +49,7 @@ export type CaseTransitionFacts = {
   contractSigned: boolean;
   paymentSatisfied: boolean;
   documentsReadyForExecution: boolean;
+  documentsReadyForClosure: boolean;
   guardState: CaseGuardState;
 };
 
@@ -72,18 +73,11 @@ export const CASE_TRANSITION_MATRIX: readonly TransitionRule[] = [
 
 export const SCENARIO_CLOSURE_GUARDS: Record<SupportedCaseScenario, readonly string[]> = {
   CREMATION_V1: [
-    "identity_verified",
-    "death_document_verified",
-    "cremation_authorization_verified",
     "crematorium_confirmed",
     "contract_signed",
     "payment_satisfied",
   ],
   FAMILY_PLOT_BURIAL_V1: [
-    "identity_verified",
-    "death_document_verified",
-    "plot_entitlement_verified",
-    "relationship_verified",
     "cemetery_confirmed",
     "contract_signed",
     "payment_satisfied",
@@ -170,6 +164,9 @@ export function evaluateCaseTransition(input: {
       if (!isSupportedScenario(input.scenarioId)) {
         throw new CaseDomainError("UNSUPPORTED_SCENARIO", "Исполнение нельзя подтвердить без пилотного сценария");
       }
+      requireGuard(input.facts.contractSigned, "Подписанный договор не найден", "contract_signed");
+      requireGuard(input.facts.documentsReadyForExecution, "Обязательные документы ещё не проверены", "verified_documents_for_execution");
+      requireGuard(input.facts.paymentSatisfied, "Требование по оплате ещё не выполнено", "payment_satisfied");
       requireGuard(
         input.payload.confirmationSource === "OPERATOR_CONFIRMED",
         "Подтвердите фактическое исполнение сценария",
@@ -177,6 +174,7 @@ export function evaluateCaseTransition(input: {
       );
       break;
     case "case.closure_requested.v1": {
+      requireGuard(input.facts.documentsReadyForClosure, "Применимые требования документов ещё не выполнены", "verified_documents_for_closure");
       if (!isSupportedScenario(input.scenarioId)) {
         throw new CaseDomainError("UNSUPPORTED_SCENARIO", "Кейс нельзя закрыть без пилотного сценария");
       }
@@ -308,6 +306,7 @@ function missingBlocker(stage: CaseStageValue, scenarioId: CaseScenarioValue, fa
   if (stage === "QUOTING" && facts.quoteVersionCount === 0) return "Нет сохранённой версии сметы";
   if (stage === "AGREEMENT" && !facts.publishedQuoteVersionId) return "Нет опубликованной версии сметы";
   if (stage === "EXECUTION" && isSupportedScenario(scenarioId)) {
+    if (!facts.guardState.documents_ready_for_closure) return "Применимые требования документов ещё не выполнены";
     const missing = SCENARIO_CLOSURE_GUARDS[scenarioId].filter((guard) => !facts.guardState[guard]);
     return missing.length ? `Не выполнено условий закрытия: ${missing.length}` : null;
   }

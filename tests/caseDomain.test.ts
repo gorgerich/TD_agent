@@ -19,6 +19,7 @@ const transitionFacts: CaseTransitionFacts = {
   contractSigned: true,
   paymentSatisfied: true,
   documentsReadyForExecution: true,
+  documentsReadyForClosure: true,
   guardState: {},
 };
 
@@ -102,6 +103,18 @@ test("M3: execution confirmation is explicit and scenario closure remains guarde
       facts: transitionFacts,
     });
     assert.equal(confirmation.toStage, "EXECUTION");
+  }
+});
+
+test("CPO: execution confirmation rechecks current contract, documents and payment after stage entry", () => {
+  for (const scenarioId of ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"] as const) {
+    for (const [fact, guard] of [["contractSigned", "contract_signed"], ["documentsReadyForExecution", "verified_documents_for_execution"], ["paymentSatisfied", "payment_satisfied"]] as const) {
+      assert.throws(() => evaluateCaseTransition({
+        stage: "EXECUTION", scenarioId, eventType: "execution.confirmed.v1",
+        payload: { confirmationSource: "OPERATOR_CONFIRMED" },
+        facts: { ...transitionFacts, [fact]: false },
+      }), (error: unknown) => error instanceof CaseDomainError && error.code === "GUARD_FAILED" && error.details.guard === guard);
+    }
   }
 });
 

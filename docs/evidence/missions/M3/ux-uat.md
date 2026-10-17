@@ -1,116 +1,29 @@
-# Current Exact-SHA Preview UAT
+# Exact b0 Preview UAT
 
-## Current Reconciliation Repair, 2026-10-04
+Candidate runtime `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4`, base `87550178d6b4ba60b3f752880fd08674c6fd2835`, [PR36](https://github.com/gorgerich/TD_agent/pull/36).
+Exact Preview `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app; isolated DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792184661797936430`, private Blob `store_Ov8erHstuvfJ52Og`.
+Production remains `87550178d6b4ba60b3f752880fd08674c6fd2835` / `dpl_8rqT8aRp2x75wfxHVpmJBaMigytY`, fingerprint `0257665af2dd90a4`, freeze disabled. PR36 CPO release NOT_PERFORMED; human/full rollout BLOCKED.
 
-Source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, PR #34, based on main `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`. Exact Preview `dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa`, https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Fresh synthetic schema `m3_intake_preview_1791111530558`, run `intake-1791111530558`. Both full authenticated journeys PASS, including the new pre-upload reconciliation API regression, document review/replacement, immutable contract/ledger, partial/full/refund/reversal, four-eyes, webhook replay, cross-tenant and failure recovery. Reconciliation=0, unexpected5xx=0, skipped=0, critical/serious accessibility=0, mobile/200% zoom PASS.
+## Executed Journeys
 
-Local gate: 143 unit, 92 integration across 15 files, canonical build, all five E2E scripts, migrate/no-op/parity and cleanup PASS. Independent exact-source delta review P0=0/P1=0; inherited Finance P2 remains documented. Source CI https://github.com/gorgerich/TD_agent/actions/runs/37197375921; authoritative evidence-head CI remains a separate pre-merge gate.
+[Immutable nonsecret result copy](pr36-b0-preview-result.json) records both full M3 scenarios PASS: quarantine/review/replacement, immutable obligation, partial/full/refund/reversal, executionAfterRefundGuard, five webhook deliveries(one original/four replay/one entry), same-command finance recovery, role visibility, stage/tenant guards, M3 reconciliation0, unexpected5xx0 and skipped0.
 
-Fresh read-only encrypted backup and real isolated restore: receipt `intake-2026-10-04T11-05-23.102Z`, 52 table counts/digests MATCH, parity PASS, no-op, plaintext clone removed. Production during this technical validation remains frozen rollback `dpl_4sFF8Boy1yHkyx2kbb8N3GXVySwo`, source `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. Earlier committed synthetic Case57 histories and the false reconciliation stop are preserved in reconciliation-incident.md, not erased. No Production migration is needed for this repair. Human verdicts PENDING; broad rollout CLOSED; CPO-only release still requires green final CI and controlled Production smoke.
+Separate CPO journey PASS covers first-admin grant and lost-response replay, three invitations, scenario correction, publication guard, permissions, mocked409/503 session feedback and actual logout/cookie clear/protected redirect. CPO reconciliation was NOT_EXECUTED/NOT_IN_SCOPE. Its source asserts an empty observed failure list while an intentional mocked503 is excluded and checked separately. Successful child/finally supports local browser cleanup only; remote fixtures/secrets remain retained.
 
-## Historical Intake Hotfix Validation, Superseded
+## Affected Operational Controls
 
-Implementation `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`; PR #33; Preview `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Current authenticated UAT passed both complete scenarios with reconciliation=0, unexpected 5xx=0, skipped=0, mobile/200% zoom and critical/serious accessibility=0. The previous interrupted Preview and continuation-harness omission are retained in intake-validation-current.json; neither is counted as PASS.
+Widths1365/390/195 CSS pixels: critical/serious axe findings0, overflow false, navLabelsTruncated false. Parent visually inspected390 and195 current captures; this evidence author does not claim a separate visual execution. The raw field zoom200=PASS means195px EQUIVALENT REFLOW, not native browser200% zoom. No universal full-app design compliance or professional human verdict is claimed.
 
-Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816398. All technical steps passed; overall FAIL at stale authoritative evidence is NOT green overall CI. Green evidence-head CI remains required before merge. Independent exact-source review: P0=0/P1=0, one unchanged documented P2. Human verdicts remain PENDING and broad rollout CLOSED.
+- [1365px capture](screenshots/pr36-b0-first-admin-1365.png)
+- [390px capture](screenshots/pr36-b0-first-admin-390.png)
+- [195px equivalent-reflow capture](screenshots/pr36-b0-first-admin-195.png)
 
-Fresh schema: `m3_intake_preview_1791105181548`, run `intake-1791105181548`, two organizations / six synthetic users / six cases (two full lifecycle and four initial-intake normal/parallel regressions). Runtime diagnostic PASS; public Preview protection 302. Original full test executed without assertion or timeout changes; the external wrapper only captured sanitized upload response telemetry.
+Copied byte-for-byte from parent-inspected cpo-first-admin-ui-xyv2TO captures; earlier screenshot evidence remains historical.
 
-Cremation and relative burial: requirements, upload/quarantine/scan, review/reject/replacement/verify, accepted quote, immutable signed synthetic contract, obligation, partial/full payment, refund/reversal, four-eyes, guards, webhook five deliveries, network/projection retry, role privacy, cross-tenant denial and reconciliation all PASS. Webhook: one original, four replay, one entry. 176000 obligation / 88000 payment produced PARTIALLY_PAID / 88000 balance. Keyboard/mobile/200% zoom PASS, critical/serious findings zero.
+## Provenance And Limits
 
-Initial HTTP times: cremation normal 4115 ms, parallel 2944-3761 ms; burial normal 3748 ms, parallel 2885-3870 ms. These are HTTP times, not SQL transaction timings.
+Exact source/deployment/schema binding is enforced before/final result publication; fresh synthetic restore9b3 and authenticated unique schema sentinel precede UAT. No b0 outcome is assigned to old failed921 Preview or failed early browser gates. Production unchanged875/freeze disabled. Native zoom, real scanner readiness, all-screen aesthetics, remote fixture deletion and credential destruction are not certified.
 
-No current-screen universal anti-slop compliance is claimed: this hotfix changes no UI source; measured mobile/accessibility gates cover tested critical flows.
+## History
 
-## Historical UAT, Superseded
-
-The following prior source/deployment UAT is preserved only as historical evidence. Full original packet is in historical/pre-intake-incident-packet.json.
-
-# M3 exact-SHA Preview UAT
-
-## Environment
-
-- Deployment: `dpl_Fo28yhKy4XrW4uvVwGGcZ9cE12y5`
-- SHA: `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`
-- URL: `https://td-agent-qpgnu84mw-rics-projects-9baa2793.vercel.app`
-- Database fingerprint: `545a187f9e9d66b0`
-- Production fingerprint excluded: `0257665af2dd90a4`
-- Private storage: `store_Ov8erHstuvfJ52Og`
-- Data: retained isolated UAT run `preview-20261003-ced3fad`: 2 synthetic organizations,
-  6 synthetic role identities, and 2 synthetic Cases.
-- Vercel Deployment Protection remained enabled; authenticated automation bypass was used only
-  for this protected Preview.
-
-## Journeys
-
-### Cremation
-
-Case -> applicant/payer roles -> cremation requirements -> upload -> quarantine -> controlled
-scan failure -> clean retry -> reviewer verification -> accepted QuoteVersion -> ContractVersion
--> 176,000 RUB obligation -> 88,000 RUB partial payment -> remaining 88,000 RUB -> webhook full
-payment -> stage guard -> reconciliation.
-
-Result: **PASS**.
-
-### Burial in a family plot
-
-Case -> applicant/decision-maker/payer/responsible roles -> distinct family-plot checklist ->
-document rejection -> replacement upload -> verification -> signed ContractVersion -> payment ->
-refund/correction/reversal -> separate approval -> stage guard -> reconciliation.
-
-Result: **PASS**.
-
-## Negative and reliability checks
-
-- Upload is not verification: PASS.
-- Unverified/rejected/expired requirement blocks the guarded stage: PASS.
-- Reviewer and Finance purpose-limited projections: PASS.
-- Cross-tenant access: denied.
-- Webhook repeated five times: one entry, one original response, four replay responses.
-- Lost response retry: same command envelope, one ledger entry, truthful replay result.
-- Duplicate click and concurrent command handling: PASS.
-- Storage/API failure is explicit and recoverable: PASS.
-- Reconciliation: 0 discrepancies for both Cases.
-- Unexpected 5xx: 0.
-- Skipped: 0.
-
-## Accessibility and mobile
-
-- Axe critical findings: 0.
-- Axe serious findings: 0.
-- Keyboard and visible focus: PASS.
-- Mobile 390x844: PASS.
-- 200 percent equivalent viewport 195x422: PASS.
-- Document root horizontal overflow: 0.
-- Primary actions remain reachable; the fixed mobile navigation is offset by content padding and
-  does not hide the final actionable row.
-- Historical element capture at the 200 percent equivalent viewport showed owner
-  and due-date metadata wrapping without clipping. It is not new-SHA image proof.
-
-## UI quality and scope
-
-The new source passed actual keyboard, mobile, 200 percent equivalent viewport,
-overflow and axe checks in CI and protected Preview. The Finance repair adds no
-decorative layout, fonts, gradients, animation or new icon system. It keeps the
-existing functional dialog and makes errors single-location and recovery explicit.
-This is not a claim of perfect compliance with every aesthetic point of AGENTS
-across the entire legacy platform. Older screenshots are not new-SHA captures.
-The new recovery dialog was exercised on desktop; responsive workspace checks
-must not be described as an exhaustive mobile test of every modal state.
-
-## Screenshots
-
-- `screenshots/case-documents-desktop.png`
-- `screenshots/case-documents-mobile.png`
-- `screenshots/case-documents-zoom200.png`
-- `screenshots/finance-desktop.png`
-- `screenshots/finance-mobile.png`
-- `screenshots/finance-mobile-dock.png`
-- `screenshots/reviewer-desktop.png`
-- `screenshots/reviewer-mobile.png`
-
-These captures are historical artifacts from Preview runtime
-`784140db230e8d0c1a566d2e70bbce91162a5587`, not screenshots of the current
-deployment. The current exact-SHA UAT above was exercised in headless Chromium;
-it did not produce replacement image files. Do not use these images as proof of
-the current SHA.
+[Prior packet](historical/pre-pr36-b0-packet-20261017/README.md) preserves the old c0567/PR34 candidate, executions and Production history. [Dated checkpoint](cpo-audit-repair-20261013.md) preserves failed/interrupted attempts and later outcomes without reassigning them to b0.

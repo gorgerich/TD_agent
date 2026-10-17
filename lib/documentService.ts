@@ -2,7 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import type { DocumentAccessAction, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encryptField } from "@/lib/crypto";
-import { getDocumentScanner, type DocumentScanner } from "@/lib/documentScanner";
+import { getDocumentScanner, scanDocumentFailClosed, type DocumentScanner } from "@/lib/documentScanner";
+import { evaluateDocumentRequirement } from "@/lib/m3Domain";
+import { serverCommandKey } from "@/lib/commandNamespace";
 import { getDocumentStorage, type DocumentStorage, type PrivateDocumentRead } from "@/lib/documentStorage";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
@@ -40,15 +42,20 @@ export async function uploadCaseDocument(
   context: OperationalContext,
   input: { caseId: string; requirementId: string; documentTypeCode: string; file: File; source?: string },
   meta: M3CommandMeta,
-  dependencies: { storage?: DocumentStorage; scanner?: DocumentScanner } = {},
+  dependencies: { storage?: DocumentStorage; scanner?: DocumentScanner; retryOfVersionId?: string } = {},
 ): Promise<UploadedDocumentResult> {
   assertCapability(context, "documents:upload");
   validateM3CommandMeta(meta);
   validateFile(input.file);
+  const scanner = dependencies.scanner ?? getDocumentScanner();
+  assertDocumentScannerOperational(scanner);
 
   const bytes = new Uint8Array(await input.file.arrayBuffer());
+  validateDocumentBody(bytes, input.file.type);
   const checksum = createHash("sha256").update(bytes).digest("hex");
-  const fingerprint = commandFingerprint({
+  const fingerprint = dependencies.retryOfVersionId
+    ? commandFingerprint({ command: "retry-document-scan", caseId: input.caseId, versionId: dependencies.retryOfVersionId })
+    : commandFingerprint({
     caseId: input.caseId,
     requirementId: input.requirementId,
     documentTypeCode: input.documentTypeCode,
@@ -64,15 +71,9 @@ export async function uploadCaseDocument(
   if (!storage.isConfigured()) {
     throw new OperationalCommandError(422, "Приватное хранилище документов не настроено", "PRIVATE_STORAGE_UNAVAILABLE");
   }
-  const scanner = dependencies.scanner ?? getDocumentScanner();
   const storageKey = buildOpaqueStorageKey(context.organizationId, input.caseId, input.file.type);
   const stored = await storage.putPrivate(storageKey, input.file);
-  let scan: Awaited<ReturnType<DocumentScanner["scan"]>>;
-  try {
-    scan = await scanner.scan({ storageKey: stored.storageKey, bytes, checksum, mimeType: input.file.type });
-  } catch {
-    scan = { status: "ERROR", provider: "scanner-error", resultCode: "SCAN_FAILED_CLOSED" };
-  }
+  const scan = await scanDocumentFailClosed(scanner, { storageKey: stored.storageKey, bytes, checksum, mimeType: input.file.type });
   const status = scan.status === "CLEAN" ? "UPLOADED" : "QUARANTINED";
 
   try {
@@ -84,24 +85,44 @@ export async function uploadCaseDocument(
         return { ...data, replayed: true };
       }
 
+      // Match scenario correction's lock order: case first, then policy/requirements.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "Case" WHERE id = ${input.caseId} AND "tenantId" = ${context.organizationId} FOR UPDATE
+      `;
+      if (!locked.length) throw new OperationalCommandError(404, "Кейс не найден");
       await requireTenantCase(tx, context, input.caseId, { requireOwnerForAgent: true });
+      const retryVersion = dependencies.retryOfVersionId
+        ? await requireRetryableVersion(tx, context, input.caseId, dependencies.retryOfVersionId) : null;
       await refreshCaseRequirementApplicabilityInTransaction(tx, context, input.caseId, meta);
       const requirement = await tx.caseDocumentRequirement.findFirst({
         where: {
           id: input.requirementId,
           caseId: input.caseId,
           organizationId: context.organizationId,
+          supersededAt: null,
         },
-        select: { id: true, isApplicable: true },
+        select: { id: true, isApplicable: true, acceptedDocumentTypeCodes: true, acceptedDocumentTypeVersionIds: true },
       });
       if (!requirement) throw new OperationalCommandError(404, "Требование документа не найдено");
       if (!requirement.isApplicable) {
         throw new OperationalCommandError(409, "Требование документа больше не применимо к текущим данным кейса");
       }
+      if (!stringList(requirement.acceptedDocumentTypeCodes).includes(input.documentTypeCode)
+        || !stringList(requirement.acceptedDocumentTypeVersionIds).includes(prerequisite.documentTypeId)) {
+        throw new OperationalCommandError(409, "Политика требования изменилась во время загрузки", "DOCUMENT_UPLOAD_POLICY_CHANGED");
+      }
+      const currentType = await tx.documentTypeDefinition.findFirst({
+        where: { id: prerequisite.documentTypeId, version: prerequisite.documentTypeVersion,
+          organizationId: context.organizationId, code: input.documentTypeCode, status: { in: ["APPROVED", "RETIRED"] } },
+        select: { allowedMimeTypes: true, maxBytes: true },
+      });
+      if (!currentType || !stringList(currentType.allowedMimeTypes).includes(input.file.type) || input.file.size > currentType.maxBytes) {
+        throw new OperationalCommandError(409, "Политика типа документа изменилась во время загрузки", "DOCUMENT_UPLOAD_POLICY_CHANGED");
+      }
 
       const document = await tx.caseDocument.upsert({
         where: { requirementId: prerequisite.requirementId },
-        update: { documentTypeId: prerequisite.documentTypeId, status },
+        update: { documentTypeId: prerequisite.documentTypeId },
         create: {
           organizationId: context.organizationId,
           caseId: input.caseId,
@@ -116,15 +137,6 @@ export async function uploadCaseDocument(
         orderBy: { versionNumber: "desc" },
         select: { id: true, versionNumber: true, status: true },
       });
-      if (previous && previous.status !== "SUPERSEDED") {
-        await authorizeDocumentTransition(tx, context, meta, {
-          entityId: previous.id,
-          command: "supersede",
-          fromStatus: previous.status,
-          toStatus: "SUPERSEDED",
-        });
-        await tx.caseDocumentVersion.update({ where: { id: previous.id }, data: { status: "SUPERSEDED" } });
-      }
       const version = await tx.caseDocumentVersion.create({
         data: {
           documentId: document.id,
@@ -138,7 +150,7 @@ export async function uploadCaseDocument(
           originalFilenameEncrypted: encryptField(sanitizeFilename(input.file.name)),
           mimeType: input.file.type,
           size: input.file.size,
-          uploaderMembershipId: context.membershipId,
+          uploaderMembershipId: retryVersion?.uploaderMembershipId ?? context.membershipId,
           source: input.source?.trim() || "agent-upload",
           status,
           scanStatus: scan.status,
@@ -148,10 +160,7 @@ export async function uploadCaseDocument(
         },
         select: { id: true, versionNumber: true },
       });
-      await tx.caseDocumentRequirement.update({
-        where: { id: prerequisite.requirementId },
-        data: { satisfactionStatus: "NOT_SATISFIED", satisfiedByVersionId: null },
-      });
+      await refreshDocumentTruth(tx, document.id, prerequisite.requirementId);
       const data = {
         documentId: document.id,
         versionId: version.id,
@@ -159,20 +168,6 @@ export async function uploadCaseDocument(
         status,
         scanStatus: scan.status,
       } satisfies Omit<UploadedDocumentResult, "replayed">;
-      if (previous && previous.status !== "SUPERSEDED") {
-        await appendOperationalAudit(tx, context, {
-          entityType: "document_version",
-          entityId: previous.id,
-          action: "document.version_superseded.v1",
-          before: prismaJson({ status: previous.status }),
-          after: prismaJson({ status: "SUPERSEDED", supersededByVersionId: version.id }),
-          correlationId: meta.correlationId,
-          causationId: version.id,
-          idempotencyKey: `${meta.idempotencyKey}:supersede:${previous.id}`,
-          reason: meta.reason,
-          result: prismaJson({ supersededVersionId: previous.id, supersededByVersionId: version.id }),
-        });
-      }
       await appendOperationalAudit(tx, context, {
         entityType: "document_version",
         entityId: version.id,
@@ -186,6 +181,7 @@ export async function uploadCaseDocument(
           checksum,
           status,
           scanStatus: scan.status,
+          retryOfVersionId: dependencies.retryOfVersionId ?? null,
         }),
         correlationId: meta.correlationId,
         causationId: meta.idempotencyKey,
@@ -222,17 +218,19 @@ export async function beginDocumentReview(
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ command: "begin-document-review", versionId });
   return runOperationalTransaction(async (tx) => {
+    const version = await tx.caseDocumentVersion.findFirst({
+      where: { id: versionId, organizationId: context.organizationId },
+      select: { id: true, status: true, scanStatus: true, documentId: true, assignedReviewerMembershipId: true, uploader: { select: { userId: true } } },
+    });
+    if (!version) throw new OperationalCommandError(404, "Версия документа не найдена");
+    assertIndependentDocumentReviewer(context.userId, version.uploader.userId);
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
+      if (version.assignedReviewerMembershipId !== context.membershipId) throw new OperationalCommandError(404, "Назначенная проверка не найдена");
       const data = readReplayResult<{ versionId: string }>(replay.result, fingerprint);
       if (!data) throw new OperationalCommandError(409, "Idempotency result проверки повреждён");
       return { ...data, replayed: true };
     }
-    const version = await tx.caseDocumentVersion.findFirst({
-      where: { id: versionId, organizationId: context.organizationId },
-      select: { id: true, status: true, scanStatus: true, documentId: true, assignedReviewerMembershipId: true },
-    });
-    if (!version) throw new OperationalCommandError(404, "Версия документа не найдена");
     if (version.scanStatus !== "CLEAN" || version.status !== "UPLOADED") {
       throw new OperationalCommandError(409, "В проверку можно взять только чистую загруженную версию");
     }
@@ -252,7 +250,7 @@ export async function beginDocumentReview(
       data: { status: "IN_REVIEW", assignedReviewerMembershipId: context.membershipId },
     });
     if (claimed.count !== 1) throw new OperationalCommandError(409, "Документ уже взят другим проверяющим");
-    await tx.caseDocument.update({ where: { id: version.documentId }, data: { status: "IN_REVIEW" } });
+    await refreshDocumentTruth(tx, version.documentId);
     await appendOperationalAudit(tx, context, {
       entityType: "document_version",
       entityId: version.id,
@@ -282,6 +280,7 @@ export async function decideDocumentReview(
 ) {
   assertCapability(context, "documents:review");
   validateM3CommandMeta(meta);
+  validateDocumentExpiryFormat(input.expiresAt);
   if (input.decision === "REJECTED" && (!input.reason || input.reason.trim().length < 3)) {
     throw new OperationalCommandError(422, "Для отклонения нужна причина");
   }
@@ -292,6 +291,12 @@ export async function decideDocumentReview(
     reason: input.reason?.trim() ?? null,
     expiresAt: input.expiresAt?.toISOString() ?? null,
   });
+  const reviewIdentity = await prisma.caseDocumentVersion.findFirst({
+    where: { id: versionId, organizationId: context.organizationId, assignedReviewerMembershipId: context.membershipId },
+    select: { uploader: { select: { userId: true } } },
+  });
+  if (!reviewIdentity) throw new OperationalCommandError(404, "Назначенная проверка не найдена");
+  assertIndependentDocumentReviewer(context.userId, reviewIdentity.uploader.userId);
   const existingReplay = await prisma.operationalAuditEvent.findUnique({
     where: {
       organizationId_idempotencyKey: {
@@ -313,16 +318,19 @@ export async function decideDocumentReview(
     return { ...data, replayed: true };
   }
 
+  validateDocumentExpiry(input.expiresAt);
   let verifiedStorageIdentity: DocumentIntegrityMetadata | null = null;
   if (input.decision === "VERIFIED") {
-    verifiedStorageIdentity = await prisma.caseDocumentVersion.findFirst({
+    const candidate = await prisma.caseDocumentVersion.findFirst({
       where: {
         id: versionId,
         organizationId: context.organizationId,
         assignedReviewerMembershipId: context.membershipId,
       },
-      select: DOCUMENT_INTEGRITY_SELECT,
+      select: { ...DOCUMENT_INTEGRITY_SELECT, uploader: { select: { userId: true } } },
     });
+    if (candidate) assertIndependentDocumentReviewer(context.userId, candidate.uploader.userId);
+    verifiedStorageIdentity = candidate;
     if (!verifiedStorageIdentity) throw new OperationalCommandError(404, "Версия документа не найдена");
     if (verifiedStorageIdentity.status !== "IN_REVIEW" || verifiedStorageIdentity.scanStatus !== "CLEAN") {
       throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
@@ -344,11 +352,13 @@ export async function decideDocumentReview(
         assignedReviewerMembershipId: context.membershipId,
       },
       include: {
+        uploader: { select: { userId: true } },
         requirement: { select: { reviewChecklist: true } },
         case: { select: { leadId: true, ownerId: true } },
       },
     });
     if (!version) throw new OperationalCommandError(404, "Версия документа не найдена");
+    assertIndependentDocumentReviewer(context.userId, version.uploader.userId);
     if (version.status !== "IN_REVIEW" || version.scanStatus !== "CLEAN") {
       throw new OperationalCommandError(409, "Версия не готова к решению проверяющего");
     }
@@ -359,6 +369,12 @@ export async function decideDocumentReview(
       toStatus: input.decision,
     });
     if (input.decision === "VERIFIED") {
+      validateDocumentExpiry(input.expiresAt);
+      const newerVerified = await tx.caseDocumentVersion.findFirst({
+        where: { documentId: version.documentId, versionNumber: { gt: version.versionNumber }, status: "VERIFIED" },
+        select: { id: true },
+      });
+      if (newerVerified) throw new OperationalCommandError(409, "Более новая версия уже проверена");
       if (!verifiedStorageIdentity || !sameStorageIdentity(version, verifiedStorageIdentity)) {
         throw new OperationalCommandError(409, "Файловая версия изменилась во время проверки", "DOCUMENT_INTEGRITY_MISMATCH");
       }
@@ -377,6 +393,24 @@ export async function decideDocumentReview(
           expiresAt: input.expiresAt ?? null,
         },
       });
+      const predecessors = await tx.caseDocumentVersion.findMany({
+        where: { documentId: version.documentId, versionNumber: { lt: version.versionNumber }, status: { not: "SUPERSEDED" } },
+        select: { id: true, status: true },
+      });
+      for (const previous of predecessors) {
+        await authorizeDocumentTransition(tx, context, meta, {
+          entityId: previous.id, command: "supersede", fromStatus: previous.status, toStatus: "SUPERSEDED",
+        });
+        await tx.caseDocumentVersion.update({ where: { id: previous.id }, data: { status: "SUPERSEDED" } });
+        await appendOperationalAudit(tx, context, {
+          entityType: "document_version", entityId: previous.id, action: "document.version_superseded.v1",
+          before: prismaJson({ status: previous.status }),
+          after: prismaJson({ status: "SUPERSEDED", supersededByVersionId: version.id }),
+          correlationId: meta.correlationId, causationId: version.id,
+          idempotencyKey: serverCommandKey("document-supersede", `${meta.idempotencyKey}:${previous.id}`), reason: meta.reason,
+          result: prismaJson({ supersededVersionId: previous.id, supersededByVersionId: version.id }),
+        });
+      }
       await tx.caseDocument.update({ where: { id: version.documentId }, data: { status: "VERIFIED" } });
       if (version.requirementId) {
         await tx.caseDocumentRequirement.update({
@@ -395,13 +429,7 @@ export async function decideDocumentReview(
           rejectionReason: input.reason!.trim(),
         },
       });
-      await tx.caseDocument.update({ where: { id: version.documentId }, data: { status: "REJECTED" } });
-      if (version.requirementId) {
-        await tx.caseDocumentRequirement.update({
-          where: { id: version.requirementId },
-          data: { satisfactionStatus: "NOT_SATISFIED", satisfiedByVersionId: null },
-        });
-      }
+      await refreshDocumentTruth(tx, version.documentId, version.requirementId);
       const owner = await tx.membership.findFirst({
         where: { organizationId: context.organizationId, agentId: version.case.ownerId, status: "ACTIVE" },
         select: { id: true },
@@ -496,7 +524,7 @@ async function authorizeDocumentTransition(
     after: prismaJson({ command: transition.command, status: transition.toStatus }),
     correlationId: meta.correlationId,
     causationId: meta.idempotencyKey,
-    idempotencyKey: `${meta.idempotencyKey}:db-auth:document:${transition.entityId}:${transition.command}`,
+    idempotencyKey: serverCommandKey("document-db-auth", `${meta.idempotencyKey}:${transition.entityId}:${transition.command}`),
     reason: meta.reason,
     result: prismaJson({ authorized: true }),
   });
@@ -530,15 +558,26 @@ export async function escalateDocumentReview(
       select: {
         id: true,
         caseId: true,
+        uploader: { select: { userId: true } },
         requirement: { select: { dueAt: true } },
         case: { select: { leadId: true, ownerId: true } },
       },
     });
     if (!version) throw new OperationalCommandError(404, "Назначенная проверка не найдена");
+    assertIndependentDocumentReviewer(context.userId, version.uploader.userId);
     const owner = await tx.membership.findFirst({
       where: { organizationId: context.organizationId, agentId: version.case.ownerId, status: "ACTIVE" },
       select: { id: true },
     });
+    if (!owner) throw new OperationalCommandError(409, "У владельца кейса нет активного исполнителя", "DOCUMENT_ESCALATION_OWNER_REQUIRED");
+    const taskKey = `document-review-escalation:${version.id}`;
+    const priorTask = await tx.task.findUnique({
+      where: { organizationId_idempotencyKey: { organizationId: context.organizationId, idempotencyKey: taskKey } },
+      select: { id: true, status: true, waitingReason: true, assigneeMembershipId: true, priority: true },
+    });
+    if (priorTask && priorTask.status !== "OPEN") {
+      throw new OperationalCommandError(409, "Предыдущая задача эскалации закрыта; требуется отдельное решение", "DOCUMENT_ESCALATION_TASK_CLOSED");
+    }
     const task = await tx.task.upsert({
       where: {
         organizationId_idempotencyKey: {
@@ -549,13 +588,15 @@ export async function escalateDocumentReview(
       update: {
         waitingReason: normalizedReason,
         priority: "HIGH",
+        assigneeMembershipId: owner.id,
+        agentId: version.case.ownerId,
       },
       create: {
         leadId: version.case.leadId,
         agentId: version.case.ownerId,
         organizationId: context.organizationId,
         caseId: version.caseId,
-        assigneeMembershipId: owner?.id ?? null,
+        assigneeMembershipId: owner.id,
         createdByMembershipId: context.membershipId,
         type: "PREPARATION",
         priority: "HIGH",
@@ -573,8 +614,8 @@ export async function escalateDocumentReview(
       entityType: "document_version",
       entityId: version.id,
       action: "document.review_escalated.v1",
-      before: prismaJson({ status: "IN_REVIEW" }),
-      after: prismaJson({ taskId: task.id, reason: normalizedReason }),
+      before: prismaJson({ status: "IN_REVIEW", task: priorTask }),
+      after: prismaJson({ taskId: task.id, reason: normalizedReason, status: "OPEN", assigneeMembershipId: owner.id, priority: "HIGH" }),
       correlationId: meta.correlationId,
       idempotencyKey: meta.idempotencyKey,
       reason: normalizedReason,
@@ -591,7 +632,10 @@ export async function listDocumentReviewQueue(context: OperationalContext) {
   assertCapability(context, "documents:review");
   const referenceTimeMs = Date.now();
   const queue = await prisma.caseDocumentVersion.findMany({
-    where: { organizationId: context.organizationId, status: { in: ["UPLOADED", "IN_REVIEW"] } },
+    where: {
+      organizationId: context.organizationId, status: { in: ["UPLOADED", "IN_REVIEW"] }, scanStatus: "CLEAN",
+      uploader: { userId: { not: context.userId } },
+    },
     orderBy: [{ requirement: { dueAt: "asc" } }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -670,7 +714,7 @@ export async function readAuthorizedDocument(
       before: prismaJson({}),
       after: prismaJson({ action, purpose }),
       correlationId,
-      idempotencyKey: `document-access:${correlationId}`,
+      idempotencyKey: serverCommandKey("document-access", `${context.organizationId}:${context.membershipId}:${version.id}:${action}:${correlationId}`),
       result: prismaJson({ versionId: version.id }),
     });
   });
@@ -686,6 +730,7 @@ async function loadUploadPrerequisite(
       id: input.requirementId,
       caseId: input.caseId,
       organizationId: context.organizationId,
+      supersededAt: null,
       ...(context.role === "AGENT" ? { case: { ownerId: context.agentId } } : {}),
     },
     select: {
@@ -712,7 +757,7 @@ async function loadUploadPrerequisite(
   if (!stringList(documentType.allowedMimeTypes).includes(input.file.type) || input.file.size > documentType.maxBytes) {
     throw new OperationalCommandError(422, "Файл не соответствует политике типа документа");
   }
-  return { requirementId: record.id, documentTypeId: documentType.id };
+  return { requirementId: record.id, documentTypeId: documentType.id, documentTypeVersion: documentType.version };
 }
 
 async function discardUncommittedOrFail(storage: DocumentStorage, storageKey: string) {
@@ -737,6 +782,135 @@ async function findReplay(
     select: { result: true },
   });
   return replay ? readReplayResult<Omit<UploadedDocumentResult, "replayed">>(replay.result, fingerprint) : null;
+}
+
+export function assertDocumentScannerOperational(scanner: DocumentScanner = getDocumentScanner()): void {
+  let ready = false;
+  try { ready = scanner.isOperational() === true; } catch { /* Readiness failures are unavailable, never a write permit. */ }
+  if (!ready) {
+    throw new OperationalCommandError(503, "Проверка безопасности документов недоступна", "DOCUMENT_SCANNER_UNAVAILABLE");
+  }
+}
+
+export function assertIndependentDocumentReviewer(reviewerUserId: number, uploaderUserId: number): void {
+  if (reviewerUserId === uploaderUserId) {
+    throw new OperationalCommandError(403, "Нельзя проверять собственный документ", "DOCUMENT_SELF_REVIEW_FORBIDDEN");
+  }
+}
+
+export function validateDocumentExpiry(expiresAt: Date | null | undefined): void {
+  validateDocumentExpiryFormat(expiresAt);
+  if (expiresAt && expiresAt.getTime() <= Date.now()) {
+    throw new OperationalCommandError(422, "Срок действия должен быть в будущем", "DOCUMENT_EXPIRY_INVALID");
+  }
+}
+
+function validateDocumentExpiryFormat(expiresAt: Date | null | undefined): void {
+  if (expiresAt && !Number.isFinite(expiresAt.getTime())) {
+    throw new OperationalCommandError(422, "Некорректный срок действия", "DOCUMENT_EXPIRY_INVALID");
+  }
+}
+
+// Signatures reject obvious MIME spoofing, not malware or malformed document internals.
+export function validateDocumentBody(bytes: Uint8Array, mimeType: string): void {
+  const ascii = (start: number, end: number) => new TextDecoder().decode(bytes.slice(start, end));
+  const matches = mimeType === "application/pdf" ? ascii(0, 5) === "%PDF-"
+    : mimeType === "image/jpeg" ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+    : mimeType === "image/png" ? [137, 80, 78, 71, 13, 10, 26, 10].every((value, i) => bytes[i] === value)
+    : mimeType === "image/webp" ? ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP"
+    : mimeType === "image/heic" ? ascii(4, 8) === "ftyp" && ["heic", "heix", "hevc", "hevx"].includes(ascii(8, 12))
+    : false;
+  if (!matches) throw new OperationalCommandError(422, "Содержимое файла не соответствует MIME-типу", "DOCUMENT_MIME_MISMATCH");
+}
+
+export async function readBoundedDocumentMultipart(req: Request): Promise<FormData> {
+  const limit = MAX_ABSOLUTE_BYTES + 256 * 1024;
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data;")) {
+    throw new OperationalCommandError(415, "Ожидается multipart/form-data");
+  }
+  const declared = req.headers.get("content-length");
+  if (declared !== null && (!/^\d+$/.test(declared) || Number(declared) > limit)) {
+    throw new OperationalCommandError(413, "Загрузка превышает допустимый размер");
+  }
+  if (!req.body) throw new OperationalCommandError(400, "Нет тела загрузки");
+  const reader = req.body.getReader();
+  const chunks: ArrayBuffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        throw new OperationalCommandError(413, "Загрузка превышает допустимый размер");
+      }
+      chunks.push(Uint8Array.from(part.value).buffer);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    return await new Response(new Blob(chunks), { headers: { "content-type": contentType } }).formData();
+  } catch {
+    throw new OperationalCommandError(400, "Некорректная multipart-загрузка");
+  }
+}
+
+async function refreshDocumentTruth(tx: Prisma.TransactionClient, documentId: string, requirementId?: string | null) {
+  const versions = await tx.caseDocumentVersion.findMany({
+    where: { documentId }, orderBy: { versionNumber: "desc" },
+    select: { id: true, versionNumber: true, status: true, scanStatus: true, expiresAt: true, requirementId: true },
+  });
+  const truth = evaluateDocumentRequirement(versions);
+  const valid = truth.status === "SATISFIED"
+    ? versions.find((v) => v.versionNumber === truth.verifiedVersionNumber) : null;
+  await tx.caseDocument.update({ where: { id: documentId }, data: { status: valid ? "VERIFIED" : versions[0]?.status ?? "REQUIRED" } });
+  const target = requirementId ?? versions[0]?.requirementId;
+  if (target) await tx.caseDocumentRequirement.update({
+    where: { id: target }, data: { satisfactionStatus: valid ? "SATISFIED" : "NOT_SATISFIED", satisfiedByVersionId: valid?.id ?? null },
+  });
+}
+
+async function requireRetryableVersion(
+  tx: Prisma.TransactionClient | typeof prisma, context: OperationalContext, caseId: string, versionId: string,
+) {
+  const version = await tx.caseDocumentVersion.findFirst({
+    where: { id: versionId, caseId, organizationId: context.organizationId,
+      ...(context.role === "AGENT" ? { case: { ownerId: context.agentId } } : {}) },
+    select: { ...DOCUMENT_INTEGRITY_SELECT, documentId: true, requirementId: true, uploaderMembershipId: true,
+      versionNumber: true, document: { select: { documentType: { select: { code: true } } } } },
+  });
+  if (!version) throw new OperationalCommandError(404, "Версия документа не найдена");
+  if (version.status !== "QUARANTINED" || !["ERROR", "PENDING"].includes(version.scanStatus) || !version.requirementId) {
+    throw new OperationalCommandError(409, "Повтор доступен только после ошибки сканирования", "DOCUMENT_RESCAN_NOT_RETRYABLE");
+  }
+  const newer = await tx.caseDocumentVersion.findFirst({ where: { documentId: version.documentId, versionNumber: { gt: version.versionNumber } }, select: { id: true } });
+  if (newer) throw new OperationalCommandError(409, "У документа уже есть новая версия", "DOCUMENT_RESCAN_STALE");
+  return version;
+}
+
+export async function retryDocumentScan(
+  context: OperationalContext, caseId: string, versionId: string, meta: M3CommandMeta,
+  dependencies: { storage?: DocumentStorage; scanner?: DocumentScanner } = {},
+) {
+  assertCapability(context, "documents:upload");
+  validateM3CommandMeta(meta);
+  await requireTenantCase(prisma, context, caseId, { requireOwnerForAgent: true });
+  const fingerprint = commandFingerprint({ command: "retry-document-scan", caseId, versionId });
+  const replay = await findReplay(context.organizationId, meta.idempotencyKey, fingerprint);
+  if (replay) return { ...replay, replayed: true };
+  assertDocumentScannerOperational(dependencies.scanner);
+  const version = await requireRetryableVersion(prisma, context, caseId, versionId);
+  const storage = dependencies.storage ?? getDocumentStorage();
+  const file = await readVerifiedStorageObject(storage, version);
+  const bytes = await new Response(file.stream).arrayBuffer();
+  // A new immutable version preserves the failed attempt and the original uploader identity.
+  return uploadCaseDocument(context, {
+    caseId, requirementId: version.requirementId!, documentTypeCode: version.document.documentType.code,
+    file: new File([bytes], "scan-retry", { type: version.mimeType }), source: "explicit-scan-retry",
+  }, meta, { ...dependencies, storage, retryOfVersionId: versionId });
 }
 
 function validateFile(file: File): void {

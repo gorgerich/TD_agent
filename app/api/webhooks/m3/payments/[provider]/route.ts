@@ -3,6 +3,8 @@ import { z } from "zod";
 import { handleApiError, jsonError } from "@/lib/apiAuth";
 import { processPaymentWebhook } from "@/lib/contractLedgerService";
 import { MAX_LEDGER_AMOUNT_KOPECKS } from "@/lib/financeAmount";
+import { assertConfiguredPaymentProvider } from "@/lib/paymentWebhookProvider";
+import { readBoundedRequestText } from "@/lib/boundedRequestBody";
 
 export const runtime = "nodejs";
 
@@ -25,7 +27,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ provide
   try {
     const provider = (await params).provider.trim().toLowerCase();
     if (!/^[a-z0-9-]{2,40}$/.test(provider)) return jsonError(404, "Provider не найден");
-    const rawBody = await req.text();
+    assertConfiguredPaymentProvider(provider);
+    const rawBody = await readBoundedRequestText(req, 16_384);
     let payload: unknown;
     try {
       payload = JSON.parse(rawBody);

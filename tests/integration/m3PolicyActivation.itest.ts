@@ -3,7 +3,7 @@ import { createHash, createHmac, generateKeyPairSync, sign, type KeyObject } fro
 import { test } from "node:test";
 import type { Prisma } from "@prisma/client";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
-import { POST as login } from "../../app/api/agent/auth/login/route";
+import { POST as login, handleLogin } from "../../app/api/agent/auth/login/route";
 import { POST as grantM3ReviewerAuthority } from "../../app/api/platform-admin/m3-reviewer-authority/route";
 import {
   M3_HUMAN_ATTESTATION_CHECKLISTS,
@@ -37,7 +37,7 @@ import {
   makeRequest,
   skip,
 } from "./_setup";
-import { signSession, SESSION_COOKIE } from "../../lib/session";
+import { signSession, SESSION_COOKIE, requireAppEncryptionKey } from "../../lib/session";
 import { enforcePersistentRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
@@ -672,16 +672,21 @@ test("M3 Finance login and API require current-session TOTP verification", opts,
     });
     const loginRateLimitKey = persistentRateLimitKey("login-account", email);
     authorityRateLimitKeys.add(loginRateLimitKey);
+    // Exercise the real SQL window without letting KDF duration consume that window.
+    // Actual password/KDF and MFA verification remain covered below and in auth unit tests.
+    let rejectedPasswordChecks = 0;
     for (let attempt = 1; attempt <= 10; attempt += 1) {
       const ip = `2001:db8:30::${attempt}`;
       authorityRateLimitKeys.add(persistentRateLimitKey("login-ip", ip));
-      const rejected = await login(makeRequest("/api/agent/auth/login", {
+      const rejected = await handleLogin(makeRequest("/api/agent/auth/login", {
         method: "POST",
         headers: { "x-real-ip": ip },
         body: { email, password: "wrong-password" },
-      }));
+      }), { verifyPassword: () => { rejectedPasswordChecks += 1; return false; } });
       assert.equal(rejected.status, 401);
+      assert.equal(rejected.headers.get("set-cookie"), null);
     }
+    assert.equal(rejectedPasswordChecks, 10);
     const finalIp = "2001:db8:30::ffff";
     authorityRateLimitKeys.add(persistentRateLimitKey("login-ip", finalIp));
     const throttled = await login(makeRequest("/api/agent/auth/login", {
@@ -690,6 +695,7 @@ test("M3 Finance login and API require current-session TOTP verification", opts,
       body: { email, password },
     }));
     assert.equal(throttled.status, 429);
+    assert.equal(throttled.headers.get("set-cookie"), null);
     assert.equal((await db.securityRateLimitBucket.findUniqueOrThrow({
       where: { keyHash: loginRateLimitKey },
     })).count, 11);
@@ -1036,7 +1042,7 @@ function reviewerAuthoritySessionAt(userId: number, sessionVersion: number, issu
     exp: issuedAt + (8 * 60 * 60),
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const secret = process.env.APP_ENCRYPTION_KEY ?? "dev-key-tihiydom-not-for-production-ok";
+  const secret = requireAppEncryptionKey();
   const signature = createHmac("sha256", secret).update(encoded).digest("base64url");
   return `${encoded}.${signature}`;
 }

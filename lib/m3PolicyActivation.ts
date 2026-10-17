@@ -123,7 +123,15 @@ const Rule = z.object({
   acceptedDocumentTypeCodes: z.array(z.string().regex(/^[A-Z0-9_]{3,80}$/)).min(1),
   reviewChecklist: z.array(canonicalText(3, 160)).min(1),
   source: canonicalText(3, 500),
-}).strict();
+}).strict().superRefine((rule, context) => {
+  const supported = ["HAS_PAYER", "HAS_RESPONSIBLE_FOR_BURIAL", "CEREMONY_DATE_SET"];
+  if (rule.kind === "CONDITIONAL" && (!rule.conditionKey || !supported.includes(rule.conditionKey) || !rule.conditionExplanation)) {
+    context.addIssue({ code: "custom", path: ["conditionKey"], message: "Условное требование должно иметь поддерживаемое условие и объяснение" });
+  }
+  if (rule.kind === "REQUIRED" && rule.conditionKey !== null) {
+    context.addIssue({ code: "custom", path: ["conditionKey"], message: "Безусловное требование не должно иметь conditionKey" });
+  }
+});
 
 const BundleSchema = z.object({
   schemaVersion: z.literal(3),

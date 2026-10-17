@@ -1,16 +1,18 @@
 import { prisma } from "@/lib/prisma";
 import { parseId } from "@/lib/apiAuth";
-import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
+import { assertCapability, hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import type { M3CommandMeta } from "@/lib/m3Command";
+import { assertClientCommandKey } from "@/lib/commandNamespace";
 
-export async function canonicalCaseIdFromLead(context: OperationalContext, rawLeadId: string): Promise<string> {
+export async function canonicalCaseIdFromLead(context: OperationalContext, rawLeadId: string, scope: "operational" | "financial" = "operational"): Promise<string> {
+  if (scope === "financial") assertCapability(context, "finance:summary");
   const leadId = parseId(rawLeadId, "caseId");
   const record = await prisma.case.findFirst({
     where: {
       leadId,
       tenantId: context.organizationId,
-      ...(!hasTeamOperationalScope(context.role) ? { ownerId: context.agentId } : {}),
+      ...(!hasTeamOperationalScope(context.role) && !(scope === "financial" && context.role === "FINANCE") ? { ownerId: context.agentId } : {}),
     },
     select: { id: true },
   });
@@ -24,5 +26,6 @@ export function commandMetaFromHeaders(req: Request, fallbackReason?: string): M
   if (!idempotencyKey || !correlationId) {
     throw new OperationalCommandError(400, "Нужны Idempotency-Key и X-Correlation-Id");
   }
+  assertClientCommandKey(idempotencyKey);
   return { idempotencyKey, correlationId, reason: fallbackReason };
 }

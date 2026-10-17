@@ -6,6 +6,7 @@ import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { commandMetaFromHeaders } from "@/lib/m3Api";
 
 export const runtime = "nodejs";
 
@@ -53,9 +54,7 @@ export async function POST(req: NextRequest) {
     const parsed = ViewSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректное представление");
     if (parsed.data.scope === "TEAM") assertCapability(session, "team:read");
-    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
-    const correlationId = req.headers.get("x-correlation-id")?.trim();
-    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
+    const { idempotencyKey, correlationId } = commandMetaFromHeaders(req);
     let replayed = false;
     let view;
     try {

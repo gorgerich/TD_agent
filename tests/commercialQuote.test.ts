@@ -66,6 +66,39 @@ test("an empty draft is not a zero-price publishable quote", () => {
   assert.throws(() => assertPublishable(totals), /хотя бы одну/);
 });
 
+test("CPO-13: zero and fully discounted client totals are blocked before publication", () => {
+  for (const item of [line({ clientUnitPrice: 0 }), line({ discountAmount: 10_000_00 })]) {
+    const totals = calculateCommercialTotals([item], "CREMATION_V1");
+    assert.equal(totals.total, 0);
+    assert.throws(() => assertPublishable(totals), /больше нуля/);
+  }
+  assert.doesNotThrow(() => assertPublishable(calculateCommercialTotals([line()], "CREMATION_V1")));
+});
+
+test("CPO-23: calculator and catalog cannot bill the same logistics service twice", () => {
+  for (const [catalogItemId, description] of [["hearse-catalog", "Катафалк"], ["family-bus", "Транспорт для близких"], ["support-crew", "Носильщики"]]) {
+    const calculator = line({ stableKey: "calculator:logistics", source: "td-calculator", description });
+    const catalog = line({ stableKey: "catalog:logistics", position: 1, catalogItemId, source: "catalog" });
+    assert.throws(() => assertPublishable(calculateCommercialTotals([calculator, catalog], "CREMATION_V1")));
+    assert.doesNotThrow(() => assertPublishable(calculateCommercialTotals([
+      calculator, { ...catalog, relationKind: "REPLACEMENT", relationKey: calculator.stableKey },
+    ], "CREMATION_V1")));
+    assert.doesNotThrow(() => assertPublishable(calculateCommercialTotals([{ ...catalog, quantity: 2 }], "CREMATION_V1")));
+  }
+});
+
+test("CPO-23: seat-qualified calculator transport keeps semantic identity after label edits", () => {
+  const lines = buildCommercialDraftLines({
+    result: { sections: [{ title: "Логистика", total: 15000, items: [{ label: "Транспорт для близких (20 мест)", price: 15000, clientPrice: 15000, costPrice: 10000, quantity: 1 }] }] } as Parameters<typeof buildCommercialDraftLines>[0]["result"],
+    estimateItems: [], externalExpenses: [], scenario: "CREMATION_V1",
+  });
+  assert.equal(lines[0]?.serviceCode, "logistics:family-transport");
+  const catalog = line({ stableKey: "catalog:family", catalogItemId: "family-bus", position: 1 });
+  for (const description of [lines[0]!.description, "Автобус для семьи"]) {
+    assert.throws(() => assertPublishable(calculateCommercialTotals([{ ...lines[0]!, description }, catalog], "CREMATION_V1")));
+  }
+});
+
 test("commercial validation failures are controlled 422 responses, never 500", async () => {
   const response = handleApiError(new CommercialQuoteError("PUBLISH_BLOCKED", "Цена не подтверждена"));
   assert.equal(response.status, 422);

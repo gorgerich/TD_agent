@@ -16,6 +16,9 @@ import {
 } from "../../lib/contractLedgerService";
 import { materializeCaseRequirements } from "../../lib/documentRequirementService";
 import { installM3OrganizationBaseline } from "./_m3Baseline";
+import { encryptField } from "../../lib/crypto";
+import { uploadCaseDocument, beginDocumentReview, decideDocumentReview } from "../../lib/documentService";
+import { InMemoryTestStorage } from "../fixtures/testStorage";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
 const fixtures = createFixtureContext("cases");
@@ -66,7 +69,7 @@ test("AC-W2-02: create and transition retries are idempotent", opts, async () =>
   assert.equal(replayLead.replayed, true);
   assert.equal(await db.clientLead.count({ where: { agentId: fixture.agentId } }), 1);
 
-  await db.clientLead.update({ where: { id: fixture.lead.id }, data: { deceasedName: "enc1:test" } });
+  await db.clientLead.update({ where: { id: fixture.lead.id }, data: { deceasedName: encryptField("Synthetic deceased") } });
   const first = await command({ leadId: fixture.lead.id, cookie: fixture.cookie, eventType: "intake.completed.v1", key: "it:idem:intake" });
   assert.equal(first.status, 200);
   const replay = await command({ leadId: fixture.lead.id, cookie: fixture.cookie, eventType: "intake.completed.v1", key: "it:idem:intake" });
@@ -124,7 +127,9 @@ test("W2-09: intake save and derived transitions replay atomically", opts, async
   assert.equal(firstBody.replayed, false);
   const beforeRetry = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id }, select: { deceasedName: true } });
 
-  const replay = await request("Повтор не должен перезаписать данные");
+  const changedPayload = await request("Повтор не должен перезаписать данные");
+  assert.equal(changedPayload.status, 409);
+  const replay = await request("Первое значение");
   assert.equal(replay.status, 200);
   assert.equal((await replay.json() as { replayed: boolean }).replayed, true);
   const afterRetry = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id }, select: { deceasedName: true } });
@@ -152,6 +157,49 @@ test("M3 privacy: legacy religion field is fail-closed in the operational intake
   assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).religion, null);
 });
 
+test("CPO-06/24/25: scenario correction is explicit, atomic and payload-bound", opts, async () => {
+  const fixture = await createCase("scenario-correction");
+  const baseline = await installM3OrganizationBaseline(fixture.organizationId);
+  baseline.policyIds.forEach(fixtures.trackDocumentPolicy);
+  baseline.documentTypeIds.forEach(fixtures.trackDocumentType);
+  const save = (key: string, ceremonyType: string, confirmed = false, deceasedName = "Synthetic deceased") => intakePatch(
+    makeRequest(`/api/agent/cases/${fixture.lead.id}/intake`, {
+      method: "PATCH", cookie: fixture.cookie,
+      headers: { "idempotency-key": key, "x-correlation-id": key },
+      body: { deceasedName, ceremonyType, ...(confirmed ? { scenarioCorrection: { confirmed: true, reason: "Synthetic scenario correction" } } : {}) },
+    }), { params: Promise.resolve({ caseId: String(fixture.lead.id) }) },
+  );
+  const whitespace = await save("it:scenario:whitespace", "кремация", false, "   ");
+  assert.equal(whitespace.status, 200);
+  const partialCase = await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } });
+  assert.equal(partialCase.stage, "INTAKE");
+  assert.equal(partialCase.scenarioId, "UNSELECTED");
+  assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).deceasedName, null);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: { in: ["intake.completed.v1", "scenario.selected.v1"] } } }), 0);
+  assert.equal((await save("it:scenario:initial", "кремация")).status, 200);
+  const before = await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } });
+  assert.equal((await save("it:scenario:unconfirmed", "погребение")).status, 422);
+  assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).ceremonyType, before.ceremonyType);
+  const responses = await Promise.all([
+    save("it:scenario:correct", "погребение", true),
+    save("it:scenario:correct", "погребение", true),
+  ]);
+  assert.deepEqual(responses.map((response) => response.status), [200, 200]);
+  const bodies = await Promise.all(responses.map((response) => response.json() as Promise<{ replayed: boolean }>));
+  assert.deepEqual(bodies.map((body) => body.replayed).sort(), [false, true]);
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } })).scenarioId, "FAMILY_PLOT_BURIAL_V1");
+  assert.equal((await db.clientLead.findUniqueOrThrow({ where: { id: fixture.lead.id } })).ceremonyType, "погребение");
+  const requirements = await db.caseDocumentRequirement.findMany({ where: { caseId: fixture.lead.caseId } });
+  assert.equal(requirements.find((requirement) => requirement.stableKey === "cremation-authorization")?.isApplicable, false);
+  assert.equal(requirements.find((requirement) => requirement.stableKey === "plot-entitlement")?.isApplicable, true);
+  assert.equal(requirements.find((requirement) => requirement.stableKey === "responsible-for-burial-confirmation")?.isApplicable, false);
+  assert.equal(await db.caseEvent.count({ where: { caseId: fixture.lead.caseId, eventType: "scenario.corrected.v1" } }), 1);
+  assert.equal((await save("it:scenario:correct", "кремация", true)).status, 409);
+  assert.equal((await save("it:scenario:reverse", "кремация", true)).status, 200);
+  assert.equal((await db.case.findUniqueOrThrow({ where: { id: fixture.lead.caseId } })).scenarioId, "CREMATION_V1");
+  assert.equal((await db.caseDocumentRequirement.findFirstOrThrow({ where: { caseId: fixture.lead.caseId, stableKey: "plot-entitlement" } })).isApplicable, false);
+});
+
 test("W2-09: an idempotency key cannot replay another case in the same tenant", opts, async () => {
   const first = await createCase("key-owner");
   const secondResponse = await leadsPost(makeRequest("/api/agent/leads", {
@@ -164,7 +212,7 @@ test("W2-09: an idempotency key cannot replay another case in the same tenant", 
   const second = await secondResponse.json() as { id: number; caseId: string };
   await db.clientLead.updateMany({
     where: { id: { in: [first.lead.id, second.id] } },
-    data: { deceasedName: "enc1:test" },
+    data: { deceasedName: encryptField("Synthetic deceased") },
   });
 
   const sharedKey = "it:key-owner:shared-transition";
@@ -210,7 +258,7 @@ test("AC-W2-01/W2-12: invalid transition is clear and has no side effects", opts
 test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to zero", opts, async () => {
   const fixture = await createCase("chain");
   const leadId = fixture.lead.id;
-  await db.clientLead.update({ where: { id: leadId }, data: { deceasedName: "enc1:test", ceremonyType: "кремация" } });
+  await db.clientLead.update({ where: { id: leadId }, data: { deceasedName: encryptField("Synthetic deceased"), ceremonyType: "кремация" } });
   const membership = await db.membership.findUniqueOrThrow({ where: { agentId: fixture.agentId } });
   const baseline = await installM3OrganizationBaseline(membership.organizationId);
   baseline.policyIds.forEach(fixtures.trackDocumentPolicy);
@@ -276,6 +324,7 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
     },
   });
   await db.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: version.id } });
+  await db.quoteClientDecision.create({ data: { quoteVersionId: version.id, type: "ACCEPTED", source: "SYNTHETIC_TEST_ONLY", idempotencyKey: `it:chain:client-accept:${leadId}`, correlationId: `it:chain:client-accept:${leadId}` } });
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.published.v1", key: "it:chain:publish", payload: { quoteVersionId: version.id } })).status, 200);
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.accepted.v1", key: "it:chain:accept", payload: { quoteVersionId: version.id } })).status, 200);
 
@@ -289,51 +338,22 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
     orderBy: { stableKey: "asc" },
   });
   assert.equal(requirements.length, 3);
+  const documentStorage = new InMemoryTestStorage();
   for (const requirement of requirements) {
     const acceptedCode = (requirement.acceptedDocumentTypeCodes as string[])[0];
     const documentType = documentTypes.find((definition) => definition.code === acceptedCode);
     assert.ok(documentType);
-    const document = await db.caseDocument.create({
-      data: {
-        organizationId: membership.organizationId,
-        caseId: fixture.lead.caseId,
-        requirementId: requirement.id,
-        documentTypeId: documentType.id,
-        status: "VERIFIED",
-      },
-    });
-    const verified = await db.caseDocumentVersion.create({
-      data: {
-        documentId: document.id,
-        versionNumber: 1,
-        organizationId: membership.organizationId,
-        caseId: fixture.lead.caseId,
-        requirementId: requirement.id,
-        fileChecksum: "c".repeat(64),
-        storageKey: `integration/${fixtures.runId}/${requirement.id}`,
-        storageEtag: "c".repeat(64),
-        originalFilenameEncrypted: "enc1:synthetic",
-        mimeType: "application/pdf",
-        size: 128,
-        uploaderMembershipId: membership.id,
-        source: "SYNTHETIC_TEST_ONLY",
-        status: "VERIFIED",
-        scanStatus: "CLEAN",
-        scanProvider: "synthetic-integration",
-        assignedReviewerMembershipId: reviewer.membershipId,
-        reviewedByMembershipId: reviewer.membershipId,
-        reviewedAt: new Date(),
-        reviewChecklist: acceptedCode === baseline.documentTypes.identity
-          ? { "identity-match": true }
-          : acceptedCode === baseline.documentTypes.death
-            ? { "death-record-match": true }
-            : { "scenario-evidence": true },
-      },
-    });
-    await db.caseDocumentRequirement.update({
-      where: { id: requirement.id },
-      data: { satisfactionStatus: "SATISFIED", satisfiedByVersionId: verified.id },
-    });
+    const commandMeta = (action: string) => ({ idempotencyKey: `it:chain:${requirement.id}:${action}`, correlationId: `it:chain:${leadId}`, reason: "Synthetic document lifecycle" });
+    const uploaded = await uploadCaseDocument(fixture.context, {
+      caseId: fixture.lead.caseId, requirementId: requirement.id, documentTypeCode: acceptedCode,
+      file: new File(["%PDF-1.4\nSynthetic fixture\n%%EOF"], "synthetic.pdf", { type: "application/pdf" }),
+    }, commandMeta("upload"), { storage: documentStorage, scanner: { isOperational: () => true, scan: async () => ({ status: "CLEAN", provider: "synthetic-integration", resultCode: "CLEAN" }) } });
+    await beginDocumentReview(reviewer.context, uploaded.versionId, commandMeta("start"));
+    await decideDocumentReview(reviewer.context, uploaded.versionId, {
+      decision: "VERIFIED", reason: "Synthetic verified", expiresAt: null,
+      checklist: acceptedCode === baseline.documentTypes.identity ? { "identity-match": true }
+        : acceptedCode === baseline.documentTypes.death ? { "death-record-match": true } : { "scenario-evidence": true },
+    }, commandMeta("verify"), documentStorage);
   }
 
   const payer = await createCaseParty(fixture.context, fixture.lead.caseId, {

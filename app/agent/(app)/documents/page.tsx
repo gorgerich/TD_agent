@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { evaluateDocumentRequirement } from "@/lib/m3Domain";
 import { isCoreOperationalRole } from "@/lib/operationalAuth";
 import { buttonClasses } from "@/components/ui/Button";
+import { RescanDocumentButton } from "./RescanDocumentButton";
 
 const FILTERS = [
   ["all", "Все"],
@@ -22,6 +23,8 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
   const requirements = await prisma.caseDocumentRequirement.findMany({
     where: {
       organizationId: session.organizationId,
+      isApplicable: true,
+      supersededAt: null,
       ...(session.role === "AGENT" ? { case: { ownerId: session.agentId } } : {}),
     },
     orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
@@ -37,7 +40,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         select: {
           versions: {
             orderBy: { versionNumber: "desc" },
-            select: { versionNumber: true, status: true, scanStatus: true, expiresAt: true, rejectionReason: true },
+            select: { id: true, versionNumber: true, status: true, scanStatus: true, expiresAt: true, rejectionReason: true },
           },
         },
       },
@@ -63,7 +66,7 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
         <div>
           <h1 className="td-display text-[30px] text-ink sm:text-[38px]">Документы</h1>
           <p className="mt-2 max-w-[64ch] text-[13px] leading-relaxed text-ink-2">
-            Сценарные требования. Загруженный файл остаётся блокером до проверки назначенным reviewer.
+            Применимые требования по текущим сценариям кейсов.
           </p>
         </div>
         <div className="text-right text-[12px] text-ink-3">
@@ -108,15 +111,25 @@ export default async function DocumentsPage({ searchParams }: { searchParams: Pr
                     <p className="mt-1 truncate text-[12px] text-ink-3">
                       {row.case.lead.name} · {row.case.publicRef} · policy v{row.policyVersion} · блокирует {row.blockingStage}
                     </p>
+                    {satisfied && row.latest?.versionNumber !== row.derived.verifiedVersionNumber && (
+                      <p className="mt-2 text-[12px] text-ink-2">
+                        Действует v{row.derived.verifiedVersionNumber}. Новая v{row.latest?.versionNumber}: {statusLabel(row.latest?.status)}
+                      </p>
+                    )}
                     {row.latest?.rejectionReason && (
                       <p className="mt-2 inline-flex items-start gap-1.5 text-[12px] text-danger">
                         <WarningCircle size={14} weight="fill" className="mt-0.5 shrink-0" /> {row.latest.rejectionReason}
                       </p>
                     )}
                   </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                  {session.role !== "ADMIN" && row.latest?.status === "QUARANTINED" && ["ERROR", "PENDING"].includes(row.latest.scanStatus) && (
+                    <RescanDocumentButton leadId={row.case.leadId} versionId={row.latest.id} />
+                  )}
                   <Link href={`/agent/cases/${row.case.leadId}?tab=docs`} className={buttonClasses({ variant: "secondary", size: "sm" })}>
                     К кейсу <ArrowRight size={14} weight="bold" />
                   </Link>
+                  </div>
                 </li>
               );
             })}

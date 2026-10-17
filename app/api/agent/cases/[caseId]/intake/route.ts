@@ -16,11 +16,12 @@ const Schema = z.object({
   religion: z.never().optional(),
   needs: z.string().max(2000).optional().nullable(),
   // P0-домен: усопший и церемония
-  deceasedName: z.string().max(200).optional().nullable(),
+  deceasedName: z.string().trim().max(200).transform((value) => value || null).optional().nullable(),
   deceasedDate: z.string().max(30).optional().nullable(),  // ISO date
   morgue: z.string().max(200).optional().nullable(),
   ceremonyAt: z.string().max(30).optional().nullable(),    // ISO datetime
   ceremonyPlace: z.string().max(200).optional().nullable(),
+  scenarioCorrection: z.object({ confirmed: z.literal(true), reason: z.string().trim().min(3).max(500) }).optional(),
 });
 
 function parseDate(s: string | null | undefined): Date | null {
@@ -37,9 +38,6 @@ function parseCeremonyDate(value: string | null | undefined, timezone: string): 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ caseId: string }> }) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
-
   const idempotencyKey = req.headers.get("idempotency-key")?.trim();
   const correlationId = req.headers.get("x-correlation-id")?.trim();
   if (!idempotencyKey || !correlationId) {
@@ -47,6 +45,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
   }
 
   try {
+    const session = await getSessionFromRequest(req);
+    if (!session) return NextResponse.json({ error: "Сессия устарела — войдите снова" }, { status: 401 });
     assertCapability(session, "work:mutate-own");
     const leadId = parseId((await params).caseId, "caseId");
     await assertLeadOwned(leadId, session);
@@ -61,6 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ca
     }
     const result = await saveCaseIntake({
       leadId,
+      scenarioCorrection: parsed.data.scenarioCorrection,
       data: {
         ceremonyType: ceremonyType ?? null,
         budget: budget ?? null,

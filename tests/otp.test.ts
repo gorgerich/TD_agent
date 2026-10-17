@@ -1,6 +1,8 @@
-import { test } from "node:test";
+import { beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { generateCode, hashOtp, verifyOtp, normalizePhone } from "../lib/otp";
+
+beforeEach(() => { process.env.APP_ENCRYPTION_KEY = "synthetic-unit-otp-key-not-a-deployment-key"; });
 
 test("otp: generateCode is 6 digits", () => {
   for (let i = 0; i < 50; i++) {

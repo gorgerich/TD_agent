@@ -3,6 +3,7 @@ import { appendOperationalAudit, findOperationalReplay } from "@/lib/operational
 import { assertCapability, hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { prisma } from "@/lib/prisma";
+import { assertClientCommandKey } from "@/lib/commandNamespace";
 
 export type TaskCommandMeta = {
   idempotencyKey: string;
@@ -397,6 +398,7 @@ function meetingIdFromEscalationSource(sourceEventId: string | null): number | n
 }
 
 function validateMeta(meta: TaskCommandMeta) {
+  assertClientCommandKey(meta.idempotencyKey);
   if (!meta.idempotencyKey.trim() || !meta.correlationId.trim()) {
     throw new OperationalCommandError(400, "Нужны Idempotency-Key и X-Correlation-Id");
   }

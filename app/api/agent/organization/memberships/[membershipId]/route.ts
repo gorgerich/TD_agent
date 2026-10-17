@@ -5,6 +5,7 @@ import { appendOperationalAudit } from "@/lib/operationalAudit";
 import { assertCapability } from "@/lib/operationalAuth";
 import { ADMIN_CONFIRMATION, assertAdminRoleConfirmation, assertNotLastActiveAdmin } from "@/lib/organizationAdmin";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
+import { commandMetaFromHeaders } from "@/lib/m3Api";
 
 const Body = z.object({
   role: z.enum(["AGENT", "MANAGER", "ADMIN", "DOCUMENT_REVIEWER", "FINANCE"]).optional(),
@@ -21,9 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ member
     if (!parsed.success) return jsonError(400, parsed.error.issues[0]?.message ?? "Некорректные данные");
     if (parsed.data.role) assertAdminRoleConfirmation(parsed.data.role, parsed.data.confirmation);
     const { membershipId } = await params;
-    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
-    const correlationId = req.headers.get("x-correlation-id")?.trim();
-    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
+    const { idempotencyKey, correlationId } = commandMetaFromHeaders(req);
 
     const result = await runOperationalTransaction(async (tx) => {
       const replay = await tx.operationalAuditEvent.findUnique({

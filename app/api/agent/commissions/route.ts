@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/apiAuth";
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   try {
+    const session = await getSessionFromRequest(req);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const [commissions, payouts] = await Promise.all([
       prisma.commission.findMany({
         where: { agentId: session.agentId },
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json({ commissions, payouts, totals });
-  } catch {
-    return NextResponse.json({ error: "DB unavailable" }, { status: 503 });
+  } catch (error) {
+    return handleApiError(error, "commissions/read");
   }
 }

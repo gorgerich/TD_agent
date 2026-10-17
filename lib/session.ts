@@ -46,11 +46,21 @@ function fromB64url(s: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-async function getKey(): Promise<CryptoKey> {
-  const secret = process.env.APP_ENCRYPTION_KEY ?? "dev-key-tihiydom-not-for-production-ok";
-  if (process.env.NODE_ENV === "production" && !process.env.APP_ENCRYPTION_KEY) {
-    throw new Error("APP_ENCRYPTION_KEY must be set in production");
+export class ApplicationSecurityKeyUnavailableError extends Error {
+  constructor() {
+    super("Application security key is unavailable");
+    this.name = "ApplicationSecurityKeyUnavailableError";
   }
+}
+
+export function requireAppEncryptionKey(): string {
+  const secret = process.env.APP_ENCRYPTION_KEY;
+  if (!secret || !secret.trim()) throw new ApplicationSecurityKeyUnavailableError();
+  return secret;
+}
+
+async function getKey(): Promise<CryptoKey> {
+  const secret = requireAppEncryptionKey();
   return crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
@@ -71,17 +81,17 @@ export async function signSession(data: SessionClaims): Promise<string> {
 }
 
 export async function verifySession(token: string): Promise<SessionPayload | null> {
+  const key = await getKey();
   try {
     const dot = token.lastIndexOf(".");
     if (dot < 1) return null;
     const encoded = token.slice(0, dot);
     const sigB64 = token.slice(dot + 1);
-    const key = await getKey();
     const valid = await crypto.subtle.verify("HMAC", key, fromB64url(sigB64), enc.encode(encoded));
     if (!valid) return null;
     const payload = JSON.parse(dec.decode(fromB64url(encoded))) as unknown;
     if (!isSessionPayload(payload)) return null;
-    if (payload.exp < Math.floor(Date.now() / 1000)) return null;
+    if (payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return { ...payload, version: payload.version ?? 1 };
   } catch {
     return null;

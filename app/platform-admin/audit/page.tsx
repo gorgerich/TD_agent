@@ -27,6 +27,7 @@ export default async function PlatformAuditPage({ searchParams }: { searchParams
           <option value="PLATFORM_ACCOUNT_ACTIVATION_REVOKED">Ссылка активации отозвана</option>
           <option value="ORGANIZATION_SUSPENDED">Приостановка организации</option>
           <option value="ORGANIZATION_REACTIVATED">Возобновление организации</option>
+          <option value="ORGANIZATION_FIRST_ADMIN_ASSIGNED">Первый ADMIN организации</option>
         </select>
         <button className="min-h-11 rounded-[9px] bg-[#0d2f2a] px-5 text-[13px] font-semibold text-white">Применить</button>
       </form>

@@ -44,11 +44,17 @@ test("M3-W7: only the latest clean verified version satisfies the requirement", 
   ], new Date("2026-08-11T12:00:00Z"));
   assert.deepEqual(verified, { status: "SATISFIED", verifiedVersionNumber: 2 });
 
-  const supersededByRejected = evaluateDocumentRequirement([
+  const pendingReplacementRejected = evaluateDocumentRequirement([
     { versionNumber: 2, status: "VERIFIED", scanStatus: "CLEAN", expiresAt: null },
     { versionNumber: 3, status: "REJECTED", scanStatus: "CLEAN", expiresAt: null },
   ], new Date("2026-08-11T12:00:00Z"));
-  assert.deepEqual(supersededByRejected, { status: "NOT_SATISFIED", verifiedVersionNumber: null });
+  assert.deepEqual(pendingReplacementRejected, { status: "SATISFIED", verifiedVersionNumber: 2 });
+
+  const actuallySuperseded = evaluateDocumentRequirement([
+    { versionNumber: 2, status: "SUPERSEDED", scanStatus: "CLEAN", expiresAt: null },
+    { versionNumber: 3, status: "VERIFIED", scanStatus: "CLEAN", expiresAt: new Date("2026-08-10T00:00:00Z") },
+  ], new Date("2026-08-11T12:00:00Z"));
+  assert.deepEqual(actuallySuperseded, { status: "NOT_SATISFIED", verifiedVersionNumber: null });
 });
 
 test("M3-W7: case document truth projects materialized requirements without mutable policy lookups", () => {
@@ -248,6 +254,10 @@ test("M3-W6/W7: uploaded document and partial payment both block fulfilment", ()
     requiredDocuments: [{ stableKey: "death-record", status: "NOT_SATISFIED", owner: "DOCUMENT_REVIEWER", dueAt: null }],
     contractStatus: "SIGNED",
     paymentStatus: "PARTIALLY_PAID",
+    paymentSummary: deriveLedgerSummary([
+      { id: "obligation", type: "OBLIGATION", direction: "DEBIT", amountKopecks: 17600000, effective: true },
+      { id: "payment", type: "PAYMENT", direction: "CREDIT", amountKopecks: 8800000, effective: true },
+    ], "RUB"),
     pendingFinancialAdjustments: 0,
     reconciliationDiscrepancies: 0,
   });
@@ -478,7 +488,24 @@ test("M3 policy activation accepts only complete human-attested, scenario-distin
   }), /Duplicate document type code/);
 });
 
-function validPolicyBundle() {
+test("CPO-05/11: policy accepts new CLOSED keys but rejects unsupported or contradictory conditions", () => {
+  const extensible = parseM3ApprovedPolicyBundle(validPolicyBundle(true));
+  assert.equal(extensible.documentPolicies[0]?.rules.some((rule) => rule.stableKey === "synthetic-additional-closure" && rule.blockingStage === "CLOSED"), true);
+  const bundle = validPolicyBundle();
+  for (const condition of [
+    { kind: "CONDITIONAL", conditionKey: "UNSUPPORTED_FACT", conditionExplanation: "Synthetic explanation" },
+    { kind: "CONDITIONAL", conditionKey: "HAS_PAYER", conditionExplanation: null },
+    { kind: "REQUIRED", conditionKey: "HAS_PAYER", conditionExplanation: "Contradictory required condition" },
+  ]) {
+    assert.throws(() => parseM3ApprovedPolicyBundle({
+      ...bundle, documentPolicies: bundle.documentPolicies.map((policy, index) => index === 0 ? {
+        ...policy, rules: [{ ...policy.rules[0], ...condition }],
+      } : policy),
+    }));
+  }
+});
+
+function validPolicyBundle(additionalClosedRequirement = false) {
   const releaseCandidate = {
     previewUrl: "https://td-agent-synthetic-review.vercel.app/",
     deploymentId: "dpl_M3SyntheticReviewerEvidence12345",
@@ -492,7 +519,7 @@ function validPolicyBundle() {
     conditionExplanation: null,
     dueOffsetHours: 24,
     ownerRole: "DOCUMENT_REVIEWER" as const,
-    blockingStage: "EXECUTION" as const,
+    blockingStage: "EXECUTION" as "EXECUTION" | "CLOSED",
     reviewChecklist: ["synthetic-readable"],
     source: "Synthetic ritual fixture",
   };
@@ -556,6 +583,10 @@ function validPolicyBundle() {
       source: "Synthetic finance fixture",
     },
   };
+  if (additionalClosedRequirement) policyContent.documentPolicies[0]!.rules.push({
+    ...commonRule, stableKey: "synthetic-additional-closure", blockingStage: "CLOSED",
+    acceptedDocumentTypeCodes: ["APPLICANT_IDENTITY"],
+  });
   const policyContentFingerprint = commandFingerprint(policyContent);
   return {
     ...policyContent,

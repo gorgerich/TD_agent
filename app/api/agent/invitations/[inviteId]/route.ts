@@ -5,6 +5,7 @@ import { createInvitationToken, hashInvitationToken } from "@/lib/invitations";
 import { appendOperationalAudit } from "@/lib/operationalAudit";
 import { assertCapability } from "@/lib/operationalAuth";
 import { runOperationalTransaction } from "@/lib/operationalTransaction";
+import { commandMetaFromHeaders } from "@/lib/m3Api";
 
 const Body = z.object({
   action: z.enum(["RESEND", "REVOKE"]),
@@ -18,9 +19,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ invite
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return jsonError(400, "Некорректное действие");
     const { inviteId } = await params;
-    const idempotencyKey = req.headers.get("idempotency-key")?.trim();
-    const correlationId = req.headers.get("x-correlation-id")?.trim();
-    if (!idempotencyKey || !correlationId) return jsonError(400, "Нужны Idempotency-Key и X-Correlation-Id");
+    const { idempotencyKey, correlationId } = commandMetaFromHeaders(req);
     const token = parsed.data.action === "RESEND" ? createInvitationToken() : null;
 
     const result = await runOperationalTransaction(async (tx) => {

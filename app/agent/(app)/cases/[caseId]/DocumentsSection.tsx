@@ -15,11 +15,13 @@ export type CanonicalDocumentRequirement = {
   conditionExplanation: string | null;
   isApplicable: boolean;
   applicabilityEvaluatedAt: string;
+  supersededAt?: string | null;
   dueAt: string | null;
   ownerRole: string;
   blockingStage: string;
   acceptedDocumentTypeCodes: string[];
   derivedSatisfactionStatus: "NOT_SATISFIED" | "SATISFIED";
+  verifiedVersionNumber?: number | null;
   document: {
     id: string;
     status: string;
@@ -187,10 +189,13 @@ export function DocumentsSection({
           {visibleRequirements.map((requirement) => {
             const latest = requirement.document?.versions[0] ?? null;
             const satisfied = requirement.derivedSatisfactionStatus === "SATISFIED";
+            const verifiedVersion = satisfied ? requirement.document?.versions.find((version) => version.versionNumber === requirement.verifiedVersionNumber) ?? null : null;
             const effectiveStatus = latest?.status === "VERIFIED" && latest.expiresAt && new Date(latest.expiresAt) <= new Date()
               ? "EXPIRED"
               : latest?.status ?? "REQUIRED";
-            const canOpen = latest && latest.scanStatus === "CLEAN" && latest.status !== "QUARANTINED";
+            const openableVersions = [verifiedVersion, latest]
+              .filter((version): version is NonNullable<typeof latest> => version != null && version.scanStatus === "CLEAN" && version.status !== "QUARANTINED")
+              .filter((version, index, versions) => versions.findIndex((candidate) => candidate.id === version.id) === index);
             return (
               <li key={requirement.id} className="py-4 first:pt-0 last:pb-0">
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
@@ -198,7 +203,7 @@ export function DocumentsSection({
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <h4 className="text-[14px] font-semibold text-ink">{REQUIREMENT_LABELS[requirement.stableKey] ?? requirement.stableKey}</h4>
                       <span className={`text-[12px] font-semibold ${satisfied ? "text-success" : effectiveStatus === "REJECTED" ? "text-danger" : "text-warning"}`}>
-                        {!requirement.isApplicable ? "Не применяется" : satisfied ? "Проверен" : STATUS_LABELS[effectiveStatus] ?? effectiveStatus}
+                        {requirement.supersededAt ? "Заменено при смене сценария" : !requirement.isApplicable ? "Не применяется" : satisfied ? "Проверен" : STATUS_LABELS[effectiveStatus] ?? effectiveStatus}
                       </span>
                     </div>
                     <p className="mt-1 text-[12px] leading-relaxed text-ink-3">Правило v{requirement.policyVersion} · блокирует этап {requirement.blockingStage}</p>
@@ -212,6 +217,9 @@ export function DocumentsSection({
                         <dd className="min-w-0 break-words">{requirement.dueAt ? formatDate(requirement.dueAt, timezone) : "не назначен policy"}</dd>
                       </div>
                     </dl>
+                    {verifiedVersion && latest && latest.id !== verifiedVersion.id && (
+                      <p className="mt-2 text-[12px] text-ink-2">Действует v{verifiedVersion.versionNumber}. Новая v{latest.versionNumber}: {STATUS_LABELS[effectiveStatus] ?? effectiveStatus}</p>
+                    )}
                     {latest?.rejectionReason && (
                       <p className="mt-2 text-[12px] font-medium text-danger">Причина: {latest.rejectionReason}</p>
                     )}
@@ -221,17 +229,18 @@ export function DocumentsSection({
                     {requirement.isApplicable && !satisfied && <p className="mt-2 text-[12px] font-medium text-warning">Следующее действие: {nextDocumentAction(effectiveStatus)}</p>}
                   </div>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
-                    {canOpen && (
+                    {openableVersions.map((version) => (
                       <button
+                        key={version.id}
                         type="button"
-                        onClick={() => openVersion(latest.id)}
-                        disabled={openingVersionId === latest.id}
+                        onClick={() => openVersion(version.id)}
+                        disabled={openingVersionId === version.id}
                         className={buttonClasses({ variant: "secondary", size: "sm" })}
                       >
                         <ArrowSquareOut size={15} weight="bold" />
-                        {openingVersionId === latest.id ? "Открываю..." : `Открыть v${latest.versionNumber}`}
+                        {openingVersionId === version.id ? "Открываю..." : `Открыть v${version.versionNumber}`}
                       </button>
-                    )}
+                    ))}
                     {canMutate && requirement.isApplicable && requirement.policyStatus !== "DRAFT_POLICY" && (
                       <label className={buttonClasses({ size: "sm", className: "cursor-pointer" })}>
                         <FileArrowUp size={15} weight="bold" />

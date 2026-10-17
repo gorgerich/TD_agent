@@ -50,6 +50,7 @@ export function DocumentReviewClient({
   const [escalatingId, setEscalatingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [checks, setChecks] = useState<Record<string, Record<string, boolean>>>({});
+  const [expiry, setExpiry] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<(RecoverableClientCommand & { itemId: string }) | null>(null);
   const recoveryRef = useRef<(RecoverableClientCommand & { itemId: string }) | null>(null);
@@ -126,7 +127,11 @@ export function DocumentReviewClient({
       applyRecovery({ ...recoveryForTransport(envelope), itemId: envelope.itemId });
       throw new Error("Результат решения не подтверждён. Повторите синхронизацию с теми же данными");
     }
-    const result = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+    const result = await response.json().catch(() => null) as { error?: string; code?: string; versionId?: string; replayed?: boolean } | null;
+    if (response.ok && (result?.versionId !== envelope.itemId || typeof result?.replayed !== "boolean")) {
+      applyRecovery({ ...recoveryForTransport(envelope), itemId: envelope.itemId });
+      throw new Error("Результат решения не подтверждён. Повторите синхронизацию с теми же данными");
+    }
     const retained = recoveryForResponse(envelope, response.status, result?.code);
     applyRecovery(retained ? { ...retained, itemId: envelope.itemId } : null);
     if (!response.ok) {
@@ -187,11 +192,16 @@ export function DocumentReviewClient({
   }
 
   async function decide(item: QueueItem, decision: "VERIFIED" | "REJECTED") {
+    const expiresAt = expiry[item.id] ? new Date(`${expiry[item.id]}T00:00:00.000Z`) : null;
+    if (decision === "VERIFIED" && expiresAt && (!Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= Date.now())) {
+      setError("Срок действия должен быть в будущем");
+      return;
+    }
     if (await runMutation(item.id, () => command(item.id, `/api/agent/document-review/${item.id}/decision`, {
         decision,
         checklist: checks[item.id] ?? {},
         reason: decision === "REJECTED" ? reason : null,
-        expiresAt: null,
+        expiresAt: decision === "VERIFIED" ? expiresAt?.toISOString() ?? null : null,
       }), "Решение не сохранено")) {
       setRejectingId(null);
       setReason("");
@@ -306,6 +316,13 @@ export function DocumentReviewClient({
                             </label>
                           ))}
                         </fieldset>
+                      )}
+                      {mine && item.status === "IN_REVIEW" && (
+                        <label className="mt-3 block max-w-[240px] text-[12px] text-ink-2">
+                          Срок действия до (UTC, необязательно)
+                          <input type="date" className="td-field mt-1" value={expiry[item.id] ?? ""} disabled={mutationLocked}
+                            onChange={(event) => setExpiry((current) => ({ ...current, [item.id]: event.target.value }))} />
+                        </label>
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2 lg:justify-end">

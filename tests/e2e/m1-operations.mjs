@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope } from "./protectedInput.mjs";
+
+let browser;
+let context;
+const asyncScope = createLegacyAsyncScope(async () => {
+  try { await context?.close(); } finally { await browser?.close(); }
+});
+
+async function main() {
 
 const require = createRequire(import.meta.url);
 const axePath = require.resolve("axe-core/axe.min.js");
@@ -13,8 +22,8 @@ const password = process.env.M1_UAT_PASSWORD;
 
 if (!password) throw new Error("M1_UAT_PASSWORD is required for authenticated M1 E2E");
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+browser = await chromium.launch({ headless: true });
+context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
 const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;
@@ -36,7 +45,6 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
 
-try {
   await login(page, agentEmail, password);
   const agentResult = await agentFlow(page, context);
   await context.clearCookies();
@@ -48,6 +56,7 @@ try {
   await responsiveAndAccessibility(page);
   assert.equal(expectedConflictErrors, 2, "Both injected task version conflicts must reach the browser");
   assert.deepEqual(failures, [], `Unexpected browser errors:\n${failures.join("\n")}`);
+  await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     agent: agentResult,
     manager: managerResult,
@@ -59,17 +68,13 @@ try {
     meetingNavigationRetries,
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 async function login(target, email, secret) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
   await target.locator("#agent-email").fill(email);
-  await target.locator("#agent-password").fill(secret);
+  await fillProtected(target.locator("#agent-password"), secret);
   await Promise.all([
-    target.waitForURL(/\/agent\/cases(?:\?|$)/),
+    observeLegacyPromise(target.waitForURL(/\/agent\/cases(?:\?|$)/)),
     target.locator('form button[type="submit"]').click(),
   ]);
   await target.getByRole("heading", { name: "Кейсы", exact: true }).waitFor();
@@ -104,14 +109,14 @@ async function agentFlow(target, browserContext) {
   await urgentRow.getByRole("button", { name: "Зафиксировать результат" }).click();
   await urgentRow.locator("textarea").fill("Синтетический результат агента");
   let conflictInjected = false;
-  await target.route("**/api/agent/cases/*/tasks/*", async (route) => {
+  await target.route("**/api/agent/cases/*/tasks/*", asyncScope.guard(async (route) => {
     if (!conflictInjected && route.request().method() === "PATCH") {
       conflictInjected = true;
       await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "VERSION_CONFLICT" }) });
       return;
     }
     await route.continue();
-  });
+  }));
   await urgentRow.getByRole("button", { name: "Сохранить результат" }).click();
   await urgentRow.getByRole("alert").filter({ hasText: "другом окне" }).waitFor();
   await target.unroute("**/api/agent/cases/*/tasks/*");
@@ -169,7 +174,7 @@ async function agentFlow(target, browserContext) {
   target.on("requestfailed", recordMeetingRequestFailure);
   try {
     await Promise.all([
-      target.waitForURL(new RegExp(`${meetingHref}$`)),
+      observeLegacyPromise(target.waitForURL(new RegExp(`${meetingHref}$`))),
       meetingLink.click(),
     ]);
     await target.getByRole("heading", { name: "Семья Кремова · синтетика", exact: true }).waitFor();
@@ -214,15 +219,15 @@ async function agentFlow(target, browserContext) {
   await target.getByLabel("Фактический результат").fill("Синтетический исход встречи зафиксирован");
   const meetingApiPattern = "**/api/agent/meetings/*";
   let updatedMeeting;
-  await target.route(meetingApiPattern, async (route) => {
+  await target.route(meetingApiPattern, asyncScope.guard(async (route) => {
     if (route.request().method() !== "PATCH") return route.continue();
     const response = await route.fetch();
     assert.equal(response.status(), 200, "Meeting outcome update must succeed");
     updatedMeeting = await response.json();
     await route.fulfill({ response });
-  });
+  }));
   await Promise.all([
-    target.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === meetingHref),
+    observeLegacyPromise(target.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === meetingHref)),
     target.getByRole("button", { name: "Сохранить" }).click(),
   ]);
   await target.unroute(meetingApiPattern);
@@ -243,14 +248,14 @@ async function managerFlow(target) {
   await unassigned.getByLabel("Исполнитель").selectOption({ label: "Синтетический координатор" });
   await unassigned.getByLabel("Причина изменения").fill("UAT: распределение нагрузки");
   let conflictInjected = false;
-  await target.route("**/api/agent/cases/*/tasks/*", async (route) => {
+  await target.route("**/api/agent/cases/*/tasks/*", asyncScope.guard(async (route) => {
     if (!conflictInjected && route.request().method() === "PATCH") {
       conflictInjected = true;
       await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "VERSION_CONFLICT" }) });
       return;
     }
     await route.continue();
-  });
+  }));
   await unassigned.getByRole("button", { name: "Сохранить", exact: true }).click();
   await unassigned.getByRole("alert").filter({ hasText: "другим пользователем" }).waitFor();
   await target.unroute("**/api/agent/cases/*/tasks/*");
@@ -264,7 +269,7 @@ async function managerFlow(target) {
   await search.fill("Участкова");
   await target.getByRole("option", { name: /Семья Участкова.*Кейс \/ клиент/ }).waitFor();
   await target.keyboard.press("Enter");
-  await target.waitForURL(/\/agent\/cases\/\d+/);
+  await observeLegacyPromise(target.waitForURL(/\/agent\/cases\/\d+/));
   await target.getByRole("heading", { name: "Семья Участкова · синтетика", exact: true }).waitFor();
   await target.getByRole("tab", { name: "Работа" }).focus();
   await target.keyboard.press("ArrowRight");
@@ -298,7 +303,7 @@ async function assignedAgentFlow(target) {
   const assigned = target.locator("li").filter({ hasText: "Семья Участкова" }).filter({ hasText: "Подготовить сценарный чек-лист" }).first();
   await assigned.waitFor();
   await Promise.all([
-    target.waitForURL(/\/agent\/cases\/\d+\?tab=work/),
+    observeLegacyPromise(target.waitForURL(/\/agent\/cases\/\d+\?tab=work/)),
     assigned.getByRole("link", { name: "Открыть подготовку" }).click(),
   ]);
   await target.getByRole("heading", { name: "Семья Участкова · синтетика", exact: true }).waitFor();
@@ -372,4 +377,23 @@ async function assertNoHorizontalOverflow(target, label) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   assert.ok(dimensions.scrollWidth <= dimensions.clientWidth + 1, `${label} horizontally overflows: ${JSON.stringify(dimensions)}`);
+}
+
+}
+
+try {
+  await main();
+  asyncScope.check();
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try {
+      try { await context?.close(); } finally { await browser?.close(); }
+    } finally { await asyncScope.settle(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
+  }
 }

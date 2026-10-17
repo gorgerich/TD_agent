@@ -3,6 +3,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createHmac } from "node:crypto";
 import { chromium } from "playwright";
+import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope, legacySecretScreenshotOptions } from "./protectedInput.mjs";
+
+let browser;
+let context;
+const asyncScope = createLegacyAsyncScope(async () => {
+  try { await context?.close(); } finally { await browser?.close(); }
+});
+
+async function main() {
 
 const baseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:3001";
 const runId = process.env.M2_UAT_RUN_ID ?? "mission-2";
@@ -25,8 +34,8 @@ if (!recoveryToken) throw new Error("M2_UAT_RECOVERY_TOKEN is required");
 if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+browser = await chromium.launch({ headless: true });
+context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
 const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
@@ -52,7 +61,6 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
 
-try {
   await page.setViewportSize({ width: 390, height: 844 });
   await openRecovery(page, recoveryToken);
   await page.getByRole("heading", { name: "Восстановление доступа владельца" }).waitFor();
@@ -61,14 +69,14 @@ try {
   } catch {
     throw new Error("Raw recovery token was not removed from browser URL");
   }
-  await page.getByLabel("Новый пароль").fill(password);
-  await page.getByLabel("Повторите пароль").fill(password);
+  await fillProtected(page.getByLabel("Новый пароль"), password);
+  await fillProtected(page.getByLabel("Повторите пароль"), password);
   await page.getByRole("img", { name: "QR-код для приложения-аутентификатора" }).waitFor();
   await assertNoOverflow(page, "platform owner recovery mobile");
   await recoveryScreenshot(page, "platform-owner-recovery-mobile.png");
-  await page.getByLabel("Код из приложения").fill(totp(mfaSecret));
+  await fillProtected(page.getByLabel("Код из приложения"), totp(mfaSecret));
   await Promise.all([
-    page.waitForURL((url) => url.pathname === "/platform-admin"),
+    observeLegacyPromise(page.waitForURL((url) => url.pathname === "/platform-admin")),
     page.getByRole("button", { name: "Обновить пароль" }).click(),
   ]);
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
@@ -84,12 +92,12 @@ try {
   } catch {
     throw new Error("Raw activation token was not removed from browser URL");
   }
-  await page.getByLabel("Новый пароль").fill(password);
-  await page.getByLabel("Повторите пароль").fill(password);
-  await page.getByLabel("Код подтверждения").fill(totp(mfaSecret));
+  await fillProtected(page.getByLabel("Новый пароль"), password);
+  await fillProtected(page.getByLabel("Повторите пароль"), password);
+  await fillProtected(page.getByLabel("Код подтверждения"), totp(mfaSecret));
   await screenshot(page, "platform-activation-mobile.png");
   await Promise.all([
-    page.waitForURL((url) => url.pathname === "/platform-admin"),
+    observeLegacyPromise(page.waitForURL((url) => url.pathname === "/platform-admin")),
     page.getByRole("button", { name: "Установить пароль" }).click(),
   ]);
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
@@ -105,7 +113,7 @@ try {
   await page.getByRole("link", { name: "Организации" }).click();
   await page.getByRole("heading", { name: "Организации" }).waitFor();
   await Promise.all([
-    page.waitForURL(/\/platform-admin\/organizations\/[^/]+$/),
+    observeLegacyPromise(page.waitForURL(/\/platform-admin\/organizations\/[^/]+$/)),
     page.getByRole("link", { name: /Синтетическое агентство M2/ }).click(),
   ]);
   await waitForHeading(page, "Синтетическое агентство M2");
@@ -139,14 +147,14 @@ try {
   await inviteRow.getByText("Отозвано", { exact: true }).waitFor();
 
   const managerRow = page.locator("article").filter({ hasText: emails.manager }).first();
-  page.once("dialog", async (dialog) => dialog.accept("E2E: проверка смены роли"));
+  page.once("dialog", asyncScope.guard(async (dialog) => dialog.accept("E2E: проверка смены роли")));
   await managerRow.getByLabel(/Роль Руководитель M2/).selectOption("AGENT");
   await managerRow.getByLabel(/Роль Руководитель M2/).waitFor();
   await page.waitForFunction((email) => {
     const row = [...document.querySelectorAll("article")].find((element) => element.textContent?.includes(email));
     return row?.querySelector("select")?.value === "AGENT";
   }, emails.manager);
-  page.once("dialog", async (dialog) => dialog.accept("E2E: восстановление роли"));
+  page.once("dialog", asyncScope.guard(async (dialog) => dialog.accept("E2E: восстановление роли")));
   await managerRow.getByLabel(/Роль Руководитель M2/).selectOption("MANAGER");
   await page.waitForFunction((email) => {
     const row = [...document.querySelectorAll("article")].find((element) => element.textContent?.includes(email));
@@ -173,6 +181,7 @@ try {
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.equal(expectedActivationRejection, 1, "Consumed activation token must be rejected exactly once");
   assert.equal(expectedRecoveryRejection, 1, "Consumed recovery token must be rejected exactly once");
+  await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     platformSuperAdmin: "PASS",
     platformActivation: "PASS",
@@ -184,21 +193,17 @@ try {
     mobile: "PASS",
     skipped: 0,
   })}\n`);
-} finally {
-  await context.close();
-  await browser.close();
-}
 
 async function login(target, email, expectedPath) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
   await target.locator("#agent-email").fill(email);
-  await target.locator("#agent-password").fill(password);
+  await fillProtected(target.locator("#agent-password"), password);
   if (email === emails.platform) {
     await target.locator('form button[type="submit"]').click();
-    await target.locator("#platform-mfa-code").fill(totp(mfaSecret));
+    await fillProtected(target.locator("#platform-mfa-code"), totp(mfaSecret));
   }
   await Promise.all([
-    target.waitForURL((url) => url.pathname === expectedPath),
+    observeLegacyPromise(target.waitForURL((url) => url.pathname === expectedPath)),
     target.locator('form button[type="submit"]').click(),
   ]);
 }
@@ -260,7 +265,7 @@ function totp(secret) {
 
 async function screenshot(target, filename) {
   if (!evidenceDir) return;
-  await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true });
+  await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true, ...legacySecretScreenshotOptions(target) });
 }
 
 async function recoveryScreenshot(target, filename) {
@@ -279,7 +284,7 @@ async function recoveryScreenshot(target, filename) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   await target.waitForTimeout(250);
-  await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true });
+  await target.screenshot({ path: path.join(evidenceDir, filename), fullPage: true, ...legacySecretScreenshotOptions(target) });
 }
 
 async function waitForHeading(target, name) {
@@ -288,5 +293,24 @@ async function waitForHeading(target, name) {
   } catch {
     const text = (await target.locator("body").innerText()).replace(/\s+/g, " ").slice(0, 600);
     throw new Error(`Heading "${name}" missing at ${new URL(target.url()).pathname}. Body: ${text}`);
+  }
+}
+
+}
+
+try {
+  await main();
+  asyncScope.check();
+} catch (error) {
+  process.stderr.write(sanitizedLegacyFailure(error));
+  process.exitCode = 1;
+} finally {
+  try {
+    try {
+      try { await context?.close(); } finally { await browser?.close(); }
+    } finally { await asyncScope.settle(); }
+  } catch (error) {
+    process.stderr.write(sanitizedLegacyFailure(error));
+    process.exitCode = 1;
   }
 }

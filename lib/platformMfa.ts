@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { decryptString, encryptString } from "@/lib/crypto";
+import { decryptStringStrict, encryptString, EncryptedDataUnavailableError } from "@/lib/crypto";
 
 const PERIOD_SECONDS = 30;
 const DIGITS = 6;
@@ -14,7 +14,9 @@ export function encryptPlatformMfaSecret(secret: string): string {
 }
 
 export function decryptPlatformMfaSecret(encrypted: string): string {
-  return decryptString(encrypted);
+  const secret = decryptStringStrict(encrypted);
+  if (!/^[A-Z2-7]{32}$/.test(secret)) throw new EncryptedDataUnavailableError();
+  return secret;
 }
 
 export function platformMfaUri(secret: string): string {

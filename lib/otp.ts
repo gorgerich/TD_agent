@@ -1,4 +1,5 @@
 import { createHash, randomInt, timingSafeEqual } from "node:crypto";
+import { requireAppEncryptionKey } from "./session";
 
 /**
  * OTP-коды для SMS-входа агента. Сам код в БД НЕ хранится — только
@@ -19,22 +20,14 @@ export function generateCode(): string {
   return String(randomInt(0, 10 ** CODE_LEN)).padStart(CODE_LEN, "0");
 }
 
-function secret(): string {
-  const s = process.env.APP_ENCRYPTION_KEY;
-  if (process.env.NODE_ENV === "production" && !s) {
-    throw new Error("APP_ENCRYPTION_KEY must be set in production");
-  }
-  return s ?? "dev-key-tihiydom-not-for-production-ok";
-}
-
 /** Хэш кода, привязанный к телефону (нельзя переиспользовать на другой номер). */
 export function hashOtp(code: string, phone: string): string {
-  return createHash("sha256").update(`${code}:${normalizePhone(phone)}:${secret()}`).digest("hex");
+  return createHash("sha256").update(`${code}:${normalizePhone(phone)}:${requireAppEncryptionKey()}`).digest("hex");
 }
 
 /** Сравнение хэшей в постоянное время. */
 export function verifyOtp(code: string, phone: string, storedHash: string | null | undefined): boolean {
-  if (!storedHash) return false;
+  if (!storedHash || !/^[a-f0-9]{64}$/.test(storedHash) || !/^\d{6}$/.test(code)) return false;
   const actual = Buffer.from(hashOtp(code, phone), "hex");
   const expected = Buffer.from(storedHash, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);

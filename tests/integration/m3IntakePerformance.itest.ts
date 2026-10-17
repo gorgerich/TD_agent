@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/route";
 import { decryptField } from "../../lib/crypto";
+import { serverCommandKey } from "../../lib/commandNamespace";
 import type { CaseCommandResult } from "../../lib/caseService";
 import { installM3OrganizationBaseline } from "./_m3Baseline";
 import { createFixtureContext, db, makeRequest, sessionCookieHeader, skip } from "./_setup";
@@ -222,6 +223,24 @@ function assertReadOnlyReplay(trace: Trace) {
 }
 
 for (const scenario of scenarios) {
+  for (const [index, emptyName] of ["", "   "].entries()) {
+    test(`M3 intake ${scenario.id}: partial form ${index} saves without completing intake`, opts, async () => {
+      const fixture = await makeFixture(scenario, `partial-empty-${index}`);
+      const key = `${fixtures.runId}:${scenario.id}:partial-empty-${index}`;
+      const body = { ...intakeBody(scenario), deceasedName: emptyName, budget: "176000" };
+      const saved = await successful(await submit(fixture, scenario, key, body));
+      assert.equal(saved.stage, "INTAKE");
+      assert.equal(saved.scenarioId, "UNSELECTED");
+      const state = await snapshot(fixture);
+      assert.equal(state.lead.deceasedName, null);
+      assert.equal(state.lead.budget, "176000");
+      assert.deepEqual(state.events.map((event) => event.eventType), ["case.intake_saved.v1"]);
+      const replay = await submit(fixture, scenario, key, body);
+      assert.equal((await successful(replay)).replayed, true);
+      assertReadOnlyReplay(replay.trace);
+      assert.deepEqual(await snapshot(fixture), state);
+    });
+  }
   test(`M3 intake ${scenario.id}: incomplete intake remains INTAKE`, opts, async () => {
     const fixture = await makeFixture(scenario, "incomplete");
     const initial = await snapshot(fixture);
@@ -299,16 +318,20 @@ for (const scenario of scenarios) {
       const beforeEdit = await snapshot(fixture);
       const request = await submit(fixture, otherScenario,
         `${fixtures.runId}:${scenario.id}:edit:${stage}`, stage);
-      const body = await successful(request);
-      assert.equal(request.trace.operations.filter(operation => operation === "raw.queryRaw").length, 2,
-        "Later intake edits need only the Case lock and applicability facts, not a scenario policy lock");
+      assert.equal(request.response.status, 422);
+      assert.deepEqual(await snapshot(fixture), beforeEdit, "Unconfirmed scenario change must not persist a misleading lead edit");
+      const edit = await submit(fixture, scenario,
+        `${fixtures.runId}:${scenario.id}:same-scenario-edit:${stage}`, stage);
+      const body = await successful(edit);
+      assert.equal(edit.trace.operations.filter(operation => operation === "raw.queryRaw").length, 3,
+        "Later intake uses the Case lock and two applicability reads, without a policy lock or repeated aggregate load");
       const state = await snapshot(fixture);
       assert.equal(body.stage, stage);
       assert.equal(body.scenarioId, scenario.id);
       assert.equal(body.version, beforeEdit.record.version);
       assert.equal(body.replayed, false);
       assert.deepEqual(state.record, beforeEdit.record);
-      assert.equal(state.lead.ceremonyType, otherScenario.ceremonyType);
+      assert.equal(state.lead.ceremonyType, scenario.ceremonyType);
       assert.equal(decryptField(state.lead.deceasedName), `Synthetic intake ${stage}`);
       assert.equal(decryptField(state.lead.needs), `Synthetic audit needs ${stage}`);
       assert.deepEqual(state.requirements, beforeEdit.requirements);
@@ -342,16 +365,20 @@ for (const scenario of scenarios) {
     t.diagnostic(`Prisma operation count (not SQL latency): ${result.trace.operations.length}`);
   });
 
-  test(`M3 intake ${scenario.id}: changed-payload duplicate truthfully replays stored outcome`, opts, async (t) => {
+  test(`M3 intake ${scenario.id}: changed payload conflicts and matching payload truthfully replays`, opts, async (t) => {
     const fixture = await makeFixture(scenario, "replay");
     const initial = await snapshot(fixture);
     const key = `${fixtures.runId}:${scenario.id}:replay`;
     const original = await successful(await submit(fixture, scenario, key));
     const committed = await assertCommitted(fixture, scenario, original, initial.record.version);
     const result = await submit(fixture, scenario, key, "must-not-overwrite");
-    const replay = await successful(result);
-    assert.deepEqual(replay, { ...original, replayed: true });
+    assert.equal(result.response.status, 409);
     assertReadOnlyReplay(result.trace);
+    assert.deepEqual(await snapshot(fixture), committed);
+    const matching = await submit(fixture, scenario, key);
+    const replay = await successful(matching);
+    assert.deepEqual(replay, { ...original, replayed: true });
+    assertReadOnlyReplay(matching.trace);
     assert.deepEqual(await snapshot(fixture), committed);
     t.diagnostic(`Replay Prisma operation count: ${result.trace.operations.length}`);
   });
@@ -429,12 +456,15 @@ for (const scenario of scenarios) {
     assert.equal(await db.caseDocumentRequirement.count({ where: { caseId: fixture.id, policyId: fixture.policyId } }), scenario.rules);
     const audit = await db.operationalAuditEvent.findUniqueOrThrow({
       where: { organizationId_idempotencyKey: {
-        organizationId: fixture.owner.organizationId, idempotencyKey: `${key}:document-requirements-applicability`,
+        organizationId: fixture.owner.organizationId, idempotencyKey: serverCommandKey("document-requirements-applicability", key),
       } },
     });
     assert.equal(audit.action, "document_requirements.applicability_refreshed.v1");
     const committed = await snapshot(fixture);
-    const replay = await successful(await submit(fixture, scenario, key, "must-not-clear-date"));
+    assert.equal((await submit(fixture, scenario, key, "must-not-clear-date")).response.status, 409);
+    const replay = await successful(await submit(fixture, scenario, key, {
+      ...intakeBody(scenario), ceremonyAt: "2026-10-10T12:00:00.000Z",
+    }));
     assert.equal(replay.replayed, true);
     assert.deepEqual(await snapshot(fixture), committed);
   });

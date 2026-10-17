@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { CommercialLine } from "../../lib/commercialQuote";
+import { serverCommandKey } from "../../lib/commandNamespace";
 import { publishCommercialQuote, saveCommercialDraft } from "../../lib/commercialQuoteService";
 import { POST as publishRoute } from "../../app/api/agent/quotes/[quoteId]/publish/route";
 import {
@@ -142,7 +143,7 @@ async function sideEffectCounts(input: {
     where: {
       tenantId_idempotencyKey: {
         tenantId: input.organizationId,
-        idempotencyKey: `${input.publishKey}:case`,
+        idempotencyKey: serverCommandKey("quote-publish-case", input.publishKey),
       },
     },
     select: { id: true },
@@ -155,7 +156,7 @@ async function sideEffectCounts(input: {
       where: { organizationId: input.organizationId, idempotencyKey: `quote:publish:${input.publishKey}` },
     }),
     caseEvents: await db.caseEvent.count({
-      where: { caseId: input.caseId, idempotencyKey: `${input.publishKey}:case` },
+      where: { caseId: input.caseId, idempotencyKey: serverCommandKey("quote-publish-case", input.publishKey) },
     }),
     tasks: await db.task.count({ where: { caseId: input.caseId } }),
     completedTasks: await db.task.count({ where: { caseId: input.caseId, status: "COMPLETED" } }),

@@ -16,6 +16,19 @@ export interface DocumentScanner {
   scan(input: DocumentScanInput): Promise<DocumentScanResult>;
 }
 
+// Provider responses are untrusted too: unknown/malformed results must never open review.
+export async function scanDocumentFailClosed(scanner: DocumentScanner, input: DocumentScanInput): Promise<DocumentScanResult> {
+  try {
+    const result = await scanner.scan(input);
+    if (result && ["CLEAN", "INFECTED", "ERROR"].includes(result.status)
+      && typeof result.provider === "string" && result.provider.trim()
+      && typeof result.resultCode === "string" && result.resultCode.trim()) return result;
+  } catch {
+    // Keep the object quarantined on provider failure.
+  }
+  return { status: "ERROR", provider: "scanner-error", resultCode: "SCAN_FAILED_CLOSED" };
+}
+
 const failClosedScanner: DocumentScanner = {
   isOperational: () => false,
   async scan() {

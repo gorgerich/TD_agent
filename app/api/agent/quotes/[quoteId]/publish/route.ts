@@ -12,6 +12,7 @@ const Body = z.object({
   validUntil: z.iso.datetime(),
   channel: z.enum(["link", "presentation", "print", "email", "messenger"]),
   reason: z.string().trim().min(1).max(500),
+  recipientPartyId: z.string().trim().min(1).max(120).nullable().optional(),
 });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ quoteId: string }> }) {
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ quo
       quoteId: parseId(raw, "номер сметы"),
       validUntil: new Date(body.data.validUntil),
       channel: body.data.channel,
+      recipientPartyId: body.data.recipientPartyId,
       context,
       meta: { ...commandMeta(req), reason: body.data.reason },
     });

@@ -1,127 +1,25 @@
-# M3 Intake Incident Repair
+# PR36 CPO Audit Repair Candidate
 
-## Current Reconciliation Repair, 2026-10-04
+Candidate runtime `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4`, base `87550178d6b4ba60b3f752880fd08674c6fd2835`, [PR36](https://github.com/gorgerich/TD_agent/pull/36).
+Exact Preview `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app; isolated DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792184661797936430`, private Blob `store_Ov8erHstuvfJ52Og`.
+Production remains `87550178d6b4ba60b3f752880fd08674c6fd2835` / `dpl_8rqT8aRp2x75wfxHVpmJBaMigytY`, fingerprint `0257665af2dd90a4`, freeze disabled. PR36 CPO release NOT_PERFORMED; human/full rollout BLOCKED.
 
-Source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, PR #34, based on main `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`. Exact Preview `dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa`, https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Fresh synthetic schema `m3_intake_preview_1791111530558`, run `intake-1791111530558`. Both full authenticated journeys PASS, including the new pre-upload reconciliation API regression, document review/replacement, immutable contract/ledger, partial/full/refund/reversal, four-eyes, webhook replay, cross-tenant and failure recovery. Reconciliation=0, unexpected5xx=0, skipped=0, critical/serious accessibility=0, mobile/200% zoom PASS.
+## Implemented Scope
 
-Local gate: 143 unit, 92 integration across 15 files, canonical build, all five E2E scripts, migrate/no-op/parity and cleanup PASS. Independent exact-source delta review P0=0/P1=0; inherited Finance P2 remains documented. Source CI https://github.com/gorgerich/TD_agent/actions/runs/37197375921; authoritative evidence-head CI remains a separate pre-merge gate.
+All37 canonical CPO rows, their original HTML cross-map and scoped proof are in [current registry](cpo-registry-current.md). Changes cover refund/payment truth and current execution guards; first-admin authorization; historical contract/quote acceptance; payer lifecycle and consent delivery; scenario correction; immutable document versions and self-review identity; safe rescan; command namespaces; unavailable infrastructure; session/MFA concurrency; local browser harness ownership and safe diagnostics; canonical Parties GET readback/retry; affected UI contrast/wrapping.
 
-Fresh read-only encrypted backup and real isolated restore: receipt `intake-2026-10-04T11-05-23.102Z`, 52 table counts/digests MATCH, parity PASS, no-op, plaintext clone removed. Production during this technical validation remains frozen rollback `dpl_4sFF8Boy1yHkyx2kbb8N3GXVySwo`, source `20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. Earlier committed synthetic Case57 histories and the false reconciliation stop are preserved in reconciliation-incident.md, not erased. No Production migration is needed for this repair. Human verdicts PENDING; broad rollout CLOSED; CPO-only release still requires green final CI and controlled Production smoke.
+CPO12's Finance same-organization payment read P2 is fixed, not an inherited open risk. CPO09/CPO10 targeted server coverage gaps are closed by the reviewed regression additions and current CI. CPO25 blank/whitespace deceased names normalize to null and retain partial fields without false intake completion; they are not rejected wholesale.
 
-## Historical Intake Hotfix Validation, Superseded
+## Actual Technical Evidence
 
-Implementation `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`; PR #33; Preview `dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC`, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app; Railway fingerprint `545a187f9e9d66b0`, private store `store_Ov8erHstuvfJ52Og`. Current authenticated UAT passed both complete scenarios with reconciliation=0, unexpected 5xx=0, skipped=0, mobile/200% zoom and critical/serious accessibility=0. The previous interrupted Preview and continuation-harness omission are retained in intake-validation-current.json; neither is counted as PASS.
+[Source CI](https://github.com/gorgerich/TD_agent/actions/runs/38966224443):258 unit tests,163 integration tests in22 isolated files, five90-test concurrency repetitions, five22-test80ms latency runs; maximum parallel transaction2948ms against unchanged5000ms deadline. Six main E2E scripts, real auth failure/recovery, component browser suites, additive migrations/no-op/parity and encrypted synthetic backup/real restore passed. Overall run failed only stale evidence; final evidence-head CI PENDING.
 
-Technical source CI: https://github.com/gorgerich/TD_agent/actions/runs/37159816398. All technical steps passed; overall FAIL at stale authoritative evidence is NOT green overall CI. Green evidence-head CI remains required before merge. Independent exact-source review: P0=0/P1=0, one unchanged documented P2. Human verdicts remain PENDING and broad rollout CLOSED.
+[Exact deployed UAT receipt](pr36-b0-preview-result.json): both scenarios, document replacement/review, immutable contract/obligation, partial/full/refund/reversal, execution-after-refund guard, webhook one entry/four replays, same-envelope finance recovery, reviewer/Finance visibility, tenant denial and M3 reconciliation0 passed. CPO bootstrap/replay/scenario/publication/permissions/logout/affected UI passed separately; CPO journey reconciliation was NOT_IN_SCOPE, not zero.
 
-Initial intake reduced 76 SQL operations / six row-lock operations to 28 / three. Redundant full aggregate reads removed only from guarded initial transitions; later-stage public transition guards remain authoritative. All required writes/audit/projections stay in one unchanged 5000 ms transaction. Five exact-source CI latency repeats passed 18/18 each; maximum parallel transaction 4164 ms. Original P2028 was 5074 ms. Mac RTT is not Vercel-to-DB RTT, and historical server lock-wait timing was not captured.
+## Scope Boundaries
 
-## Historical Baseline Implementation
+CI/local source evidence is separate from deployed Preview and Production. No Production writes/env/schema/deployment change occurred in this repair validation interval. Existing protected fixture secrets and remote synthetic schema/history remain retained; browser/context cleanup is not credential destruction or fixture deletion. Human Finance/Legal/Privacy/Ritual decisions, actual scanner/provider readiness and full rollout remain blocked. M4 NOT_STARTED.
 
-The following baseline implementation narrative is historical; its candidate identifiers are not the current UAT.
+## History
 
-# M3 implementation record
-
-## Contract lock
-
-Mission `M3-FULFILMENT-MONEY-TRUST` is implemented from base
-`20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4`. The certified source tree is
-`ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`.
-
-Read-only baseline verification identified Production deployment
-`dpl_AkdiVtTqDjsvnX4nS3k4yKbez61g`, Production database fingerprint
-`0257665af2dd90a4`, and `RELEASE_WRITE_FREEZE=disabled`. Production was not used
-for tests and no Production data, schema, environment, or deployment was changed.
-
-## Product outcome
-
-### Family and parties
-
-- A Case owns stable party records and independent role assignments for applicant,
-  decision maker, payer, responsible-for-burial, and additional-contact roles.
-- One person can hold multiple effective roles without name-based linkage.
-- Contact values use the existing encrypted platform adapter. Consent provenance,
-  communication preference, validity, and role changes are auditable.
-- Religion and other special-category data remain absent and fail closed.
-
-### Scenario requirements and documents
-
-- Versioned policy and rule records produce different requirement sets for cremation
-  and burial in a family plot.
-- Unapproved rules are not represented as legal truth. Production activation requires
-  an explicit reviewed policy command.
-- Upload creates a quarantined DocumentVersion. Upload never means verified.
-- Scan, review, rejection, expiry, replacement, and supersession preserve history.
-- Only the latest applicable clean, reviewer-verified version satisfies a requirement.
-- Rejection creates owned follow-up work with reason and deadline.
-- Private storage is accessed through server-authorized, audited, short-lived reads;
-  permanent object URLs are not returned.
-
-### Contract and money truth
-
-- ContractVersion snapshots one accepted QuoteVersion, parties, payer, terms,
-  currency, checksum, and signing evidence boundary.
-- Quote acceptance and contract signing are distinct states.
-- PaymentObligation is immutable. PaymentLedgerEntry is append-only for obligation,
-  payment, refund, correction, and reversal facts.
-- Payment status is derived from obligation and ledger. The reference case 176,000 RUB
-  less 88,000 RUB is `PARTIALLY_PAID` with an 88,000 RUB balance.
-- Corrections and reversals preserve original entries. Sensitive adjustments use a
-  persistent two-person approval workflow; requester cannot approve their own entry.
-- Manual and webhook paths use persistent idempotency, payload conflict detection,
-  evidence references, and signed webhook receipts.
-
-### Workspaces and guards
-
-- Finance and Document Reviewer are separate organization roles and capabilities.
-- Finance responses exclude family notes and document content. Reviewer responses
-  exclude ledger, margin, and unrelated family context.
-- Case stage readiness is derived from approved scenario requirements, verified
-  documents, signed contract evidence, immutable obligation, ledger balance, and
-  unresolved review/reconciliation blockers.
-- Case transitions remain centralized and cannot be opened by upload count or a
-  client-provided payment status.
-- Reconciliation is diagnostic and fail closed. It does not silently repair financial
-  or document truth.
-
-### Failure and command recovery
-
-- API, storage, and canonical-read failures render explicit error or recovery states,
-  never empty success, verified, or paid.
-- Mutations retain an exact command envelope across an uncertain transport/5xx result.
-  The same path, serialized body, and command ID are replayed; non-retryable 4xx
-  responses unlock controls and discard the stale envelope.
-- Document review uses synchronous single-flight protection so concurrent UI actions
-  cannot overwrite another command's recovery state.
-- Reviewer authority grants require a fresh, MFA-bound SUPER_ADMIN session and a
-  persistent atomic rate limit. Reviewer credentials are separately registered,
-  permanently revocable, and bound to role-specific Ed25519 human attestations.
-- Narrow mobile reflow keeps document owner and due-date metadata visible at the
-  200 percent equivalent viewport without hiding or truncating live content.
-- A targeted projection repair uses fresh Case state under the organization lock,
-  retries only a known Prisma transaction timeout, and permits a measured
-  30-second projection transaction without changing finance transaction limits.
-- The Quality workflow grants only `contents: read` and `actions: read`, allowing the
-  fail-closed evidence validator to attest the exact prior source CI run. No write-capable
-  GitHub permission, validator exception, or product runtime behavior was added.
-
-## Permission matrix
-
-| Role | Case and party scope | Documents | Finance | Sensitive mutations |
-| --- | --- | --- | --- | --- |
-| AGENT | own/assigned organization work | upload and read authorized Case status | derived Case summary | no review or ledger approval |
-| MANAGER | organization operational scope | requirement status | derived summary | operational assignment only |
-| ADMIN | organization administration | policy/read status | derived summary | no reviewer or Finance bypass |
-| DOCUMENT_REVIEWER | minimum Case reference only | queue, inspect, verify, reject, escalate | none | document decisions only |
-| FINANCE | payer and obligation minimum | evidence reference only | ledger, refunds, adjustments, reconciliation | finance commands with MFA and four-eyes rules |
-
-Every server route derives `organizationId` from a current active Membership loaded from
-PostgreSQL. Client-supplied tenant identifiers cannot widen scope.
-
-## Non-goals and human boundaries
-
-Production payment/KKT provider onboarding, legally binding electronic-signature policy,
-automatic approval of ritual/legal requirements, religion/special-category processing,
-destructive legacy cleanup, and Production release are not part of this implementation.
-The technical candidate is complete; Finance, Legal/Privacy, and Ritual SME verdicts remain
-human-only gates.
+[Prior packet](historical/pre-pr36-b0-packet-20261017/README.md) preserves the old c0567/PR34 candidate, executions and Production history. [Dated checkpoint](cpo-audit-repair-20261013.md) preserves failed/interrupted attempts and later outcomes without reassigning them to b0.

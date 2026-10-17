@@ -34,14 +34,18 @@ export async function runOperationalTransaction<T>(
   throw new OperationalCommandError(409, "Команда не была выполнена после повторных попыток.");
 }
 
-function isRetryableOperationalRace(error: unknown): boolean {
+export function isRetryableOperationalRace(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
-  return error.code === "P2034";
+  if (error.code === "P2034") return true;
+  if (error.code === "P2010") return error.meta?.code === "40001" || error.meta?.code === "40P01";
+  const target = error.meta?.target;
+  return error.code === "P2002" && Array.isArray(target) && target.includes("idempotencyKey")
+    && target.every((field) => ["idempotencyKey", "organizationId", "tenantId"].includes(String(field)));
 }
 
 export class OperationalCommandError extends Error {
   constructor(
-    public readonly status: 400 | 403 | 404 | 409 | 422 | 503,
+    public readonly status: 400 | 403 | 404 | 409 | 413 | 415 | 422 | 503,
     message: string,
     public readonly code?: string,
   ) {

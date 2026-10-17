@@ -1,0 +1,69 @@
+mission: M3-FULFILMENT-MONEY-TRUST
+name: Fulfilment & Money Trust
+state: BLOCKED_HUMAN_JUDGMENT
+base_sha: 8deda6c3dbeb79dd15f3897a44ee16a492f55cca
+implementation_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+pull_request: https://github.com/gorgerich/TD_agent/pull/34
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/37197375921
+preview_deployment_id: dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa
+preview_deployment_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+preview_url: https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app
+preview_database_fingerprint: 545a187f9e9d66b0
+preview_storage_id: store_Ov8erHstuvfJ52Og
+production_deployment_id: dpl_5gcgvFzauaTUCWUDL13AwXFhUSFG
+production_deployment_sha: 9071393f9f3539d1df9fd61d645e34dd548eeb4a
+production_runtime_source_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+production_database_fingerprint: 0257665af2dd90a4
+production_changed: true
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+passed_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+human_gates:
+  finance_accounting: AWAITING_HUMAN_VERDICT
+  legal_privacy: AWAITING_HUMAN_VERDICT
+  ritual_operations_sme: AWAITING_HUMAN_VERDICT
+open_risks:
+  - RISK-W1-TECH-HUMAN-REVIEW
+  - M3-P2-FINANCE-CASE-DETAIL-READ
+  - M3-P2-PAYMENT-STAGE-LABEL
+  - REPOSITORY-MAIN-REQUIRED-CHECK-ENFORCEMENT
+production_release_authorized: false
+production_release: NOT_PERFORMED
+
+validation_scope: technical reconciliation repair after frozen rollback dpl_4sFF; preceding synthetic writes and rollback preserved in reconciliation-incident.md
+cpo_audit_release_authorized: true
+cpo_audit_release: PRODUCTION_SMOKE_PASS_PENDING_CLOSURE
+full_agent_rollout: PENDING_HUMAN_VERDICTS
+post_release_record: cpo-post-release-20261004.md
+release_merge_sha: 9071393f9f3539d1df9fd61d645e34dd548eeb4a
+release_main_ci: https://github.com/gorgerich/TD_agent/actions/runs/37199362950
+release_pr_ci: https://github.com/gorgerich/TD_agent/actions/runs/37198451567
+freeze_final_state: disabled
+production_release_scope: synthetic CPO organization only; production_release above describes full-agent rollout, NOT this separately authorized audit release

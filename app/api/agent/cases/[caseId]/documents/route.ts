@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleApiError, jsonError, requireAgent } from "@/lib/apiAuth";
 import { listCaseDocumentRequirements } from "@/lib/documentRequirementService";
-import { uploadCaseDocument } from "@/lib/documentService";
+import { assertDocumentScannerOperational, readBoundedDocumentMultipart, uploadCaseDocument } from "@/lib/documentService";
 import { canonicalCaseIdFromLead } from "@/lib/m3Api";
 
 export const runtime = "nodejs";
@@ -20,7 +20,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
   try {
     const context = await requireAgent(req);
     const canonicalCaseId = await canonicalCaseIdFromLead(context, (await params).caseId);
-    const form = await req.formData();
+    assertDocumentScannerOperational();
+    const form = await readBoundedDocumentMultipart(req);
+    if ([...form.keys()].some((key) => !["file", "requirementId", "documentTypeCode"].includes(key))
+      || ["file", "requirementId", "documentTypeCode"].some((key) => form.getAll(key).length !== 1)) {
+      return jsonError(400, "Неоднозначные поля загрузки");
+    }
     const file = form.get("file");
     const requirementId = String(form.get("requirementId") ?? "").trim();
     const documentTypeCode = String(form.get("documentTypeCode") ?? "").trim();

@@ -9,8 +9,8 @@ import {
   type NextActionProjection,
 } from "@/lib/caseDomain";
 import { tenantIdForAgent } from "@/lib/caseService";
-import { deriveCaseDocumentTruth, deriveLedgerSummary } from "@/lib/m3Domain";
-import { isCurrentPublishedVersion } from "@/lib/quotePublicationTruth";
+import { deriveCaseDocumentTruth, deriveLedgerSummary, paymentAllowsFulfilment } from "@/lib/m3Domain";
+import { isAcceptedImmutableQuote, isCurrentPublishedVersion } from "@/lib/quotePublicationTruth";
 import type { Stage } from "@/lib/case";
 import type { StatusTone, WaitingOn } from "@/lib/caseStatus";
 import type { OperationalContext } from "@/lib/operationalAuth";
@@ -91,6 +91,7 @@ const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
       total: true,
       snapshotChecksum: true,
       validUntil: true,
+      decisions: { select: { type: true } },
       quote: { select: { caseId: true, organizationId: true, latestPublishedVersionId: true } },
     },
   },
@@ -101,12 +102,16 @@ const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
   },
   documentRequirements: {
     select: {
+      ruleId: true,
+      policyId: true,
+      policyVersion: true,
       stableKey: true,
       blockingStage: true,
       isApplicable: true,
+      supersededAt: true,
       createdAt: true,
       updatedAt: true,
-      policy: { select: { status: true } },
+      policy: { select: { id: true, status: true, scenario: true, version: true, rules: { select: { id: true } } } },
       document: {
         select: {
           versions: {
@@ -135,6 +140,7 @@ const caseReadInclude = Prisma.validator<Prisma.CaseInclude>()({
               totalState: true,
               total: true,
               snapshotChecksum: true,
+              decisions: { select: { type: true } },
               quote: { select: { caseId: true, organizationId: true } },
             },
           },
@@ -208,7 +214,13 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     (total, meeting) => total + meeting.quotes.reduce((sum, quote) => sum + quote.versions.length, 0),
     0,
   );
-  const documentTruth = deriveCaseDocumentTruth(record.documentRequirements
+  const scenarioRequirements = record.documentRequirements.filter((requirement) => requirement.supersededAt == null && requirement.policy.scenario === record.scenarioId);
+  const documentPolicy = scenarioRequirements[0]?.policy;
+  const documentPolicyComplete = documentPolicy != null && documentPolicy.status !== "DRAFT_POLICY"
+    && scenarioRequirements.length === documentPolicy.rules.length
+    && scenarioRequirements.every((requirement) => requirement.policyId === documentPolicy.id && requirement.policyVersion === documentPolicy.version)
+    && documentPolicy.rules.every((rule) => scenarioRequirements.some((requirement) => requirement.ruleId === rule.id));
+  const documentTruth = deriveCaseDocumentTruth(scenarioRequirements
     .filter((requirement) => requirement.isApplicable && requirement.policy.status !== "DRAFT_POLICY")
     .map((requirement) => ({
       stableKey: requirement.stableKey,
@@ -221,10 +233,7 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     && (version.validUntil == null || version.validUntil > now)
     && version.quoteVersion.quote.caseId === record.id
     && version.quoteVersion.quote.organizationId === record.tenantId
-    && version.quoteVersion.state === "PUBLISHED"
-    && version.quoteVersion.totalState === "KNOWN"
-    && version.quoteVersion.total > 0
-    && version.quoteVersion.snapshotChecksum != null,
+    && isAcceptedImmutableQuote(version.quoteVersion),
   ) ?? null;
   const ledgerSummary = signedContract?.obligation
     ? deriveLedgerSummary(signedContract.obligation.ledgerEntries.map((entry) => ({
@@ -240,9 +249,9 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
     (entry) => entry.approvalRequired && entry.approval?.decision == null,
   ).length ?? 0;
   Object.assign(guardState, documentTruth.guardState, {
+    documents_ready_for_closure: documentPolicyComplete && documentTruth.ready,
     contract_signed: signedContract != null,
-    payment_satisfied: pendingFinancialAdjustments === 0
-      && (ledgerSummary?.status === "PAID" || ledgerSummary?.status === "OVERPAID"),
+    payment_satisfied: paymentAllowsFulfilment(ledgerSummary, pendingFinancialAdjustments),
   });
   const totalKopecks = ledgerSummary?.obligationKopecks ?? null;
   const paidKopecks = ledgerSummary?.paidKopecks ?? null;
@@ -353,7 +362,7 @@ function toReadModel(record: CaseRecord, now: Date): CanonicalCaseReadModel {
       uploaded: documentTruth.uploaded,
       required: documentTruth.required,
       verified: documentTruth.verified,
-      ready: documentTruth.ready,
+      ready: documentPolicyComplete && documentTruth.ready,
     },
     openTaskCount: openTasks.length,
     overdueTaskCount,

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { assertClientCommandKey } from "@/lib/commandNamespace";
 import { getSessionFromRequest } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { encryptField, decryptField } from "@/lib/crypto";
+import { encryptField, decryptFieldStrict } from "@/lib/crypto";
 import { handleApiError } from "@/lib/apiAuth";
 import { ensureCanonicalCaseForLead } from "@/lib/caseService";
 import { assertCapability, hasTeamOperationalScope } from "@/lib/operationalAuth";
+import { requireAppEncryptionKey } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -18,10 +20,11 @@ const CreateLeadSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   try {
+    requireAppEncryptionKey();
+    const session = await getSessionFromRequest(req);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     assertCapability(session, "work:read");
     const leads = await prisma.clientLead.findMany({
       where: {
@@ -34,21 +37,22 @@ export async function GET(req: NextRequest) {
       take: 300,
       include: { meetings: { select: { status: true } } },
     });
-    return NextResponse.json(leads.map((l) => ({ ...l, context: decryptField(l.context) })));
+    return NextResponse.json(leads.map((l) => ({ ...l, context: decryptFieldStrict(l.context) })));
   } catch (error) {
     return handleApiError(error, "leads/list");
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getSessionFromRequest(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const body = await req.json().catch(() => null);
-  const parsed = CreateLeadSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
-
   try {
+    requireAppEncryptionKey();
+    const session = await getSessionFromRequest(req);
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json().catch(() => null);
+    const parsed = CreateLeadSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+
     assertCapability(session, "work:mutate-own");
     // Профиль агента должен существовать в текущей БД. После смены БД
     // (Neon → Railway) старая сессия может нести agentId, которого здесь нет —
@@ -61,6 +65,7 @@ export async function POST(req: NextRequest) {
     }
 
     const requestedKey = req.headers.get("idempotency-key")?.trim();
+    if (requestedKey) assertClientCommandKey(requestedKey);
     if (requestedKey) {
       const replay = await prisma.caseEvent.findUnique({
         where: { tenantId_idempotencyKey: { tenantId: session.organizationId, idempotencyKey: requestedKey } },
@@ -79,7 +84,7 @@ export async function POST(req: NextRequest) {
         const lead = await prisma.clientLead.findUniqueOrThrow({ where: { id: replay.case.leadId } });
         return NextResponse.json({
           ...lead,
-          context: decryptField(lead.context),
+          context: decryptFieldStrict(lead.context),
           caseId: replay.case.id,
           caseRef: replay.case.publicRef,
           replayed: true,
@@ -110,7 +115,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({
       ...lead,
-      context: decryptField(lead.context),
+      context: decryptFieldStrict(lead.context),
       caseId: canonicalCase.caseId,
       caseRef: canonicalCase.publicRef,
     }, { status: 201 });

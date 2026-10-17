@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { clearCommandId, commandIdFor, type ClientCommandIdentity } from "@/lib/clientCommandId";
@@ -19,11 +20,15 @@ export type Intake = {
 const CEREMONY = ["кремация", "погребение"] as const;
 
 export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: number; initial: Intake; canMutate?: boolean }) {
+  const router = useRouter();
   const [value, setValue] = useState<Intake>(initial);
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const command = useRef<ClientCommandIdentity | null>(null);
+  const [correctionConfirmed, setCorrectionConfirmed] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const ceremonyChanged = initial.ceremonyType !== "" && value.ceremonyType !== initial.ceremonyType;
 
   function set<K extends keyof Intake>(key: K, next: Intake[K]) {
     setValue((current) => ({ ...current, [key]: next }));
@@ -31,11 +36,13 @@ export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: n
   }
 
   async function save() {
+    if (busy) return;
     setBusy(true);
     setErr(null);
     setOk(false);
     try {
-      const commandId = commandIdFor(command, JSON.stringify(value));
+      const body = { ...value, ...(ceremonyChanged && correctionConfirmed ? { scenarioCorrection: { confirmed: true, reason: correctionReason } } : {}) };
+      const commandId = commandIdFor(command, JSON.stringify(body));
       const res = await fetch(`/api/agent/cases/${caseId}/intake`, {
         method: "PATCH",
         headers: {
@@ -43,7 +50,7 @@ export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: n
           "Idempotency-Key": `intake-save:${caseId}:${commandId}`,
           "X-Correlation-Id": `case:${caseId}:${commandId}`,
         },
-        body: JSON.stringify(value),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -52,6 +59,7 @@ export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: n
       }
       clearCommandId(command);
       setOk(true);
+      router.refresh();
     } catch {
       setErr("Нет связи. Проверьте интернет и попробуйте снова.");
     } finally {
@@ -121,6 +129,12 @@ export function IntakeSection({ caseId, initial, canMutate = true }: { caseId: n
         </div>
       </fieldset>
 
+      {canMutate && ceremonyChanged && <fieldset className="space-y-3">
+        <legend className="text-[13px] font-semibold">Исправление сценария</legend>
+        <p className="text-[12px] text-ink-3">До публикации и загрузки документов можно исправить сценарий. Связанная история договора и оплаты не изменяется.</p>
+        <label className="flex min-h-11 items-center gap-2 text-[13px]"><input type="checkbox" checked={correctionConfirmed} onChange={(event) => setCorrectionConfirmed(event.target.checked)} />Подтверждаю исправление сценария</label>
+        <input aria-label="Причина исправления сценария" className="td-field" maxLength={500} value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Причина исправления" />
+      </fieldset>}
       {canMutate ? <div className="flex flex-wrap items-center gap-3">
         <Button type="button" size="sm" loading={busy} onClick={save}>Сохранить изменения</Button>
         {ok && <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-success"><Check size={15} weight="bold" /> Сохранено</span>}

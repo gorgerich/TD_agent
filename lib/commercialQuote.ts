@@ -49,6 +49,13 @@ export type CommercialTotals = {
 
 export const INTERNAL_COST_LINE_SOURCE = "agent-entered-internal-expense";
 
+export function logisticsServiceCode(description: string): string | null {
+  if (description === "Катафалк") return "logistics:hearse";
+  if (/^Транспорт для близких(?: \(\d+ мест\))?$/.test(description)) return "logistics:family-transport";
+  if (description === "Носильщики") return "logistics:crew";
+  return null;
+}
+
 export type CommercialEconomicsLine = {
   stableKey: string;
   description: string;
@@ -223,6 +230,21 @@ export function calculateCommercialTotals(
 
   const settlement = settleCommercialLines(lines, replacementTargets);
   const counted = lines.filter((line) => settlement.get(line.stableKey)?.settlement === "COUNTED");
+  const logistics = new Map<string, Set<string>>();
+  for (const line of counted) {
+    const catalogId = line.catalogItemId?.replace(/^custom-/, "");
+    const catalogService = catalogId && ({ "hearse-catalog": "logistics:hearse", "family-bus": "logistics:family-transport", "support-crew": "logistics:crew" } as Record<string, string>)[catalogId];
+    const calculatorService = line.source === "td-calculator"
+      ? (["logistics:hearse", "logistics:family-transport", "logistics:crew"].includes(line.serviceCode ?? "")
+        ? line.serviceCode : logisticsServiceCode(line.description))
+      : undefined;
+    const service = catalogService ?? calculatorService;
+    if (!service) continue;
+    const sources = logistics.get(service) ?? new Set<string>();
+    sources.add(catalogService ? "catalog" : "calculator");
+    logistics.set(service, sources);
+    if (sources.size > 1) blockers.push(`Услуга «${line.description}» уже учтена в логистике. Уберите повтор или явно замените исходную позицию`);
+  }
   if (!counted.some(isClientVisibleCommercialLine)) {
     blockers.push("Добавьте хотя бы одну оплачиваемую позицию");
   }
@@ -318,6 +340,9 @@ export function calculateCommercialEconomics(
 export function assertPublishable(totals: CommercialTotals): asserts totals is CommercialTotals & { total: number } {
   if (totals.totalState !== "KNOWN" || totals.total === null || totals.blockers.length > 0) {
     throw new CommercialQuoteError("PUBLISH_BLOCKED", totals.blockers[0] ?? "Смета содержит неподтверждённые цены");
+  }
+  if (totals.total <= 0) {
+    throw new CommercialQuoteError("PUBLISH_BLOCKED", "Итог публикуемой сметы должен быть больше нуля");
   }
 }
 

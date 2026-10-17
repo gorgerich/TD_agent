@@ -1,72 +1,65 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { DEMO_PHONE } from "@/lib/demo";
-import { enforceRateLimit } from "@/lib/rateLimit";
+import { enforcePersistentIdentityRateLimit, enforcePersistentRateLimit } from "@/lib/persistentRateLimit";
 import { generateCode, hashOtp, normalizePhone, otpExpiry } from "@/lib/otp";
-import { sendOtpSms, smsConfigured, SmsNotConfigured, SmsSendError } from "@/lib/sms";
+import { sendOtpSms, smsConfigured } from "@/lib/sms";
+import { requireAppEncryptionKey } from "@/lib/session";
 
 export const runtime = "nodejs";
-
-const Body = z.object({ phone: z.string().min(10) });
+const Body = z.object({ phone: z.string().min(10).max(30) });
+const defaults = {
+  db: prisma,
+  rateLimit: enforcePersistentRateLimit,
+  identityRateLimit: enforcePersistentIdentityRateLimit,
+  configured: smsConfigured,
+  sendSms: sendOtpSms,
+  schedule: (task: () => Promise<void>) => after(task),
+};
 
 export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(req, "request-otp", 5, 60_000);
-  if (limited) return limited;
+  return handleRequestOtp(req);
+}
 
-  const parsed = Body.safeParse(await req.json().catch(() => ({})));
-  if (!parsed.success) return NextResponse.json({ error: "Укажите номер телефона" }, { status: 400 });
-
-  const { phone } = parsed.data;
-
-  if (process.env.NODE_ENV === "development") {
-    // Dev-режим: код не отправляется, показываем его прямо в ответе.
-    return NextResponse.json({ ok: true, devCode: "0000", phone });
-  }
-
-  if (process.env.DEMO_MODE === "1" && phone.trim() === DEMO_PHONE) {
-    // Legacy demo OTP endpoint. Основной демо-вход теперь /api/agent/auth/demo.
-    return NextResponse.json({ ok: true, devCode: "0000", demo: true, phone });
-  }
-
-  // Production: создаём OTP и шлём SMS, если телефон принадлежит агенту.
-  if (!smsConfigured()) {
-    return NextResponse.json({ error: "SMS-провайдер не настроен" }, { status: 503 });
-  }
-
-  const normalized = normalizePhone(phone);
-
+export async function handleRequestOtp(req: NextRequest, overrides: Partial<typeof defaults> = {}) {
+  const deps = { ...defaults, ...overrides };
   try {
-    const user = await prisma.user.findUnique({
-      where: { phone: normalized },
-      include: { agent: { select: { id: true } } },
-    });
-
-    // Отправляем код только реальному агенту. Ответ одинаков в любом случае —
-    // не раскрываем, зарегистрирован ли номер (anti-enumeration).
-    if (user?.agent) {
-      const code = generateCode();
-      await prisma.$transaction([
-        prisma.otpToken.deleteMany({ where: { phone: normalized } }),
-        prisma.otpToken.create({
-          data: { phone: normalized, codeHash: hashOtp(code, normalized), expiresAt: otpExpiry() },
-        }),
-      ]);
+    requireAppEncryptionKey();
+    const limited = await deps.rateLimit(req, "request-otp-ip", 5, 60_000);
+    if (limited) return limited;
+    const parsed = Body.safeParse(await req.json().catch(() => ({})));
+    if (!parsed.success) return NextResponse.json({ error: "Укажите номер телефона" }, { status: 400 });
+    const phone = normalizePhone(parsed.data.phone);
+    if (!/^\+7\d{10}$/.test(phone)) return NextResponse.json({ error: "Укажите номер телефона" }, { status: 400 });
+    const accountLimited = await deps.identityRateLimit("request-otp-phone", phone, 5, 60_000);
+    if (accountLimited) return accountLimited;
+    // Validate service configuration equally for every recipient, before scheduling.
+    const code = generateCode();
+    const codeHash = hashOtp(code, phone);
+    if (!deps.configured()) return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503, headers: { "Retry-After": "5" } });
+    deps.schedule(async () => {
       try {
-        await sendOtpSms(normalized, code);
-      } catch (e) {
-        if (e instanceof SmsNotConfigured) {
-          return NextResponse.json({ error: "SMS-провайдер не настроен" }, { status: 503 });
+        const user = await deps.db.user.findUnique({
+          where: { phone }, include: { agent: { select: { id: true, status: true } } },
+        });
+        if (!user?.agent || user.agent.status !== "ACTIVE") return;
+        await deps.db.$transaction(async (tx) => {
+          await tx.otpToken.deleteMany({ where: { phone } });
+          await tx.otpToken.create({ data: { phone, codeHash, expiresAt: otpExpiry() } });
+        }, { isolationLevel: "Serializable" });
+        try {
+          await deps.sendSms(phone, code);
+        } catch {
+          await deps.db.otpToken.deleteMany({ where: { phone, codeHash } });
+          throw new Error("OTP delivery failed");
         }
-        if (e instanceof SmsSendError) {
-          return NextResponse.json({ error: "Не удалось отправить SMS, попробуйте позже" }, { status: 502 });
-        }
-        throw e;
+      } catch {
+        // Never log phone numbers, codes, provider errors or database query arguments.
+        console.error("[auth] OTP_DELIVERY_UNAVAILABLE");
       }
-    }
-
+    });
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503 });
+    return NextResponse.json({ error: "Сервис временно недоступен" }, { status: 503, headers: { "Retry-After": "5" } });
   }
 }

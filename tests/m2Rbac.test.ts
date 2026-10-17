@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import { hasCapability } from "../lib/operationalAuth";
+
+beforeEach(() => { process.env.APP_ENCRYPTION_KEY = "synthetic-unit-mfa-key-not-a-deployment-key"; });
 import { hasPlatformCapability } from "../lib/platformAuth";
 import { ADMIN_CONFIRMATION, assertAdminRoleConfirmation } from "../lib/organizationAdmin";
 import { sanitizePlatformAuditMetadata } from "../lib/platformAudit";
