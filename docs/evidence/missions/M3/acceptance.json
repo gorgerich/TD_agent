@@ -72,7 +72,7 @@
       "id": "M3-RECON-01",
       "status": "PASS",
       "requirement": "Document, contract, ledger, task, tenant, webhook, and audit reconciliation is deterministic and fail closed.",
-      "evidence": "Exacte9 full M3 Preview reconciliation0; new initial intake API+readonly complete census for both ceremonies gives0 discrepancy while all three fulfilment blockers remain. Advanced/stale lifecycle drift negatives11/11 PG PASS. Diagnostic only, no automatic financial/document repair."
+      "evidence": "Exacte9 full M3 Preview reconciliation0; new initial intake API+readonly complete census for both ceremonies gives0 discrepancy while all three fulfilment blockers remain. Eleven PG tests PASS: two legitimate initial-intake positives and nine advanced/stale lifecycle drift negatives. Diagnostic only, no automatic financial/document repair."
     },
     {
       "id": "M3-SEC-01",
