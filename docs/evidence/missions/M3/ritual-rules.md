@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: ritualOperationsSme
-preview_url: https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa
-deployment_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
-implementation_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+preview_url: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5
+deployment_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
+implementation_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,9 +15,12 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-- Exact Preview: `https://td-agent-2z7lvoo1b-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_AkHmeuGd4EoQJVTPqEH3qpCeKgUa`
-- Implementation: `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`
+PR36 / base875 technical candidate, 2026-10-17. Both authenticated synthetic journeys passed on this exact runtime. Technical PASS is not this human gate's approval; all checklist answers and attestations remain awaiting. Current CPO release NOT_PERFORMED; Production unchanged875 with freeze disabled. Prior packet is archived in historical/pre-pr36-b0-packet-20261017. Protected fixture credentials remain retained outside Git; browser logout is not credential destruction.
+
+
+- Exact Preview: `https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`
+- Implementation: `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4`
 - Preview policies and records are explicitly synthetic, not legal or ritual verdicts.
 - Cremation and burial in a family plot have different versioned requirement sets.
 - Unapproved policy fails closed and cannot open a Case stage.

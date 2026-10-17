@@ -1,0 +1,70 @@
+{
+  "sha": "b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4",
+  "deploymentId": "dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5",
+  "url": "https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app",
+  "fingerprint": "545a187f9e9d66b0",
+  "schema": "m3_cpo_repair_1792184661797936430",
+  "results": {
+    "cremation": "PASS",
+    "relativeBurial": "PASS",
+    "documentQuarantineReviewReplacement": "PASS",
+    "contractObligation": "PASS",
+    "partialFullRefundReversal": "PASS",
+    "executionAfterRefundGuard": "PASS",
+    "webhookReplayFive": {
+      "uniqueEntries": 1,
+      "original": 1,
+      "replayed": 4
+    },
+    "financeLostResponseRetry": {
+      "original": false,
+      "replay": true,
+      "sameCommandEnvelope": true,
+      "oneLedgerEntry": true
+    },
+    "financeVisibility": "PASS",
+    "reviewerVisibility": "PASS",
+    "stageGuards": "PASS",
+    "reconciliation": 0,
+    "crossTenant": "PASS",
+    "accessibilityCriticalSerious": 0,
+    "mobile": "PASS",
+    "zoom200": "PASS",
+    "unexpected5xx": 0,
+    "skipped": 0
+  },
+  "repair": {
+    "firstAdmin": "PASS",
+    "lostResponseReplay": "PASS",
+    "invites": 3,
+    "scenarioCorrection": "PASS",
+    "publicationGuard": "PASS",
+    "permissions": "PASS",
+    "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+    "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+    "firstAdminUi": [
+      {
+        "width": 1365,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-xyv2TO/first-admin-1365.png"
+      },
+      {
+        "width": 390,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-xyv2TO/first-admin-390.png"
+      },
+      {
+        "width": 195,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-xyv2TO/first-admin-195.png"
+      }
+    ],
+    "skipped": 0
+  }
+}

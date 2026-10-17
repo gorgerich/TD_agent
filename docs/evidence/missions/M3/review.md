@@ -1,124 +1,26 @@
 ---
 schema: m3-independent-review-v1
-reviewed_sha: c0567d11d4a80d1488a1e8bca6dc1815ffc83806
+reviewed_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
 reviewer: independent cumulative M3 source reviewer (Codex)
 verdict: PASS
 p0: 0
 p1: 0
-p2: 1
+p2: 0
 ---
-# Independent Exact-SHA Reconciliation Review, 2026-10-04
+# Current Runtime Source Review Chain
 
-Post-release packet qualification: [cpo-post-release-20261004.md](cpo-post-release-20261004.md)
-records the later Production smoke and inherited PAYMENT-stage registry label P2.
-The original one-P2 frontmatter remains the exact-source delta review, not an
-exhaustive application-wide finding count or a claim that current UI has no debt.
-Native browser zoom is not certified by the CSS zoom captures; effective viewport
-reflow and real read-only control clicks are separate operator evidence.
+Exact b0 runtime source review PASS is scoped: no newly established or unclosed concrete runtime P0/P1/P2 in the inspected cumulative repair and increments. It is not exhaustive formal verification, full CI/UAT execution, human approval or Production authority. Evidence readiness and external owner-helper findings are separate from these runtime finding counts.
 
-Current source `c0567d11d4a80d1488a1e8bca6dc1815ffc83806`, base `8deda6c3dbeb79dd15f3897a44ee16a492f55cca`: independent reviewer inspected the complete three-file committed delta and relevant reconciliation/transition boundaries. P0=0/P1=0; the inherited Finance Case-detail read P2 below remains open. Presence guard does not weaken requirement/document-version tenant checks or readiness blockers. Both-scenario integration covers absent documents, a quarantined document alongside absent requirements and an actually foreign empty document. Browser assertions run before uploads in both scenarios. No schema/migration changes.
+- [944 cumulative review](historical/review-chain-20261017/independent-source-review-94401515.md): all49 original HTML records /37 canonical registry rows mapped;144 focused tests independently passed. R944-01/02 identified server regression gaps, not waived.
+- [921 continuation](historical/review-chain-20261017/independent-source-review-92169538.md): complete seven-file increment reviewed; R944-01/02 source gaps closed; identity2/2 independently passed. Previously failed local PG/UAT remains historical, not reviewer success.
+- [b0 continuation](historical/review-chain-20261017/independent-source-review-b0b2d784.md): complete five-file increment and auth harness reviewed;13 unit/preflight checks passed, syntax/whitespace and exact19-path restore allowlist parity passed. No new runtime defect established. The reviewer did not execute remote b0 UAT, full current CI or Production.
 
-Reviewer independently executed the initial affected canonical PostgreSQL target 8/8 PASS, skipped0, schema dropped. That execution preceded the added mixed-state coverage. Exact committed mixed-state 8/8 PASS is implementer execution, not attributed to the reviewer. Whitespace and E2E syntax checks passed. Independent reviewer did not execute remote UAT, full CI or Production. Fresh exact-source Preview UAT and complete local gates are implementer facts recorded separately, not independent attestation.
+This evidence-only update addresses R944-03 stale authoritative bindings using actual b0 receipts. Independent packet review and final evidence-head CI remain required; this author does not independently approve its own packet.
 
-External resume harness was separately reviewed: strict predecessor/source ancestry, exact retained Case57 PAYMENT state, fresh read-only scope, immutable QuoteVersion44 and three ledger entries, and no repeated intake/payment writes. Two P2 harness guard gaps were fixed and independently checked (six synthetic assertions and syntax PASS); no P0/P1 remains. Harness SHA256 `5b07db45bfafdad3441844a4bbc41b857956418d7f3063970bc5868566de8e77`. No protected credentials or Production were accessed by the reviewer.
+## External Owner Helper
 
-## Historical Intake Review, Superseded
+Pauli's2026-10-17 source re-review closed OT01-05 at its recorded hashes, P0/P1 zero,32 inert tests passed, and explicitly approved APPROVED_TASK_CANCELLED_ARTIFACT_NOT_CLOSED for the minimal INTAKE synthetic artifact. Remaining OP-PROOF-01 P2 requires truthful separate M3/CPO Preview normalization and scoped browser-only cleanup. The owner command is NOT_YET_CLEARED_TO_RUN. This is not a runtime defect and does not authorize agent Production execution or fabricate final review.json. Human verdicts remain awaiting.
 
-The following report remains bound to 4bc and is not relabelled as a new execution.
+## History
 
-Reviewed source: `4bc03e2f228d64f9d12325cfe21b683ee143d5a1`. Independent source findings: P0=0, P1=0, P2=1 (the unchanged Finance Case-payment read ownership restriction below). Frontmatter PASS means technical source review only, not green overall CI, Preview UAT, human signoff, production safety execution or release approval.
-
-## Review Scope And Contracts
-
-This review carries forward the historical baseline contracts documented below, verifies that ced3fad-to-c9 changes are evidence-only, and independently reviews the complete c9-to-4bc intake repair and relevant caller/domain/schema boundaries. Targeted high-risk tracing is not an exhaustive reread or proof of every legacy endpoint. Historical reviewer executions are not attributed to this reviewer as current-SHA executions.
-
-- Atomicity and replay: all intake Lead/Case mutations, derived events, requirements, audit, task projections and final receipt remain on one transaction. Parent replay stays behind the tenant/owner Case lock, before mutation/policy wait, and returns the original stored result. No P2028 retry or transaction deadline increase was added.
-- Stage guards: only intake.completed and scenario.selected use initial-stage facts. Public transition callers retain locked authoritative loading for later stages, including current published quote, valid signed contract, approved ledger adjustments, required verified documents and scenario closure guards. The private helper has no new external caller or guard bypass.
-- Lock order and tenant isolation: Case tenant/owner filtering remains exact; materializing paths acquire Case before scenario policy, including inferred ceremony type on partial intake. Later-stage edits skip only the policy lock that cannot lead to materialization. They still hold the Case lock and refresh existing tenant/case requirements, without selecting a replacement policy.
-- Requirements: joined SQL preserves effective role boundaries and no-party cases. Preload includes historical tenant/case rows and their own conditions. Current policy updates and historical refresh retain their respective audits and parent command metadata; no-policy fallback retains full refresh. Other document/party/policy callers remain on their existing argument paths.
-- Projection batching: two task rows retain fields/defaults/unique constraints. Audits use actual returned IDs/snapshots; receipt task IDs are mapped back to deterministic input-type order. Task/audit/receipt effects remain atomic.
-- Baseline Finance/ledger/document contracts: retained exact client recovery identity, readable-success acknowledgement, synchronous submission/dismissal lock and monotonic confirmed durability are unchanged. Server capability/tenant checks, immutable signed obligation, append-only ledger, amount bounds, webhook signature/replay and four-eyes approval remain unchanged by the intake diff. Later transition facts continue deriving payment and latest clean verified document truth rather than trusting mutable display status.
-- Preview branch configuration adds only the exact repair branch and retains isolation/fingerprint checks. Production organization allowlist is unchanged. No migration or production capability expansion is in this repair.
-- CI latency step repeats the same 18-test target five times with fail-fast shell behavior. The 5000ms transaction deadline, <=4500ms normal/parallel budget, full policy fixtures and within-target parallel requests are unchanged. Harness diagnostics do not alter forwarding or acceptance thresholds.
-
-## Actual Checks And Remaining Gates
-
-At exact 4bc03e2, this reviewer independently ran m3RecoveryContracts, financeAmount, m3Domain, m3AuditMode and m3PreviewIdentity: 33/33 PASS, failed 0, skipped 0. Exact-range whitespace checks and the committed latency script's Node 24 syntax check passed. HEAD was verified as the full reviewed SHA. No exact-source typecheck, full unit/integration suite, build, browser E2E, remote UAT or production operation was performed by this reviewer. No local DB tests were run while parent E2E work was active; the subsequent targeted run below followed explicit authorization after its completion.
-
-Latest parent report: CI `37159816398` at this exact SHA completed every technical step including E2E, but overall failed only evidence validation. Downloaded CI proof is reported as five latency runs x18 PASS, initial transactions 2492-2529ms and parallel maximum 4164ms. Parent also reports local 143 unit tests, 91 integration tests across 15 files with owned-schema cleanup, build, all five E2E scripts and migration no-op/schema parity PASS. Those are parent-reported results, not independently executed or remotely fetched here. Overall evidence-head CI remains a gate; a technically successful job with an evidence failure is not green overall CI.
-
-Subsequent independent normal integration check: canonical `npm run test:integration -- tests/integration/m3IntakePerformance.itest.ts` at exact reviewed_sha, Node 24.12.0 and local PostgreSQL 18 tooling, approved `td_agent_m3_20260811_a` on 127.0.0.1:5432, dummy test encryption key. First sandbox attempt was blocked by local TCP permissions before test execution; authorized local-only retry completed exit 0, 18/18 PASS, failed 0, skipped 0. Runner owned schema `it_48487_0_m3intakeperformance`, applied the existing 11 migrations, performed fixture cleanup and emitted DROP SCHEMA. Both scenario rollback and historical-refresh tests passed. No latency proxy was enabled: initial transactions measured 267/110ms; parallel timings 162,174,131,136,144ms and 513,535,516,550,513ms. This is one normal target run, not five injected-latency repeats or full integration-suite execution. Exact c9-to-reviewed_sha Prisma schema/migration diff is empty; migration no-op/parity execution remains parent-reported, not claimed from this target setup.
-
-Previous 34/32/30-query failures and later 28-query v4/v5/v6 failures remain preserved in intake-review.md. A later passing run does not retroactively relabel them. Proxy scheduling diagnostics do not establish local environment/compiler causation for the unexplained long operations. Detailed static assessment, execution provenance and residual coverage limits are in intake-review.md.
-
-Current evidence-only review: independently inspected the safe external intake-preview-uat-result-v2.json, not executed UAT. It binds exact reviewed_sha to deployment dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC, https://td-agent-77fadgqm7-rics-projects-9baa2793.vercel.app, fingerprint 545a187f9e9d66b0 and schema m3_intake_preview_1791105181548. Its four initial intake results pass both scenarios; parallel duplicates each have one original/four replays. Parsed lifecycle output confirms both journeys, document review/replacement, contract, refund/reversal, exact-envelope recovery with one ledger entry, webhook one entry/one original/four replays, reconciliation=0, unexpected5xx=0, skipped=0, mobile/zoom PASS and accessibility critical/serious=0. This verifies artifact consistency, not independent deployment metadata attestation or remote execution. Structured local assertions passed; all 11 archived packet bodies byte-match their stated c9 commit.
-
-Evidence finding [P2]: acceptance.json:93,99,105,111 still presents ced3fad/old deployment and CI 37116487974 with 73 integrations/14 files as the current acceptance evidence, while the updated authoritative packet binds 4bc and 91/15. Refresh these four acceptance references or explicitly classify them as historical and link current evidence before the evidence-head gate. This is separate from the unchanged source P2 counted in frontmatter; no new P0/P1 was identified. Only review files are authorized for this reviewer, so acceptance.json was not edited.
-
-Closure recheck, 2026-10-04: the preceding documentation P2 is historical and CLOSED. Independently reread all four corrected acceptance records: current UX/UAT bind 4bc and dpl_7CEoXKy9ArgdvC95KhNw2UKco7tC; review binds the full source SHA and independent 18-test run; technical gates cite source CI 37159816398, five x18 latency targets, local 143 units/91 integrations/15 files and canonical build. Overall source CI FAIL and pending final evidence-head CI are explicit. The cancelled first evidence CI is not a passing execution; corrected evidence-head CI remains required. No acceptance file was edited by this reviewer. The unchanged source Finance P2 remains open and frontmatter source counts are unchanged.
-
-Finance/Accounting, Legal/Privacy and Ritual SME verdicts remain PENDING, not PASS. CPO-only authorization remains the ceiling; broad rollout is closed. Packet production state remains frozen on rolled-back runtime 20b7e0fa58e6a04f1c96630f832455ec3a0f1dc4, not the candidate runtime. Source CI retains overall FAIL despite technical-step PASS; evidence-head CI remains pending. Production state, CI execution and full local gates are attributed evidence, not independently connected/fetched here. Fresh permitted backup/restore and production preflight remain distinct operational gates. External checkpoint/backup helper failure checks used synthetic mocks only, never a real backup/production execution; they are not part of this repository SHA. Prior credential/provisioning denial was not rerouted.
-
-Only review evidence was edited; no code changes, commits, pushes, deployments or production connections were made by this reviewer.
-
-# Historical Baseline Review, 2026-10-03
-
-The following retained report is bound to ced3fad, not to current reviewed_sha. Its checks and UAT limitations remain historical. The current frontmatter and the preceding section are authoritative for the intake candidate.
-
-Reviewed exact source `ced3fad0fee5e5018bf4dab93cf87f644c0e4a3f`, combining the full-release-scope review of `18e130990264813bde61ce7bc3b55aecec4d7d6c` in final-review-20261003.md with inspection of the complete subsequent repair diff, the harness fix at `0c3659ffef1a9f5a07929082982157477155dae6`, and the latest two-file alert/regression patch. All changes since 18e are confined to eight files: FinanceClient, payment webhook route, shared recovery helper, ledger service, amount parser, M3 E2E, M3 integration and recovery-contract tests. HEAD was independently verified and tracked source was clean.
-
-Cumulative source findings at this exact SHA: P0=0, P1=0, P2=1. The original Finance close/reopen P1, webhook range P2, durability downgrade and injected-503 harness P2 are resolved in inspected source. The single remaining P2 is the carried Finance Case-payment read ownership restriction described below. The front-matter PASS means independent technical source review only. It does not certify CI, full integration, Preview UAT, Production preflight or release authorization.
-
-## Resolved: Injected post-commit 503 accounting
-
-Locations: `tests/e2e/m3-fulfilment.mjs:62`, `:68`, `:153` and `:373`.
-
-The intercepted payment must really return 201 before the test adds that exact route request to injectedProjectionFailures and fulfills the controlled 503. The response listener excludes only status 503 with a matching request object; deletion consumes the marker and increments an observed count. Final assertions require exactly one observed injection, no outstanding markers and no unexpected5xx. Other payment 503s, 500s and a second 503 for the already consumed request remain failures. The final assertion has not been weakened to permit real payment failures.
-
-An independent local contract check executed the actual extracted final response listener with one marked 503, an unrelated 503, a 500 and a repeated 503 for the consumed request. Observed injection count was 1, remaining marker count 0, and the latter three responses were recorded as unexpected. This is a deterministic listener check, not a browser E2E PASS. An attempted completely intercepted localhost-only Playwright check could not launch Chromium: the local headless process exited with SIGTRAP. No application or Production request was made by that attempt. Actual browser request-object identity and event timing remain to be confirmed by the new E2E run; a mismatch fails closed through the count/set assertions rather than hiding a failure.
-
-The source-level harness P2 is closed at 0c3659f. Successful full execution remains a validation gate, not a claimed result of this source review.
-
-## Finance repair assessment
-
-Finance now retains the serialized request body, path, idempotency key, correlation ID and timestamp for transport failures, 5xx and unreadable or structurally invalid successful acknowledgements. The acknowledgement requires a nonempty ledgerEntryId and boolean replayed, matching the payment, refund, adjustment and approval service result contracts. Invalid JSON no longer silently closes the dialog and loses its recovery identity.
-
-The synchronous mutation ref prevents duplicate submits and retries before React rerenders. Dialog close, Cancel, Escape and backdrop dismissal are guarded during submission and recovery; replacement actions are refused and inputs are disabled. Recovery retry reuses the retained envelope rather than collecting edited form values. Its button sits outside the disabled fieldset. The original in-dialog close/reopen P1 is addressed in the inspected implementation.
-
-Shared recovery helpers preserve CONFIRMED_COMMIT through subsequent transport failures and generic 5xx. The sequential regression covers confirmed 503, transport failure, 502, invalid 201 acknowledgement, then valid replay, asserting identical requests throughout. This resolves the previously reported durability downgrade. These guarantees are component-lifetime guarantees; no persistence across browser reload, tab closure or remount is implemented or certified.
-
-The E2E additions exercise post-commit-style 503 for cremation and lost response for burial, each after a real successful server payment. They assert disabled close/Cancel/input, Escape refusal, exact path/body/header replay, replayed=true and the same ledgerEntryId. The injected 503 proves client reaction after a real commit, not actual server projection contention. Backdrop and in-flight dismissal are covered by inspected guards/static tests rather than new browser clicks. Runtime dialog fit, focus transitions and recovery on mobile were not independently exercised in this review.
-
-## Webhook amount repair assessment
-
-MAX_LEDGER_AMOUNT_KOPECKS is 2,147,483,647. The webhook route rejects values above it with schema validation before calling the service. The webhook service and common manual-ledger validator independently enforce safe-integer positivity and the same upper bound before transaction work. The ruble parser retains exact BigInt conversion. No amount rounding or coercion regression was found.
-
-The new integration assertions use correctly signed values of 2,147,483,648 and Number.MAX_SAFE_INTEGER, expect route 400 and direct-service 422, then check unchanged obligation ledger count. Their source was reviewed, but this reviewer did not execute the database suite. No synthetic provider receipt can be created through the inspected oversized-value path because the service rejection precedes the transaction. A valid maximum-bound webhook insert is not specifically added by this diff; existing amount-parser boundary tests are not a substitute for a database boundary test.
-
-## Latest patch: One visible Finance alert
-
-The complete 0c3659f-to-ced3fad diff changes only FinanceClient and its recovery-contract test. At `app/agent/(app)/finance/FinanceClient.tsx:283`, the page alert now requires error and neither actionState nor approvalState. The existing modal commandFeedback still renders its alert, so an active action or approval dialog has one error location rather than both modal and page alerts. When neither modal is active, the page error is not suppressed. Recovery state, request identity, acknowledgement validation, mutation locks and webhook validation are unchanged.
-
-The added regression at `tests/m3RecoveryContracts.test.ts:20` checks both alert conditions, verifies feedback is supplied to each modal, and tests zero/one visible alert with no modal, action modal and approval modal. The mutual-exclusion action-opening handlers were checked against those assumptions. No new actionable defect was identified. This is source/contract validation; it does not independently establish a fresh browser E2E PASS or the outcome of the reported CI failure.
-
-## Independent checks
-
-At exact ced3fad, the independently executed m3RecoveryContracts and financeAmount tests passed: 12 tests, 12 passed, 0 failed, 0 skipped. This is one independent run, not a claim to have repeated the owner's five runs. The complete latest patch passed diff whitespace checking.
-
-Historical independent checks remain bound to their sources: at 0c3659f, m3RecoveryContracts, financeAmount and m3Domain passed 30/30, skipped 0, and no-emit/non-incremental typecheck completed successfully; E2E syntax and repair diff whitespace checks passed. At 429b6ab, the full unit suite passed 142/142, skipped 0. Full unit suite and typecheck were not independently rerun for ced3fad and are not relabeled as exact-ced3fad checks. Unit assertions that extract/transpile client functions were treated as contract tests, not as proof of browser behavior.
-
-No integration runner, fixture seed, migration, build server, Production endpoint or secret was accessed by this reviewer. The owner's integration/CI work and preparation of a clean Railway Preview namespace are not completed evidence for this latest source in this report. Fresh Preview UAT on the prior 18e commit was reported by the owner and remains bound to that prior SHA; it does not certify ced3fad. No fresh UAT for ced3fad has been established here. No full Preview PASS, exact-head CI PASS or rollout PASS is claimed.
-
-## Open P2: Finance Case-payment read ownership restriction
-
-Location: `lib/m3Api.ts:13`, used by `app/api/agent/cases/[caseId]/payments/route.ts:26`. FINANCE is admitted by the GET route but is not classified as team operational scope, so canonicalCaseIdFromLead adds ownerId for that role. Same-tenant Cases owned by an agent can return 404 to Finance despite the downstream organization-scoped ledger read. This is a read-availability defect, not tenant disclosure. It is unchanged by the repairs and remains the sole cumulative P2.
-
-Owner: M3 product engineering. Existing target: 2026-10-04, before broad rollout. Existing deferral rationale: closed CPO uses the synthetic assigned Case and organization Finance workspace; correction needs role-specific own/other-agent/foreign-tenant read regressions. No new waiver or broad-rollout approval is supplied by this report.
-
-## Release boundary
-
-The cumulative source review identifies no remaining P0/P1 at ced3fad. This supersedes the earlier repair-only BLOCKED_VALIDATION finding for the harness, without rewriting historical reports or upgrading their run results. Full-release-scope baseline limitations still apply: targeted high-risk source tracing is not an exhaustive proof over every legacy endpoint or every added line, and historical remote evidence was not independently revalidated.
-
-Historical reviewer context at source-review completion: exact-head CI, full integration and fresh authenticated Preview UAT were not independently established by this reviewer. Subsequent implementer results are recorded separately in test-results.json and ux-uat.md; they are not retroactively attributed to the reviewer. Evidence-head CI and Production preflight remain release gates.
-
-The CPO-only authorization remains the release ceiling. Finance/Accounting, Legal/Privacy and Ritual SME verdicts remain pending; full agent rollout is not authorized. Production scanner availability and preflight limitations from the baseline report remain separate and were not revalidated here. Provenance: this report was copied from the independent cumulative report review429b6ab.md, whose historical filename is retained; reviewed_sha above is authoritative. The reviewer did not commit, push, merge or deploy.
+[Prior packet](historical/pre-pr36-b0-packet-20261017/README.md) preserves the old c0567/PR34 candidate, executions and Production history. [Dated checkpoint](cpo-audit-repair-20261013.md) preserves failed/interrupted attempts and later outcomes without reassigning them to b0.

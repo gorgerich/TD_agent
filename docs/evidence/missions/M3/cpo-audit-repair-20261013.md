@@ -1,5 +1,37 @@
 # CPO Audit Repair: 2026-10-13
 
+## Current Checkpoint: 2026-10-17
+
+The following dated sections remain historical, including their then-pending
+statuses. Current finding outcomes are in [the current registry](cpo-registry-current.md).
+Exact runtime `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4` passed fresh
+authenticated Preview UAT at `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`, isolated
+fingerprint `545a187f9e9d66b0`. Both canonical M3 journeys report
+reconciliation=0, unexpected5xx=0 and skipped=0. The separate CPO browser flow
+passed first-admin/replay/invites/scenario/publication/permission assertions;
+it does not measure reconciliation. Its injected 409/503 checks are UI-only.
+Actual receipt: [pr36-b0-preview-result.json](pr36-b0-preview-result.json).
+
+Source CI38966224443 passed all 27 required technical steps: unit258/258,
+canonical PostgreSQL163/163 over22 files, five90-test concurrency repeats,
+five22-test latency repeats, build, six E2E scripts, auth failure/recovery,
+component browser regressions and fixture cleanup. Maximum observed parallel
+transaction under80ms injected round-trip latency was2948ms; deadline remains
+5000ms. Overall source CI remains FAILURE only at stale evidence; it is not
+relabelled green. The new authoritative packet passed the unmodified evidence
+validator locally. Final evidence-head CI and independent packet review remain
+required before release.
+
+The independent owner-runner source review closed OT01-05 with32/32 inert tests
+and explicit narrow synthetic-retention approval. OP-PROOF-01 remains a
+readiness item: distinguish M3/CPO measurements and browser-only cleanup from
+retained remote fixtures. No owner command is cleared by this checkpoint.
+No Production credential/provisioning denial was rerouted. Production main and
+serving runtime remain87550178/dpl_8rqT8aRp2x75wfxHVpmJBaMigytY; read-only
+metadata confirms READY and production-scoped freeze=disabled. This repair run
+performed no Production writes, migrations, environment changes or deployments.
+Human verdicts remain PENDING, broad rollout CLOSED, NOX excluded and M4 not started.
+
 State: VERIFYING / REWORK_REQUIRED. Not release evidence or a PASS declaration.
 
 Baseline: GitHub main 87550178d6b4ba60b3f752880fd08674c6fd2835;
