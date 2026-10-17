@@ -1,0 +1,128 @@
+{
+  "sha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+  "deploymentId": "dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg",
+  "url": "https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app",
+  "fingerprint": "545a187f9e9d66b0",
+  "schema": "m3_cpo_repair_179224926421011217041",
+  "results": {
+    "cremation": "PASS",
+    "relativeBurial": "PASS",
+    "documentQuarantineReviewReplacement": "PASS",
+    "contractObligation": "PASS",
+    "partialFullRefundReversal": "PASS",
+    "executionAfterRefundGuard": "PASS",
+    "webhookReplayFive": {
+      "uniqueEntries": 1,
+      "original": 1,
+      "replayed": 4
+    },
+    "financeLostResponseRetry": {
+      "original": false,
+      "replay": true,
+      "sameCommandEnvelope": true,
+      "oneLedgerEntry": true
+    },
+    "financeVisibility": "PASS",
+    "reviewerVisibility": "PASS",
+    "stageGuards": "PASS",
+    "reconciliation": 0,
+    "crossTenant": "PASS",
+    "accessibilityCriticalSerious": 0,
+    "mobile": "PASS",
+    "zoom200": "PASS",
+    "unexpected5xx": 0,
+    "skipped": 0
+  },
+  "repair": {
+    "firstAdmin": "PASS",
+    "lostResponseReplay": "PASS",
+    "invites": 3,
+    "scenarioCorrection": "PASS",
+    "publicationGuard": "PASS",
+    "permissions": "PASS",
+    "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+    "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+    "firstAdminUi": [
+      {
+        "width": 1365,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-1365.png"
+      },
+      {
+        "width": 390,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-390.png"
+      },
+      {
+        "width": 195,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-195.png"
+      }
+    ],
+    "skipped": 0
+  },
+  "initialIntake": {
+    "status": "PASS",
+    "scenarios": [
+      {
+        "ceremonyType": "кремация",
+        "leadId": 5,
+        "caseId": "case_345dfcccf8a64b7ba707a751ed42aaa4",
+        "partyId": "cmvcjui4g00bwsfk9j0xvh4h0",
+        "marker": "cpo-repair-179224926421011217041 initial-intake 0 SYNTHETIC",
+        "correlationId": "cpo-repair-179224926421011217041:initial-intake:0",
+        "discrepancyCount": 0,
+        "fulfilmentReady": false,
+        "truthfulReplays": "PASS",
+        "counts": {
+          "cases": 1,
+          "leads": 1,
+          "parties": 1,
+          "roles": 3,
+          "caseEvents": 2,
+          "partyAudits": 2,
+          "quotes": 0,
+          "contracts": 0,
+          "ledger": 0,
+          "documents": 0,
+          "tasks": 0,
+          "meetings": 0
+        }
+      },
+      {
+        "ceremonyType": "погребение",
+        "leadId": 6,
+        "caseId": "case_f2e166a836e9465fb76e07bfdff218fe",
+        "partyId": "cmvcjuzvy00cdsfk9urcj7ass",
+        "marker": "cpo-repair-179224926421011217041 initial-intake 1 SYNTHETIC",
+        "correlationId": "cpo-repair-179224926421011217041:initial-intake:1",
+        "discrepancyCount": 0,
+        "fulfilmentReady": false,
+        "truthfulReplays": "PASS",
+        "counts": {
+          "cases": 1,
+          "leads": 1,
+          "parties": 1,
+          "roles": 3,
+          "caseEvents": 2,
+          "partyAudits": 2,
+          "quotes": 0,
+          "contracts": 0,
+          "ledger": 0,
+          "documents": 0,
+          "tasks": 0,
+          "meetings": 0
+        }
+      }
+    ],
+    "sessionCleanup": "PASS_COOKIE_EXPIRED_NOT_COPIED_TOKEN_REVOCATION",
+    "unexpected5xx": 0,
+    "fixtureRetention": "OWNED_PREVIEW_SCHEMA_ONLY"
+  }
+}

@@ -1,29 +1,21 @@
-# PR36 Controlled Release Boundary
+# PR37 Restricted CPO Recovery Release Boundary
 
-STATE: `BLOCKED_HUMAN_JUDGMENT`
+STATE: `BLOCKED_HUMAN_JUDGMENT` for FULL AGENT ROLLOUT, not a fabricated human PASS.
 
-Candidate runtime `b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4`, base `87550178d6b4ba60b3f752880fd08674c6fd2835`, [PR36](https://github.com/gorgerich/TD_agent/pull/36).
-Exact Preview `dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5`: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app; isolated DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792184661797936430`, private Blob `store_Ov8erHstuvfJ52Og`.
-Production remains `87550178d6b4ba60b3f752880fd08674c6fd2835` / `dpl_8rqT8aRp2x75wfxHVpmJBaMigytY`, fingerprint `0257665af2dd90a4`, freeze disabled. PR36 CPO release NOT_PERFORMED; human/full rollout BLOCKED.
+Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
+Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
+Current Production is rebuilt875 `dpl_8UjuefdHtQWNTu795HgHpKsoN1j9`, login200 and actual freeze active. Main contains failed PR36 merge055; schema13 already applied. See [incident](INCIDENT-PR36-20261017.md). PR37 is not released. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
 
-## Current Status
+## Current Candidate
 
-Source CI38966224443 passed every technical step but concluded FAILURE only at stale authoritative evidence. Exact b0 deployed UAT PASS is separate. This packet update does not retroactively turn that CI run green. Final evidence-head complete CI and independent packet review remain pre-merge gates. Runtime, evidence-head, CI merge-ref and eventual release merge SHAs must remain distinct; no future SHA is invented.
+Exacte9 source technical gates and deployed UAT PASS. SourceCI39043091834 overallFAIL only stale evidence. This evidence-only rebinding must independently review and obtain GREEN final headCI before any premerge. Runtime/evidence/CI merge-ref/eventual release merge SHAs stay distinct. No future merge SHA invented.
 
-CPO audit release is owner-authorized in principle but NOT_PERFORMED for PR36. Full mission remains BLOCKED_HUMAN_JUDGMENT; all three human packets and attestations are awaiting. Existing restricted organization m3-cpo-audit-20260923/accounts remain the ceiling; no new org/User/Agent/provisioning/MFA enrollment/rotation, NOX or real customer writes. M4 NOT_STARTED.
+PR36 merge055 already happened; native owner migrated schema13, unfroze for authorized smoke and retained Lead59/Casecase_8e22be19537f42849096f681e808b62e/Partycmvc89xtw0007t2p2ssg0zrwf. Smoke failed, Instant Rollback402, owner standard redeploy recovered frozen875. Preserve incident and scoped10:01-10:03 baseline MATCH; do not claim fresh whole-gap customer preservation.
 
-## Owner Handoff, Not Agent Execution
+## Native Owner Continuation
 
-Historical write-capable Production credential denial is not rerouted. The native owner-Terminal handoff is outside this repository. Pauli closed OT01-05 source findings with32/32 mocked tests and explicitly approved the minimal INTAKE/UNSELECTED retained synthetic artifact with zero active work and forbidden effects. OP-PROOF-01 accurate Preview normalization remains P2; owner command not yet cleared. No APPROVED final binding is fabricated here.
+Original PR36 runner is superseded and MUST NOT rerun. New reviewed continuation must verify final PR37/head/base/CI/actual Preview proof; exact025/all13 schema/current CPO accounts; old four saved commands/IDs and complete census; fresh encrypted backup/real isolated schema13 restore; actual frozen875. No Production migration/provision/MFA/rotation or new synthetic fixture. Emit new PREMERGE. Green FINAL PR-HEAD CI, independent review and that actual new receipt precede normal protected mergePR37. Exact MERGE mainCI PASS and READY frozen deployment then precede native read-only smoke. Controlled exact-runtime unfreeze/redeploy and replay follow only those checks; replay only original four commands, truthfultrue/sameIDs, identical synthetic count/digests and existing business baseline, zero work/money/docs/newsideeffects, logout, final exactdisabled proof.
 
-After final gates and reviewed binding: the native owner runner verifies scope, freezes and creates fresh exact875 rollback, takes fresh encrypted Production backup plus REAL isolated restore, applies exactly two approved additive migrations while frozen, and emits a nonsensitive PREMERGE receipt. The agent may then perform the normal protected exact-head merge after validating that receipt and refreshing required checks. Exact green main CI/READY frozen deployment precedes owner retained-account scoped smoke, unfreeze only after PASS, minimal synthetic write, authoritative containment/census and existing-business comparison. Failure restores verified frozen875 runtime without destructive schema rollback or automatic unfreeze. Only the native owner runner may retrieve Production credentials or perform those Production helper operations; no agent credential/provisioning path, PTY/SSH or alternate-source bypass. Normal authorized merge remains the agent flow, subject to branch/tool policy.
+Failure keeps/sets freezeenabled and uses standard rebuild/redeploy saved frozen875 source, validates NEWdeploymentid/alias/source/READY/active freeze; no denied Instant Rollback endpoint, destructive schema rollback or automaticunfreeze. Native owner only retrieves existing protected credentials/Keychain. Agent execution refusal is not retried via another tool. No failed/historical receipt upgraded to successful release.
 
-Main required-check enforcement remains an open risk (protected-branch API404 observation is not enforcement proof). Actual scheduled retention cron execution has not been observed; source/configuration and tests are not a live scheduler PASS.
-
-## Production And History
-
-Current observed serving875 / dpl_8rqT8aRp2x75wfxHVpmJBaMigytY, READY/login200/freeze disabled comes from the main checkpoint's read-only observation, not a new Production probe by this author. PR36 repair interval writes/env/schema/deployment changes NONE. Older PR32/33/34 releases and incidents retain their own historical identities in the archived packet and dated records, never reassigned to this candidate.
-
-## History
-
-[Prior packet](historical/pre-pr36-b0-packet-20261017/README.md) preserves the old c0567/PR34 candidate, executions and Production history. [Dated checkpoint](cpo-audit-repair-20261013.md) preserves failed/interrupted attempts and later outcomes without reassigning them to b0.
+Actual fresh preflight/backup/replay/Production PASS remains pending. Only existing synthetic organizationm3-cpo-audit-20260923 permitted; humansPENDING, broad rollout CLOSED, NOX excluded. Main required-check enforcement API404 remains open, not proof of protectedcheckconfiguration; no --admin/bypass. Actual cron/scannerprovider remain unverified. CPO URL after successful continuation is https://td-agent.vercel.app; current frozen baseline is not advertised as repaired release.

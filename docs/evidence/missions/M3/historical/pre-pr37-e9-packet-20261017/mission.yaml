@@ -1,0 +1,68 @@
+mission: M3-FULFILMENT-MONEY-TRUST
+name: Fulfilment & Money Trust
+state: BLOCKED_HUMAN_JUDGMENT
+base_sha: 87550178d6b4ba60b3f752880fd08674c6fd2835
+implementation_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
+pull_request: https://github.com/gorgerich/TD_agent/pull/36
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/38966224443
+preview_deployment_id: dpl_DPhyGiZBuGeWTzY4SJGTbJHKFNS5
+preview_deployment_sha: b0b2d784e89c91211ff4b3df0d5bb7cd150f38a4
+preview_url: https://td-agent-jfnz3t53l-rics-projects-9baa2793.vercel.app
+preview_database_fingerprint: 545a187f9e9d66b0
+preview_storage_id: store_Ov8erHstuvfJ52Og
+preview_schema: m3_cpo_repair_1792184661797936430
+production_deployment_id: dpl_8rqT8aRp2x75wfxHVpmJBaMigytY
+production_deployment_sha: 87550178d6b4ba60b3f752880fd08674c6fd2835
+production_runtime_source_sha: 87550178d6b4ba60b3f752880fd08674c6fd2835
+production_database_fingerprint: 0257665af2dd90a4
+production_changed: false
+required_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+passed_gates:
+  - code_quality
+  - unit
+  - integration
+  - e2e
+  - migration_rehearsal
+  - schema_parity
+  - tenant_rbac
+  - document_access_storage
+  - ledger_idempotency_concurrency
+  - stage_guards
+  - reconciliation
+  - accessibility_mobile
+  - preview_uat
+  - independent_review
+human_gates:
+  finance_accounting: AWAITING_HUMAN_VERDICT
+  legal_privacy: AWAITING_HUMAN_VERDICT
+  ritual_operations_sme: AWAITING_HUMAN_VERDICT
+open_risks:
+  - RISK-W1-TECH-HUMAN-REVIEW
+  - PRODUCTION-SCANNER-PROVIDER-UNVERIFIED
+  - PR36-OWNER-TERMINAL-INDEPENDENT-REVIEW
+  - FINAL-EVIDENCE-HEAD-CI-PENDING
+  - REPOSITORY-MAIN-REQUIRED-CHECK-ENFORCEMENT
+  - RATE-LIMIT-RETENTION-CRON-EXECUTION-UNOBSERVED
+production_release_authorized: false
+production_release: NOT_PERFORMED
+cpo_audit_release_authorized: true
+cpo_audit_release: NOT_PERFORMED
+full_agent_rollout: BLOCKED_HUMAN_JUDGMENT
+freeze_final_state: disabled
+validation_scope: PR36 technical candidate only; historical releases are not this execution
+production_release_scope: existing synthetic CPO organization only; full rollout remains blocked
+historical_packet: historical/pre-pr36-b0-packet-20261017/README.md
