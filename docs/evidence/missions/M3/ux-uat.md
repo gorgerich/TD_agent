@@ -2,7 +2,7 @@
 
 Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
 Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
-Current Production is rebuilt875 `dpl_8UjuefdHtQWNTu795HgHpKsoN1j9`, login200 and actual freeze active. Main contains failed PR36 merge055; schema13 already applied. See [incident](INCIDENT-PR36-20261017.md). PR37 is not released. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
+The e9 Preview UAT checkpoint predates release and observed rebuilt875/frozen Production. Subsequent [restricted CPO release](cpo-post-release-20261018.md) is mergeffc/deployment3qc with disabled freeze. The full Preview journeys below remain bound to e9, not relabeled to Production's narrower retained-command smoke. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
 
 [Actual raw receipt](pr37-e9-preview-result.json), not relabelled b0: full cremation/relative burial, quarantine/review/replacement, immutable obligation, partial/full/refund/reversal, execution-after-refund guard, webhook1original/4replays/1entry, same-envelope Finance retry, Finance/Reviewer visibility, stage/tenant guards, M3reconciliation0, unexpected5xx0, skip0.
 

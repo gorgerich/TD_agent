@@ -108,7 +108,7 @@
       "id": "M3-GATE-01",
       "status": "PASS",
       "requirement": "Source technical gates, exact Preview UAT, local evidence validation, and independent runtime review pass with skipped=0; final evidence-head CI is a separate pre-merge gate.",
-      "evidence": "Exacte9 CI39043091834:258unit/174PG, five90concurrency, five22latency max4052ms, sixE2E/auth/component/4cleanup PASS, testskip0. Overall FAIL only stale evidence. Actual exacte9 Preview UAT PASS; final evidence-head CI remains pending."
+      "evidence": "Exacte9 CI39043091834:258unit/174PG, five90concurrency, five22latency max4052ms, sixE2E/auth/component/4cleanup PASS, testskip0. Overall FAIL only stale evidence remains historical. Actual exacte9 Preview UAT PASS; subsequent final-head CI39069388095 and merge mainCI39072019723 PASS. Narrow actual Production smoke is separately recorded in cpo-post-release-20261018.json, not substituted for full Preview UAT."
     }
   ]
 }

@@ -15,7 +15,7 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-PR37 / base055 technical candidate,2026-10-17. Actual exacte9 Preview journeys passed; this does not approve any human checklist. PR36 release failed and is recorded in INCIDENT-PR36-20261017.md. Current serving875 is rebuilt/frozen; PR37 release pending. Protected synthetic material retained; no credentials in this packet.
+PR37 / base055 technical candidate,2026-10-17. Actual exacte9 Preview journeys passed; this does not approve any human checklist. PR36 release failed and remains recorded in INCIDENT-PR36-20261017.md. Subsequent restricted CPO releaseffc/deployment3qc/freezedisabled is recorded in cpo-post-release-20261018.md; it does not approve this Ritual SME verdict or broad rollout. Protected synthetic material retained; no credentials in this packet.
 
 
 - Exact Preview: `https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app`

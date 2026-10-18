@@ -4,6 +4,8 @@ The37 rows below preserve the cumulative PR36 repair cross-map, including explic
 
 [Current test results](test-results.json), [review chain](review.md), [actual e9 UAT](pr37-e9-preview-result.json), [e9 source CI](https://github.com/gorgerich/TD_agent/actions/runs/39043091834), [failed PR36 incident and new intake regression](INCIDENT-PR36-20261017.md). Full original HTML cross-map and independent inspection limits remain in the944 receipt. Source-CI technical PASS is not green final-head CI or Production PASS.
 
+Subsequent [restricted post-release record](cpo-post-release-20261018.md) binds successful PR37 mergeffc, final-head/main CI and actual retained-command Production smoke. It does not rename the failed PR36 attempt or any historical b0 UAT. The37 rows below and their original scoped proofs remain unchanged.
+
 | ID | Original HTML | Mechanism | Current outcome | Scoped proof |
 | --- | --- | --- | --- | --- |
 | CPO-01 | H01,19-22,26 | m3Domain balance-based coverage; refunds/adjustments refresh fulfilment; read model matches ledger | FIXED_TECHNICAL | S: cpoAuditMoney.test.ts; cpoAuditBoundary.test.ts; integration/cpoAuditFinance.itest.ts overpayment/refund/repayment/closure and current-execution refund rejection |
