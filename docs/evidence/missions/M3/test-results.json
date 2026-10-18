@@ -299,7 +299,9 @@
       ]
     },
     "evidenceSchema": "PASS",
-    "evidenceHeadCi": "PENDING",
+    "evidenceHeadCi": "PASS",
+    "evidenceHeadCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39069388095",
+    "releaseMergeCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39072019723",
     "discoveryParity": {
       "status": "PASS",
       "localIntegrationFiles": 23,
@@ -328,10 +330,11 @@
     "scope": "ONLY post-recovery PR37 technical verification interval. Earlier PR36 migrations, synthetic writes, failed release and875 rebuild are recorded in INCIDENT-PR36-20261017.md; not claimed absent."
   },
   "fullRolloutStatus": "BLOCKED_HUMAN_JUDGMENT",
-  "cpoAuditReleaseStatus": "REWORK_REQUIRED",
-  "ownerRunnerStatus": "NEW_NATIVE_RECOVERY_REVIEW_AND_EXECUTION_PENDING",
+  "cpoAuditReleaseStatus": "POST_RELEASE_VERIFIED",
+  "ownerRunnerStatus": "CPO_RECOVERY_REPLAY_VERIFIED_HUMANS_PENDING",
+  "postReleaseRecord": "cpo-post-release-20261018.json",
   "historicalPacket": "historical/pre-pr37-e9-packet-20261017/README.md",
-  "observedProduction": {
+  "historicalObservedProduction": {
     "mainSha": "055c8d70da428cf5c2c1328c1a5268f9db241b4e",
     "servingSha": "87550178d6b4ba60b3f752880fd08674c6fd2835",
     "deploymentId": "dpl_8UjuefdHtQWNTu795HgHpKsoN1j9",

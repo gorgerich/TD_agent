@@ -2,7 +2,7 @@
 
 Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
 Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
-Current Production is rebuilt875 `dpl_8UjuefdHtQWNTu795HgHpKsoN1j9`, login200 and actual freeze active. Main contains failed PR36 merge055; schema13 already applied. See [incident](INCIDENT-PR36-20261017.md). PR37 is not released. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
+At e9 technical verification Production was rebuilt875/frozen, main055 and schema13. Subsequent actual [restricted CPO release](cpo-post-release-20261018.md) uses mergeffc/deployment3qc, disabled freeze and unchanged schema13. Native fresh encrypted backup/actual restore completed2026-10-18 at08:48:15UTC with no-op/parity/catalog/count-digests PASS; no Production migration was repeated. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
 
 ## No New Migration
 
