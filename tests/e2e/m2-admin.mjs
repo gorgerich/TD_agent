@@ -35,7 +35,9 @@ if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
 browser = await chromium.launch({ headless: true });
-context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow",
+  ...(process.env.E2E_PROTECTION_BYPASS?.trim() ? { extraHTTPHeaders: { "x-vercel-protection-bypass": process.env.E2E_PROTECTION_BYPASS.trim() } } : {}),
+});
 const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
@@ -60,6 +62,8 @@ page.on("console", (message) => {
   if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
+
+  assert.equal((await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`)).status(), 401);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await openRecovery(page, recoveryToken);
@@ -109,6 +113,10 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await login(page, emails.platform, "/platform-admin");
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
   await page.getByText("Администрирование платформы", { exact: true }).first().waitFor();
+  const retention = await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`);
+  assert.equal(retention.status(), 200);
+  assert.equal(retention.headers()["cache-control"], "no-store");
+  assert.deepEqual(await retention.json(), { lastOutcome: "NEVER_OBSERVED", stale: true });
   await screenshot(page, "platform-admin-desktop.png");
   await page.getByRole("link", { name: "Организации" }).click();
   await page.getByRole("heading", { name: "Организации" }).waitFor();
@@ -130,6 +138,7 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await context.clearCookies();
   await page.setViewportSize({ width: 1365, height: 900 });
   await login(page, emails.admin, "/agent/cases");
+  assert.equal((await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`)).status(), 403);
   await page.goto(`${baseUrl}/agent/settings/team`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Команда и доступы" }).waitFor();
   await page.getByText(emails.admin, { exact: true }).waitFor();

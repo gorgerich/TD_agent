@@ -1,8 +1,45 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { before, test } from "node:test";
 import { createFixtureContext, db, skip } from "./_setup";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+let countingCleanup = false;
+let cleanupQueries = 0;
+before(() => {
+  if (!skip) db.$use(async (params, next) => {
+    if (countingCleanup && params.action === "queryRaw") cleanupQueries += 1;
+    return next(params);
+  });
+});
+
+test("batched fixture cleanup removes joined children in one round trip without touching its peer", opts, async () => {
+  const left = createFixtureContext("case-cleanup-left");
+  const right = createFixtureContext("case-cleanup-right");
+  try {
+    const [a, b] = await Promise.all([left.makeAgent("owner"), right.makeAgent("owner")]);
+    const [ac, bc] = await Promise.all([left.makeCase(a, "left"), right.makeCase(b, "right")]);
+    const parties = await Promise.all([{ owner: a, canonical: ac }, { owner: b, canonical: bc }].map(({ owner, canonical }) => {
+      // Both fixtures create the same nested shape so a missing child/foreign deletion is observable.
+      return db.caseParty.create({ data: {
+        organizationId: owner.organizationId, caseId: canonical.id, nameEncrypted: "synthetic-not-read",
+        createdByMembershipId: owner.membershipId,
+        roles: { create: { organizationId: owner.organizationId, role: "PAYER", createdByMembershipId: owner.membershipId } },
+      }, select: { id: true } });
+    }));
+    cleanupQueries = 0; countingCleanup = true;
+    try { await left.cleanup(); } finally { countingCleanup = false; }
+    assert.equal(cleanupQueries, 1);
+    assert.equal(await db.caseParty.count({ where: { id: parties[0].id } }), 0);
+    assert.equal(await db.casePartyRoleAssignment.count({ where: { casePartyId: parties[0].id } }), 0);
+    assert.equal(await db.caseParty.count({ where: { id: parties[1].id } }), 1);
+    assert.equal(await db.casePartyRoleAssignment.count({ where: { casePartyId: parties[1].id } }), 1);
+    await left.assertNoResidue();
+  } finally {
+    countingCleanup = false;
+    await Promise.all([left.cleanup(), right.cleanup()]);
+    await Promise.all([left.assertNoResidue(), right.assertNoResidue()]);
+  }
+});
 
 /**
  * Every operational command runs at SERIALIZABLE. Postgres tracks that with SSI predicate

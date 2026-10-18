@@ -291,18 +291,25 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
           where: { caseId: { in: caseIds } },
           data: { satisfactionStatus: "NOT_SATISFIED", satisfiedByVersionId: null },
         });
-        await tx.documentAccessEvent.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.paymentWebhookReceipt.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.paymentLedgerApproval.deleteMany({ where: { ledgerEntry: { caseId: { in: caseIds } } } });
-        await tx.paymentLedgerEntry.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.paymentObligation.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.contractVersion.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.contract.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.caseDocumentVersion.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.caseDocument.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.caseDocumentRequirement.deleteMany({ where: { caseId: { in: caseIds } } });
-        await tx.casePartyRoleAssignment.deleteMany({ where: { caseParty: { caseId: { in: caseIds } } } });
-        await tx.caseParty.deleteMany({ where: { caseId: { in: caseIds } } });
+        // One statement snapshot keeps join-scoped child IDs visible while all exact
+        // fixture rows are removed. This is local-only cleanup, never a domain delete.
+        await tx.$queryRaw(Prisma.sql`
+          WITH access AS (DELETE FROM "DocumentAccessEvent" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            webhook AS (DELETE FROM "PaymentWebhookReceipt" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            approval AS (DELETE FROM "PaymentLedgerApproval" WHERE "ledgerEntryId" IN
+              (SELECT id FROM "PaymentLedgerEntry" WHERE "caseId" IN (${Prisma.join(caseIds)})) RETURNING 1),
+            ledger AS (DELETE FROM "PaymentLedgerEntry" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            obligation AS (DELETE FROM "PaymentObligation" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            versions AS (DELETE FROM "ContractVersion" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            contracts AS (DELETE FROM "Contract" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            documents AS (DELETE FROM "CaseDocumentVersion" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            handles AS (DELETE FROM "CaseDocument" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            requirements AS (DELETE FROM "CaseDocumentRequirement" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1),
+            roles AS (DELETE FROM "CasePartyRoleAssignment" WHERE "casePartyId" IN
+              (SELECT id FROM "CaseParty" WHERE "caseId" IN (${Prisma.join(caseIds)})) RETURNING 1),
+            parties AS (DELETE FROM "CaseParty" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1)
+          SELECT 1 AS cleaned
+        `);
       }
       if (ownOrganizationIds.length) {
         await tx.financialControlPolicy.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });

@@ -116,7 +116,11 @@ async function setup(tag: string, conditionalOnly = false, swapIdentityType = fa
     });
     fixtures.trackDocumentPolicy(target.id);
     return { fixtures, owner, record, baseline, target, save, meta };
-  } catch (error) { await fixtures.cleanup(); throw error; }
+  } catch (error) {
+    try { await fixtures.cleanup(); }
+    catch (cleanupError) { throw new AggregateError([error, cleanupError], "Scenario setup and cleanup failed"); }
+    throw error;
+  }
 }
 type Fixture = Awaited<ReturnType<typeof setup>>;
 
