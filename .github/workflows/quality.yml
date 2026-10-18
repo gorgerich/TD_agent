@@ -80,6 +80,8 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013183000_cpo_document_review_repair/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013190000_case_requirement_supersession/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261018140000_maintenance_job_state/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/maintenance-job-assertions.sql
       - name: Configure SSI predicate lock granularity
         # Every operational command runs at SERIALIZABLE. With the Postgres default of
         # max_pred_locks_per_page=2, per-tuple predicate locks collapse into a page-level

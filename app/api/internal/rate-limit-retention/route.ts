@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { drainRateLimitRetention } from "@/lib/rateLimitRetention";
+import { runObservedRateLimitRetention } from "@/lib/rateLimitRetentionHealth";
 import { isReleaseWriteFreezeActive } from "@/lib/releaseWriteFreeze";
 
 export const runtime = "nodejs";
@@ -18,7 +18,13 @@ export async function GET(req: Request) {
   if (isReleaseWriteFreezeActive()) {
     return NextResponse.json({ error: "Release write freeze active" }, { status: 503, headers });
   }
-  const result = await drainRateLimitRetention();
+  let result;
+  try {
+    result = await runObservedRateLimitRetention();
+  } catch {
+    console.warn("RATE_LIMIT_RETENTION_OBSERVABILITY_FAILED");
+    result = null;
+  }
   return NextResponse.json(
     result === null ? { error: "Retention unavailable" } : result,
     { status: result === null ? 503 : 200, headers },

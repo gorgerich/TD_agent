@@ -784,6 +784,19 @@ model SecurityRateLimitBucket {
   @@index([resetAt])
 }
 
+// Fixed job keys only; no request identities, credentials or bucket keys.
+model MaintenanceJobState {
+  key             String    @id
+  activeRunId     String
+  lastAttemptAt   DateTime
+  lastCompletedAt DateTime?
+  lastSuccessAt   DateTime?
+  lastFailureAt   DateTime?
+  lastOutcome     String
+  lastDeleted     Int?
+  budgetExhausted Boolean   @default(false)
+}
+
 model SavedOperationalView {
   id                String         @id @default(cuid())
   organizationId    String

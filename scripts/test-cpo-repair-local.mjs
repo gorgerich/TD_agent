@@ -93,6 +93,7 @@ function legacyFixture() {
     "prisma/migrations/20260729170000_m2_commercial_trust_loop/migration.sql", "tests/migrations/m2-commercial-assertions.sql", "tests/migrations/m3-fulfilment-fixtures.sql",
     "prisma/migrations/20260811172829_m3_fulfilment_money_trust/migration.sql", "tests/migrations/m3-fulfilment-assertions.sql",
     "prisma/migrations/20261013183000_cpo_document_review_repair/migration.sql", "prisma/migrations/20261013190000_case_requirement_supersession/migration.sql", "tests/migrations/m3-fulfilment-assertions.sql",
+    "prisma/migrations/20261018140000_maintenance_job_state/migration.sql", "tests/migrations/maintenance-job-assertions.sql",
   ];
   files.forEach((file, index) => command(`legacy-${index}`, "psql", [fixture.href, "-X", "-v", "ON_ERROR_STOP=1", "-f", file]));
 }
