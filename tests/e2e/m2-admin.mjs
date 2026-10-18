@@ -42,7 +42,19 @@ const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
 let expectedRecoveryRejection = 0;
+let expectedRetentionDenial = 0;
+let awaitingRetentionDenial = false;
 page.on("console", (message) => {
+  if (
+    awaitingRetentionDenial
+    && message.type() === "error"
+    && message.text().includes("status of 403")
+    && message.location().url === `${baseUrl}/api/platform-admin/rate-limit-retention`
+  ) {
+    expectedRetentionDenial += 1;
+    awaitingRetentionDenial = false;
+    return;
+  }
   if (
     message.type() === "error"
     && message.text().includes("status of 400")
@@ -113,10 +125,10 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await login(page, emails.platform, "/platform-admin");
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
   await page.getByText("Администрирование платформы", { exact: true }).first().waitFor();
-  const retention = await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`);
-  assert.equal(retention.status(), 200);
-  assert.equal(retention.headers()["cache-control"], "no-store");
-  assert.deepEqual(await retention.json(), { lastOutcome: "NEVER_OBSERVED", stale: true });
+  const retention = await retentionHealth(page);
+  assert.equal(retention.status, 200, "Authenticated browser must read retention health");
+  assert.equal(retention.cacheControl, "no-store");
+  assert.deepEqual(retention.body, { lastOutcome: "NEVER_OBSERVED", stale: true });
   await screenshot(page, "platform-admin-desktop.png");
   await page.getByRole("link", { name: "Организации" }).click();
   await page.getByRole("heading", { name: "Организации" }).waitFor();
@@ -138,7 +150,8 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await context.clearCookies();
   await page.setViewportSize({ width: 1365, height: 900 });
   await login(page, emails.admin, "/agent/cases");
-  assert.equal((await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`)).status(), 403);
+  awaitingRetentionDenial = true;
+  assert.equal((await retentionHealth(page)).status, 403);
   await page.goto(`${baseUrl}/agent/settings/team`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Команда и доступы" }).waitFor();
   await page.getByText(emails.admin, { exact: true }).waitFor();
@@ -190,6 +203,8 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.equal(expectedActivationRejection, 1, "Consumed activation token must be rejected exactly once");
   assert.equal(expectedRecoveryRejection, 1, "Consumed recovery token must be rejected exactly once");
+  assert.equal(expectedRetentionDenial, 1, "Organization ADMIN retention denial must be observed exactly once");
+  assert.equal(awaitingRetentionDenial, false);
   await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     platformSuperAdmin: "PASS",
@@ -202,6 +217,14 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
     mobile: "PASS",
     skipped: 0,
   })}\n`);
+
+async function retentionHealth(target) {
+  // Use the browser's cookie transport, including secure loopback cookies.
+  return target.evaluate(async () => {
+    const response = await fetch("/api/platform-admin/rate-limit-retention", { cache: "no-store" });
+    return { status: response.status, cacheControl: response.headers.get("cache-control"), body: await response.json() };
+  });
+}
 
 async function login(target, email, expectedPath) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });
