@@ -1,10 +1,11 @@
 import { createHmac } from "node:crypto";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../lib/password";
 import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
 import { encryptField } from "../../lib/crypto";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 import { assertOnlyRecognisedSyntheticData, censusOfTarget, m1UatNamespace, m2UatNamespace, m3UatNamespace } from "./uatFixtureGuard";
+import { seedCpoScenarios } from "./cpo-fixture-seed";
 
 // Run after M3 provision. Pass its non-secret JSON output as M3_CPO_REPAIR_FIXTURE_JSON.
 // Run cleanup before M3 cleanup, including on failure; never reprovision M3 in between.
@@ -74,46 +75,23 @@ async function manifest() {
 
 async function provision() {
   const passwordHash = hashPassword(password!);
-  await db.$transaction(async (tx) => {
-    const candidate = await tx.membership.findUnique({ where: { id: `m3-uat-membership:${runId}:foreign` }, include: { user: true, agent: true, organization: true } });
-    if (!candidate || candidate.organizationId !== organizationB || candidate.role !== "AGENT" || candidate.status !== "ACTIVE"
-      || candidate.user.email !== `m3-foreign-${runId}@synthetic.invalid` || candidate.user.platformRole !== "USER"
-      || candidate.agent?.status !== "ACTIVE" || candidate.organization.status !== "ACTIVE") throw new Error("Exact untouched M3 foreign AGENT required");
-    const [admins, invites, bootstrap, existingOwner, cases] = await Promise.all([
-      tx.membership.count({ where: { organizationId: organizationB, role: "ADMIN" } }),
-      tx.organizationInvite.count({ where: { organizationId: organizationB, role: "ADMIN", acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
-      tx.platformAuditEvent.count({ where: { action: "ORGANIZATION_FIRST_ADMIN_ASSIGNED", targetId: organizationB } }),
-      tx.user.count({ where: { email: ownerEmail } }), tx.case.count({ where: { id: { in: Object.values(caseIds) } } }),
-    ]);
-    if (admins || invites || bootstrap || existingOwner || cases) throw new Error("Fixture already present or consumed; refusing reset/overwrite; use status or a fresh M3 run");
-    const agent = await tx.membership.findUnique({ where: { id: `m3-uat-membership:${runId}:agent` }, include: { user: true, agent: true } });
-    if (!agent?.agent || agent.organizationId !== organizationA || agent.status !== "ACTIVE" || agent.role !== "AGENT"
-      || agent.user.email !== `m3-agent-${runId}@synthetic.invalid` || agent.agent.status !== "ACTIVE") throw new Error("Exact active M3 owner required");
-    const policies = await tx.documentRequirementPolicy.findMany({ where: { organizationId: organizationA, status: "APPROVED", retiredAt: null }, include: { rules: true } });
-    const policy = policies.find((row) => row.scenario === "CREMATION_V1");
-    if (!policy || policy.rules.length !== 3 || !policies.some((row) => row.scenario === "FAMILY_PLOT_BURIAL_V1" && row.rules.length === 4)
-      || policies.length !== 2 || policies.some((row) => !row.source.startsWith("SYNTHETIC"))) throw new Error("Exact synthetic M3 policies required");
-    await tx.user.create({ data: { email: ownerEmail, name: "CPO synthetic platform owner", passwordHash, platformRole: "SUPER_ADMIN",
-      platformMfaSecretEncrypted: encryptPlatformMfaSecret(ownerMfa), platformMfaEnabledAt: new Date() } });
-    for (const key of ["safe", "published"] as const) {
-      const lead = await tx.clientLead.create({ data: { agentId: agent.agent.id, name: `CPO ${key} ${runId}`, phone: "+70000000000", source: "synthetic-cpo-repair", ceremonyType: "кремация", deceasedName: encryptField("Synthetic CPO deceased") } });
-      const record = await tx.case.create({ data: { id: caseIds[key], publicRef: `CPO-${runId}-${key}`, tenantId: organizationA,
-        ownerId: agent.agent.id, leadId: lead.id, stage: "QUOTING", scenarioId: "CREMATION_V1" } });
-      await tx.caseDocumentRequirement.createMany({ data: policy.rules.map((rule) => ({ organizationId: organizationA, caseId: record.id,
-        policyId: policy.id, ruleId: rule.id, policyVersion: policy.version, stableKey: rule.stableKey, kind: rule.kind,
-        conditionExplanation: rule.conditionExplanation, dueAt: rule.dueOffsetHours == null ? null : new Date(Date.now() + rule.dueOffsetHours * 3_600_000),
-        ownerRole: rule.ownerRole, blockingStage: rule.blockingStage, sourceRule: rule.source,
-        acceptedDocumentTypeCodes: rule.acceptedDocumentTypeCodes as Prisma.InputJsonValue,
-        acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeVersionIds as Prisma.InputJsonValue,
-        reviewChecklist: rule.reviewChecklist as Prisma.InputJsonValue, satisfactionStatus: "NOT_SATISFIED" })) });
-      if (key === "published") {
-        const meeting = await tx.meeting.create({ data: { leadId: lead.id, agentId: agent.agent.id, organizationId: organizationA, caseId: record.id,
-          ownerMembershipId: agent.id, status: "SCHEDULED", type: "CONSULTATION", operationalStatus: "CONFIRMED", channel: "IN_PERSON",
-          timezone: "Europe/Moscow", scheduledAt: new Date(Date.now() + 86_400_000), idempotencyKey: `cpo:${runId}:published:meeting` } });
-        if (!meeting.id) throw new Error("Synthetic meeting creation failed");
-      }
-    }
-  });
+  const seed = { runId, organizationA, organizationB, cases: caseIds, ownerEmail, passwordHash,
+    candidateMembershipId: `m3-uat-membership:${runId}:foreign`, agentMembershipId: `m3-uat-membership:${runId}:agent`,
+    encryptedMfa: encryptPlatformMfaSecret(ownerMfa), encryptedDeceasedName: encryptField("Synthetic CPO deceased") };
+  const started = performance.now(), actions: Array<{ label: string; durationMs: number }> = [];
+  let callbackCompleted = false, commitAcknowledged = false;
+  try {
+    await db.$transaction(async tx => {
+      await seedCpoScenarios(tx, seed, async (label, operation) => {
+        const start = performance.now();
+        try { return await operation(); } finally { actions.push({ label, durationMs: Math.round(performance.now() - start) }); }
+      });
+      callbackCompleted = true;
+    });
+    commitAcknowledged = true;
+  } finally {
+    process.stderr.write(`${JSON.stringify({ stage: "CPO_SCENARIO_TRANSACTION", actions, callbackCompleted, commitAcknowledged, durationMs: Math.round(performance.now() - started) })}\n`);
+  }
   // Bind production services to the verified isolated client, never the ambient DATABASE_URL.
   const globalClient = globalThis as unknown as { prisma?: PrismaClient };
   if (globalClient.prisma && globalClient.prisma !== db) throw new Error("Unexpected ambient Prisma client");

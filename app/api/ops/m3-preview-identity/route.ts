@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { inspectDirectMigrationUrl } from "@/lib/migrationTarget";
-import { isApprovedM3PreviewBranch, isApprovedM3PreviewDatabase } from "@/lib/m3AuditMode";
+import { getApprovedM3PreviewStorageId, isApprovedM3PreviewBranch, isApprovedM3PreviewDatabase } from "@/lib/m3AuditMode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export async function GET() {
     if (rows.length !== 1 || rows[0].database !== direct.database || rows[0].readOnly !== "off") {
       return NextResponse.json({ isolation: "FAIL" }, { status: 503 });
     }
-    return NextResponse.json({ connection: "PASS", fingerprint: direct.fingerprint }, {
+    return NextResponse.json({ connection: "PASS", fingerprint: direct.fingerprint, privateStorageId: getApprovedM3PreviewStorageId() }, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {

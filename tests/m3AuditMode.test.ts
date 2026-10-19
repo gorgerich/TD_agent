@@ -1,8 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { M3_CPO_AUDIT_ORGANIZATION_ID, isApprovedM3PreviewBranch, isM3ProductionWriteAllowed } from "../lib/m3AuditMode";
+import { M3_CPO_AUDIT_ORGANIZATION_ID, getApprovedM3PreviewStorageId, isApprovedM3PreviewBranch, isM3ProductionWriteAllowed } from "../lib/m3AuditMode";
 import { assertCapability, type OperationalContext } from "../lib/operationalAuth";
 import { materializeCaseRequirementsInTransaction, refreshCaseRequirementApplicabilityInTransaction } from "../lib/documentRequirementService";
+
+test("Preview storage diagnostic conservatively rejects ambiguous, context-only and non-Blob configurations", () => {
+  const keys = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "BLOB_STORE_ID", "BLOB_READ_WRITE_TOKEN", "VERCEL_OIDC_TOKEN", "M3_DOCUMENT_STORAGE"];
+  const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const symbol = Symbol.for("@vercel/request-context");
+  const globals = globalThis as unknown as Record<symbol, unknown>, context = globals[symbol];
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_REF = "fix/m3-cpo-audit-repair";
+    process.env.BLOB_STORE_ID = "store_Ov8erHstuvfJ52Og";
+    process.env.VERCEL_OIDC_TOKEN = "synthetic-test-only-oidc";
+    delete process.env.M3_DOCUMENT_STORAGE;
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Ov8erHstuvfJ52Og_synthetic-test-only";
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
+    for (const token of ["vercel_blob_rw_anotherStore_synthetic-test-only", "malformed", "vercel_blob_rw_Ov8erHstuvfJ52Og_"]) {
+      process.env.BLOB_READ_WRITE_TOKEN = token;
+      assert.equal(getApprovedM3PreviewStorageId(), null);
+    }
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.VERCEL_OIDC_TOKEN = " \t ";
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+    globals[symbol] = { get: () => ({ headers: { "x-vercel-oidc-token": "synthetic-test-only-context" } }) };
+    assert.equal(getApprovedM3PreviewStorageId(), null, "context-only credentials are not certified by this conservative diagnostic");
+    process.env.VERCEL_OIDC_TOKEN = "synthetic-test-only-oidc";
+    process.env.M3_DOCUMENT_STORAGE = "isolated-filesystem";
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+    delete process.env.M3_DOCUMENT_STORAGE;
+    process.env.BLOB_READ_WRITE_TOKEN = " \t ";
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
+    delete process.env.BLOB_READ_WRITE_TOKEN;
+    process.env.BLOB_STORE_ID = "store_anotherStore";
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+    process.env.BLOB_STORE_ID = "store_Ov8erHstuvfJ52Og";
+    process.env.VERCEL_ENV = "production";
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_REF = "unapproved-branch";
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+  } finally {
+    if (context === undefined) delete globals[symbol]; else globals[symbol] = context;
+    for (const [key, value] of Object.entries(prior)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
 
 test("Production M3 writes are limited to the exact synthetic audit organization", async () => {
   const env = process.env as Record<string, string | undefined>;
