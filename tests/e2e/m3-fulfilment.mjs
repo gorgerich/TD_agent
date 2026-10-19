@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { syntheticDocumentPdf } from "../cpoAuditDocuments.fixture.mjs";
 import { createRequire } from "node:module";
 import { chromium } from "playwright";
-import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope } from "./protectedInput.mjs";
+import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope, legacySecretScreenshotOptions } from "./protectedInput.mjs";
 
 let browser;
 let context;
@@ -160,8 +162,10 @@ page.on("response", (response) => {
   await login(page, identities.agent, password, /\/agent\/cases/);
   await assertCanonicalCaseSummary(page, cremation.leadId, "3/3");
   await page.getByText("Исполнение", { exact: true }).first().waitFor();
+  await screenshot(page, "cremation-summary-desktop.png");
   await assertCanonicalCaseSummary(page, burial.leadId, "4/4");
   await page.getByText("Исполнение", { exact: true }).first().waitFor();
+  await screenshot(page, "burial-summary-desktop.png");
   const cremationReconciliation = await reconcile(page, cremation.leadId);
   const burialReconciliation = await reconcile(page, burial.leadId);
   assert.equal(cremationReconciliation.discrepancyCount, 0, JSON.stringify(cremationReconciliation.discrepancies));
@@ -596,6 +600,7 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await target.goto(`${baseUrl}/agent/cases/${leadId}?tab=docs`, { waitUntil: "networkidle" });
   await assertNoOverflow(target, "case documents mobile");
   await assertA11y(target, "case documents mobile");
+  await screenshot(target, "documents-mobile.png");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "case documents 200 percent zoom");
   await assertTextFullyVisible(
@@ -611,6 +616,7 @@ async function assertResponsiveAndAccessible(target, leadId) {
       `document metadata ${index + 1} at 200 percent zoom`,
     );
   }
+  await screenshot(target, "documents-zoom200.png");
   await target.setViewportSize({ width: 390, height: 844 });
   await context.clearCookies();
   await login(target, identities.financeA, password, /\/agent\/finance/);
@@ -619,17 +625,27 @@ async function assertResponsiveAndAccessible(target, leadId) {
   const finalFinanceRecord = target.locator('ul[aria-label="Финансовые обязательства"] > li').last();
   await finalFinanceRecord.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
   await assertClearOfMobileDock(target, finalFinanceRecord, "final Finance record");
+  await screenshot(target, "finance-mobile.png");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "finance 200 percent zoom");
   await assertA11y(target, "finance 200 percent zoom");
+  await screenshot(target, "finance-zoom200.png");
   await target.setViewportSize({ width: 390, height: 844 });
   await context.clearCookies();
   await login(target, identities.reviewer, password, /\/agent\/document-review/);
   await assertNoOverflow(target, "reviewer mobile");
   await assertA11y(target, "reviewer mobile");
+  await screenshot(target, "reviewer-mobile.png");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "reviewer 200 percent zoom");
   await assertA11y(target, "reviewer 200 percent zoom");
+  await screenshot(target, "reviewer-zoom200.png");
+}
+
+async function screenshot(target, filename) {
+  if (!process.env.M3_EVIDENCE_DIR) return;
+  await mkdir(process.env.M3_EVIDENCE_DIR, { recursive: true });
+  await target.screenshot({ path: path.join(process.env.M3_EVIDENCE_DIR, filename), fullPage: true, ...legacySecretScreenshotOptions(target) });
 }
 
 async function assertFocused(target, locator, label) {
