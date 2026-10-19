@@ -45,6 +45,7 @@ const db = new PrismaClient({ datasources: { db: { url: directUrl } } });
 let stage = "verify";
 
 async function verify() {
+  stage = "verify-target-identity";
   const rows = await db.$queryRaw<Array<{ database: string; schema: string; readOnly: string }>>`
     SELECT current_database() AS database, current_schema() AS schema, current_setting('transaction_read_only') AS "readOnly"
   `;
@@ -52,6 +53,7 @@ async function verify() {
   const namespaces = [m3UatNamespace(runId), { label: "CPO extension", organizationIds: [], userEmails: [ownerEmail] }];
   if (process.env.M1_UAT_RUN_ID) namespaces.push(m1UatNamespace(process.env.M1_UAT_RUN_ID));
   if (process.env.M2_UAT_RUN_ID) namespaces.push(m2UatNamespace(process.env.M2_UAT_RUN_ID));
+  stage = "verify-synthetic-census";
   assertOnlyRecognisedSyntheticData(await censusOfTarget(db), namespaces, "CPO repair extension");
 }
 
@@ -209,4 +211,9 @@ async function main() {
     process.stdout.write(`${JSON.stringify(await manifest())}\n`);
   } finally { await db.$disconnect(); }
 }
-main().catch(() => { process.stderr.write(`CPO fixture refused or failed at ${stage}; no connection details emitted\n`); process.exitCode = 1; });
+main().catch((error: unknown) => {
+  const code = typeof error === "object" && error !== null && "code" in error
+    && typeof error.code === "string" && /^P\d{4}$/.test(error.code) ? error.code : "FIXTURE_FAILED";
+  process.stderr.write(`CPO fixture refused or failed at ${stage}; code=${code}; no connection details emitted\n`);
+  process.exitCode = 1;
+});
