@@ -4,7 +4,7 @@ import { M3_CPO_AUDIT_ORGANIZATION_ID, getApprovedM3PreviewStorageId, isApproved
 import { assertCapability, type OperationalContext } from "../lib/operationalAuth";
 import { materializeCaseRequirementsInTransaction, refreshCaseRequirementApplicabilityInTransaction } from "../lib/documentRequirementService";
 
-test("Preview storage diagnostic conservatively rejects ambiguous, context-only and non-Blob configurations", () => {
+test("Preview storage diagnostic follows SDK OIDC precedence and rejects wrong backend or RW target", () => {
   const keys = ["VERCEL_ENV", "VERCEL_GIT_COMMIT_REF", "BLOB_STORE_ID", "BLOB_READ_WRITE_TOKEN", "VERCEL_OIDC_TOKEN", "M3_DOCUMENT_STORAGE"];
   const prior = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   const symbol = Symbol.for("@vercel/request-context");
@@ -19,6 +19,9 @@ test("Preview storage diagnostic conservatively rejects ambiguous, context-only 
     assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
     process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_Ov8erHstuvfJ52Og_synthetic-test-only";
     assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_anotherStore_synthetic-test-only";
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og", "environment OIDC selects the explicit approved store before RW");
+    delete process.env.VERCEL_OIDC_TOKEN;
     for (const token of ["vercel_blob_rw_anotherStore_synthetic-test-only", "malformed", "vercel_blob_rw_Ov8erHstuvfJ52Og_"]) {
       process.env.BLOB_READ_WRITE_TOKEN = token;
       assert.equal(getApprovedM3PreviewStorageId(), null);
@@ -27,7 +30,12 @@ test("Preview storage diagnostic conservatively rejects ambiguous, context-only 
     process.env.VERCEL_OIDC_TOKEN = " \t ";
     assert.equal(getApprovedM3PreviewStorageId(), null);
     globals[symbol] = { get: () => ({ headers: { "x-vercel-oidc-token": "synthetic-test-only-context" } }) };
-    assert.equal(getApprovedM3PreviewStorageId(), null, "context-only credentials are not certified by this conservative diagnostic");
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og");
+    process.env.BLOB_READ_WRITE_TOKEN = "vercel_blob_rw_anotherStore_synthetic-test-only";
+    assert.equal(getApprovedM3PreviewStorageId(), "store_Ov8erHstuvfJ52Og", "trusted context OIDC wins over conflicting RW too");
+    globals[symbol] = { get: () => ({ headers: { "x-vercel-oidc-token": " \t " } }) };
+    assert.equal(getApprovedM3PreviewStorageId(), null);
+    delete process.env.BLOB_READ_WRITE_TOKEN;
     process.env.VERCEL_OIDC_TOKEN = "synthetic-test-only-oidc";
     process.env.M3_DOCUMENT_STORAGE = "isolated-filesystem";
     assert.equal(getApprovedM3PreviewStorageId(), null);

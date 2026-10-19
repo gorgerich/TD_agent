@@ -9,14 +9,20 @@ export function getApprovedM3PreviewStorageId(): string | null {
   if (process.env.VERCEL_ENV !== "preview" || !isApprovedM3PreviewBranch()
     || process.env.M3_DOCUMENT_STORAGE === "isolated-filesystem"
     || process.env.BLOB_STORE_ID?.trim() !== M3_PREVIEW_STORAGE_ID) return null;
+  // Mirror the installed Blob SDK's trusted context -> environment OIDC -> RW resolution.
+  const context = (globalThis as typeof globalThis & {
+    [key: symbol]: { get?: () => { headers?: Record<string, unknown> } } | undefined;
+  })[Symbol.for("@vercel/request-context")];
+  const contextToken = context?.get?.()?.headers?.["x-vercel-oidc-token"];
+  if ((typeof contextToken === "string" && contextToken.trim()) || process.env.VERCEL_OIDC_TOKEN?.trim()) {
+    return M3_PREVIEW_STORAGE_ID;
+  }
   const token = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  // Conservative admission, not SDK precedence: reject conflicting RW targets and
-  // context-only OIDC configurations; the SDK may prefer trusted request-context OIDC.
   if (token) {
     const store = /^vercel_blob_rw_([A-Za-z0-9]+)_.+$/.exec(token)?.[1];
     return store && `store_${store}` === M3_PREVIEW_STORAGE_ID ? M3_PREVIEW_STORAGE_ID : null;
   }
-  return process.env.VERCEL_OIDC_TOKEN?.trim() ? M3_PREVIEW_STORAGE_ID : null;
+  return null;
 }
 
 export function isApprovedM3PreviewBranch(): boolean {
