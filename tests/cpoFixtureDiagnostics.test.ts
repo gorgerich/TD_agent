@@ -4,6 +4,42 @@ import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
 
+test("local CPO gate separates machine-readable stdout from diagnostic stderr", () => {
+  const source = readFileSync("scripts/test-cpo-repair-local.mjs", "utf8");
+  const start = source.indexOf("function command(");
+  const end = source.indexOf("\nlet server;", start);
+  assert.ok(start >= 0 && end > start);
+  const command = source.slice(start, end);
+  const manifest = { source: "synthetic-cpo-repair-v1", publicationPending: false };
+  const stdout = `${JSON.stringify(manifest)}\n`;
+  const stderr = '{"stage":"CPO_SCENARIO_TRANSACTION","commitAcknowledged":true}\n';
+  const secret = "explicit-unit-only-secret";
+  for (const sample of [
+    { stdout, stderr, status: 0, expected: "success" },
+    { stdout: secret, stderr, status: 0, expected: "SECRET_OUTPUT_DETECTED" },
+    { stdout, stderr: secret, status: 0, expected: "SECRET_OUTPUT_DETECTED" },
+    { stdout, stderr, status: 1, expected: "GATE_cpo-fixture_FAILED" },
+  ]) {
+    const logs: string[] = [];
+    const context = {
+      assert, root: "unit-only", output: "unit-only", env: { M3_UAT_PASSWORD: secret },
+      report: { gates: [] }, save: () => {}, console: { log: () => {} },
+      path: { join: (...parts: string[]) => parts.join("/") },
+      spawnSync: () => sample,
+      writeFileSync: (_file: string, text: string) => { logs.push(text); },
+    };
+    const execute = () => runInNewContext(`${command}\ncommand("cpo-fixture", "node", []);`, context);
+    if (sample.expected === "success") {
+      assert.deepEqual(JSON.parse(execute()), manifest);
+      assert.deepEqual(logs, [stdout + stderr]);
+    } else {
+      assert.throws(execute, new RegExp(sample.expected));
+      if (sample.expected === "SECRET_OUTPUT_DETECTED") assert.equal(logs.length, 0);
+      else assert.deepEqual(logs, [stdout + stderr]);
+    }
+  }
+});
+
 test("CPO fixture diagnostics expose only a fixed stage and a bounded Prisma code", () => {
   const source = readFileSync("tests/e2e/cpo-repair-fixture.ts", "utf8");
   assert.ok(source.includes('stage = "verify-target-identity"'));

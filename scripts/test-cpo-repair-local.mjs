@@ -69,7 +69,7 @@ function command(name, executable, args, overrides = {}) {
   report.gates.push({ name, exit: result.status, durationMs: Date.now() - started }); save();
   console.log(JSON.stringify(report.gates.at(-1)));
   assert.equal(result.status, 0, `GATE_${name}_FAILED`);
-  return log;
+  return result.stdout ?? "";
 }
 let server;
 const ownedDatabases = [];
