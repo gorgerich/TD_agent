@@ -621,6 +621,7 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await context.clearCookies();
   await login(target, identities.financeA, password, /\/agent\/finance/);
   await assertNoOverflow(target, "finance mobile");
+  await assertFinanceTextVisible(target, "finance mobile");
   await assertA11y(target, "finance mobile");
   const finalFinanceRecord = target.locator('ul[aria-label="Финансовые обязательства"] > li').last();
   await finalFinanceRecord.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
@@ -628,6 +629,7 @@ async function assertResponsiveAndAccessible(target, leadId) {
   await screenshot(target, "finance-mobile.png");
   await target.setViewportSize({ width: 195, height: 422 });
   await assertNoOverflow(target, "finance 200 percent zoom");
+  await assertFinanceTextVisible(target, "finance 200 percent zoom");
   await assertA11y(target, "finance 200 percent zoom");
   await screenshot(target, "finance-zoom200.png");
   await target.setViewportSize({ width: 390, height: 844 });
@@ -674,6 +676,15 @@ async function assertTextFullyVisible(target, locator, label) {
     range.selectNodeContents(element);
     const text = range.getBoundingClientRect();
     const box = element.getBoundingClientRect();
+    let clipLeft = 0;
+    let clipRight = document.documentElement.clientWidth;
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      if (["hidden", "clip", "auto", "scroll"].includes(getComputedStyle(parent).overflowX)) {
+        const bounds = parent.getBoundingClientRect();
+        clipLeft = Math.max(clipLeft, bounds.left);
+        clipRight = Math.min(clipRight, bounds.right);
+      }
+    }
     return {
       viewportWidth: document.documentElement.clientWidth,
       boxLeft: box.left,
@@ -682,11 +693,22 @@ async function assertTextFullyVisible(target, locator, label) {
       textRight: text.right,
       clientWidth: element.clientWidth,
       scrollWidth: element.scrollWidth,
+      clipLeft,
+      clipRight,
     };
   });
   assert.ok(metrics.boxLeft >= -1 && metrics.boxRight <= metrics.viewportWidth + 1, `${label} box clipped`);
   assert.ok(metrics.textLeft >= -1 && metrics.textRight <= metrics.viewportWidth + 1, `${label} text clipped`);
+  assert.ok(metrics.textLeft >= metrics.clipLeft - 1 && metrics.textRight <= metrics.clipRight + 1, `${label} text clipped by an ancestor`);
   assert.ok(metrics.scrollWidth <= metrics.clientWidth + 1, `${label} internal overflow ${metrics.scrollWidth}/${metrics.clientWidth}`);
+}
+
+async function assertFinanceTextVisible(target, label) {
+  const fields = target.locator('ul[aria-label="Финансовые обязательства"] > li').locator("strong, p, span, dt, dd, button");
+  assert.ok(await fields.count() > 0, `${label} needs actual obligations`);
+  for (let index = 0; index < await fields.count(); index += 1) {
+    await assertTextFullyVisible(target, fields.nth(index), `${label} field ${index + 1}`);
+  }
 }
 
 async function assertClearOfMobileDock(target, locator, label) {
