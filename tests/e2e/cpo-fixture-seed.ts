@@ -1,4 +1,5 @@
 import type { DocumentRequirementRule, Prisma } from "@prisma/client";
+import { readPublishedQuoteSnapshot } from "../../lib/commercialQuote";
 
 type Policy = { id: string; version: number; scenario: string; source: string; rules: DocumentRequirementRule[] };
 export type CpoSeedInput = {
@@ -7,6 +8,47 @@ export type CpoSeedInput = {
   ownerEmail: string; passwordHash: string; encryptedMfa: string; encryptedDeceasedName: string;
   cases: { safe: string; published: string };
 };
+
+export async function inspectCpoPublication(tx: Prisma.TransactionClient, input: Pick<CpoSeedInput,
+  "runId" | "organizationA" | "agentMembershipId" | "cases">) {
+  const [row] = await tx.$queryRaw<Array<{ quoteId: number; quoteVersionId: number; versionNumber: number;
+    payload: string; snapshotChecksum: string; total: number; state: string; stage: string; publishedCount: number }>>`
+    SELECT q.id AS "quoteId", v.id AS "quoteVersionId", v."versionNumber", v.payload, v."snapshotChecksum", v.total, v.state, c.stage,
+      (SELECT count(*)::int FROM "QuoteVersion" x WHERE x."quoteId"=q.id AND x."versionNumber" IS NOT NULL) AS "publishedCount"
+    FROM "Case" c JOIN "QuoteVersion" v ON v.id=c."publishedQuoteVersionId"
+    JOIN "Quote" q ON q.id=v."quoteId" AND q."caseId"=c.id AND q."organizationId"=c."tenantId" AND q."latestPublishedVersionId"=v.id
+    JOIN "Meeting" m ON m.id=q."meetingId" AND m."caseId"=c.id AND m."organizationId"=c."tenantId" AND m."agentId"=c."ownerId"
+    JOIN "ClientLead" l ON l.id=c."leadId" AND l.id=m."leadId" AND l."agentId"=c."ownerId"
+    JOIN "Agent" a ON a.id=c."ownerId" JOIN "User" u ON u.id=a."userId"
+    WHERE c.id=${input.cases.published} AND c."tenantId"=${input.organizationA}
+      AND q."ownerMembershipId"=${input.agentMembershipId} AND m."ownerMembershipId"=${input.agentMembershipId}
+      AND v."publishedByMembershipId"=${input.agentMembershipId} AND v."idempotencyKey"=${`cpo:${input.runId}:published:publish`}
+      AND v."publishReason"='Synthetic CPO publication guard' AND v."publishChannel"='link'
+      AND l.source='synthetic-cpo-repair' AND u.email=${`m3-agent-${input.runId}@synthetic.invalid`}
+  `;
+  if (!row || row.state !== "PUBLISHED" || row.versionNumber !== 1 || row.publishedCount !== 1
+    || !["AGREEMENT", "QUOTING"].includes(row.stage)) throw new Error("Canonical CPO publication missing or changed");
+  const snapshot = readPublishedQuoteSnapshot(row);
+  if (snapshot.caseId !== input.cases.published || snapshot.organizationId !== input.organizationA || snapshot.scenario !== "CREMATION_V1"
+    || snapshot.currency !== "RUB" || row.total !== 100_000 || snapshot.totals.total !== 100_000
+    || snapshot.lines.length !== 1 || snapshot.lines[0].stableKey !== `cpo:${input.runId}:service`
+    || snapshot.lines[0].source !== "synthetic-cpo-repair" || snapshot.lines[0].sourceVersion !== "1"
+    || snapshot.lines[0].quantity !== 1 || snapshot.lines[0].priceState !== "KNOWN" || snapshot.lines[0].clientUnitPrice !== 100_000
+    || snapshot.lines[0].costState !== "KNOWN" || snapshot.lines[0].unitCost !== 80_000 || snapshot.lines[0].discountAmount !== 0
+    || snapshot.lines[0].included || snapshot.lines[0].optional || snapshot.lines[0].relationKind !== "STANDALONE") throw new Error("Canonical CPO snapshot provenance mismatch");
+  return { quoteId: row.quoteId, quoteVersionId: row.quoteVersionId, checksum: row.snapshotChecksum, total: row.total, stage: row.stage };
+}
+
+export async function finalizeCpoPublication(tx: Prisma.TransactionClient, input: Parameters<typeof inspectCpoPublication>[1]) {
+  const proof = await inspectCpoPublication(tx, input);
+  // Test setup only: isolate the historical-publication guard, never rewrite QuoteVersion.
+  if (proof.stage === "AGREEMENT") {
+    const changed = await tx.case.updateMany({ where: { id: input.cases.published, tenantId: input.organizationA,
+      publishedQuoteVersionId: proof.quoteVersionId, stage: "AGREEMENT" }, data: { stage: "QUOTING" } });
+    if (changed.count !== 1) throw new Error("CPO publication setup changed concurrently");
+  }
+  return proof;
+}
 
 // Test-only fixture: keep all admission checks and dependent writes in one unchanged deadline.
 export async function seedCpoScenarios(tx: Prisma.TransactionClient, input: CpoSeedInput,

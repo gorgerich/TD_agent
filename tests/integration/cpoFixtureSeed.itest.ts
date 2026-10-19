@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { seedCpoScenarios, type CpoSeedInput } from "../e2e/cpo-fixture-seed";
+import { finalizeCpoPublication, inspectCpoPublication, seedCpoScenarios, type CpoSeedInput } from "../e2e/cpo-fixture-seed";
+import { markCommercialQuoteInReview, publishCommercialQuote, saveCommercialDraft } from "../../lib/commercialQuoteService";
 import { createFixtureContext, db, skip } from "./_setup";
 
 const opts = { skip: skip ? "requires approved isolated local PostgreSQL" : false };
@@ -28,7 +29,7 @@ async function setup(tag: string) {
       ownerEmail: `m3-cpo-owner-${runId}@synthetic.invalid`, passwordHash: "synthetic-test-not-an-authentication-credential",
       encryptedMfa: "synthetic-test-unused-mfa", encryptedDeceasedName: "synthetic-test-unused-pii",
       cases: { safe: `cpo-seed:${runId}:safe`, published: `cpo-seed:${runId}:published` } };
-    return { fixtures, input, candidate };
+    return { fixtures, input, candidate, agent };
   } catch (error) { await fixtures.cleanup(); throw error; }
 }
 
@@ -43,7 +44,7 @@ async function snapshot() {
 }
 
 test("CPO fixture uses six model actions, preserves exact policy copies and refuses replay", opts, async () => {
-  const { fixtures, input } = await setup("success");
+  const { fixtures, input, agent } = await setup("success");
   try {
     const actions: string[] = [];
     await db.$transaction(tx => seedCpoScenarios(tx, input, async (label, operation) => { actions.push(label); return operation(); }));
@@ -65,6 +66,27 @@ test("CPO fixture uses six model actions, preserves exact policy copies and refu
       }
       assert.equal(record.meetings.length, record.id === input.cases.published ? 1 : 0);
     }
+    await assert.rejects(db.$transaction(tx => finalizeCpoPublication(tx, input)), /publication missing/);
+    const meeting = await db.meeting.findFirstOrThrow({ where: { caseId: input.cases.published } });
+    const meta = (action: string) => ({ idempotencyKey: `cpo:${input.runId}:published:${action}`,
+      correlationId: `cpo:${input.runId}:published`, reason: "Synthetic CPO publication guard" });
+    const draft = await saveCommercialDraft({ context: agent.context, meetingId: meeting.id, scenario: "CREMATION_V1", meta: meta("draft"), lines: [{
+      stableKey: `cpo:${input.runId}:service`, position: 0, type: "SERVICE", serviceCode: "synthetic-cpo", description: "Synthetic CPO service",
+      quantity: 1, unit: "service", priceState: "KNOWN", clientUnitPrice: 100_000, costState: "KNOWN", unitCost: 80_000,
+      discountAmount: 0, included: false, optional: false, relationKind: "STANDALONE", source: "synthetic-cpo-repair", sourceVersion: "1",
+      scenarioCompatibility: ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"],
+    }] });
+    await markCommercialQuoteInReview({ quoteId: draft.quoteId, context: agent.context, meta: meta("review") });
+    const published = await publishCommercialQuote({ quoteId: draft.quoteId, context: agent.context, meta: meta("publish"),
+      channel: "link", validUntil: new Date(Date.now() + 86_400_000) });
+    await assert.rejects(db.$transaction(tx => finalizeCpoPublication(tx, { ...input, organizationA: input.organizationB })), /publication missing/);
+    assert.equal((await db.case.findUniqueOrThrow({ where: { id: input.cases.published } })).stage, "AGREEMENT");
+    const proof = await db.$transaction(tx => finalizeCpoPublication(tx, input));
+    assert.equal(proof.quoteVersionId, published.quoteVersionId); assert.equal(proof.checksum, published.snapshotChecksum);
+    assert.equal(proof.total, 100_000);
+    const verified = await inspectCpoPublication(db, input);
+    assert.equal(verified.stage, "QUOTING");
+    assert.deepEqual(await db.$transaction(tx => finalizeCpoPublication(tx, input)), verified);
     const before = await snapshot();
     await assert.rejects(db.$transaction(tx => seedCpoScenarios(tx, input)), /Fixture already present/);
     assert.deepEqual(await snapshot(), before);
