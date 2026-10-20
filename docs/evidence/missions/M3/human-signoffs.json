@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "candidate": {
-    "previewUrl": "https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app",
-    "deploymentId": "dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg",
-    "deploymentSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
-    "implementationSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+    "previewUrl": "https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app",
+    "deploymentId": "dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai",
+    "deploymentSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+    "implementationSha": "da24768bb6026ba02774e92232059ae3da06fc92",
     "databaseFingerprint": "545a187f9e9d66b0"
   },
   "policyContentFingerprint": null,

@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-20T08:44:43.256Z",
+  "repository": "gorgerich/TD_agent",
+  "mainSha": "91ae4fb23b8f87c0574ccec23708daeabdc50fc9",
+  "servingDeploymentId": "dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW",
+  "servingSha": "91ae4fb23b8f87c0574ccec23708daeabdc50fc9",
+  "readyState": "READY",
+  "freeze": {
+    "type": "plain",
+    "exactValue": "disabled"
+  },
+  "login": {
+    "path": "/agent/login",
+    "status": 200,
+    "freezeHeader": null
+  },
+  "writes": "NONE",
+  "databaseIdentity": "EXPECTED_LAST_NATIVE_0257665af2dd90a4_NOT_FRESHLY_QUERIED",
+  "customerBaseline": "NOT_FRESHLY_MEASURED",
+  "nox": "EXCLUDED"
+}

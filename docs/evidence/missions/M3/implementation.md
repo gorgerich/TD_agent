@@ -1,21 +1,26 @@
-# PR37 Initial Intake Reconciliation Repair
+# PR39 M3 Technical Readiness
 
-Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
-Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
-Restricted CPO recovery is now released at PR37 merge `ffc41e4a7105349e3b4aaa65cef3154eebb2a921`, deployment `dpl_3qc23sNV7v6c68LP8UhiJvtMPk2V`, exact disabled freeze. See the [actual post-release record](cpo-post-release-20261018.md). The failed PR36 release and earlier frozen875 recovery remain historical in the [incident](INCIDENT-PR36-20261017.md). Schema13 was already applied; PR37 introduces no migration. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
+Runtime `da24768bb6026ba02774e92232059ae3da06fc92`, base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`, [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact [Preview](https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app), deployment `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`, isolated Railway fingerprint `545a187f9e9d66b0`, owned schema `m3_cpo_repair_1792434976131_9c13601a`, private Blob `store_Ov8erHstuvfJ52Og`.
 
-## Scope
+This packet replaces the authoritative PR37 candidate, not its historical facts. The [byte-preserved predecessor packet](historical/pre-pr39-readiness-packet-20261020/README.md) and original post-release/incident receipts remain historical. No previous UAT has been reassigned.
 
-The cumulative37 canonical audit repairs remain in [registry](cpo-registry-current.md), not implemented again. This increment changes only reconciliation plus11 API/PostgreSQL regressions and an incident record. Initial INTAKE/UNSELECTED with no closure, lifecycle history, documents, requirements, Quotes, contracts or financial effects is honest incompleteness, not unsupported-scenario drift. Strict policy parity stays false; policy/contract/payment fulfilment blockers remain. Advanced/lost-materialized/previously progressed states still fail closed. No writes, money, auth, transaction deadline, migration or dependency change.
+## Implemented
 
-## Actual Execution
+- Persistent retention attempt generations, completion CAS and last success/failure/stale diagnostics; SUPER_ADMIN plus MFA read-only health API. Original indexed bounded cleanup, expiry recheck, locking, backoff and rate-limit protection stay intact. Bounded batches do not guarantee bounded table growth under arbitrary admission.
+- Additive migration14 creates only MaintenanceJobState; first13 migration bytes unchanged. No fabricated historic run is inserted.
+- Compatible dependency updates and runtime-only audit zero. Remaining21 development advisories are individually assessed, not called a clean full audit.
+- Test harness authenticated reads use real browser transport rather than weakening Secure cookies. Synthetic fixture writes are batched without increasing transaction deadlines or weakening ownership guards; machine JSON stdout stays separate from diagnostics, while secret checks cover both streams.
+- Finance mobile card status/money text now wraps in shrinkable tracks instead of being hidden by ancestor clipping. Genuine old-layout red/new-layout green component test and deployed 390/195 CSSpx checks cover the regression.
+- Platform role summary includes all five roles from the same active-membership/active-organization population as the employee metric. Actual SSR unit exercises all roles, exclusions and authorization-first ordering.
 
-[Source CI39043091834](https://github.com/gorgerich/TD_agent/actions/runs/39043091834):258unit,174PG/23files,5x90concurrency,5x22latency at80ms round-trip delay, maximum parallel4052ms against unchanged5000ms deadline. All27 technical steps PASS, including six E2E scripts, auth failure/recovery, document component browser, four fixture cleanups and encrypted synthetic backup/real restore/no-op/parity. Overall CI FAIL only stale b0 evidence, not retroactively green. Subsequent [exact final-head CI39069388095](https://github.com/gorgerich/TD_agent/actions/runs/39069388095) and [merge main CI39072019723](https://github.com/gorgerich/TD_agent/actions/runs/39072019723) PASS. The final-head latency maximum is4064ms; the earlier4052ms is not relabeled.
+## Actual Verification
 
-[New exact-runtime result](pr37-e9-preview-result.json) covers both full M3 journeys, CPO browser and two new partial-intake replay/census journeys. M3 reconciliation0/unexpected5xx0/skip0. New journey census1Case/1Lead/1Party/3roles/2events/2audits, no documents/financial/work rows per ceremony; fulfilment remains blocked. Local narrowed11 and full174 PostgreSQL tests, unit258/typecheck/lint/build passed separately.
+[Source CI39303713274](https://github.com/gorgerich/TD_agent/actions/runs/39303713274):262 unit;183 PostgreSQL/25 files;5x93 targeted;5x22 latency at80ms; all6 E2E/auth/components/cleanup PASS, skipped tests0. Maximum logged parallel transaction4130ms against unchanged5000ms deadline. Overall source CI FAIL only stale authoritative evidence. Final evidence-head CI is separately required.
 
-## Boundaries
+Single full local candidate run passed lint/typecheck/build/unit262/PG183/all6 E2E/auth/4 component programs, legacy fixtures, migration/no-op/parity and AES256 actual isolated54-table fixture restore/count-digest MATCH. Local schemas/databases cleaned. See [local receipt](technical-readiness/pr39-da-local-gate.json).
 
-Only this post-recovery technical interval has Production writes/schema/env/deployment NONE. That claim does not erase native PR36 migrations, retained synthetic effects or failed release. Owned Preview schema/history/secrets remain protected for review; local/browser cleanup is not secret destruction. [Historical packet](historical/pre-pr37-e9-packet-20261017/README.md) preserves b0 facts unchanged.
+Fresh affected Preview run on this exact runtime completed2026-10-19T18:58:36Z: both full M3 journeys, M2 admin and CPO repair PASS; reconciliation0, unexpected5xx0, skipped0. Canonical HTTP publication acknowledged draft/review/publish, version4 immutable proof passed. [Actual result](technical-readiness/pr39-da-preview.json). Thirteen synthetic users' access revoked and owned credential copy deleted; synthetic history/Preview binding retained.
 
-The later owner-native restricted release is a different measured interval. It performed fresh encrypted backup/actual isolated restore, standard redeploy, controlled unfreeze and replay of four already saved commands only. All51 scoped business and31 retained-synthetic table count/digests match. Authentication/rate-limit infrastructure and deployment configuration did change; do not call the whole release write-free. No new business entities, schema changes, provisioning or financial/document effects occurred. Production verification is the narrow retained-command smoke, not a repeat of the full Preview financial/document UAT.
+## Not Released
+
+Production remains91ae, no agent Production DB/schema/environment/deployment writes in this interval. Actual scanner provider, observed scheduled retention dispatch, final-head green CI/genuine GitHub approval and fresh native schema14 backup/restore/release prerequisites remain independent gates. Professional verdicts PENDING; broad rollout CLOSED; NOX excluded; M4 NOT_STARTED.

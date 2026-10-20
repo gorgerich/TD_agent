@@ -1,0 +1,48 @@
+{
+  "sourceSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "deploymentId": "dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai",
+  "observedRunFinishedAt": "2026-10-19T18:58:36.040Z",
+  "scope": "Actual synthetic DA Preview captures. Narrow195 CSSpx reflow, not native zoom. Legacy protected secret screenshot guards retained.",
+  "screenshots": [
+    {
+      "file": "documents-mobile.png",
+      "sha256": "4bbba5dbb3738cf02e8eb6c1807ad4ad13fa74fccf3d8c92f0262e880246533c"
+    },
+    {
+      "file": "documents-zoom200.png",
+      "sha256": "cd04f40ee617cf1029b340e881a5130e187f122ecf3827f79b4bc18f7a0b93ad"
+    },
+    {
+      "file": "finance-mobile.png",
+      "sha256": "007aed3dff5fe81ca92edf4f08c81f87f4f4450729e2dd86e73e26017baa3e11"
+    },
+    {
+      "file": "finance-zoom200.png",
+      "sha256": "40ada4520b20ef96cbb1383f96094ef83f174315c28c7865c035f5e96bc5a7bf"
+    },
+    {
+      "file": "first-admin-1365.png",
+      "sha256": "25a82345e2825b154d181b5c852b822adc45c636fa777be1f57a75ad64727dbd"
+    },
+    {
+      "file": "first-admin-195.png",
+      "sha256": "d8d9e74e3cfe120c87841f1399c43ac88de3a16235fad8e19c876d490b36431c"
+    },
+    {
+      "file": "first-admin-390.png",
+      "sha256": "e3f87a8728a2bd629ab3eae3f427867628384e522ced3b17733722919c96867c"
+    },
+    {
+      "file": "platform-admin-desktop.png",
+      "sha256": "dd5c9229bfb2ec4a20cb839f772eaa8cbab1ca0f4d4833fa7f60529ce01ef224"
+    },
+    {
+      "file": "reviewer-mobile.png",
+      "sha256": "cee6e4ca2734b0f9af31677817c85406f71e567d980d752b12275070b8b6d635"
+    },
+    {
+      "file": "reviewer-zoom200.png",
+      "sha256": "97ed5cbd875cb45faded15e93bbb6f1371fffecac88b38a62aede7c7ba39fde5"
+    }
+  ]
+}

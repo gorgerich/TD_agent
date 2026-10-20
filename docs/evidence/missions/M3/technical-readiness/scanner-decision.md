@@ -14,7 +14,7 @@ Proposed initial envelope requiring actual load tests: 4 GB RAM, 0.5 vCPU, one r
 
 ## Cost and Required Decision
 
-[Railway unit prices](https://railway.com/pricing), checked 2026-10-18: RAM $0.00000386/GB-second, CPU $0.00000772/vCPU-second, volumes $0.00000006/GB-second, service egress $0.05/GB. Continuous consumption at the proposed envelope is $50.18112 per 30 days or $51.853824 per 31 days before egress/tax and existing services. Estimated initial incremental usage is $30-52/month plus egress; this is not a fixed bill or benchmark. No unused Hobby credit is assumed. Resource limits alone are not a billing cap; alerts and suspension/review before overrun are required.
+[Railway unit prices](https://railway.com/pricing), rechecked 2026-10-20: RAM $0.00000386/GB-second, CPU $0.00000772/vCPU-second, volumes $0.00000006/GB-second, service egress $0.05/GB. Continuous consumption at the proposed envelope is $50.18112 per 30 days or $51.853824 per 31 days before egress/tax and existing services. Estimated initial incremental usage is $30-52/month plus egress; this is not a fixed bill or benchmark. No unused Hobby credit is assumed. Resource limits alone are not a billing cap; alerts and suspension/review before overrun are required.
 
 Owner decision: approve or reject this self-hosted option with an incremental budget up to $55/month, without a plan upgrade or a new document processor outside the existing Railway relationship. No billed resource has been created before that decision.
 

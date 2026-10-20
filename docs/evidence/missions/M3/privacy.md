@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: legalPrivacy
-preview_url: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg
-deployment_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
-implementation_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
+preview_url: https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai
+deployment_sha: da24768bb6026ba02774e92232059ae3da06fc92
+implementation_sha: da24768bb6026ba02774e92232059ae3da06fc92
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,12 +15,12 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-PR37 / base055 technical candidate,2026-10-17. Actual exacte9 Preview journeys passed; this does not approve any human checklist. PR36 release failed and remains recorded in INCIDENT-PR36-20261017.md. Subsequent restricted CPO releaseffc/deployment3qc/freezedisabled is recorded in cpo-post-release-20261018.md; it does not approve this Legal/Privacy verdict or broad rollout. Protected synthetic material retained; no credentials in this packet.
+PR39 / base91ae technical candidate. Actual DA Preview journeys passed on 2026-10-19; synthetic access was then revoked. This packet is prepared factual input, NOT a professional verdict. No PR39 Production release occurred. Historical releases and failed attempts remain in their original receipts. Re-admit only scoped synthetic access through an approved reviewed mechanism when a real reviewer is scheduled.
 
 
-- Exact Preview: `https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`
-- Implementation: `e9c23c516adf4b136b94a8825ec1cc45626b66a0`
+- Exact Preview: `https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`
+- Implementation: `da24768bb6026ba02774e92232059ae3da06fc92`
 - Case-party contacts use the existing encrypted adapter and stable role assignments.
 - Document storage is private, server-authorized, audited, and short lived; permanent URLs are absent.
 - Upload is quarantined and is never represented as verified.

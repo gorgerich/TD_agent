@@ -1,4 +1,10 @@
-# Cumulative CPO Registry
+# Current CPO Registry: PR39
+
+Current source `da24768bb6026ba02774e92232059ae3da06fc92`; base91ae; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact actual Preview `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`, isolated fp545a187f9e9d66b0, both M3 journeys and affected admin/CPO flows PASS. [New actual receipt](technical-readiness/pr39-da-preview.json), [source CI](technical-readiness/pr39-da-source-ci.json), [full local gate](technical-readiness/pr39-da-local-gate.json).
+
+All original37 canonical findings below keep their original cross-map, source decisions and historical proofs. Their relevant regressions ran in current DA full CI/local/UAT; unchanged code was not implemented again. Two additional observed UI defects were repaired as follow-ups, not new product scope. No PR39 Production release or professional verdict is claimed.
+
+## Historical Original 37-Finding Cross-Map
 
 The37 rows below preserve the cumulative PR36 repair cross-map, including explicitly named historical b0 executions. Those repairs are included in merged055. They are not newly implemented by PR37 and their old receipts are not relabelled. Current PR37 runtime is `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base055; its actual source CI174/23files and exact-runtime UAT are recorded in the current packet. PR36 attempted release failed and was contained by rebuilt875/freeze; it is not a successful closure. Human verdicts remain PENDING.
 
@@ -47,3 +53,18 @@ Subsequent [restricted post-release record](cpo-post-release-20261018.md) binds 
 | CPO-37 | later auth review | absent/invalid sessions distinct from missing-key/DB errors; safe API503 and unavailable/recovery UI | FIXED_TECHNICAL | S: authInfrastructure.test.ts; e2e/cpo-auth-infrastructure.mjs; no development synthetic auth fallback Separate actual b0 CI auth unavailable/failure/recovery browser step PASS; historical one-second cause UNPROVEN. |
 
 CPO33/34 session/actor CAS and CPO35 namespace regressions are source-reviewed and pass the recorded technical CI, not pending repair. CPO30 cookie inventory/shared setter findings are closed technically; logout is stateless expiry, not copied-token revocation. Historical OP-PROOF-01 belongs to the earlier runner; new native recovery source review, exact proof binding and actual owner execution are separate current gates. Production scanner, Finance/legal/ritual decisions, dependency maintenance, main required-check enforcement and unobserved actual retention cron execution remain external/operational risks. Screenshots certify affected controls/equivalent reflow, not full-app design or native zoom.
+
+## Current Follow-Ups and Operational Remainders
+
+| ID | Observation | Decision / current proof |
+| --- | --- | --- |
+| CPO-38 | Finance195CSSpx status/money clipped inside cards despite bodyoverflow0 | FIXED_SOURCE_DA; actual old-layout red/new-layout green real-component regression; new deployed M3 text/clipping-ancestor assertions and fresh visually inspected captures PASS |
+| CPO-39 | Role metric omitted FINANCE/DOCUMENT_REVIEWER and included suspended organizations | FIXED_SOURCE_DA; common ACTIVE org population/all5 generated roles; actual SSR unit covers excluded memberships/orgs and authorization-first; fresh platform screenshot inspected |
+| OPS-SCANNER | No approved connected Production provider | EXTERNAL_DECISION; fail-closed boundary tested, real provider acceptance absent; [one costed recommendation](technical-readiness/scanner-decision.md) |
+| OPS-CRON | Actual scheduled dispatch/outcome unobserved | AWAITING_OBSERVATION; no manual invocation substituted; read-only monitor active, one-hour provider logs required |
+| OPS-DEPS | Original runtime advisory fix plus remaining tooling advisories | CANDIDATE_RUNTIME_RESOLVED; runtime audit0; full dev graph21, all package/advisory/path/trace scope recorded in [assessment](technical-readiness/dependency-assessment-da.json); owner gorgerich, due2026-10-24 or before broad rollout; not a clean full audit |
+| OPS-PROTECTION | Earlier main enforcement concern | CLOSED_CONFIGURATION; live strict verify app15368/admin enforcement/1 genuine review/last-push approval/stale dismissal/conversation/force+delete disabled confirmed; genuine eligible PR approval still required |
+| OPS-RELEASE | Final evidence CI / native14 preflight / release | PENDING; no protected merge, Production migration/deployment/smoke or new global customer digest claimed |
+| HUMAN | Finance / Legal-Privacy / Ritual SME | PENDING; no registered genuine verdict/signature, full rollout CLOSED; [consolidated packet](technical-readiness/human-decisions.md) |
+
+The original historical final paragraph above records its original interval. This current table supersedes its operational status only: main protection is now enforced; runtime dependencies are repaired in the candidate, not yet Production; scanner and actual scheduled cron remain open. A source/unit/Preview PASS does not close those external gates. CPO_FINAL_REVIEW_CANDIDATE remains NOT_READY; do not send the prior release as a completed new candidate.

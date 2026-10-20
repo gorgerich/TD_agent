@@ -6,109 +6,109 @@
       "id": "M3-W7-01",
       "status": "PASS",
       "requirement": "Stable Case parties support multiple effective family roles, consent provenance, encrypted contact data, and tenant ownership.",
-      "evidence": "CPO09 payer lifecycle regression, multiple roles, canonical saved-DTO/list recovery and authoritative readback; unit/integration and dedicated Parties browser passed in exact e9 CI. Cumulative review chain and current registry record boundaries."
+      "evidence": "DA local262 unit /183 PostgreSQL and real Parties browser; stable multi-role/consent and canonical readback recovery. No professional approval inferred."
     },
     {
       "id": "M3-W7-02",
       "status": "PASS",
       "requirement": "Versioned cremation and relative-burial requirement policies differ and unapproved policy fails closed.",
-      "evidence": "Canonical policy activation and scenario correction tests passed in e9 CI; exact e9 Preview both scenarios PASS. Synthetic rules do not constitute legal or ritual approval."
+      "evidence": "DA exact Preview both scenario journeys PASS; canonical policy/scenario correction covered by CI. Test policies remain synthetic and cannot establish law."
     },
     {
       "id": "M3-W7-03",
       "status": "PASS",
       "requirement": "Uploaded, quarantined, reviewed, verified, rejected, expired, and superseded document states preserve immutable version history.",
-      "evidence": "Exact e9 Preview documentQuarantineReviewReplacement PASS; current trigger/immutable-version repair and uploader identity guards reviewed cumulatively. Historical failed replacement-label run at921 is not relabelled."
+      "evidence": "DA exact Preview documentQuarantineReviewReplacement PASS, including rejection/replacement and preserved applicable verified history."
     },
     {
       "id": "M3-W7-04",
       "status": "PASS",
       "requirement": "Private document storage has fail-closed scanning, server authorization, checksum/type/size checks, short-lived access, and access audit.",
-      "evidence": "Private isolated Preview store store_Ov8erHstuvfJ52Og, authorized reads, quarantine and safe retry validated. CPO04 production scanner provider remains UNVERIFIED and fail-closed; no real malware-provider readiness claimed."
+      "evidence": "DA isolated private Blob store, tenant/role access and quarantine/recovery checks PASS. Production provider remains REQUIRED; this is fail-closed adapter acceptance, not live malware-provider readiness."
     },
     {
       "id": "M3-W7-05",
       "status": "PASS",
       "requirement": "Document Reviewer has an organization-scoped queue and cannot read ledger or unrelated family context.",
-      "evidence": "Exact e9 Preview reviewerVisibility PASS, current assigned-label assertion retained after HTTP acknowledgment; role-purpose and cross-tenant tests in CI. Human reviewer credentials not fabricated."
+      "evidence": "DA Preview reviewerVisibility PASS; role-limited UI/API and foreign-tenant negatives remain enforced."
     },
     {
       "id": "M3-W6-01",
       "status": "PASS",
       "requirement": "ContractVersion and PaymentObligation immutably bind one accepted QuoteVersion without equating acceptance to signing.",
-      "evidence": "CPO09 contract-bound PAYER removal/drift/ISSUE/SIGN/concurrent mutation regressions passed in e9 canonical174 and repeated90 tests; exact Preview contractObligation PASS."
+      "evidence": "DA contractObligation PASS; source CI exercises immutable accepted QuoteVersion, payer drift and contract URL-parent protections."
     },
     {
       "id": "M3-W6-02",
       "status": "PASS",
       "requirement": "Append-only ledger derives truthful unpaid, partial, paid, overpaid, refunded states without manual PAID or destructive edits.",
-      "evidence": "Exact Preview partialFullRefundReversal PASS, canonical append-only ledger, immutable obligations and no manual PAID. Reference176000 RUB obligation minus88000 payment leaves88000 balance."
+      "evidence": "DA partial/full/refund/reversal journey PASS; 176000 RUB obligation minus88000 RUB payment leaves88000 RUB balance, originals preserved."
     },
     {
       "id": "M3-W6-03",
       "status": "PASS",
       "requirement": "Manual payment, webhook, retry, refund, correction, and reversal boundaries are idempotent and detect changed-payload conflicts.",
-      "evidence": "Exact Preview webhookReplayFive one entry/one original/four replays; financeLostResponseRetry sameCommandEnvelope and oneLedgerEntry. CI concurrency five90-test runs, skipped0."
+      "evidence": "DA webhook five deliveries create1 entry/1 original/4 truthful replays; lost-response Finance retry uses same envelope and1 entry. Five CI repeats93 tests each PASS."
     },
     {
       "id": "M3-W6-04",
       "status": "PASS",
       "requirement": "Sensitive correction/reversal uses persistent four-eyes approval and preserves original history.",
-      "evidence": "Four-eyes approval and pending refund/reversal boundary passed in canonical CI and Preview; executionAfterRefundGuard PASS before Finance B approval. Human threshold decision remains awaiting."
+      "evidence": "DA four-eyes correction/reversal and pending-approval execution guard PASS. Synthetic thresholds do not approve accounting policy."
     },
     {
       "id": "M3-W6-05",
       "status": "PASS",
       "requirement": "Finance workspace exposes only necessary obligation, payer, evidence, reconciliation, and approval data.",
-      "evidence": "CPO12 Finance own-organization payment read is FIXED, foreign tenant404 and purpose-limited projection maintained. Old Finance Case-detail read P2 is not carried as open. Exact e9 Preview financeVisibility PASS."
+      "evidence": "DA Finance visibility PASS; new actual Finance responsive card regression red before/final green at390/195CSSpx, with text/clipping-ancestor bounds."
     },
     {
       "id": "M3-GUARD-01",
       "status": "PASS",
       "requirement": "Case stages use verified requirements, signed contract evidence, ledger truth, and unresolved blockers through the canonical transition service.",
-      "evidence": "Canonical current facts govern transitions and post-refund execution.confirmed guard; two requests reject payment_satisfied with no side effects. e9 CI and exact Preview executionAfterRefundGuard PASS."
+      "evidence": "DA stageGuards/executionAfterRefundGuard PASS; canonical verified documents, valid contract, effective ledger and pending adjustments remain authoritative."
     },
     {
       "id": "M3-RECON-01",
       "status": "PASS",
       "requirement": "Document, contract, ledger, task, tenant, webhook, and audit reconciliation is deterministic and fail closed.",
-      "evidence": "Exacte9 full M3 Preview reconciliation0; new initial intake API+readonly complete census for both ceremonies gives0 discrepancy while all three fulfilment blockers remain. Eleven PG tests PASS: two legitimate initial-intake positives and nine advanced/stale lifecycle drift negatives. Diagnostic only, no automatic financial/document repair."
+      "evidence": "DA exact M3 Preview reconciliation0 and canonical schema readback0; diagnostic initial-intake/lifecycle regressions pass in CI. No automatic history repair."
     },
     {
       "id": "M3-SEC-01",
       "status": "PASS",
       "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
-      "evidence": "Historical37canonical CPO rows retain source/test mapping. Exacte9 independent source delta review has no blocking finding; Preview tenant/role negatives PASS. Dependency P2 applicability risk is explicitly open with owner/due date; no universal vulnerability-free or live scanner claim."
+      "evidence": "DA authenticated Agent/Manager/Finance/Reviewer/Admin boundary and cross-tenant negatives PASS. Main protection enforced; genuine engineering review still required. No universal security/scanner certification."
     },
     {
       "id": "M3-MIG-01",
       "status": "PASS",
       "requirement": "Migration is additive, historical checksums remain unchanged, restore/deploy/no-op/parity pass, and legacy truth is not invented.",
-      "evidence": "PR37 has no migration/schema delta; all13 approved migration bytes unchanged. Exacte9 CI encrypted synthetic backup/real restore/no-op/parity PASS; new Preview synthetic operationa42f15088dff15e1faffe412276eab41 counts/digests/no-op/parity/local cleanup PASS. PR36 native owner already applied October2; preserve history, do not reapply. Fresh native backup/restore remains a continuation gate."
+      "evidence": "Only additive migration14 creates MaintenanceJobState; first13 checksums unchanged. DA local/CI encrypted synthetic backup, actual restore54tables, no-op, parity and legacy assertions PASS. Fresh Production13-to14 rehearsal remains a release gate."
     },
     {
       "id": "M3-UX-01",
       "status": "PASS",
       "requirement": "Affected failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard and 200%-equivalent reflow states are honest and accessible.",
-      "evidence": "Exacte9 Preview affected controls1365/390/195 CSSpx axecritical/serious0, nooverflow/navtruncation; new390/195 captures visually inspected. 195px is equivalent reflow, NOT native200% zoom or full-app design compliance. Failure feedback409/503 is mocked UI, logout actual."
+      "evidence": "DA actual deployed affected1365/390/195CSSpx flows pass critical/serious axe0 and mobile checks. Finance clipping is fixed and new captures inspected; 195CSSpx is equivalent reflow, NOT native zoom/full-app design certification."
     },
     {
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Actual receipt pr37-e9-preview-result.json binds e9c23c516adf4b136b94a8825ec1cc45626b66a0, dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg, https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app, isolated fp545a187f9e9d66b0/schemam3_cpo_repair_179224926421011217041, private store. Both M3 journeys PASS with reconciliation0/5xx0/skipped0. Separate CPO repair PASS/skipped0; zero observed unexpected5xx follows its empty-failure-list assertion and successful child exit. No CPO reconciliation measurement is claimed."
+      "evidence": "DA exact deployed result technical-readiness/pr39-da-preview.json: da24768bb6026ba02774e92232059ae3da06fc92, dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai, isolated545a187f9e9d66b0, private store, three affected programs PASS, reconciliation0/5xx0. Credentials removed and13users access revoked; retained history remains synthetic."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Exact055..e9 immutable diff independently reviewed, no P0/P1/P2 in narrow runtime delta; CR-INTAKE-01 closed. Reviewer independently inspected exacte9 CI counts. External helper/proof review and final evidence-head CI are separate gates; see review.md."
+      "evidence": "Independent cumulative source review and exact DA UI delta PASS, P0/P1/P2=0. Actual engineering reviewer artifact preserved; not a GitHub approval or professional signature."
     },
     {
       "id": "M3-GATE-01",
       "status": "PASS",
       "requirement": "Source technical gates, exact Preview UAT, local evidence validation, and independent runtime review pass with skipped=0; final evidence-head CI is a separate pre-merge gate.",
-      "evidence": "Exacte9 CI39043091834:258unit/174PG, five90concurrency, five22latency max4052ms, sixE2E/auth/component/4cleanup PASS, testskip0. Overall FAIL only stale evidence remains historical. Actual exacte9 Preview UAT PASS; subsequent final-head CI39069388095 and merge mainCI39072019723 PASS. Narrow actual Production smoke is separately recorded in cpo-post-release-20261018.json, not substituted for full Preview UAT."
+      "evidence": "DA source CI39303713274 technical steps PASS:262unit/183PG,5x93 concurrency,5x22 latency,6E2E/auth/components/cleanup. Overall FAIL only stale evidence. Final evidence-head CI remains a separate required pre-merge gate; scanner/actual cron/native release are NOT claimed complete."
     }
   ]
 }
