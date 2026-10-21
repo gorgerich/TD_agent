@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHmac } from "node:crypto";
 import { chromium } from "playwright";
 import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope, legacySecretScreenshotOptions } from "./protectedInput.mjs";
+import { verifyRealOrganizationOnboarding } from "./real-organization.mjs";
 
 let browser;
 let context;
@@ -146,6 +147,8 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await page.goto(`${baseUrl}/platform-admin`, { waitUntil: "networkidle" });
   await assertNoOverflow(page, "platform admin mobile");
   await screenshot(page, "platform-admin-mobile.png");
+
+  await verifyRealOrganizationOnboarding({ browser, platformPage: page, baseUrl, runId, password, totp, screenshot: recoveryScreenshot });
 
   await context.clearCookies();
   await page.setViewportSize({ width: 1365, height: 900 });

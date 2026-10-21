@@ -362,6 +362,49 @@ test("CPO finance: refund then repayment reopens coverage without reversing real
   await closeCase(state.record);
 });
 
+test("real Production missing or malformed policy bindings cannot advance populated M3 cases", opts, async () => {
+  const state = await signedContract("missing-production-policy", true);
+  await recordManualPayment(finance.context, paymentInput(state.obligationId, state.payerId, AMOUNT), meta("covered-before-disable"));
+  const auth = await cookie(agent);
+  const previous = { environment: process.env.VERCEL_ENV, bindings: process.env.M3_PRODUCTION_POLICY_BINDINGS };
+  const snapshot = async () => ({
+    record: await db.case.findUniqueOrThrow({ where: { id: state.record.id } }),
+    events: await db.caseEvent.count({ where: { caseId: state.record.id } }),
+    tasks: await db.task.count({ where: { caseId: state.record.id } }),
+    audit: await db.operationalAuditEvent.count({ where: { organizationId: agent.organizationId } }),
+    ledger: await db.paymentLedgerEntry.count({ where: { caseId: state.record.id } }),
+  });
+  try {
+    for (const binding of [undefined, "{}", "not-json", JSON.stringify({ [agent.organizationId]: "invalid" })]) {
+      for (const [eventType, stage, payload] of [
+        ["contract.signed.v1", "CONTRACTING", {}],
+        ["payment.requirement_satisfied.v1", "PAYMENT", {}],
+        ["execution.confirmed.v1", "EXECUTION", { confirmationSource: "OPERATOR_CONFIRMED" }],
+        ["case.closure_requested.v1", "EXECUTION", {}],
+      ] as const) {
+        // Recreate the durable projection gap without altering signed/paid/verified history.
+        await db.case.update({ where: { id: state.record.id }, data: { stage, guardState: { execution_confirmed: true } } });
+        process.env.VERCEL_ENV = "production";
+        if (binding === undefined) delete process.env.M3_PRODUCTION_POLICY_BINDINGS;
+        else process.env.M3_PRODUCTION_POLICY_BINDINGS = binding;
+        const before = await snapshot();
+        const command = meta("disabled-production-stage");
+        const denied = await transitionCommand(makeRequest(`/api/agent/cases/${state.record.leadId}/transition`, {
+          method: "POST", cookie: auth, body: { eventType, payload },
+          headers: { "idempotency-key": command.idempotencyKey, "x-correlation-id": command.correlationId },
+        }), { params: Promise.resolve({ caseId: String(state.record.leadId) }) });
+        assert.equal(denied.status, 403);
+        assert.deepEqual(await snapshot(), before);
+      }
+    }
+  } finally {
+    if (previous.environment === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous.environment;
+    if (previous.bindings === undefined) delete process.env.M3_PRODUCTION_POLICY_BINDINGS;
+    else process.env.M3_PRODUCTION_POLICY_BINDINGS = previous.bindings;
+  }
+});
+
 test("CPO finance: refund after EXECUTION entry blocks confirmation atomically until coverage returns", opts, async () => {
   const state = await signedContract("execution-refund", true);
   const paid = await recordManualPayment(finance.context, paymentInput(state.obligationId, state.payerId, AMOUNT), meta("execution-pay"));

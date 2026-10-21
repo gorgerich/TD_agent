@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { serverCommandKey } from "@/lib/commandNamespace";
 import type { CaseCommandContext } from "@/lib/caseService";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +28,16 @@ export async function projectCaseEventInTransaction(
     },
   });
   if (existing) return existing.result;
+  return projectNewCaseEventInTransaction(tx, context, input);
+}
 
+// Only call immediately after inserting this source event in the same transaction.
+// A duplicate event/receipt aborts all projected writes, including task audits.
+export async function projectNewCaseEventInTransaction(
+  tx: Prisma.TransactionClient,
+  context: CaseCommandContext,
+  input: CaseProjectionInput,
+) {
   const affectedTaskIds: number[] = [];
   if (input.eventType === "scenario.selected.v1") {
     const tasks = await createProjectedTasks(tx, context, input, [
@@ -307,39 +317,33 @@ async function createProjectedTasks(
   }>,
 ) {
   const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  const created = await tx.task.createManyAndReturn({
-    data: tasks.map(task => ({
-      organizationId: context.organizationId,
-      caseId: input.caseId,
-      leadId: input.leadId,
-      agentId: context.agentId,
-      assigneeMembershipId: context.membershipId,
-      createdByMembershipId: context.membershipId,
-      type: task.type,
-      priority: task.priority,
-      status: "OPEN",
-      sourceEventId: input.eventId,
-      idempotencyKey: `projection:${input.eventId}:${task.type.toLowerCase()}`,
-      title: task.title,
-      expectedOutcome: task.expectedOutcome,
-      dueAt,
-    })),
-  });
-  await tx.operationalAuditEvent.createMany({
-    data: created.map(task => ({
-      organizationId: context.organizationId,
-      actorMembershipId: context.membershipId,
-      entityType: "task",
-      entityId: String(task.id),
-      action: "task.created_by_event",
-      before: {},
-      after: projectionTaskSnapshot(task),
-      correlationId: context.correlationId,
-      causationId: input.eventId,
-      idempotencyKey: `projection:${input.eventId}:${task.type.toLowerCase()}:audit`,
-      result: { taskId: task.id },
-    })),
-  });
+  // The fixed two-task projection and its append-only audits share one statement.
+  const source = JSON.stringify(tasks.map(task => ({ ...task, auditId: `audit_${randomUUID().replaceAll("-", "")}` })));
+  const created = await tx.$queryRaw<Array<{ id: number; type: string }>>`
+    WITH source AS (
+      SELECT * FROM jsonb_to_recordset(${source}::jsonb)
+        AS item(type text, title text, "expectedOutcome" text, priority text, "auditId" text)
+    ), created AS (
+      INSERT INTO "Task" ("organizationId", "caseId", "leadId", "agentId", "assigneeMembershipId",
+        "createdByMembershipId", type, priority, status, "sourceEventId", "idempotencyKey", title, "expectedOutcome", "dueAt")
+      SELECT ${context.organizationId}, ${input.caseId}, ${input.leadId}, ${context.agentId}, ${context.membershipId},
+        ${context.membershipId}, source.type::"TaskType", source.priority::"TaskPriority", 'OPEN'::"TaskStatus",
+        ${input.eventId}, 'projection:' || ${input.eventId} || ':' || lower(source.type),
+        source.title, source."expectedOutcome", ${dueAt}
+      FROM source RETURNING *
+    ), audited AS (
+      INSERT INTO "OperationalAuditEvent" (id, "organizationId", "actorMembershipId", "entityType", "entityId",
+        action, before, after, "correlationId", "causationId", "idempotencyKey", result)
+      SELECT source."auditId", task."organizationId", ${context.membershipId}, 'task', task.id::text,
+        'task.created_by_event', '{}'::jsonb,
+        jsonb_build_object('status', task.status, 'type', task.type, 'priority', task.priority,
+          'assigneeMembershipId', task."assigneeMembershipId",
+          'dueAt', to_char(task."dueAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+          'completedAt', NULL, 'hasOutcome', false, 'version', task.version),
+        ${context.correlationId}, ${input.eventId}, task."idempotencyKey" || ':audit', jsonb_build_object('taskId', task.id)
+      FROM created task JOIN source ON source.type = task.type::text RETURNING id
+    ) SELECT id, type::text FROM created
+  `;
   return tasks.map(task => created.find(record => record.type === task.type)!);
 }
 

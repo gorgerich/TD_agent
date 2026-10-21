@@ -7,10 +7,12 @@ import { createServer } from "node:net";
 import path from "node:path";
 
 const root = process.cwd();
-assert.ok(process.argv.slice(2).every((argument) => ["--targeted", "--browser", "--cpo-browser"].includes(argument)), "Unknown local gate option");
-const targetedOnly = process.argv.includes("--targeted");
+assert.ok(process.argv.slice(2).every((argument) => ["--targeted", "--real-targeted", "--browser", "--cpo-browser", "--m2-browser"].includes(argument)), "Unknown local gate option");
+const realTargeted = process.argv.includes("--real-targeted");
+const targetedOnly = process.argv.includes("--targeted") || realTargeted;
 const cpoBrowserOnly = process.argv.includes("--cpo-browser");
-const browserOnly = process.argv.includes("--browser") || cpoBrowserOnly;
+const m2BrowserOnly = process.argv.includes("--m2-browser");
+const browserOnly = process.argv.includes("--browser") || cpoBrowserOnly || m2BrowserOnly;
 assert.ok(process.argv.length <= 3, "Choose one gate scope");
 const direct = new URL(process.env.TEST_DATABASE_URL ?? "postgresql://silkwayrally@127.0.0.1:5432/td_agent_test");
 assert.ok(["localhost", "127.0.0.1", "::1"].includes(direct.hostname));
@@ -45,6 +47,7 @@ const env = { ...process.env, PATH: pgBin ? `${pgBin}:${process.env.PATH}` : pro
   M2_UAT_RECOVERY_TOKEN: randomBytes(32).toString("base64url"), M2_UAT_MFA_SECRET: base32(randomBytes(20)),
   M3_UAT_MFA_SECRET: base32(randomBytes(20)), M3_UAT_MFA_SECRET_B: base32(randomBytes(20)),
   M3_PAYMENT_WEBHOOK_SECRET: randomBytes(32).toString("hex"), M3_PAYMENT_WEBHOOK_PROVIDER: "synthetic",
+  STAFF_RECOVERY_LOCAL_ORIGIN: `http://127.0.0.1:${port}`,
   M3_PRODUCTION_DATABASE_FINGERPRINT: "0257665af2dd90a4", E2E_BASE_URL: `http://127.0.0.1:${port}`,
   M3_CPO_REPAIR_FIXTURE: "1", M3_CPO_REPAIR_SCHEMA: schema };
 // Never inherit a deployed environment or storage credential into the local harness.
@@ -58,7 +61,7 @@ function sourceDigest() {
   }
   return hash.digest("hex");
 }
-const report = { scope: targetedOnly ? "TARGETED_REPEAT" : cpoBrowserOnly ? "CPO_BROWSER_REWORK" : browserOnly ? "BROWSER_REWORK" : "FULL", schema, fingerprint, sourceDigest: sourceDigest(), production: "UNCHANGED", gates: [] };
+const report = { scope: targetedOnly ? "TARGETED_REPEAT" : cpoBrowserOnly ? "CPO_BROWSER_REWORK" : m2BrowserOnly ? "M2_BROWSER_REWORK" : browserOnly ? "BROWSER_REWORK" : "FULL", schema, fingerprint, sourceDigest: sourceDigest(), production: "UNCHANGED", gates: [] };
 function save() { writeFileSync(path.join(output, "receipt.json"), JSON.stringify(report, null, 2), { mode: 0o600 }); }
 function command(name, executable, args, overrides = {}) {
   const started = Date.now();
@@ -94,6 +97,11 @@ function legacyFixture() {
     "prisma/migrations/20260811172829_m3_fulfilment_money_trust/migration.sql", "tests/migrations/m3-fulfilment-assertions.sql",
     "prisma/migrations/20261013183000_cpo_document_review_repair/migration.sql", "prisma/migrations/20261013190000_case_requirement_supersession/migration.sql", "tests/migrations/m3-fulfilment-assertions.sql",
     "prisma/migrations/20261018140000_maintenance_job_state/migration.sql", "tests/migrations/maintenance-job-assertions.sql",
+    "tests/migrations/m3-real-production-fixtures.sql",
+    "prisma/migrations/20261020120000_staff_account_recovery/migration.sql",
+    "prisma/migrations/20261020120100_platform_organization_invitation_creator/migration.sql",
+    "prisma/migrations/20261020120200_m3_production_activation_proof/migration.sql",
+    "tests/migrations/m3-real-production-assertions.sql",
   ];
   files.forEach((file, index) => command(`legacy-${index}`, "psql", [fixture.href, "-X", "-v", "ON_ERROR_STOP=1", "-f", file]));
 }
@@ -130,9 +138,12 @@ function encryptedFixtureRestore() {
 try {
   if (targetedOnly) {
     for (let attempt = 1; attempt <= 5; attempt++) command(`targeted-${attempt}`, "npm", ["run", "test:integration", "--",
+      ...(realTargeted ? ["tests/integration/m3PolicyActivation.itest.ts", "tests/integration/platformOrganizationOnboarding.itest.ts",
+        "tests/integration/staffAccountRecovery.itest.ts", "tests/integration/invitations.itest.ts", "tests/integration/m3IntakePerformance.itest.ts"] : [
       "tests/integration/cpo02FirstOrganizationAdmin.itest.ts", "tests/integration/cpoAuditFinance.itest.ts",
       "tests/integration/cpoAuditDocuments.itest.ts", "tests/integration/cpoScenarioCorrection.itest.ts",
       "tests/integration/cpoMfaEnrollment.itest.ts", "tests/integration/cpoSessionRevocation.itest.ts", "tests/integration/commercialQuotes.itest.ts",
+      ]),
     ], { TEST_DATABASE_URL: direct.href, DATABASE_URL: direct.href, DATABASE_URL_UNPOOLED: direct.href });
   } else {
   command("diff", "git", ["diff", "--check"]);
@@ -160,7 +171,8 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   assert.ok(ready, "LOCAL_SERVER_UNAVAILABLE");
-  if (cpoBrowserOnly) command("cpo-e2e", process.execPath, ["tests/e2e/cpo-repair.mjs"]);
+  if (m2BrowserOnly) command("m2-e2e", process.execPath, ["tests/e2e/m2-admin.mjs"]);
+  else if (cpoBrowserOnly) command("cpo-e2e", process.execPath, ["tests/e2e/cpo-repair.mjs"]);
   else command("e2e", "npm", ["run", "test:e2e"]);
   command("auth-failure-browser", process.execPath, ["tests/e2e/cpo-auth-infrastructure.mjs"]);
   command("component-browser", "npm", ["run", "test:ui-components"]);

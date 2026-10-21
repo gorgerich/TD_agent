@@ -20,6 +20,7 @@ import { transitionCaseInTransaction, type CaseCommandContext } from "@/lib/case
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { hasTeamOperationalScope, type OperationalContext } from "@/lib/operationalAuth";
 import { runOperationalTransaction, OperationalCommandError } from "@/lib/operationalTransaction";
+import { assertConfiguredM3ProductionActivation } from "@/lib/m3ProductionActivation";
 import { prisma } from "@/lib/prisma";
 import { assertClientCommandKey, serverCommandKey } from "@/lib/commandNamespace";
 
@@ -370,6 +371,7 @@ export async function publishCommercialQuote(input: PublishInput): Promise<Publi
   validateMeta(input.meta);
 
   return runOperationalTransaction(async (tx) => {
+    await assertConfiguredM3ProductionActivation(tx, input.context.organizationId);
     await lockQuoteAggregate(tx, input.quoteId, input.context);
     const quote = await loadQuoteForMutation(tx, input.quoteId, input.context);
     const auditKey = `quote:publish:${input.meta.idempotencyKey}`;
@@ -826,6 +828,7 @@ export async function recordCommercialClientDecision(input: {
       throw new OperationalCommandError(409, "Эта версия сметы больше не актуальна");
     }
     if (!version.quote.caseId || !version.quote.organizationId) throw new OperationalCommandError(404, "Ссылка недоступна");
+    await assertConfiguredM3ProductionActivation(tx, version.quote.organizationId);
     await tx.$queryRaw`
       SELECT id FROM "Case" WHERE id = ${version.quote.caseId} AND "tenantId" = ${version.quote.organizationId} FOR UPDATE
     `;

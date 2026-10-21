@@ -8,7 +8,8 @@ import { serverCommandKey } from "@/lib/commandNamespace";
 import { getDocumentStorage, type DocumentStorage, type PrivateDocumentRead } from "@/lib/documentStorage";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
-import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { runM3ProductionTransaction, verifyM3ProductionDocumentPreflight } from "@/lib/m3ProductionActivation";
 import {
   commandFingerprint,
   prismaJson,
@@ -49,6 +50,7 @@ export async function uploadCaseDocument(
   validateFile(input.file);
   const scanner = dependencies.scanner ?? getDocumentScanner();
   assertDocumentScannerOperational(scanner);
+  await verifyM3ProductionDocumentPreflight(context.organizationId);
 
   const bytes = new Uint8Array(await input.file.arrayBuffer());
   validateDocumentBody(bytes, input.file.type);
@@ -77,7 +79,7 @@ export async function uploadCaseDocument(
   const status = scan.status === "CLEAN" ? "UPLOADED" : "QUARANTINED";
 
   try {
-    const committed = await runOperationalTransaction(async (tx) => {
+    const committed = await runM3ProductionTransaction(context.organizationId, async (tx) => {
       const concurrentReplay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
       if (concurrentReplay) {
         const data = readReplayResult<Omit<UploadedDocumentResult, "replayed">>(concurrentReplay.result, fingerprint);
@@ -217,7 +219,7 @@ export async function beginDocumentReview(
   assertCapability(context, "documents:review");
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ command: "begin-document-review", versionId });
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const version = await tx.caseDocumentVersion.findFirst({
       where: { id: versionId, organizationId: context.organizationId },
       select: { id: true, status: true, scanStatus: true, documentId: true, assignedReviewerMembershipId: true, uploader: { select: { userId: true } } },
@@ -338,7 +340,7 @@ export async function decideDocumentReview(
     await readVerifiedStorageObject(storage, verifiedStorageIdentity);
   }
 
-  const committed = await runOperationalTransaction(async (tx) => {
+  const committed = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
       const data = readReplayResult<{ versionId: string; decision: "VERIFIED" | "REJECTED" }>(replay.result, fingerprint);
@@ -541,7 +543,7 @@ export async function escalateDocumentReview(
   const normalizedReason = reason.trim();
   if (normalizedReason.length < 3) throw new OperationalCommandError(422, "Нужна причина эскалации");
   const fingerprint = commandFingerprint({ command: "escalate-document-review", versionId, reason: normalizedReason });
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
       const data = readReplayResult<{ versionId: string; taskId: number }>(replay.result, fingerprint);
@@ -897,6 +899,7 @@ export async function retryDocumentScan(
 ) {
   assertCapability(context, "documents:upload");
   validateM3CommandMeta(meta);
+  await verifyM3ProductionDocumentPreflight(context.organizationId);
   await requireTenantCase(prisma, context, caseId, { requireOwnerForAgent: true });
   const fingerprint = commandFingerprint({ command: "retry-document-scan", caseId, versionId });
   const replay = await findReplay(context.organizationId, meta.idempotencyKey, fingerprint);

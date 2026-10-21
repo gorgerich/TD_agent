@@ -1,17 +1,19 @@
 import { createPublicKey, verify } from "node:crypto";
-import { Prisma, type CaseScenario, type MembershipRole } from "@prisma/client";
+import { Prisma, type CaseScenario, type MembershipRole, type DocumentTypeDefinition, type DocumentRequirementPolicy,
+  type DocumentRequirementRule, type ContractSigningPolicy, type FinancialControlPolicy } from "@prisma/client";
 import { z } from "zod";
 import { appendPlatformAudit } from "@/lib/platformAudit";
 import { canonicalJson, commandFingerprint, prismaJson } from "@/lib/m3Command";
 import { OperationalCommandError } from "@/lib/operationalTransaction";
 import {
   m3ReviewerPublicKeyFingerprint,
-  requireActiveM3ReviewerCredential,
+  requireActiveM3ReviewerCredentials,
 } from "@/lib/m3ReviewerCredential";
 import {
   checkCaseRequirementMaterializationParity,
   materializeCaseRequirementsInTransaction,
 } from "@/lib/documentRequirementService";
+import { persistM3ProductionPolicyProof } from "@/lib/m3ProductionActivation";
 
 const RELEASE_DEPLOYMENT_ID = z.string().regex(/^dpl_[A-Za-z0-9]{8,}$/);
 const IMPLEMENTATION_SHA = z.string().regex(/^[0-9a-f]{40}$/);
@@ -319,7 +321,7 @@ export async function applyM3ApprovedPolicyBundle(
 ) {
   assertM3HumanSignoffsAuthorizeBundle(bundle, humanSignoffs);
   const fingerprint = commandFingerprint(bundle);
-  await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${bundle.organizationId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${bundle.organizationId} FOR NO KEY UPDATE`;
   const [organization, approver] = await Promise.all([
     tx.organization.findFirst({ where: { id: bundle.organizationId, status: "ACTIVE" }, select: { id: true } }),
     tx.user.findFirst({ where: { id: bundle.approvedByUserId, platformRole: "SUPER_ADMIN" }, select: { id: true } }),
@@ -334,6 +336,7 @@ export async function applyM3ApprovedPolicyBundle(
     select: { metadata: true },
   });
   if (metadataFingerprint(replay?.metadata) === fingerprint) {
+    await persistM3ProductionPolicyProof(tx, bundle, humanSignoffs);
     return { replayed: true, bundleFingerprint: fingerprint };
   }
 
@@ -484,6 +487,7 @@ export async function applyM3ApprovedPolicyBundle(
     await tx.financialControlPolicy.create({ data: financeExpected });
   }
 
+  await persistM3ProductionPolicyProof(tx, bundle, humanSignoffs);
   await appendPlatformAudit(tx, {
     actorUserId: approver.id,
     action: "M3_POLICIES_ACTIVATED",
@@ -610,6 +614,78 @@ function assertExactPolicy(actual: Record<string, unknown>, expected: Record<str
   }
 }
 
+export async function verifyActiveM3ProductionPolicyRows(tx: Prisma.TransactionClient, bundle: M3ApprovedPolicyBundle, now = new Date()): Promise<void> {
+  const unavailable = () => new OperationalCommandError(503, "Действующие production-политики M3 не совпадают с подтверждённым пакетом", "M3_PRODUCTION_POLICY_UNAVAILABLE");
+  if (new Date(bundle.effectiveFrom) > now || new Date(bundle.approvedAt) > now) throw unavailable();
+  await verifyRegisteredHumanApprovals(tx, bundle);
+  const maxRules = Math.max(...bundle.documentPolicies.map(policy => policy.rules.length)) + 1;
+  // One bounded statement snapshot; no policy or credential check leaves this transaction.
+  const [snapshot] = await tx.$queryRaw<Array<{
+    organizationActive: boolean; types: DocumentTypeDefinition[];
+    policies: Array<DocumentRequirementPolicy & { rules: DocumentRequirementRule[] }>;
+    signing: ContractSigningPolicy[]; finance: FinancialControlPolicy[];
+  }>>(Prisma.sql`
+    SELECT EXISTS(SELECT 1 FROM "Organization" WHERE id = ${bundle.organizationId} AND status = 'ACTIVE') AS "organizationActive",
+      (SELECT coalesce(jsonb_agg(to_jsonb(t)), '[]'::jsonb) FROM (
+        SELECT * FROM "DocumentTypeDefinition" WHERE "organizationId" = ${bundle.organizationId} AND status = 'APPROVED'
+          AND code IN (${Prisma.join(bundle.documentTypes.map(item => item.code))}) LIMIT ${bundle.documentTypes.length + 1}
+      ) t) AS types,
+      (SELECT coalesce(jsonb_agg(to_jsonb(p) || jsonb_build_object('rules', (
+        SELECT coalesce(jsonb_agg(to_jsonb(r)), '[]'::jsonb) FROM (
+          SELECT * FROM "DocumentRequirementRule" WHERE "policyId" = p.id LIMIT ${maxRules}
+        ) r
+      ))), '[]'::jsonb) FROM (
+        SELECT * FROM "DocumentRequirementPolicy" WHERE "organizationId" = ${bundle.organizationId} AND status = 'APPROVED' LIMIT 3
+      ) p) AS policies,
+      (SELECT coalesce(jsonb_agg(to_jsonb(s)), '[]'::jsonb) FROM (
+        SELECT * FROM "ContractSigningPolicy" WHERE "organizationId" = ${bundle.organizationId} AND status = 'APPROVED' LIMIT 2
+      ) s) AS signing,
+      (SELECT coalesce(jsonb_agg(to_jsonb(f)), '[]'::jsonb) FROM (
+        SELECT * FROM "FinancialControlPolicy" WHERE "organizationId" = ${bundle.organizationId} AND status = 'APPROVED' LIMIT 2
+      ) f) AS finance
+  `);
+  if (!snapshot?.organizationActive) throw unavailable();
+  const { types, policies, signing, finance } = snapshot;
+  if (types.length !== bundle.documentTypes.length || policies.length !== 2 || signing.length !== 1 || finance.length !== 1) throw unavailable();
+  try {
+    for (const row of [...policies, ...signing, ...finance]) normalizePolicySnapshotDates(row);
+    const typeIds = new Map<string, string>();
+    for (const item of bundle.documentTypes) {
+      const row = types.find(type => type.code === item.code && type.version === item.version);
+      if (!row) throw unavailable();
+      assertExactPolicy(row, { ...item, organizationId: bundle.organizationId, status: "APPROVED" }, "Document type");
+      typeIds.set(item.code, row.id);
+    }
+    for (const expected of bundle.documentPolicies) {
+      const row = policies.find(policy => policy.scenario === expected.scenario && policy.version === expected.version);
+      if (!row) throw unavailable();
+      assertExactPolicy(row, { organizationId: bundle.organizationId, scenario: expected.scenario, version: expected.version,
+        source: expected.source, status: "APPROVED", approvedByUserId: bundle.approvedByUserId,
+        approvedAt: new Date(bundle.approvedAt), effectiveFrom: new Date(bundle.effectiveFrom), retiredAt: null }, "Document policy");
+      const rules = expected.rules.map(rule => ruleSnapshot({ ...rule, acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeCodes.map(code => typeIds.get(code)) })).sort(compareStableKey);
+      if (commandFingerprint(row.rules.map(ruleSnapshot).sort(compareStableKey)) !== commandFingerprint(rules)) throw unavailable();
+    }
+    assertExactPolicy(signing[0], { organizationId: bundle.organizationId, ...bundle.signingPolicy, status: "APPROVED",
+      approvedByUserId: bundle.approvedByUserId, approvedAt: new Date(bundle.approvedAt), effectiveFrom: new Date(bundle.effectiveFrom), retiredAt: null }, "Signing policy");
+    assertExactPolicy(finance[0], { organizationId: bundle.organizationId, ...bundle.financialPolicy, status: "APPROVED", approvedAt: new Date(bundle.approvedAt) }, "Finance policy");
+  } catch {
+    throw unavailable();
+  }
+}
+
+function normalizePolicySnapshotDates(row: { approvedAt: Date | null; effectiveFrom?: Date | null; retiredAt?: Date | null }) {
+  for (const key of ["approvedAt", "effectiveFrom", "retiredAt"] as const) {
+    const value: unknown = row[key];
+    if (value == null || value instanceof Date) continue;
+    if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(value)) {
+      throw new OperationalCommandError(503, "Production policy timestamp is unavailable");
+    }
+    const date = new Date(`${value}Z`);
+    if (!Number.isFinite(date.getTime())) throw new OperationalCommandError(503, "Production policy timestamp is unavailable");
+    row[key] = date;
+  }
+}
+
 function metadataFingerprint(value: Prisma.JsonValue | null | undefined): string | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const fingerprint = (value as Record<string, unknown>).bundleFingerprint;
@@ -678,22 +754,13 @@ async function verifyRegisteredHumanApprovals(
   tx: Prisma.TransactionClient,
   bundle: M3ApprovedPolicyBundle,
 ) {
-  for (const [key, attestation] of Object.entries(bundle.attestations)) {
-    try {
-      await requireActiveM3ReviewerCredential(tx, {
+  await requireActiveM3ReviewerCredentials(tx, Object.values(bundle.attestations).map(attestation => ({
         reviewerId: attestation.reviewer.id,
         reviewerName: attestation.reviewer.name,
         reviewerRole: attestation.reviewer.role,
         publicKeyPem: attestation.signature.publicKeyPem,
         keyFingerprint: attestation.signature.keyFingerprint,
-      });
-    } catch (error) {
-      if (error instanceof OperationalCommandError) {
-        throw new OperationalCommandError(error.status, `${key} ${error.message}`);
-      }
-      throw error;
-    }
-  }
+  })));
 }
 
 function normalizeReviewerIdentity(value: string) {

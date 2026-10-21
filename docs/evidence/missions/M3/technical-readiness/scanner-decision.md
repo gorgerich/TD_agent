@@ -1,5 +1,9 @@
 # Production Scanner Decision
 
+## Owner Scope Correction, 2026-10-20
+
+The owner rejected the proposed incremental $55/month budget. The recommendation below is HISTORICAL / NOT AUTHORIZED, not the current spending request or an approved deployment. No scanner service or paid plan has been provisioned. The target is real Production operation, not synthetic-only CPO readiness. See [new resource observations and remaining feasibility work](real-production-scope-20261020.md). Do not infer impossibility of a zero-incremental-cost solution from the historical 90-second local attempts or the recommended container size.
+
 Status: PRODUCTION_SCANNER_PROVIDER_REQUIRED. No approved Production scanner is connected. Unavailable scanner blocks uploads before storage/database writes; errors/timeouts cannot become CLEAN or VERIFIED. Synthetic Preview scanning is not Production acceptance. An applicable existing VERIFIED version is preserved while a replacement remains unverified.
 
 ## Feasibility Facts

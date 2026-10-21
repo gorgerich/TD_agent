@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, createHmac, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
-import { test } from "node:test";
+import { before, test } from "node:test";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Prisma } from "@prisma/client";
 import { GET as financeWorkspace } from "../../app/api/agent/finance/route";
 import { POST as login, handleLogin } from "../../app/api/agent/auth/login/route";
@@ -36,11 +37,54 @@ import {
   db,
   makeRequest,
   skip,
+  type FixtureMember,
 } from "./_setup";
 import { signSession, SESSION_COOKIE, requireAppEncryptionKey } from "../../lib/session";
 import { enforcePersistentRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
+import { assertM3ProductionActivation, runM3ProductionTransaction } from "../../lib/m3ProductionActivation";
+import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/route";
 
 const opts = { skip: skip ? "set TEST_DATABASE_URL + ALLOW_DB_TESTS=1" : false };
+const intakeTraces = new AsyncLocalStorage<{ operations: string[]; timings: Array<{ operation: string; ms: number }>; transactionMs: number[]; errors: string[]; proofReads: number }>();
+before(() => {
+  if (skip) return;
+  db.$transaction = new Proxy(db.$transaction, {
+    async apply(target, receiver, args) {
+      const trace = intakeTraces.getStore();
+      const start = performance.now();
+      if (trace && typeof args[0] === "function") {
+        const work = args[0];
+        args[0] = (tx: Prisma.TransactionClient) => work(new Proxy(tx, {
+          get(client, property, proxy) {
+            if (property !== "$queryRaw") return Reflect.get(client, property, proxy);
+            return (...parameters: unknown[]) => {
+              const sql = parameters[0];
+              const text = Array.isArray(sql) ? sql.join("?")
+                : sql && typeof sql === "object" && "strings" in sql && Array.isArray(sql.strings) ? sql.strings.join("?") : "";
+              if (text.includes('LEFT JOIN "M3ProductionActivation"')) trace.proofReads++;
+              return (client.$queryRaw as (...values: unknown[]) => unknown).apply(client, parameters);
+            };
+          },
+        }));
+      }
+      try { return await Reflect.apply(target, receiver, args); }
+      finally { trace?.transactionMs.push(performance.now() - start); }
+    },
+  });
+  db.$use(async (params, next) => {
+    const trace = intakeTraces.getStore();
+    const operation = `${params.model ?? "raw"}.${params.action}`;
+    trace?.operations.push(operation);
+    const started = performance.now();
+    try { return await next(params); }
+    catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code && ["P2028", "P2034", "P2010"].includes(code)) intakeTraces.getStore()?.errors.push(code);
+      throw error;
+    }
+    finally { trace?.timings.push({ operation, ms: Math.round(performance.now() - started) }); }
+  });
+});
 const ACTIVATION_POLICY_VERSION = 3_000_002;
 const AUTHORITY_RATE_LIMIT_BUCKET = "m3-reviewer-authority-grant";
 const authorityRateLimitKeys = new Set<string>();
@@ -745,6 +789,307 @@ test("M3 Finance login and API require current-session TOTP verification", opts,
     await fixtures.assertNoResidue();
   }
 });
+
+test("real Production M3 requires exact immutable proof, both scenarios and active human credentials; retirement/revocation fail closed", opts, async () => {
+  const fixtures = createFixtureContext("m3-real-policy-proof");
+  const previousEnv = process.env.VERCEL_ENV;
+  const previousBindings = process.env.M3_PRODUCTION_POLICY_BINDINGS;
+  try {
+    const organizationId = await fixtures.makeOrganization("real-proof");
+    const approverMember = await fixtures.makeMember("approver", { organizationId, role: "ADMIN" });
+    const approver = await db.user.update({ where: { id: approverMember.userId }, data: { platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() }, select: { id: true, sessionVersion: true } });
+    const content = policyContent(baselinePolicyBundle(organizationId, approver.id));
+    content.documentPolicies.find(policy => policy.scenario === "FAMILY_PLOT_BURIAL_V1")!.rules.push({
+      ...rule("responsible-for-burial-confirmation", "M3_IT_RELATIONSHIP_V1", "responsible-party-match"),
+      kind: "CONDITIONAL", conditionKey: "HAS_RESPONSIBLE_FOR_BURIAL",
+      conditionExplanation: "Synthetic applicability regression, not a legal requirement",
+    });
+    const bundle = signedPolicyBundle(content);
+    const grants = await issueReviewerRegistrationGrants(bundle, approver);
+    await db.$transaction(async tx => {
+      await registerReviewerCredentials(tx, bundle, grants);
+      const first = await applyM3ApprovedPolicyBundle(tx, bundle, humanSignoffs(bundle));
+      assert.equal((await applyM3ApprovedPolicyBundle(tx, bundle, humanSignoffs(bundle))).replayed, true);
+      assert.equal(await tx.m3ProductionActivation.count({ where: { organizationId } }), 1);
+      const proof = await tx.m3ProductionActivation.findFirstOrThrow({ where: { organizationId } });
+      assert.equal(commandFingerprint(proof.bundle), first.bundleFingerprint);
+    });
+    process.env.VERCEL_ENV = "production";
+    process.env.M3_PRODUCTION_POLICY_BINDINGS = JSON.stringify({ [organizationId]: commandFingerprint(bundle) });
+    await runM3ProductionTransaction(organizationId, async tx => {
+      await assertM3ProductionActivation(tx, organizationId);
+      assert.equal(await tx.m3ProductionActivation.count({ where: { organizationId } }), 1);
+    });
+    await verifyProductionProofIntakes(bundle, fixtures, approverMember);
+    await verifyProofActivationLockOrder(bundle);
+    await verifyProofAuditForeignKeyLockOrder(bundle, fixtures, approverMember);
+    const rollback = new Error("SYNTHETIC_ROLLBACK_ONLY");
+    for (const kind of ["documentType", "scenario", "signing", "finance"] as const) {
+      await assert.rejects(db.$transaction(async tx => {
+        if (kind === "documentType") await tx.documentTypeDefinition.updateMany({ where: { organizationId, status: "APPROVED" }, data: { status: "RETIRED" } });
+        if (kind === "scenario") await tx.documentRequirementPolicy.updateMany({ where: { organizationId, scenario: "CREMATION_V1", status: "APPROVED" }, data: { status: "RETIRED", retiredAt: new Date() } });
+        if (kind === "signing") await tx.contractSigningPolicy.updateMany({ where: { organizationId, status: "APPROVED" }, data: { status: "RETIRED", retiredAt: new Date() } });
+        if (kind === "finance") await tx.financialControlPolicy.updateMany({ where: { organizationId, status: "APPROVED" }, data: { status: "RETIRED" } });
+        await assert.rejects(assertM3ProductionActivation(tx, organizationId), { status: 503, code: "M3_PRODUCTION_POLICY_UNAVAILABLE" });
+        throw rollback;
+      }), error => error === rollback);
+    }
+    const revocationGrant = await issueReviewerAuthorityGrant(approver.id, approver.sessionVersion, "REVOKE", bundle.attestations.finance.signature.keyFingerprint);
+    await assert.rejects(db.$transaction(async tx => {
+      await revokeM3ReviewerCredential(tx, revocationGrant.token, bundle.attestations.finance.signature.keyFingerprint, "REVIEWER_OFFBOARDED");
+      await assert.rejects(assertM3ProductionActivation(tx, organizationId), /not actively registered/);
+      throw rollback;
+    }), error => error === rollback);
+    process.env.M3_PRODUCTION_POLICY_BINDINGS = JSON.stringify({ [organizationId]: "f".repeat(64) });
+    await assert.rejects(runM3ProductionTransaction(organizationId, async () => { throw new Error("UNREACHABLE_MUTATION"); }), { status: 503 });
+    process.env.M3_PRODUCTION_POLICY_BINDINGS = JSON.stringify({ [organizationId]: commandFingerprint(bundle) });
+    const proof = await db.m3ProductionActivation.findFirstOrThrow({ where: { organizationId } });
+    await assert.rejects(db.m3ProductionActivation.update({ where: { id: proof.id }, data: { bundleFingerprint: "e".repeat(64) } }), /immutable/);
+    await assert.rejects(db.m3ProductionActivation.delete({ where: { id: proof.id } }), /immutable/);
+    assert.equal(await db.m3ProductionActivation.count({ where: { organizationId } }), 1);
+    await verifyReviewerEpochConcurrency(bundle, revocationGrant.token);
+  } finally {
+    if (previousEnv === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previousEnv;
+    if (previousBindings === undefined) delete process.env.M3_PRODUCTION_POLICY_BINDINGS; else process.env.M3_PRODUCTION_POLICY_BINDINGS = previousBindings;
+    await cleanupAuthorityRateLimitKeys();
+    await fixtures.cleanup(); await fixtures.assertNoResidue();
+  }
+});
+
+async function verifyProductionProofIntakes(bundle: M3ApprovedPolicyBundle, fixtures: ReturnType<typeof createFixtureContext>, actor: FixtureMember) {
+  actor = await fixtures.makeMember("proof-intake-agent", { organizationId: actor.organizationId, role: "AGENT" });
+  await fixtures.makeMember("proof-intake-reviewer", { organizationId: actor.organizationId, role: "DOCUMENT_REVIEWER" });
+  const user = await db.user.findUniqueOrThrow({ where: { id: actor.userId }, select: { sessionVersion: true } });
+  const cookie = `${SESSION_COOKIE}=${await signSession({ userId: actor.userId, sessionVersion: user.sessionVersion,
+    activeMembershipId: actor.membershipId, mfaVerified: true })}`;
+  const endpoint = process.env.M3_INTAKE_LATENCY_CONTROL_URL;
+  const control = async (active: boolean) => {
+    if (!endpoint) return;
+    const url = new URL(endpoint);
+    assert.equal(url.protocol, "http:"); assert.equal(url.hostname, "127.0.0.1");
+    assert.equal((await fetch(url, { method: "POST", body: JSON.stringify({ active }) })).status, 204);
+  };
+  for (const [scenario, ceremonyType, ruleCount] of [["CREMATION_V1", "кремация", 3], ["FAMILY_PLOT_BURIAL_V1", "погребение", 5]] as const) {
+    const record = await fixtures.makeCase(actor, `proof-intake-${scenario}`);
+    const trace = { operations: [] as string[], timings: [] as Array<{ operation: string; ms: number }>, transactionMs: [] as number[], errors: [] as string[], proofReads: 0 };
+    await control(true);
+    let response: Response;
+    try {
+      response = await intakeTraces.run(trace, () => intakePatch(makeRequest(`/api/agent/cases/${record.leadId}/intake`, {
+        method: "PATCH", cookie, body: { ceremonyType, deceasedName: "Synthetic intake original", needs: "Synthetic audit needs original" },
+        headers: { "idempotency-key": `${fixtures.runId}:proof:${scenario}`, "x-correlation-id": fixtures.runId },
+      }), { params: Promise.resolve({ caseId: String(record.leadId) }) }));
+    } finally { await control(false); }
+    assert.equal(response.status, 200, JSON.stringify({ stage: "PRODUCTION_POLICY_INTAKE", trace }));
+    const result = await response.json();
+    assert.equal(result.stage, "QUOTING"); assert.equal(result.scenarioId, scenario);
+    assert.equal(await db.caseDocumentRequirement.count({ where: { caseId: record.id } }), ruleCount);
+    assert.equal(await db.caseEvent.count({ where: { caseId: record.id } }), 3);
+    assert.equal(await db.task.count({ where: { caseId: record.id } }), 2);
+    const events = await db.caseEvent.findMany({ where: { caseId: record.id }, select: { id: true } });
+    assert.equal(await db.projectionReceipt.count({ where: { organizationId: actor.organizationId, sourceEventId: { in: events.map(event => event.id) } } }), 2);
+    assert.equal(trace.proofReads, 1,
+      "Nested materialization must reuse the transaction-local proof rather than reload it");
+    assert.equal(trace.transactionMs.length, 1);
+    assert.ok(trace.transactionMs[0] < Number(process.env.M3_INTAKE_LATENCY_BUDGET_MS ?? "4500"), JSON.stringify({ code: "PRODUCTION_POLICY_INTAKE_DEADLINE_MARGIN", trace }));
+    console.log(JSON.stringify({ productionProofIntake: scenario, rules: ruleCount, transactionMs: Math.round(trace.transactionMs[0]), prismaOperations: trace.operations.length, binding: commandFingerprint(bundle) === JSON.parse(process.env.M3_PRODUCTION_POLICY_BINDINGS!)[actor.organizationId] }));
+  }
+}
+
+async function verifyReviewerEpochConcurrency(bundle: M3ApprovedPolicyBundle, revokeToken: string) {
+  const attestation = bundle.attestations.finance;
+  const expected = { reviewerId: attestation.reviewer.id, reviewerName: attestation.reviewer.name,
+    reviewerRole: attestation.reviewer.role, publicKeyPem: attestation.signature.publicKeyPem,
+    keyFingerprint: attestation.signature.keyFingerprint };
+  const gate = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>(done => { resolve = done; });
+    return { promise, resolve };
+  };
+  const firstEntered = gate(), secondEntered = gate(), releaseReaders = gate();
+  const readers = [firstEntered, secondEntered].map(entered => db.$transaction(async tx => {
+    await requireActiveM3ReviewerCredential(tx, expected);
+    entered.resolve();
+    await releaseReaders.promise;
+  }).then(() => ({ error: null }), (error: unknown) => ({ error })));
+  try {
+    await Promise.race([Promise.all([firstEntered.promise, secondEntered.promise]),
+      Promise.race(readers).then(() => { throw new Error("Concurrent credential readers did not share locks"); })]);
+  } finally {
+    releaseReaders.resolve();
+    for (const outcome of await Promise.all(readers)) assert.equal(outcome.error, null);
+  }
+
+  const readerEntered = gate(), releaseReader = gate(), writerAttempted = gate();
+  let readerPid = 0, writerPid = 0;
+  const reader = db.$transaction(async tx => {
+    await requireActiveM3ReviewerCredential(tx, expected);
+    [readerPid] = (await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`).map(row => row.pid);
+    readerEntered.resolve(); await releaseReader.promise;
+  }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+  const rollback = new Error("SYNTHETIC_REVOKER_ROLLBACK");
+  let writerCompleted = false;
+  let writer: Promise<{ error: unknown }> | undefined;
+  try {
+    await Promise.race([readerEntered.promise, reader.then(() => { throw new Error("Reader settled before barrier"); })]);
+    writer = db.$transaction(async tx => {
+      [writerPid] = (await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`).map(row => row.pid);
+      const observed = new Proxy(tx, { get(target, property, receiver) {
+        if (property !== "$executeRaw") return Reflect.get(target, property, receiver);
+        return (...args: unknown[]) => {
+          const sql = args[0];
+          const text = Array.isArray(sql) ? sql.join("?") : "";
+          if (text.includes("pg_advisory_xact_lock(")
+            && args.slice(1).includes(`m3-reviewer-credential:${expected.keyFingerprint}`)) writerAttempted.resolve();
+          return (target.$executeRaw as (...parameters: unknown[]) => Promise<unknown>).apply(target, args);
+        };
+      } }) as Prisma.TransactionClient;
+      await revokeM3ReviewerCredential(observed, revokeToken, expected.keyFingerprint, "REVIEWER_OFFBOARDED");
+      writerCompleted = true; throw rollback;
+    }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+    await Promise.race([writerAttempted.promise, writer.then(() => { throw new Error("Revoker settled before advisory lock attempt"); })]);
+    await assertPostgresLockWait(writerPid, readerPid);
+    assert.equal(writerCompleted, false, "Revocation must wait for active authorization readers");
+  } finally {
+    releaseReader.resolve();
+    assert.equal((await reader).error, null);
+    if (writer) assert.equal((await writer).error, rollback);
+  }
+
+  const snapshotReady = gate(), revocationCommitted = gate();
+  let attempts = 0, businessWrites = 0;
+  const staleReader = runM3ReviewerCredentialTransaction(db, async tx => {
+    attempts++;
+    await tx.$queryRaw`SELECT version FROM "M3ReviewerCredentialEpoch" WHERE "keyFingerprint" = ${expected.keyFingerprint}`;
+    snapshotReady.resolve(); await revocationCommitted.promise;
+    await requireActiveM3ReviewerCredential(tx, expected);
+    businessWrites++;
+  }).then(() => ({ error: null }), (error: unknown) => ({ error }));
+  try {
+    await Promise.race([snapshotReady.promise, staleReader.then(() => { throw new Error("Reader settled before snapshot barrier"); })]);
+    await runM3ReviewerCredentialTransaction(db, tx => revokeM3ReviewerCredential(tx, revokeToken, expected.keyFingerprint, "REVIEWER_OFFBOARDED"));
+  } finally { revocationCommitted.resolve(); }
+  const outcome = await staleReader;
+  assert.equal((outcome.error as { status?: number })?.status, 403,
+    `Stale snapshot must retry and reject revoked credential; code=${(outcome.error as { code?: string })?.code}`);
+  assert.equal(attempts, 2);
+  assert.equal(businessWrites, 0);
+  await assert.rejects(db.$transaction(tx => requireActiveM3ReviewerCredential(tx, expected)), { status: 403 });
+}
+
+async function assertPostgresLockWait(waiter: number, blocker: number) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const [state] = await db.$queryRaw<Array<{ waiting: boolean }>>`
+      SELECT ${blocker}::int = ANY(pg_blocking_pids(${waiter}::int))
+        AND wait_event_type = 'Lock' AND wait_event = 'advisory' AS waiting
+      FROM pg_stat_activity WHERE pid = ${waiter}
+    `;
+    if (state?.waiting) return;
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.fail("Expected exact PostgreSQL advisory-lock blocker was not observed");
+}
+
+async function verifyProofActivationLockOrder(bundle: M3ApprovedPolicyBundle) {
+  const gate = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>(done => { resolve = done; });
+    return { promise, resolve };
+  };
+  const entered = gate(), release = gate(), activationAttempted = gate();
+  const queries: string[] = [];
+  let activationCompleted = false;
+  const guarded = db.$transaction(async tx => {
+    const observed = new Proxy(tx, { get(target, property, receiver) {
+      if (property !== "$queryRaw") return Reflect.get(target, property, receiver);
+      return async (...args: unknown[]) => {
+        if (Array.isArray(args[0])) queries.push(args[0].join("?"));
+        return (target.$queryRaw as (...parameters: unknown[]) => Promise<unknown>).apply(target, args);
+      };
+    } }) as Prisma.TransactionClient;
+    await assertM3ProductionActivation(observed, bundle.organizationId);
+    entered.resolve();
+    await release.promise;
+    // Contract signing takes this same organization lock after its wrapper proof.
+    await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${bundle.organizationId} FOR SHARE`;
+  });
+  const guardedOutcome = guarded.then(() => ({ error: null }), (error: unknown) => ({ error }));
+  let activationOutcome: Promise<{ error: unknown }> | undefined;
+  try {
+    await Promise.race([entered.promise, guardedOutcome.then(() => { throw new Error("Proof transaction settled before barrier"); })]);
+    const activation = db.$transaction(async tx => {
+      const observed = new Proxy(tx, { get(target, property, receiver) {
+        if (property !== "$queryRaw") return Reflect.get(target, property, receiver);
+        return async (...args: unknown[]) => {
+          if (Array.isArray(args[0]) && args[0].join("?").includes('FROM "Organization"')) activationAttempted.resolve();
+          return (target.$queryRaw as (...parameters: unknown[]) => Promise<unknown>).apply(target, args);
+        };
+      } }) as Prisma.TransactionClient;
+      return applyM3ApprovedPolicyBundle(observed, bundle, humanSignoffs(bundle));
+    });
+    activationOutcome = activation.then(result => { activationCompleted = true; assert.equal(result.replayed, true); return { error: null }; }, (error: unknown) => ({ error }));
+    await Promise.race([activationAttempted.promise, activationOutcome.then(() => { throw new Error("Activation settled before organization lock attempt"); })]);
+    assert.equal(activationCompleted, false);
+    assert.ok(queries[0].includes('FROM "Organization"'), "The organization must precede all reviewer advisory locks");
+    release.resolve();
+    assert.equal((await guardedOutcome).error, null);
+    assert.equal((await activationOutcome).error, null);
+  } finally {
+    release.resolve();
+    await guardedOutcome;
+    await activationOutcome;
+  }
+}
+
+async function verifyProofAuditForeignKeyLockOrder(
+  bundle: M3ApprovedPolicyBundle,
+  fixtures: ReturnType<typeof createFixtureContext>,
+  actor: FixtureMember,
+) {
+  const record = await fixtures.makeCase(actor, "fk-lock-order");
+  const meeting = await db.meeting.create({ data: { leadId: record.leadId, caseId: record.id, agentId: actor.agentId,
+    organizationId: actor.organizationId, ownerMembershipId: actor.membershipId, idempotencyKey: `${fixtures.runId}:fk-meeting` } });
+  const quote = await db.quote.create({ data: { meetingId: meeting.id, caseId: record.id, organizationId: actor.organizationId, ownerMembershipId: actor.membershipId, status: "DRAFT" } });
+  const gate = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>(done => { resolve = done; });
+    return { promise, resolve };
+  };
+  const updated = gate(), releaseAudit = gate(), publishAttempted = gate();
+  let publishAttempts = 0;
+  const review = db.$transaction(async tx => {
+    // Isolate lock compatibility from a legitimate SERIALIZABLE row-version retry.
+    await tx.$queryRaw`SELECT "id" FROM "Quote" WHERE "id" = ${quote.id} FOR UPDATE`;
+    updated.resolve();
+    await releaseAudit.promise;
+    // This real FK insertion takes KEY SHARE on Organization after holding Quote.
+    await tx.operationalAuditEvent.create({ data: { organizationId: actor.organizationId, actorMembershipId: actor.membershipId,
+      entityType: "quote", entityId: String(quote.id), action: "synthetic.quote_lock_regression",
+      before: { status: "DRAFT" }, after: { status: "DRAFT" }, result: {},
+      correlationId: fixtures.runId, idempotencyKey: `${fixtures.runId}:fk-review` } });
+  });
+  const reviewOutcome = review.then(() => ({ error: null }), (error: unknown) => ({ error }));
+  let publishOutcome: Promise<{ error: unknown }> | undefined;
+  try {
+    await Promise.race([updated.promise, reviewOutcome.then(() => { throw new Error("Review settled before audit barrier"); })]);
+    const publish = runM3ProductionTransaction(bundle.organizationId, async tx => {
+      publishAttempts++;
+      publishAttempted.resolve();
+      await tx.$queryRaw`SELECT "id" FROM "Quote" WHERE "id" = ${quote.id} FOR UPDATE`;
+    });
+    publishOutcome = publish.then(() => ({ error: null }), (error: unknown) => ({ error }));
+    await Promise.race([publishAttempted.promise, publishOutcome.then(() => { throw new Error("Publish settled before Quote lock attempt"); })]);
+    releaseAudit.resolve();
+    assert.equal((await reviewOutcome).error, null);
+    assert.equal((await publishOutcome).error, null);
+    assert.equal(publishAttempts, 1, "Deadlock retries must not mask an Organization/Quote FK inversion");
+    assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: actor.organizationId, idempotencyKey: `${fixtures.runId}:fk-review` } }), 1);
+  } finally {
+    releaseAudit.resolve();
+    await reviewOutcome;
+    await publishOutcome;
+  }
+}
 
 function baselinePolicyBundle(
   organizationId: string,

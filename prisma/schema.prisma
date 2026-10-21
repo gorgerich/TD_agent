@@ -45,6 +45,10 @@ model User {
   memberships              Membership[]
   platformAuditEvents      PlatformAuditEvent[]        @relation("PlatformAuditActor")
   platformActivations      PlatformAccountActivation[]
+  staffAccountRecoveries   StaffAccountRecovery[] @relation("StaffRecoverySubject")
+  issuedStaffRecoveries    StaffAccountRecovery[] @relation("StaffRecoveryIssuer")
+  m3ProductionActivations M3ProductionActivation[]
+  platformOrganizationInvites PlatformOrganizationInvite[]
   approvedDocumentPolicies DocumentRequirementPolicy[] @relation("DocumentPolicyApprover")
   approvedSigningPolicies  ContractSigningPolicy[]     @relation("ContractSigningPolicyApprover")
 }
@@ -174,6 +178,7 @@ model Organization {
 
   memberships              Membership[]
   invitations              OrganizationInvite[]
+  staffAccountRecoveries   StaffAccountRecovery[]
   cases                    Case[]
   tasks                    Task[]
   meetings                 Meeting[]
@@ -199,6 +204,8 @@ model Organization {
   paymentWebhookReceipts   PaymentWebhookReceipt[]
   contractSigningPolicies  ContractSigningPolicy[]
   casePartyRoleAssignments CasePartyRoleAssignment[]
+  m3ProductionActivations M3ProductionActivation[]
+  platformInvitations PlatformOrganizationInvite[]
 
   @@index([status, createdAt])
 }
@@ -222,6 +229,7 @@ model Membership {
   auditEvents               OperationalAuditEvent[]    @relation("AuditActor")
   savedViews                SavedOperationalView[]     @relation("SavedViewOwner")
   invitationsCreated        OrganizationInvite[]       @relation("InvitationCreator")
+  staffAccountRecoveries    StaffAccountRecovery[]
   ownedQuotes               Quote[]                    @relation("QuoteOwner")
   publishedQuoteVersions    QuoteVersion[]             @relation("QuotePublisher")
   createdQuoteLinks         QuoteClientLink[]          @relation("QuoteLinkCreator")
@@ -261,6 +269,23 @@ model OrganizationInvite {
 
   @@index([organizationId, emailNormalized])
   @@index([expiresAt])
+}
+
+model PlatformOrganizationInvite {
+  id               String         @id @default(cuid())
+  organizationId   String
+  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  emailNormalized  String
+  tokenHash        String         @unique
+  role             MembershipRole @default(ADMIN)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  revokedAt        DateTime?
+  createdByUserId   Int
+  createdBy        User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt        DateTime       @default(now())
+
+  @@index([organizationId, expiresAt])
 }
 
 // Собственный каталог агента: агент загружает фото товара, платформа вырезает фон
@@ -773,6 +798,38 @@ enum PlatformAccountActivationPurpose {
   OWNER_RECOVERY
 }
 
+// Separate from owner activation/recovery; credential bearers are hash-only.
+model M3ReviewerCredentialEpoch {
+  keyFingerprint String   @id
+  version        Int      @default(1)
+  updatedAt      DateTime @default(now())
+}
+
+model StaffAccountRecovery {
+  id                    String         @id @default(cuid())
+  userId                Int
+  user                  User           @relation("StaffRecoverySubject", fields: [userId], references: [id], onDelete: Restrict)
+  issuedByUserId        Int
+  issuedBy              User           @relation("StaffRecoveryIssuer", fields: [issuedByUserId], references: [id], onDelete: Restrict)
+  membershipId          String
+  membership            Membership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  organizationId        String
+  organization          Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  issuedSessionVersion  Int
+  issuedRole            MembershipRole
+  resetMfa              Boolean
+  tokenHash             String         @unique
+  mfaSecretEncrypted    String
+  expiresAt             DateTime
+  consumedAt            DateTime?
+  revokedAt             DateTime?
+  createdAt             DateTime       @default(now())
+
+  @@index([userId, createdAt])
+  @@index([membershipId, createdAt])
+  @@index([expiresAt])
+}
+
 // Shared limiter for high-value platform authentication endpoints. Keys are
 // one-way hashes; no IP address, token or credential is stored.
 model SecurityRateLimitBucket {
@@ -921,6 +978,20 @@ model CasePartyRoleAssignment {
 
   @@unique([casePartyId, role, validFrom])
   @@index([organizationId, role, validUntil])
+}
+
+model M3ProductionActivation {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  activatedByUserId     Int
+  activatedBy           User         @relation(fields: [activatedByUserId], references: [id], onDelete: Restrict)
+  bundleFingerprint     String
+  bundle                Json
+  humanSignoffs         Json
+  createdAt             DateTime     @default(now())
+
+  @@unique([organizationId, bundleFingerprint])
 }
 
 model DocumentTypeDefinition {

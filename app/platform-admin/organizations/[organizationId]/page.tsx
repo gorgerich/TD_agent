@@ -5,6 +5,7 @@ import { PageHeader, formatDate } from "../../page";
 import { Status } from "../page";
 import { OrganizationStatusControl } from "./OrganizationStatusControl";
 import { FirstOrganizationAdminControl } from "./FirstOrganizationAdminControl";
+import { OrganizationOnboardingControl } from "../OrganizationOnboardingControl";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,10 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
     where: { organizationId, role: "ADMIN", acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
     select: { id: true },
   });
-  const canAssignFirstAdmin = organization.status === "ACTIVE" && !previousBootstrap && !pendingAdmin
+  const pendingPlatformAdmin = await prisma.platformOrganizationInvite.findFirst({
+    where: { organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true },
+  });
+  const canAssignFirstAdmin = organization.status === "ACTIVE" && !previousBootstrap && !pendingAdmin && !pendingPlatformAdmin
     && !organization.memberships.some((membership) => membership.role === "ADMIN");
 
   return (
@@ -66,6 +70,8 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           .filter((membership) => membership.status === "ACTIVE" && membership.agent?.status === "ACTIVE" && membership.user.platformRole === "USER")
           .map((membership) => ({ id: membership.id, label: `${membership.user.name ?? "Без имени"} (${membership.user.email ?? membership.id})` }))}
       />}
+      {organization.status === "ACTIVE" && !previousBootstrap && !organization.memberships.some(member => member.role === "ADMIN")
+        && <OrganizationOnboardingControl organizationId={organization.id} />}
       <section className="mt-6 rounded-[14px] bg-white p-5 shadow-[0_1px_2px_rgba(13,47,42,0.08)]">
         <h2 className="text-[17px] font-semibold">Сотрудники</h2>
         <div className="mt-4 divide-y divide-[#e5e9e7]">

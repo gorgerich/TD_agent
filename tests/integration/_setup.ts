@@ -109,6 +109,7 @@ export type IntegrationFixtureContext = {
   trackDocumentType(id: string): void;
   trackSigningPolicy(id: string): void;
   trackUser(userId: number): void;
+  trackCreatedOrganization(organizationId: string): void;
   trackCreatedMember(identity: { userId: number; agentId: number; membershipId: string }): void;
   cleanup(): Promise<void>;
   assertNoResidue(): Promise<void>;
@@ -257,6 +258,10 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       // deleted explicitly, parent-last, and assertNoResidue counts the commercial tables
       // so that a missed child fails the gate instead of accumulating as a silent orphan.
       await tx.$executeRawUnsafe("SET LOCAL session_replication_role = replica");
+      const credentialKeys = ownUserIds.length ? (await tx.platformAuditEvent.findMany({
+        where: { actorUserId: { in: ownUserIds }, targetType: "m3-reviewer-credential", targetId: { not: null } },
+        select: { targetId: true }, distinct: ["targetId"],
+      })).flatMap(event => event.targetId ? [event.targetId] : []) : [];
       const cases = ownOrganizationIds.length
         ? await tx.case.findMany({ where: { tenantId: { in: ownOrganizationIds } }, select: { id: true, leadId: true } })
         : [];
@@ -284,6 +289,17 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
         select: { id: true },
       });
       const orderIds = orders.map((item) => item.id);
+      const organizationCleanup = ownOrganizationIds.length ? Prisma.sql`
+        proof AS (DELETE FROM "M3ProductionActivation" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        policy AS (DELETE FROM "FinancialControlPolicy" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        audit AS (DELETE FROM "OperationalAuditEvent" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        projection AS (DELETE FROM "ProjectionReceipt" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        views AS (DELETE FROM "SavedOperationalView" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        invites AS (DELETE FROM "OrganizationInvite" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        platform_invites AS (DELETE FROM "PlatformOrganizationInvite" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        recovery AS (DELETE FROM "StaffAccountRecovery" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1),
+        tasks AS (DELETE FROM "Task" WHERE "organizationId" IN (${Prisma.join(ownOrganizationIds)}) RETURNING 1)
+      ` : null;
 
       if (caseIds.length) await tx.case.updateMany({ where: { id: { in: caseIds } }, data: { publishedQuoteVersionId: null } });
       if (caseIds.length) {
@@ -308,18 +324,23 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
             roles AS (DELETE FROM "CasePartyRoleAssignment" WHERE "casePartyId" IN
               (SELECT id FROM "CaseParty" WHERE "caseId" IN (${Prisma.join(caseIds)})) RETURNING 1),
             parties AS (DELETE FROM "CaseParty" WHERE "caseId" IN (${Prisma.join(caseIds)}) RETURNING 1)
+            ${organizationCleanup ? Prisma.sql`, ${organizationCleanup}` : Prisma.empty}
           SELECT 1 AS cleaned
         `);
       }
-      if (ownOrganizationIds.length) {
-        await tx.financialControlPolicy.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
-        await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
-        await tx.projectionReceipt.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
-        await tx.savedOperationalView.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
-        await tx.organizationInvite.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
-        await tx.task.deleteMany({ where: { organizationId: { in: ownOrganizationIds } } });
+      if (organizationCleanup && !caseIds.length) {
+        await tx.$queryRaw(Prisma.sql`
+          WITH ${organizationCleanup}
+          SELECT 1 AS cleaned
+        `);
       }
       if (ownUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: ownUserIds } } });
+      if (credentialKeys.length) await tx.$executeRaw(Prisma.sql`
+        DELETE FROM "M3ReviewerCredentialEpoch" epoch WHERE "keyFingerprint" IN (${Prisma.join(credentialKeys)})
+          AND NOT EXISTS (SELECT 1 FROM "PlatformAuditEvent" event WHERE event."targetType" = 'm3-reviewer-credential'
+            AND event."targetId" = epoch."keyFingerprint"
+            AND event.action IN ('M3_REVIEWER_CREDENTIAL_REGISTERED', 'M3_REVIEWER_CREDENTIAL_REVOKED'))
+      `);
       if (ownUserIds.length) await tx.platformAccountActivation.deleteMany({ where: { userId: { in: ownUserIds } } });
       if (caseIds.length) await tx.caseEvent.deleteMany({ where: { caseId: { in: caseIds } } });
       if (meetingIds.length) await tx.agentSession.deleteMany({ where: { meetingId: { in: meetingIds } } });
@@ -427,6 +448,9 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
       () => db.operationalAuditEvent.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.platformAuditEvent.count({ where: { actorUserId: { in: [...createdUserIds] } } }),
       () => db.platformAccountActivation.count({ where: { userId: { in: [...createdUserIds] } } }),
+      () => db.staffAccountRecovery.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.platformOrganizationInvite.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
+      () => db.m3ProductionActivation.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.projectionReceipt.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       () => db.savedOperationalView.count({ where: { organizationId: { in: [...createdOrganizationIds] } } }),
       // The mission's own tables. Without these the residue gate was structurally unable to
@@ -486,6 +510,22 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
            LEFT JOIN "Case" c ON c.id = r."caseId" WHERE c.id IS NULL)
       + (SELECT count(*) FROM "PlatformAccountActivation" a
            LEFT JOIN "User" u ON u.id = a."userId" WHERE u.id IS NULL)
+      + (SELECT count(*) FROM "PlatformOrganizationInvite" i
+           LEFT JOIN "Organization" o ON o.id = i."organizationId"
+           LEFT JOIN "User" u ON u.id = i."createdByUserId" WHERE o.id IS NULL OR u.id IS NULL)
+      + (SELECT count(*) FROM "StaffAccountRecovery" r
+           LEFT JOIN "Organization" o ON o.id = r."organizationId"
+           LEFT JOIN "Membership" m ON m.id = r."membershipId"
+           LEFT JOIN "User" u ON u.id = r."userId"
+           LEFT JOIN "User" issuer ON issuer.id = r."issuedByUserId"
+           WHERE o.id IS NULL OR m.id IS NULL OR u.id IS NULL OR issuer.id IS NULL)
+      + (SELECT count(*) FROM "M3ProductionActivation" a
+           LEFT JOIN "Organization" o ON o.id = a."organizationId"
+           LEFT JOIN "User" u ON u.id = a."activatedByUserId" WHERE o.id IS NULL OR u.id IS NULL)
+      + (SELECT count(*) FROM "M3ReviewerCredentialEpoch" epoch WHERE NOT EXISTS (
+           SELECT 1 FROM "PlatformAuditEvent" event WHERE event."targetType" = 'm3-reviewer-credential'
+             AND event."targetId" = epoch."keyFingerprint"
+             AND event.action IN ('M3_REVIEWER_CREDENTIAL_REGISTERED', 'M3_REVIEWER_CREDENTIAL_REVOKED')))
       AS count
     `;
     if (Number(orphans.count) !== 0) {
@@ -508,6 +548,10 @@ export function createFixtureContext(label: string): IntegrationFixtureContext {
     trackUser: (userId) => {
       userIds.add(userId);
       createdUserIds.add(userId);
+    },
+    trackCreatedOrganization: (organizationId) => {
+      organizationIds.add(organizationId);
+      createdOrganizationIds.add(organizationId);
     },
     trackCreatedMember: ({ userId, agentId, membershipId }) => {
       userIds.add(userId);
