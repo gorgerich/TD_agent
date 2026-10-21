@@ -67,9 +67,8 @@ export async function materializeCaseRequirementsInTransaction(
     if (refreshMeta) await refreshCaseRequirementApplicabilityInTransaction(tx, actor, caseId, refreshMeta, now);
     return { policyApproved: false, policyId: null, created: 0, existing: 0 };
   }
-  const caseFacts = await loadRequirementFacts(tx, caseId, now);
+  const { facts: caseFacts, requirements: existingRequirements } = await loadRequirementState(tx, actor.organizationId, caseId, now);
   const ruleApplicability = new Map(policy.rules.map((rule) => [rule.id, requirementApplies(rule, caseFacts)]));
-  const existingRequirements = await loadApplicabilityRequirements(tx, actor.organizationId, caseId);
   const existingByRuleId = new Map(existingRequirements.map((requirement) => [requirement.ruleId, requirement]));
   const missingRules = policy.rules.filter((rule) => !existingByRuleId.has(rule.id));
   const inserted = missingRules.length === 0
@@ -155,10 +154,10 @@ export async function refreshCaseRequirementApplicabilityInTransaction(
 ) {
   if (!isM3ProductionWriteAllowed(actor.organizationId)) return { changed: 0 };
   await assertM3ProductionActivation(tx, actor.organizationId);
-  const [caseFacts, requirements] = await Promise.all([
-    facts ?? loadRequirementFacts(tx, caseId, now),
-    existingRequirements ?? loadApplicabilityRequirements(tx, actor.organizationId, caseId),
-  ]);
+  const state = facts === undefined || existingRequirements === undefined
+    ? await loadRequirementState(tx, actor.organizationId, caseId, now) : null;
+  const caseFacts = facts ?? state!.facts;
+  const requirements = existingRequirements ?? state!.requirements;
   const changed = requirements.flatMap((requirement) => {
     const next = requirementApplies(requirement, caseFacts);
     return next === requirement.isApplicable ? [] : [{ ...requirement, next }];
@@ -313,43 +312,48 @@ export type RequirementFacts = {
   parties: Array<{ roles: Array<{ role: string }> }>;
 };
 
-async function loadRequirementFacts(tx: Prisma.TransactionClient, caseId: string, now: Date): Promise<RequirementFacts & { reviewerMembershipId: string | null }> {
-  // Applicability consumes only the date and the set of effective roles, not
-  // the party records. One joined read avoids four relation round trips.
-  const rows = await tx.$queryRaw<Array<{ ceremonyAt: Date | null; role: string | null; scenarioId: CaseScenario; reviewerMembershipId: string | null }>>`
-    SELECT lead."ceremonyAt", record."scenarioId", assignment."role"::text AS "role", (
+async function loadRequirementState(tx: Prisma.TransactionClient, organizationId: string, caseId: string, now: Date) {
+  // Independent aggregates avoid multiplying roles by historical requirements.
+  const rows = await tx.$queryRaw<Array<{ ceremonyAt: Date | null; roles: Array<{ role: string }>;
+    scenarioId: CaseScenario; reviewerMembershipId: string | null;
+    requirements: Array<Omit<ApplicabilityRequirement, "supersededAt"> & { ruleId: string; supersededAt: string | null }> }>>`
+    SELECT lead."ceremonyAt", record."scenarioId", (
       SELECT "id" FROM "Membership"
       WHERE "organizationId" = record."tenantId" AND "role" = 'DOCUMENT_REVIEWER' AND "status" = 'ACTIVE'
       ORDER BY "createdAt", "id" LIMIT 1
-    ) AS "reviewerMembershipId"
+    ) AS "reviewerMembershipId", COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('role', assignment."role"::text) ORDER BY assignment."id")
+      FROM "CaseParty" party
+      JOIN "CasePartyRoleAssignment" assignment
+        ON assignment."casePartyId" = party."id" AND assignment."organizationId" = record."tenantId"
+        AND assignment."validFrom" <= ${now}
+        AND (assignment."validUntil" IS NULL OR assignment."validUntil" > ${now})
+      WHERE party."caseId" = record."id" AND party."organizationId" = record."tenantId"
+    ), '[]'::jsonb) AS roles, COALESCE((
+      SELECT jsonb_agg(jsonb_build_object('id', requirement."id", 'ruleId', requirement."ruleId",
+        'stableKey', requirement."stableKey", 'kind', requirement."kind", 'isApplicable', requirement."isApplicable",
+        'supersededAt', to_char(requirement."supersededAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'conditionKey', rule."conditionKey", 'policyScenario', policy."scenario") ORDER BY requirement."id")
+      FROM "CaseDocumentRequirement" requirement
+      JOIN "DocumentRequirementRule" rule ON rule."id" = requirement."ruleId"
+      JOIN "DocumentRequirementPolicy" policy ON policy."id" = requirement."policyId"
+      WHERE requirement."organizationId" = record."tenantId" AND requirement."caseId" = record."id"
+    ), '[]'::jsonb) AS requirements
     FROM "Case" AS record
     JOIN "ClientLead" AS lead ON lead."id" = record."leadId"
-    LEFT JOIN "CaseParty" AS party
-      ON party."caseId" = record."id" AND party."organizationId" = record."tenantId"
-    LEFT JOIN "CasePartyRoleAssignment" AS assignment
-      ON assignment."casePartyId" = party."id" AND assignment."organizationId" = record."tenantId"
-      AND assignment."validFrom" <= ${now}
-      AND (assignment."validUntil" IS NULL OR assignment."validUntil" > ${now})
-    WHERE record."id" = ${caseId}
+    WHERE record."id" = ${caseId} AND record."tenantId" = ${organizationId}
   `;
   if (!rows.length) throw new OperationalCommandError(404, "Кейс не найден");
   return {
-    reviewerMembershipId: rows[0].reviewerMembershipId,
-    scenarioId: rows[0].scenarioId,
-    lead: { ceremonyAt: rows[0].ceremonyAt },
-    parties: [{ roles: rows.flatMap(({ role }) => role ? [{ role }] : []) }],
+    facts: {
+      reviewerMembershipId: rows[0].reviewerMembershipId,
+      scenarioId: rows[0].scenarioId,
+      lead: { ceremonyAt: rows[0].ceremonyAt },
+      parties: [{ roles: rows[0].roles }],
+    },
+    requirements: rows[0].requirements.map(row => ({ ...row,
+      supersededAt: row.supersededAt === null ? null : new Date(row.supersededAt) })),
   };
-}
-
-async function loadApplicabilityRequirements(tx: Prisma.TransactionClient, organizationId: string, caseId: string) {
-  return tx.$queryRaw<Array<ApplicabilityRequirement & { ruleId: string }>>`
-    SELECT requirement."id", requirement."ruleId", requirement."stableKey", requirement."kind",
-      requirement."isApplicable", requirement."supersededAt", rule."conditionKey", policy."scenario" AS "policyScenario"
-    FROM "CaseDocumentRequirement" requirement
-    JOIN "DocumentRequirementRule" rule ON rule."id" = requirement."ruleId"
-    JOIN "DocumentRequirementPolicy" policy ON policy."id" = requirement."policyId"
-    WHERE requirement."organizationId" = ${organizationId} AND requirement."caseId" = ${caseId}
-  `;
 }
 
 function requirementApplies(

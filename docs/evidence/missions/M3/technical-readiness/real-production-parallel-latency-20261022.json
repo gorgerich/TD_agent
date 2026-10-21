@@ -1,0 +1,80 @@
+{
+  "scope": "LOCAL_ONLY_80MS_REAL_POLICY_PROOF_PARALLEL_AFTER_BATCHING",
+  "preliminaryPass": {
+    "tests": 7,
+    "skip": 0,
+    "cremation": [
+      2086,
+      1880,
+      4166
+    ],
+    "burial": [
+      2179,
+      2339,
+      2046
+    ],
+    "cremationNormal": 3618,
+    "burialNormal": 1991,
+    "prismaOperations": 21
+  },
+  "runs": [
+    {
+      "repeat": 2,
+      "exit": 0,
+      "durationMs": 51730,
+      "diagnostics": [
+        "{\"productionProofIntake\":\"CREMATION_V1\",\"rules\":3,\"transactionMs\":3791,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"CREMATION_V1\",\"transactionMs\":[1871,2104,4158],\"original\":2,\"replay\":1,\"rules\":3}",
+        "{\"productionProofIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"rules\":5,\"transactionMs\":1988,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"transactionMs\":[2928,3023,2092],\"original\":2,\"replay\":1,\"rules\":5}",
+        "{\"injectedRoundTripMs\":80,\"maximumForwardDelayMs\":86,\"eventLoopDelayMaxMs\":84}"
+      ]
+    },
+    {
+      "repeat": 3,
+      "exit": 0,
+      "durationMs": 56222,
+      "diagnostics": [
+        "{\"productionProofIntake\":\"CREMATION_V1\",\"rules\":3,\"transactionMs\":4193,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"CREMATION_V1\",\"transactionMs\":[1969,1782,3629],\"original\":2,\"replay\":1,\"rules\":3}",
+        "{\"productionProofIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"rules\":5,\"transactionMs\":2450,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"transactionMs\":[2045,2165,2062],\"original\":2,\"replay\":1,\"rules\":5}",
+        "{\"injectedRoundTripMs\":80,\"maximumForwardDelayMs\":71,\"eventLoopDelayMaxMs\":115}"
+      ]
+    },
+    {
+      "repeat": 4,
+      "exit": 0,
+      "durationMs": 46234,
+      "diagnostics": [
+        "{\"productionProofIntake\":\"CREMATION_V1\",\"rules\":3,\"transactionMs\":3428,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"CREMATION_V1\",\"transactionMs\":[1929,1853,3506],\"original\":2,\"replay\":1,\"rules\":3}",
+        "{\"productionProofIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"rules\":5,\"transactionMs\":1983,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"transactionMs\":[2139,1971,3051],\"original\":2,\"replay\":1,\"rules\":5}",
+        "{\"injectedRoundTripMs\":80,\"maximumForwardDelayMs\":49,\"eventLoopDelayMaxMs\":105}"
+      ]
+    },
+    {
+      "repeat": 5,
+      "exit": 0,
+      "durationMs": 48896,
+      "diagnostics": [
+        "{\"productionProofIntake\":\"CREMATION_V1\",\"rules\":3,\"transactionMs\":3173,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"CREMATION_V1\",\"transactionMs\":[3855,3909,2067],\"original\":2,\"replay\":1,\"rules\":3}",
+        "{\"productionProofIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"rules\":5,\"transactionMs\":3048,\"prismaOperations\":21,\"binding\":true}",
+        "{\"productionProofParallelIntake\":\"FAMILY_PLOT_BURIAL_V1\",\"transactionMs\":[1924,2016,2008],\"original\":2,\"replay\":1,\"rules\":5}",
+        "{\"injectedRoundTripMs\":80,\"maximumForwardDelayMs\":46,\"eventLoopDelayMaxMs\":103}"
+      ]
+    }
+  ],
+  "production": "UNCHANGED",
+  "result": {
+    "runs": 5,
+    "tests": 35,
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0,
+    "transactionBudgetMs": 4500,
+    "maximumObservedTransactionMs": 4193
+  }
+}

@@ -54,7 +54,7 @@ export async function projectNewCaseEventInTransaction(
         priority: "HIGH",
       },
     ]);
-    affectedTaskIds.push(...tasks.map((task) => task.id));
+    return { affectedTaskIds: tasks.map((task) => task.id), affectedCount: tasks.length };
   }
 
   if (input.eventType === "quote.published.v1" || input.eventType === "quote.republished.v1") {
@@ -317,12 +317,13 @@ async function createProjectedTasks(
   }>,
 ) {
   const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  // The fixed two-task projection and its append-only audits share one statement.
-  const source = JSON.stringify(tasks.map(task => ({ ...task, auditId: `audit_${randomUUID().replaceAll("-", "")}` })));
+  // Tasks, append-only audits and the fresh-event receipt commit in one statement.
+  const source = JSON.stringify(tasks.map((task, position) => ({ ...task, position, auditId: `audit_${randomUUID().replaceAll("-", "")}` })));
+  const receiptId = `receipt_${randomUUID().replaceAll("-", "")}`;
   const created = await tx.$queryRaw<Array<{ id: number; type: string }>>`
     WITH source AS (
       SELECT * FROM jsonb_to_recordset(${source}::jsonb)
-        AS item(type text, title text, "expectedOutcome" text, priority text, "auditId" text)
+        AS item(type text, title text, "expectedOutcome" text, priority text, position integer, "auditId" text)
     ), created AS (
       INSERT INTO "Task" ("organizationId", "caseId", "leadId", "agentId", "assigneeMembershipId",
         "createdByMembershipId", type, priority, status, "sourceEventId", "idempotencyKey", title, "expectedOutcome", "dueAt")
@@ -341,6 +342,11 @@ async function createProjectedTasks(
           'dueAt', to_char(task."dueAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
           'completedAt', NULL, 'hasOutcome', false, 'version', task.version),
         ${context.correlationId}, ${input.eventId}, task."idempotencyKey" || ':audit', jsonb_build_object('taskId', task.id)
+      FROM created task JOIN source ON source.type = task.type::text RETURNING id
+    ), receipted AS (
+      INSERT INTO "ProjectionReceipt" (id, "organizationId", projector, "sourceEventId", result)
+      SELECT ${receiptId}, ${context.organizationId}, 'm1.case-work.v1', ${input.eventId},
+        jsonb_build_object('affectedTaskIds', jsonb_agg(task.id ORDER BY source.position), 'affectedCount', count(*)::integer)
       FROM created task JOIN source ON source.type = task.type::text RETURNING id
     ) SELECT id, type::text FROM created
   `;
