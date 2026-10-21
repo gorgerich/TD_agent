@@ -893,6 +893,41 @@ async function verifyProductionProofIntakes(bundle: M3ApprovedPolicyBundle, fixt
     assert.equal(trace.transactionMs.length, 1);
     assert.ok(trace.transactionMs[0] < Number(process.env.M3_INTAKE_LATENCY_BUDGET_MS ?? "4500"), JSON.stringify({ code: "PRODUCTION_POLICY_INTAKE_DEADLINE_MARGIN", trace }));
     console.log(JSON.stringify({ productionProofIntake: scenario, rules: ruleCount, transactionMs: Math.round(trace.transactionMs[0]), prismaOperations: trace.operations.length, binding: commandFingerprint(bundle) === JSON.parse(process.env.M3_PRODUCTION_POLICY_BINDINGS!)[actor.organizationId] }));
+    const peers = [await fixtures.makeCase(actor, `proof-parallel-${scenario}-a`),
+      await fixtures.makeCase(actor, `proof-parallel-${scenario}-b`)];
+    const submit = async (record: typeof peers[number]) => {
+      const trace = { operations: [] as string[], timings: [] as Array<{ operation: string; ms: number }>, transactionMs: [] as number[], errors: [] as string[], proofReads: 0 };
+      await control(true);
+      let response: Response;
+      try {
+        response = await intakeTraces.run(trace, () => intakePatch(makeRequest(`/api/agent/cases/${record.leadId}/intake`, {
+          method: "PATCH", cookie, body: { ceremonyType, deceasedName: "Synthetic parallel intake", needs: "Synthetic complete policy" },
+          headers: { "idempotency-key": `${fixtures.runId}:proof-parallel:${record.id}`, "x-correlation-id": fixtures.runId },
+        }), { params: Promise.resolve({ caseId: String(record.leadId) }) }));
+      } finally { await control(false); }
+      assert.equal(response.status, 200, JSON.stringify({ stage: "PARALLEL_PRODUCTION_POLICY_INTAKE", trace }));
+      assert.equal(trace.proofReads, 1, "One proof read per parallel transaction, including replay");
+      assert.equal(trace.transactionMs.length, 1);
+      assert.ok(trace.transactionMs[0] < Number(process.env.M3_INTAKE_LATENCY_BUDGET_MS ?? "4500"),
+        JSON.stringify({ code: "PARALLEL_PRODUCTION_POLICY_INTAKE_DEADLINE_MARGIN", trace }));
+      return { body: await response.json(), trace };
+    };
+    const [first, duplicate, other] = await Promise.all([submit(peers[0]), submit(peers[0]), submit(peers[1])]);
+    assert.equal([first, duplicate].filter(result => result.body.replayed === false).length, 1);
+    assert.equal([first, duplicate].filter(result => result.body.replayed === true).length, 1);
+    assert.deepEqual(first.body, { ...duplicate.body, replayed: first.body.replayed });
+    assert.equal(other.body.replayed, false);
+    for (const peer of peers) {
+      assert.equal(await db.caseDocumentRequirement.count({ where: { caseId: peer.id } }), ruleCount);
+      assert.equal(await db.caseEvent.count({ where: { caseId: peer.id } }), 3);
+      const tasks = await db.task.findMany({ where: { caseId: peer.id }, select: { id: true } });
+      assert.equal(tasks.length, 2);
+      const events = await db.caseEvent.findMany({ where: { caseId: peer.id }, select: { id: true } });
+      assert.equal(await db.projectionReceipt.count({ where: { organizationId: actor.organizationId, sourceEventId: { in: events.map(event => event.id) } } }), 2);
+      assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: actor.organizationId,
+        entityType: "task", entityId: { in: tasks.map(task => String(task.id)) }, action: "task.created_by_event" } }), 2);
+    }
+    console.log(JSON.stringify({ productionProofParallelIntake: scenario, transactionMs: [first, duplicate, other].map(result => Math.round(result.trace.transactionMs[0])), original: 2, replay: 1, rules: ruleCount }));
   }
 }
 
