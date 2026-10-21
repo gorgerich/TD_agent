@@ -368,8 +368,8 @@ for (const scenario of scenarios) {
       const edit = await submit(fixture, scenario,
         `${fixtures.runId}:${scenario.id}:same-scenario-edit:${stage}`, stage);
       const body = await successful(edit);
-      assert.equal(edit.trace.operations.filter(operation => operation === "raw.queryRaw").length, 3,
-        "Later intake uses the Case lock and two applicability reads, without a policy lock or repeated aggregate load");
+      assert.equal(edit.trace.operations.filter(operation => operation === "raw.queryRaw").length, 2,
+        "Later intake uses the Case lock and one joint facts/requirements read, without a policy lock or repeated aggregate load");
       const state = await snapshot(fixture);
       assert.equal(body.stage, stage);
       assert.equal(body.scenarioId, scenario.id);
