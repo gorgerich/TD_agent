@@ -1,0 +1,39 @@
+{
+  "classification": "WORKING_TREE_TARGETED_COMPONENT_ONLY_NOT_NATIVE_UAT",
+  "parentSourceSha": "8392986500aae855ee907c6a0f24ede6df09a940",
+  "receipt": {
+    "scope": "TARGETED_CASE_PARTIES_COMPONENT_TRANSPORT_ONLY",
+    "sourceHashes": {
+      "tests/caseParties.e2e.mjs": "771c3d85e3381522780b651e72e1b1b3fe5a6d4b4179a88cd33f4d04f703628b",
+      "app/agent/(app)/cases/[caseId]/CasePartiesSection.tsx": "de33188067817fb5166c0cdaebe0879b1e8e54e49fb315a1b84cbc86ac3c10fa"
+    },
+    "sourceStable": true,
+    "runs": [
+      {
+        "attempt": 1,
+        "exit": 0,
+        "durationMs": 44390
+      },
+      {
+        "attempt": 2,
+        "exit": 0,
+        "durationMs": 41678
+      },
+      {
+        "attempt": 3,
+        "exit": 0,
+        "durationMs": 34240
+      },
+      {
+        "attempt": 4,
+        "exit": 0,
+        "durationMs": 28606
+      },
+      {
+        "attempt": 5,
+        "exit": 0,
+        "durationMs": 28208
+      }
+    ]
+  }
+}

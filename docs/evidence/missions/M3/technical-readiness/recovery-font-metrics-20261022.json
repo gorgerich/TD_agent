@@ -1,0 +1,30 @@
+{
+  "scope": "ISOLATED_CHROMIUM_FONT_METRICS_NOT_NATIVE_UAT",
+  "reviewer": "Gibbs independent review agent",
+  "reviewedSourceSha": "8392986500aae855ee907c6a0f24ede6df09a940",
+  "node": "24.12.0",
+  "viewportWidth": 195,
+  "contentWidth": 163,
+  "requestedWeight": 600,
+  "actualBoldFaceWeight": 700,
+  "assetSource": "Existing bundled LibreOfficeDev fonts; no download, installation or repository dependency",
+  "fonts": [
+    { "file": "DejaVuSans.ttf", "sha256": "7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954" },
+    { "file": "DejaVuSans-Bold.ttf", "sha256": "e6476c1b80502924294eed40894c5b18e06c181444ca953e5334262df9c27724" },
+    { "file": "LiberationSans-Regular.ttf", "sha256": "76d04c18ea243f426b7de1f3ad208e927008f961dc5945e5aad352d0dfde8ee8" },
+    { "file": "LiberationSans-Bold.ttf", "sha256": "788abee4c806d660e8aee46689dd8540cd4bb98da03dcc9d171ce3efd99a9173" }
+  ],
+  "copy": { "original": "Восстановление доступа сотрудника", "short": "Восстановить доступ" },
+  "columns": ["font", "sizePx", "copy", "firstWordWidth", "firstWordLines", "horizontalOverflow"],
+  "measurements": [
+    ["DejaVu Sans", 18, "original", 168.8466796875, 2, false],
+    ["DejaVu Sans", 16, "original", 150.0859375, 1, false],
+    ["DejaVu Sans", 18, "short", 140.625, 1, false],
+    ["Liberation Sans", 18, "original", 148.4560546875, 1, false],
+    ["Liberation Sans", 16, "original", 131.9609375, 1, false],
+    ["Liberation Sans", 18, "short", 126.4833984375, 1, false]
+  ],
+  "failingFirstWordRectsXYWH": [[16, 59, 156.640625, 21], [16, 87, 12.21875, 21]],
+  "fontReadinessGuardControls": { "passed": 2, "failed": 0, "heldFontDoesNotAcceptEarly": true, "successfulLoadAccepts": true, "failedLoadRejects": true },
+  "limitations": "Proves the font-specific metric mechanism, not the exact CI selected family or historical navigation root cause. Actual candidate CI and native UAT remain separate."
+}
