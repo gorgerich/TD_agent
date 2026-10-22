@@ -145,7 +145,12 @@ async function intake(page, leadId, confirmed) {
   const save = page.getByRole("button", { name: "Сохранить изменения", exact: true });
   try {
     await save.click();
-    return await response;
+    const result = await response;
+    const feedback = save.locator("..");
+    if (result.ok()) await feedback.getByText("Сохранено", { exact: true }).waitFor();
+    else await feedback.getByRole("alert").waitFor();
+    await save.and(page.locator(":enabled")).waitFor();
+    return result;
   } catch (error) {
     const diagnostic = { code: "CPO_INTAKE_ACTION_FAILED", confirmed, requestObserved, pageClosed: page.isClosed() };
     if (!page.isClosed()) {

@@ -249,6 +249,7 @@ async function client(width) {
     state.recover = "hold"; state.gate = deferred();
     await submit.click();
     await page.waitForFunction(() => document.querySelector("fieldset").disabled);
+    await reflow(page); await maskChallenge(page, `client-saving-${width}.png`);
     await page.locator("form").evaluate((form) => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     ensure(state.calls.filter((call) => call.action === "recover").length === 8, "In-flight submit has exactly one transport command");
     state.recover = "ok"; state.gate.resolve();

@@ -160,6 +160,15 @@ export async function verifyRealOrganizationOnboarding({ browser, platformPage, 
     await recoveryPage.getByLabel("Новый пароль", { exact: true }).waitFor();
     assert.equal(new URL(recoveryPage.url()).hash, "");
     await recoveryPage.setViewportSize({ width: 195, height: 844 });
+    assert.equal(await recoveryPage.getByRole("heading", { level: 1 }).evaluate(async heading => {
+      const computed = getComputedStyle(heading);
+      const normalize = family => family.trim().replace(/^["']|["']$/g, "");
+      const family = normalize(computed.fontFamily.split(",")[0]);
+      if (!/Golos/i.test(family)) return false;
+      const faces = await document.fonts.load(computed.font, heading.textContent);
+      await document.fonts.ready;
+      return faces.some(face => normalize(face.family) === family && face.status === "loaded");
+    }), true, "Load the actual Golos face before measuring; a fallback-only pass is not font acceptance");
     assert.equal(await recoveryPage.getByRole("heading", { level: 1 }).evaluate(heading => {
       const range = document.createRange();
       range.setStart(heading.firstChild, 0);

@@ -1,0 +1,127 @@
+{
+  "sourceSha": "a3cdd91cdbc3c0a5dd9805c59d0cce2069dd977c",
+  "classification": "EXACT_A3_CPO_BROWSER_SCOPE_NOT_FULL_LOCAL_SUITE_NOT_SUCCESSOR_UAT",
+  "receipt": {
+    "scope": "CPO_BROWSER_REWORK",
+    "schema": "m3_cpo_repair_1cec82d4a2c997d5",
+    "fingerprint": "76ecfdc12aece957",
+    "sourceDigest": "dbd924a69b6b11685585839f6b656a708d2c90d5fb385ee0250f9573a01fbfb3",
+    "production": "UNCHANGED",
+    "gates": [
+      {
+        "name": "diff",
+        "exit": 0,
+        "durationMs": 416
+      },
+      {
+        "name": "lint",
+        "exit": 0,
+        "durationMs": 169343
+      },
+      {
+        "name": "typecheck",
+        "exit": 0,
+        "durationMs": 35856
+      },
+      {
+        "name": "migration",
+        "exit": 0,
+        "durationMs": 16867
+      },
+      {
+        "name": "noop",
+        "exit": 0,
+        "durationMs": 9666
+      },
+      {
+        "name": "parity",
+        "exit": 0,
+        "durationMs": 5197
+      },
+      {
+        "name": "build",
+        "exit": 0,
+        "durationMs": 81905
+      },
+      {
+        "name": "m1-fixture",
+        "exit": 0,
+        "durationMs": 4407
+      },
+      {
+        "name": "m2-fixture",
+        "exit": 0,
+        "durationMs": 2783
+      },
+      {
+        "name": "m3-fixture",
+        "exit": 0,
+        "durationMs": 2113
+      },
+      {
+        "name": "cpo-fixture",
+        "exit": 0,
+        "durationMs": 2409
+      },
+      {
+        "name": "restore-table-list",
+        "exit": 0,
+        "durationMs": 402
+      },
+      {
+        "name": "restore-counts-digests",
+        "exit": 0,
+        "durationMs": 948
+      },
+      {
+        "name": "restore-create",
+        "exit": 0,
+        "durationMs": 615
+      },
+      {
+        "name": "restore-table-list",
+        "exit": 0,
+        "durationMs": 99
+      },
+      {
+        "name": "restore-counts-digests",
+        "exit": 0,
+        "durationMs": 267
+      },
+      {
+        "name": "restore-noop",
+        "exit": 0,
+        "durationMs": 3003
+      },
+      {
+        "name": "restore-parity",
+        "exit": 0,
+        "durationMs": 2582
+      },
+      {
+        "name": "cpo-e2e",
+        "exit": 0,
+        "durationMs": 134542
+      },
+      {
+        "name": "auth-failure-browser",
+        "exit": 0,
+        "durationMs": 20929
+      },
+      {
+        "name": "component-browser",
+        "exit": 0,
+        "durationMs": 144840
+      }
+    ],
+    "restore": {
+      "status": "PASS",
+      "syntheticOnly": true,
+      "countsAndDigests": "MATCH",
+      "encrypted": "AES256",
+      "plaintextDump": "NONE",
+      "tables": 58
+    },
+    "cleanup": "PASS"
+  }
+}

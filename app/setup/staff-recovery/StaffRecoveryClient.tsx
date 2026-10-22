@@ -119,7 +119,7 @@ export function StaffRecoveryClient() {
           <label className="grid gap-2 text-sm">Код из приложения
             <input required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} className={field} />
           </label>
-          <button type="submit" disabled={password.length < 12 || password !== confirmation || code.length !== 6} className="min-h-12 rounded-xs bg-ink px-4 font-semibold text-white disabled:opacity-40">{busy ? "Восстанавливаем..." : "Восстановить доступ"}</button>
+          <button type="submit" disabled={password.length < 12 || password !== confirmation || code.length !== 6} className="min-h-12 rounded-xs bg-ink px-4 font-semibold text-white disabled:opacity-40">{busy ? "Сохраняем..." : "Восстановить доступ"}</button>
         </fieldset>
       </form>}
     </div>
