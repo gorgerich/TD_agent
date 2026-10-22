@@ -165,7 +165,10 @@ export async function verifyRealOrganizationOnboarding({ browser, platformPage, 
       const normalize = family => family.trim().replace(/^["']|["']$/g, "");
       const family = normalize(computed.fontFamily.split(",")[0]);
       if (!/Golos/i.test(family)) return false;
-      const faces = await document.fonts.load(computed.font, heading.textContent);
+      const faces = await document.fonts.load(
+        `${computed.fontStyle} ${computed.fontWeight} ${computed.fontSize} ${JSON.stringify(family)}`,
+        heading.textContent,
+      );
       await document.fonts.ready;
       return faces.some(face => normalize(face.family) === family && face.status === "loaded");
     }), true, "Load the actual Golos face before measuring; a fallback-only pass is not font acceptance");

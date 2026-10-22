@@ -14,7 +14,7 @@
     "test:unit": "node --import tsx --test tests/*.test.ts",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:e2e": "node tests/e2e/smoke.mjs && node tests/e2e/m1-operations.mjs && node tests/e2e/m2-admin.mjs && node tests/e2e/m2-commercial.mjs && node tests/e2e/m3-fulfilment.mjs && node tests/e2e/cpo-repair.mjs",
-    "test:ui-components": "node tests/cpoAuditDocuments.e2e.mjs && node tests/e2e/legacy-secret-policy.mjs && node tests/caseParties.e2e.mjs && node tests/financeResponsive.e2e.mjs && node tests/organizationOnboarding.e2e.mjs && node tests/staffRecovery.e2e.mjs",
+    "test:ui-components": "node tests/applicationFont.e2e.mjs && node tests/cpoAuditDocuments.e2e.mjs && node tests/e2e/legacy-secret-policy.mjs && node tests/caseParties.e2e.mjs && node tests/financeResponsive.e2e.mjs && node tests/organizationOnboarding.e2e.mjs && node tests/staffRecovery.e2e.mjs",
     "evidence:validate": "node scripts/validate-mission-evidence.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name b2b_platform_init",
