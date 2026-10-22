@@ -9,6 +9,20 @@ import { assertProductionTraceBoundary, TOOLING_ONLY_PACKAGES } from "../scripts
 
 const require = createRequire(import.meta.url);
 
+test("screenshot test dependency preserves Sharp runtime-optional native packages", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  assert.equal(manifest.optionalDependencies.sharp, lock.packages["node_modules/sharp"].version);
+  const nativePackages = Object.entries(lock.packages)
+    .filter(([name]) => name.startsWith("node_modules/@img/sharp-"));
+  assert.ok(nativePackages.length > 0, "The native-package guard must not be vacuous");
+  for (const [name, value] of nativePackages) {
+    const entry = value as { dev?: boolean; optional?: boolean };
+    assert.notEqual(entry.dev, true, `${name} must survive production-only installation`);
+    assert.equal(entry.optional, true, `${name} must retain the existing optional platform boundary`);
+  }
+});
+
 test("production boundary rejects vulnerable tooling in nested runtime traces and malformed/missing files", () => {
   const manifest = "/synthetic/app/.next/server/app/api/example/route.js.nft.json";
   for (const name of TOOLING_ONLY_PACKAGES) {

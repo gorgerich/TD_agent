@@ -314,16 +314,32 @@ async function main() {
   await assertFirstAdminViewports(owner.page);
   let firstKey;
   let firstPayload;
+  const firstDelivery = { intercepted: false, upstreamStatus: null, aborted: false };
   // Forward the real commit, discard only its response, then exercise the UI's replay.
   await owner.page.route(`${origin}${firstAdminPath}`, asyncScope.guard(async (route) => {
+    firstDelivery.intercepted = true;
     firstKey = route.request().headers()["idempotency-key"];
     firstPayload = route.request().postData();
-    const response = await route.fetch();
+    let response;
+    try { response = await route.fetch(); }
+    catch {
+      process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_FORWARD_FAILED", ...firstDelivery })}\n`);
+      throw new Error("CPO_BOOTSTRAP_FORWARD_FAILED");
+    }
+    firstDelivery.upstreamStatus = response.status();
+    if (response.status() !== 201) {
+      process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_UPSTREAM_STATUS", ...firstDelivery })}\n`);
+    }
     assert.equal(response.status(), 201);
     await route.abort("failed");
+    firstDelivery.aborted = true;
   }), { times: 1 });
   await assign.click();
-  await owner.page.getByRole("status").filter({ hasText: "Нет связи" }).waitFor();
+  try { await owner.page.getByRole("status").filter({ hasText: "Нет связи" }).waitFor(); }
+  catch {
+    process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_LOST_RESPONSE_FEEDBACK_MISSING", ...firstDelivery })}\n`);
+    throw new Error("CPO_BOOTSTRAP_LOST_RESPONSE_FEEDBACK_MISSING");
+  }
   const replayPending = observeLegacyPromise(owner.page.waitForResponse((response) => new URL(response.url()).pathname === firstAdminPath && response.request().method() === "POST"));
   await assign.click();
   const replay = await replayPending;

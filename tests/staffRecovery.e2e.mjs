@@ -9,6 +9,7 @@ import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
 import { chromium } from "playwright";
 import { createLegacyAsyncScope, fillProtected, legacySecretScreenshotOptions } from "./e2e/protectedInput.mjs";
+import { compareScreenshotPixels } from "./e2e/screenshotPixels.mjs";
 
 // Real components/CSS, synthetic intercepted transport only. This is not an
 // authenticated server, TOTP cryptography test, deployed UAT or release proof.
@@ -52,8 +53,12 @@ async function maskChallenge(page, name) {
     }
   });
   try {
-    ensure((await page.screenshot(secretScreenshot(page))).equals(before), "Masked pixels must not depend on secrets");
-    ensure(!(await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide" })).equals(rawBefore), "Mask negative control must actually change visible pixels");
+    const comparison = await compareScreenshotPixels(before, await page.screenshot(secretScreenshot(page)));
+    if (!comparison.equal) process.stderr.write(`${JSON.stringify({ code: "STAFF_RECOVERY_MASK_PIXEL_DIFFERENCE", stage, ...comparison })}\n`);
+    ensure(comparison.equal, "Masked pixels must not depend on secrets");
+    ensure(!(await compareScreenshotPixels(rawBefore,
+      await page.screenshot({ fullPage: true, animations: "disabled", caret: "hide" }))).equal,
+    "Mask negative control must actually change visible pixels");
   } finally {
     await page.evaluate(() => {
       for (const item of window.__secretRestore) {

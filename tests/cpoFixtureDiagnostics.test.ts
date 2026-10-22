@@ -64,3 +64,40 @@ test("CPO fixture diagnostics expose only a fixed stage and a bounded Prisma cod
     assert.equal(output, `CPO fixture refused or failed at verify-synthetic-census; code=${code}; no connection details emitted\n`);
   }
 });
+
+test("first ADMIN forwarding diagnostics never expose request keys, payload or transport errors", async () => {
+  const source = readFileSync("tests/e2e/cpo-repair.mjs", "utf8");
+  const start = source.indexOf("    firstDelivery.intercepted = true;");
+  const end = source.indexOf("\n  }), { times: 1 });", start);
+  assert.ok(start >= 0 && end > start);
+  const secret = "explicit-unit-only-private-value";
+  for (const status of [201, 401, 500, null]) {
+    let output = "";
+    let aborts = 0;
+    const firstDelivery = { intercepted: false, upstreamStatus: null, aborted: false };
+    const execution = runInNewContext(`(async () => {${source.slice(start, end)}\n})()`, {
+      assert, firstDelivery, firstKey: null, firstPayload: null,
+      process: { stderr: { write: (text: string) => { output += text; } } },
+      route: {
+        request: () => ({ headers: () => ({ "idempotency-key": secret }), postData: () => secret }),
+        fetch: async () => { if (status === null) throw new Error(secret); return { status: () => status }; },
+        abort: async () => { aborts++; },
+      },
+    });
+    if (status === 201) {
+      await execution;
+      assert.equal(output, "");
+      assert.equal(aborts, 1);
+      assert.equal(firstDelivery.aborted, true);
+    } else {
+      await assert.rejects(execution);
+      assert.equal(aborts, 0);
+      const diagnostic = JSON.parse(output);
+      assert.deepEqual(Object.keys(diagnostic).sort(), ["aborted", "code", "intercepted", "upstreamStatus"]);
+      assert.equal(diagnostic.upstreamStatus, status);
+      assert.equal(diagnostic.intercepted, true);
+      assert.equal(diagnostic.aborted, false);
+    }
+    assert.equal(output.includes(secret), false);
+  }
+});
