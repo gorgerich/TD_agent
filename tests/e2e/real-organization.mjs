@@ -159,6 +159,17 @@ export async function verifyRealOrganizationOnboarding({ browser, platformPage, 
     const setup = await setupResponse.json();
     await recoveryPage.getByLabel("Новый пароль", { exact: true }).waitFor();
     assert.equal(new URL(recoveryPage.url()).hash, "");
+    await recoveryPage.setViewportSize({ width: 195, height: 844 });
+    assert.equal(await recoveryPage.getByRole("heading", { level: 1 }).evaluate(heading => {
+      const range = document.createRange();
+      range.setStart(heading.firstChild, 0);
+      range.setEnd(heading.firstChild, heading.textContent.trimStart().split(/\s/)[0].length);
+      return new Set([...range.getClientRects()].map(rect => Math.round(rect.top))).size;
+    }), 1, "Authenticated recovery heading must stay whole in the actual application font at195px");
+    assert.equal(await recoveryPage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false,
+      "Authenticated recovery must not horizontally overflow at195px");
+    if (screenshot) await screenshot(recoveryPage, "staff-recovery-authenticated-195.png", legacySecretScreenshotOptions(recoveryPage));
+    await recoveryPage.setViewportSize({ width: 390, height: 844 });
     const nextPassword = `${randomBytes(32).toString("base64url")}!Aa9`;
     await fillProtected(recoveryPage.getByLabel("Новый пароль", { exact: true }), nextPassword);
     await fillProtected(recoveryPage.getByLabel("Повторите пароль"), nextPassword);

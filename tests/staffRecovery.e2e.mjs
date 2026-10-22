@@ -96,9 +96,15 @@ async function reflow(page) {
       const range = document.createRange();
       range.setStart(node, 0);
       range.setEnd(node, node.textContent.trimStart().split(/\s/)[0].length);
-      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+      const original = heading.style.fontFamily;
+      try {
+        return [original, "Arial, sans-serif", "Liberation Sans, sans-serif", "system-ui, sans-serif"].map((family) => {
+          heading.style.fontFamily = family;
+          return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+        });
+      } finally { heading.style.fontFamily = original; }
     });
-    assert.equal(firstWordLines, 1, "Recovery heading must not split its first word inside a line");
+    assert.deepEqual(firstWordLines, [1, 1, 1, 1], "Recovery heading must keep its first word whole with system fallback fonts");
   }
 }
 

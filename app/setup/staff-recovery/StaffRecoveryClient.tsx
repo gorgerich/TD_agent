@@ -98,7 +98,7 @@ export function StaffRecoveryClient() {
 
   return <main className="min-h-[100dvh] bg-canvas px-4 py-10 text-ink sm:px-6">
     <div className="mx-auto grid w-full max-w-lg min-w-0 gap-6">
-      <header><LockKey size={28} aria-hidden /><h1 className="mt-4 text-xl font-semibold [overflow-wrap:anywhere]">Восстановление доступа сотрудника</h1></header>
+      <header><LockKey size={28} aria-hidden /><h1 className="mt-4 text-lg font-semibold [overflow-wrap:anywhere]">Восстановление доступа сотрудника</h1></header>
       {busy && !setup && <p role="status">Проверяем ссылку...</p>}
       {complete && <p role="status">Доступ восстановлен. Старые сессии отозваны.</p>}
       {message && <p role="alert" className="text-sm text-danger">{message}</p>}

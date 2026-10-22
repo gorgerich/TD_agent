@@ -137,9 +137,27 @@ async function intake(page, leadId, confirmed) {
     await page.getByLabel("Подтверждаю исправление сценария").check();
     await page.getByLabel("Причина исправления сценария").fill(correctionBody.scenarioCorrection.reason);
   }
-  const response = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === `/api/agent/cases/${leadId}/intake` && next.request().method() === "PATCH"));
-  await page.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
-  return response;
+  const pathname = `/api/agent/cases/${leadId}/intake`;
+  let requestObserved = false;
+  const onRequest = request => { if (new URL(request.url()).pathname === pathname && request.method() === "PATCH") requestObserved = true; };
+  page.on("request", onRequest);
+  const response = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === pathname && next.request().method() === "PATCH"));
+  const save = page.getByRole("button", { name: "Сохранить изменения", exact: true });
+  try {
+    await save.click();
+    return await response;
+  } catch (error) {
+    const diagnostic = { code: "CPO_INTAKE_ACTION_FAILED", confirmed, requestObserved, pageClosed: page.isClosed() };
+    if (!page.isClosed()) {
+      diagnostic.saveCount = await save.count();
+      diagnostic.saveEnabled = diagnostic.saveCount === 1 && await save.isEnabled();
+      diagnostic.scenarioSelected = await page.getByRole("button", { name: "погребение", exact: true }).getAttribute("data-active") === "true";
+      diagnostic.confirmationPresent = await page.getByLabel("Подтверждаю исправление сценария").count() === 1;
+      diagnostic.errorVisible = await page.getByRole("alert").count() > 0;
+    }
+    console.log(JSON.stringify(diagnostic));
+    throw error;
+  } finally { page.off("request", onRequest); }
 }
 
 async function assertCeremony(page, leadId, ceremony) {

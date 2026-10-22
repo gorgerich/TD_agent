@@ -331,6 +331,12 @@ jobs:
       - name: Show server diagnostics after an E2E failure
         if: failure()
         run: test ! -f /tmp/td-agent-next.log || tail -n 200 /tmp/td-agent-next.log
+      - name: Cleanup isolated M1 RBAC Hardening browser UAT fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
+            npx tsx tests/e2e/m2-fixture.ts cleanup
+          fi
       - name: Cleanup isolated CPO repair browser fixture
         if: always()
         run: |
@@ -349,12 +355,6 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/m1-uat-ready" ]; then
             npx tsx tests/e2e/m1-fixture.ts cleanup
-          fi
-      - name: Cleanup isolated M1 RBAC Hardening browser UAT fixture
-        if: always()
-        run: |
-          if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
-            npx tsx tests/e2e/m2-fixture.ts cleanup
           fi
       - name: Validate authoritative mission evidence
         run: npm run evidence:validate
