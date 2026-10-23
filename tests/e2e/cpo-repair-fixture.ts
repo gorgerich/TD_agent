@@ -51,7 +51,13 @@ async function verify() {
   const rows = await db.$queryRaw<Array<{ database: string; schema: string; readOnly: string }>>`
     SELECT current_database() AS database, current_schema() AS schema, current_setting('transaction_read_only') AS "readOnly"
   `;
-  if (rows.length !== 1 || rows[0].database !== target.database || rows[0].schema !== schema || rows[0].readOnly !== "off") throw new Error("Target identity mismatch");
+  if (rows.length !== 1 || rows[0].database !== target.database || rows[0].schema !== schema || rows[0].readOnly !== "off") {
+    process.stderr.write(`${JSON.stringify({ code: "CPO_TARGET_IDENTITY_MISMATCH", rowCount: rows.length,
+      databaseMatches: rows.length === 1 && rows[0].database === target.database,
+      schemaMatches: rows.length === 1 && rows[0].schema === schema,
+      writable: rows.length === 1 && rows[0].readOnly === "off" })}\n`);
+    throw new Error("Target identity mismatch");
+  }
   const namespaces = [m3UatNamespace(runId), { label: "CPO extension", organizationIds: [], userEmails: [ownerEmail] }];
   if (process.env.M1_UAT_RUN_ID) namespaces.push(m1UatNamespace(process.env.M1_UAT_RUN_ID));
   if (process.env.M2_UAT_RUN_ID) namespaces.push(m2UatNamespace(process.env.M2_UAT_RUN_ID));

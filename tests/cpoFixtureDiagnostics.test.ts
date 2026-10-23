@@ -127,3 +127,28 @@ test("Finance navigation failure diagnostics preserve rejection without exposing
     assert.equal(output.includes(secret), false);
   }
 });
+
+test("CPO target identity guard refuses every mismatch and emits only comparison flags", async () => {
+  const source = readFileSync("tests/e2e/cpo-repair-fixture.ts", "utf8");
+  const start = source.indexOf("  if (rows.length !== 1 || rows[0].database");
+  const end = source.indexOf("\n  const namespaces", start);
+  assert.ok(start >= 0 && end > start);
+  const secret = "explicit-unit-only-unknown-target";
+  for (const sample of [
+    { rows: [], databaseMatches: false, schemaMatches: false, writable: false },
+    { rows: [{ database: secret, schema: "unit", readOnly: "off" }], databaseMatches: false, schemaMatches: true, writable: true },
+    { rows: [{ database: "unit", schema: secret, readOnly: "off" }], databaseMatches: true, schemaMatches: false, writable: true },
+    { rows: [{ database: "unit", schema: "unit", readOnly: "on" }], databaseMatches: true, schemaMatches: true, writable: false },
+  ]) {
+    let output = "";
+    assert.throws(() => runInNewContext(source.slice(start, end), { rows: sample.rows,
+      target: { database: "unit" }, schema: "unit", process: { stderr: { write: (text: string) => { output += text; } } },
+    }), /Target identity mismatch/);
+    assert.deepEqual(JSON.parse(output), { code: "CPO_TARGET_IDENTITY_MISMATCH", rowCount: sample.rows.length,
+      databaseMatches: sample.databaseMatches, schemaMatches: sample.schemaMatches, writable: sample.writable });
+    assert.equal(output.includes(secret), false);
+  }
+  runInNewContext(source.slice(start, end), { rows: [{ database: "unit", schema: "unit", readOnly: "off" }],
+    target: { database: "unit" }, schema: "unit", process: { stderr: { write: () => assert.fail("Valid target must not report mismatch") } },
+  });
+});

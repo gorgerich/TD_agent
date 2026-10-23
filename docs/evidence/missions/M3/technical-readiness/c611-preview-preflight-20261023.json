@@ -1,0 +1,59 @@
+{
+  "sourceSha": "c6112aef978b6129b46df88b1ae914b150249b70",
+  "deployment": {
+    "id": "dpl_2vzKhH1TdHkWuNmYftfmdZAbgufV",
+    "sha": "c6112aef978b6129b46df88b1ae914b150249b70",
+    "base": "https://td-agent-o1h7dgwhv-rics-projects-9baa2793.vercel.app",
+    "branch": "fix/m3-cpo-audit-repair"
+  },
+  "fingerprint": "545a187f9e9d66b0",
+  "schema": "m3_cpo_repair_1792751458819_c347c169",
+  "status": "STOP",
+  "phase": "cpo-base-fixture",
+  "stages": [
+    {
+      "label": "migration",
+      "exit": 0
+    },
+    {
+      "label": "noop",
+      "exit": 0
+    },
+    {
+      "label": "parity",
+      "exit": 0
+    },
+    {
+      "label": "m2-fixture",
+      "exit": 0
+    },
+    {
+      "label": "m3-fixture",
+      "exit": 0
+    },
+    {
+      "label": "cpo-base-fixture",
+      "exit": 1
+    }
+  ],
+  "diagnostic": {
+    "stage": "verify-target-identity",
+    "code": "FIXTURE_FAILED",
+    "mismatchField": "UNKNOWN",
+    "laterReadOnlyFreshConnections": 5,
+    "subsequentIdentityChecks": "MATCH"
+  },
+  "browserUat": "NOT_EXECUTED_AFTER_PREFLIGHT_FAILURE",
+  "cleanup": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+  "activeAccessAfterContainment": {
+    "users": 0,
+    "memberships": 0,
+    "links": 0,
+    "staffRecovery": 0,
+    "platformInvites": 0,
+    "organizationInvites": 0
+  },
+  "retainedUsers": 12,
+  "credentialsExist": false,
+  "productionChanged": false
+}
