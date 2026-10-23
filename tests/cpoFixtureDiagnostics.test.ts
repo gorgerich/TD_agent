@@ -102,6 +102,41 @@ test("first ADMIN forwarding diagnostics never expose request keys, payload or t
   }
 });
 
+test("Finance navigation counter is initialized before the real first payment invocation", async () => {
+  const source = readFileSync("tests/e2e/m3-fulfilment.mjs", "utf8");
+  const declaration = "let paymentNavigationAttempt = 0;";
+  const initialization = source.indexOf(declaration);
+  const call = source.indexOf("  await recordPayment(page, cases.cremation.publicRef,");
+  const start = source.indexOf("async function recordPayment(");
+  const end = source.indexOf("\n  const row = obligationRow", start);
+  assert.ok(initialization >= 0 && call >= 0 && start > call && end > start);
+  const invocation = source.slice(call, source.indexOf("\n", call));
+  const navigation = `${source.slice(start, end)}\n}`;
+  const error = new Error("explicit-unit-only-navigation-failure");
+  for (const originalOrder of [true, false]) {
+    let calls = 0;
+    let output = "";
+    const statements = originalOrder
+      ? [{ at: initialization, text: declaration }, { at: call, text: invocation }].sort((a, b) => a.at - b.at).map(item => item.text).join("\n")
+      : `${invocation}\n${declaration}`;
+    const execution = runInNewContext(`(async () => {\n${statements}\n${navigation}\n})()`, {
+      URL, baseUrl: "https://unit.invalid", cases: { cremation: { publicRef: "synthetic" } },
+      page: { goto: async () => { calls++; throw error; }, isClosed: () => false,
+        url: () => "https://unit.invalid/agent/finance" },
+      process: { stderr: { write: (text: string) => { output += text; } } },
+    });
+    if (originalOrder) {
+      await assert.rejects(execution, (failure: unknown) => failure === error);
+      assert.equal(calls, 1);
+      assert.equal(JSON.parse(output).attempt, 1);
+    } else {
+      await assert.rejects(execution, (failure: unknown) => (failure as Error).name === "ReferenceError");
+      assert.equal(calls, 0);
+      assert.equal(output, "");
+    }
+  }
+});
+
 test("Finance navigation failure diagnostics preserve rejection without exposing error messages or URLs", async () => {
   const source = readFileSync("tests/e2e/m3-fulfilment.mjs", "utf8");
   const start = source.indexOf("  const attempt = ++paymentNavigationAttempt;");

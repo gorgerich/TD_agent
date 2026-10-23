@@ -74,6 +74,7 @@ const unexpected5xx = [];
 const injectedProjectionFailures = new Set();
 let observedInjectedProjectionFailures = 0;
 let expectedStorageFailure = false;
+let paymentNavigationAttempt = 0;
 page.on("pageerror", (error) => pageErrors.push(error.message));
 page.on("response", (response) => {
   if (response.status() < 500) return;
@@ -381,7 +382,6 @@ async function completeContract(target, caseFixture, leadId) {
   return signed;
 }
 
-let paymentNavigationAttempt = 0;
 async function recordPayment(target, publicRef, rubles, reason, options = {}) {
   const attempt = ++paymentNavigationAttempt;
   try {
