@@ -1,8 +1,8 @@
 # Current CPO Registry: PR39
 
-Current source `da24768bb6026ba02774e92232059ae3da06fc92`; base91ae; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact actual Preview `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`, isolated fp545a187f9e9d66b0, both M3 journeys and affected admin/CPO flows PASS. [New actual receipt](technical-readiness/pr39-da-preview.json), [source CI](technical-readiness/pr39-da-source-ci.json), [full local gate](technical-readiness/pr39-da-local-gate.json).
+Current source `48eef7cd34b4cc2f9898dadf4506a32da8699962`; base91ae; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact actual Preview `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`, isolated fp545a187f9e9d66b0, both M3 journeys and affected admin/CPO flows PASS. [Actual receipt](technical-readiness/pr39-48-preview.json), [source CI](technical-readiness/pr39-48-source-ci.json), [full local gate](technical-readiness/pr39-48-local-gate.json).
 
-All original37 canonical findings below keep their original cross-map, source decisions and historical proofs. Their relevant regressions ran in current DA full CI/local/UAT; unchanged code was not implemented again. Two additional observed UI defects were repaired as follow-ups, not new product scope. No PR39 Production release or professional verdict is claimed.
+All original37 canonical findings below preserve their original cross-map, source decisions and historical proofs. Relevant regressions passed exact48 local/CI/UAT; unchanged code was not reimplemented. DA and intermediate candidate facts remain historical, not relabeled. No Production release or professional verdict is claimed.
 
 ## Historical Original 37-Finding Cross-Map
 
@@ -60,11 +60,17 @@ CPO33/34 session/actor CAS and CPO35 namespace regressions are source-reviewed a
 | --- | --- | --- |
 | CPO-38 | Finance195CSSpx status/money clipped inside cards despite bodyoverflow0 | FIXED_SOURCE_DA; actual old-layout red/new-layout green real-component regression; new deployed M3 text/clipping-ancestor assertions and fresh visually inspected captures PASS |
 | CPO-39 | Role metric omitted FINANCE/DOCUMENT_REVIEWER and included suspended organizations | FIXED_SOURCE_DA; common ACTIVE org population/all5 generated roles; actual SSR unit covers excluded memberships/orgs and authorization-first; fresh platform screenshot inspected |
-| OPS-SCANNER | No approved connected Production provider | EXTERNAL_DECISION; fail-closed boundary tested, real provider acceptance absent; [one costed recommendation](technical-readiness/scanner-decision.md) |
+| OPS-SCANNER | No implemented/connected Production provider or approved zero-incremental-cost host | EXTERNAL_DECISION; real ClamAV feasibility is not service readiness. No extra spending authorized; historical$55 recommendationREJECTED. [Current resource facts](technical-readiness/real-production-scope-20261020.md) |
 | OPS-CRON | Actual scheduled dispatch/outcome unobserved | AWAITING_OBSERVATION; no manual invocation substituted; read-only monitor active, one-hour provider logs required |
-| OPS-DEPS | Original runtime advisory fix plus remaining tooling advisories | CANDIDATE_RUNTIME_RESOLVED; runtime audit0; full dev graph21, all package/advisory/path/trace scope recorded in [assessment](technical-readiness/dependency-assessment-da.json); owner gorgerich, due2026-10-24 or before broad rollout; not a clean full audit |
+| OPS-DEPS | Fresh Next advisories and original tooling advisory | CLOSED_CANDIDATE_48; Next/eslint16.4.2, Sharp0.35.5; actual runtime/full audit0. Braces advisory withdrawn upstream2026-10-23, not patched. [Current assessment](technical-readiness/dependency-assessment-20261023.json); historical counts retained in archive; NOT deployed |
 | OPS-PROTECTION | Earlier main enforcement concern | CLOSED_CONFIGURATION; live strict verify app15368/admin enforcement/1 genuine review/last-push approval/stale dismissal/conversation/force+delete disabled confirmed; genuine eligible PR approval still required |
-| OPS-RELEASE | Final evidence CI / native14 preflight / release | PENDING; no protected merge, Production migration/deployment/smoke or new global customer digest claimed |
+| OPS-RELEASE | Final evidence CI / native17-migration preflight / release | PENDING; no protected merge, Production migration/deployment/smoke or new global customer digest claimed |
 | HUMAN | Finance / Legal-Privacy / Ritual SME | PENDING; no registered genuine verdict/signature, full rollout CLOSED; [consolidated packet](technical-readiness/human-decisions.md) |
 
 The original historical final paragraph above records its original interval. This current table supersedes its operational status only: main protection is now enforced; runtime dependencies are repaired in the candidate, not yet Production; scanner and actual scheduled cron remain open. A source/unit/Preview PASS does not close those external gates. CPO_FINAL_REVIEW_CANDIDATE remains NOT_READY; do not send the prior release as a completed new candidate.
+
+## October23 Exact48 Follow-Up
+
+New source defects from the continuation: publication deadline/P2028 under80ms RTT, generic Case-publication forgery and Finance E2E counter TDZ are FIXED with actual regression/rollback/replay/negative controls. New Next advisories patched in9f70675, counter repair in48eef7c. Exact48 local/CI core tests and native M2/M3/CPO PASS; reconciliation0/5xx0/skip0, independent cumulative P0/P1/P2=0. Final evidence-head overallCI remains separate. No old UAT is relabeled; [DA root archive](historical/pr39-da-packet-20261023/README.md) preserves predecessor facts.
+
+Real-production scope supersedes synthetic-only release. OPS-SCANNER/OPS-CRON/OPS-RELEASE and HUMAN remain explicitly incomplete. Main protection is enforced; ordinary required GitHub approval remains mandatory. No Production merge/write/release, no NOX/M4.

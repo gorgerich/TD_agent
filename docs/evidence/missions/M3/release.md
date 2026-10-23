@@ -1,23 +1,21 @@
-# PR39 Release Boundary
+# M3 Real Production Release Boundary
 
-Mission state: `BLOCKED_HUMAN_JUDGMENT` for full agent rollout. PR39 technical-readiness/release remains BLOCKED_AUTHORITY with external/operational prerequisites; NOT a completed CPO final-review candidate.
+Mission state: `BLOCKED_HUMAN_JUDGMENT`. Technical readiness: BLOCKED_SAFETY; final CPO review candidateNOT_READY. Conditional owner authorization exists, but its mandatory conditions are unsatisfied. No real rollout or new CPO handoff.
 
-Runtime `da24768bb6026ba02774e92232059ae3da06fc92`, base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`, [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact [Preview](https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app), deployment `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`, isolated Railway fingerprint `545a187f9e9d66b0`, owned schema `m3_cpo_repair_1792434976131_9c13601a`, private Blob `store_Ov8erHstuvfJ52Og`.
+Runtime `48eef7cd34b4cc2f9898dadf4506a32da8699962`, base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`, [PR39](https://github.com/gorgerich/TD_agent/pull/39). [Exact Preview](https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app), deployment `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`, isolated Railway fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792775433611_04dc5b99`, private Blob `store_Ov8erHstuvfJ52Og`.
 
-## Completed Candidate Proof
+## Completed Candidate Evidence
 
-Source CI39303713274 technical gates PASS; overall FAIL only stale evidence. Full local single run262 unit/183 PG/all6 E2E/build/auth/components/migration/actual synthetic restore PASS. Exact DA Preview three affected programs PASS, both M3 scenarios, reconciliation0/5xx0; access contained. Source independent review P0/P1/P2=0. Final evidence-head CI remains separately required before merge; no false green check/status posted.
+Exact48 full local lint/typecheck/build,294unit,207PG/29files,6E2E/auth/7components,17migrations/no-op/parity/legacy and actual AES25658-table synthetic restore PASS; cleanupPASS. Exact native M2/M3/CPO PASS, reconciliation0/5xx0/skip0; access contained. Independent cumulative source review P0/P1/P2=0. SourceCI39992539885 technicalPASS, overallFAIL solely stale evidence. Final docs-only evidence-head CI is separately required; executable tree must remain equal48.
 
-## Still Required Before Release
+## Actual Remaining Gates
 
-1. Owner operating-budget decision for actual resident scanner provider, then real synthetic acceptance/load/update/health/recovery and application verification. No paid resource or new processor created.
-2. Actual provider-correlated scheduled retention dispatch/outcome proof. Quiet read-only monitor retained; no manual invocation substituted. One-hour logs from missed windows cannot be reconstructed as PASS.
-3. Exact evidence-head required CI PASS and genuine eligible GitHub engineering approval under enforced protection. No bypass or author self-approval.
-4. Fresh reviewed native schema14 release plan, target025 fingerprint/current rollback/freeze/config proof, encrypted Production backup with actual isolated restore and migration rehearsal, old-app/new-schema compatibility, no-op/parity and customer-scoped baseline. Historical13-migration runner/backup is not reused blindly. Agent will not retry denied Production credential/provisioning operations through another tool.
-5. Only after those gates: reviewed migration ordering before automatic new runtime, protected merge/main CI/exact READY deployment, bounded existing CPO organization smoke/reconciliation/containment, rollback on failure and exact final freeze verification.
+1. No approved zero-incremental-cost, commercially permitted Production scanner hosting/provider is established. No additional spending authorized; the historical$55 proposal is rejected. Complete actual production-safe implementation and seven-case acceptance, update/reload/health/load/monitoring after the infrastructure decision, not a synthetic substitute.
+2. Actual scheduled retention execution remains unproved. Read-only monitor uses fresh provider request/runtime records within the one-hour retention at03UTC; no manual endpoint call or health-row proof.
+3. Three genuine qualified Finance/Legal-Privacy/Ritual verdicts and trusted credentials remain PENDING/NOT_REGISTERED. Existing test policies/signatures do not authorize real records. [Consolidated packet](technical-readiness/human-decisions.md).
+4. Final requiredCI and eligible genuine GitHub approval under enforced main protection, fresh native actual-migration inventory/drift/config/freeze/025fingerprint, encrypted Production backup/isolated restore, reviewed17-migration reconciliation/compatibility/order and exact rollback target/customer baseline. No old runner blindly reused or denied credential operation retried through another tool.
+5. Only after all conditions: reviewed additive migration ordering, protected merge/mainCI/exact READY deployment, controlled synthetic smoke through actual Production adapters, data baseline/reconciliation, supported real-org activation and exact freeze final verification. Roll back compatible runtime/contain writes on failure; never blindly revert schema/history.
 
-No PR39 merge, Production migration/deployment/DB/env write or Production synthetic smoke performed. Latest actual read-only observation2026-10-20T08:44:43Z: main/runtime91ae, READY dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW, freeze exactdisabled, login200. See technical-readiness/production-read-only-20261020.json. This is not a fresh Production DB query or global customer baseline MATCH. Recheck again at an eventual release window.
+Production metadataOctober23 remains91ae/READY dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW. Freeze last actually verifieddisabledOctober20; current exact value not newly read or changed. Production URL https://td-agent.vercel.app remains the historical restricted runtime, NOT this candidate. Protected access unchanged. No new customer digestMATCH or released repair claimed.
 
-Production URL https://td-agent.vercel.app remains the earlier restricted CPO release, NOT this candidate. Existing protected local access is unchanged. Do not hand the current version to a new CPO audit as final technical readiness. M3 writes remain restricted to synthetic organization m3-cpo-audit-20260923, full rollout CLOSED, human verdicts PENDING, NOX excluded, M4 NOT_STARTED.
-
-[Historical predecessor packet](historical/pre-pr39-readiness-packet-20261020/README.md) preserves PR37 facts. [Consolidated decisions](technical-readiness/human-decisions.md) distinguish operating permission, normal GitHub approval and professional policy sign-offs.
+Production remains91ae on READY dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW. No PR39 Production DB/schema/env/deployment/freeze write, merge, smoke or fresh customer digest is claimed. Human verdicts remain PENDING; real rollout stays closed until all mandatory conditions. NOX excluded, M4 NOT_STARTED.

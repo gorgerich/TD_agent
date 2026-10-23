@@ -1,0 +1,196 @@
+{
+  "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+  "runId": 39992539885,
+  "jobId": 120547668354,
+  "url": "https://github.com/gorgerich/TD_agent/actions/runs/39992539885",
+  "overallConclusion": "failure",
+  "completeLog": true,
+  "logBytes": 1411613,
+  "counts": [
+    {
+      "suite": "units",
+      "tests": 294,
+      "pass": 294,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "summaries": 1
+    },
+    {
+      "suite": "latency",
+      "tests": 124,
+      "pass": 124,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "summaries": 7
+    },
+    {
+      "suite": "integration",
+      "tests": 207,
+      "pass": 207,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "summaries": 29
+    },
+    {
+      "suite": "fiveRepeats",
+      "tests": 575,
+      "pass": 575,
+      "fail": 0,
+      "skipped": 0,
+      "cancelled": 0,
+      "summaries": 70
+    }
+  ],
+  "failedSteps": [
+    "Validate authoritative mission evidence"
+  ],
+  "technicalSteps": [
+    {
+      "name": "Verify patch formatting",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run actions/setup-node@v4",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run npm ci",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify Week 2 and M1 legacy backfill fixtures",
+      "conclusion": "success"
+    },
+    {
+      "name": "Configure SSI predicate lock granularity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Apply migrations to isolated test database",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify repeated migration deploy is a no-op",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify migration/schema parity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Lint",
+      "conclusion": "success"
+    },
+    {
+      "name": "Typecheck",
+      "conclusion": "success"
+    },
+    {
+      "name": "Unit tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "M3 intake deadline regression with 80ms network round-trip delay",
+      "conclusion": "success"
+    },
+    {
+      "name": "Integration tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "Repeat M3 concurrency and policy gates five times",
+      "conclusion": "success"
+    },
+    {
+      "name": "Provision isolated M1 browser UAT fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Provision isolated M1 RBAC Hardening browser UAT fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Provision isolated M3 browser UAT fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Provision isolated CPO repair browser fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify encrypted production-like backup and real restore",
+      "conclusion": "success"
+    },
+    {
+      "name": "Production build",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run npx playwright install --with-deps chromium",
+      "conclusion": "success"
+    },
+    {
+      "name": "Start production server",
+      "conclusion": "success"
+    },
+    {
+      "name": "Wait for server",
+      "conclusion": "success"
+    },
+    {
+      "name": "End-to-end tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "Auth infrastructure failure and recovery browser regression",
+      "conclusion": "success"
+    },
+    {
+      "name": "Document component browser regressions",
+      "conclusion": "success"
+    }
+  ],
+  "cleanupSteps": [
+    {
+      "name": "Cleanup isolated M1 RBAC Hardening browser UAT fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Cleanup isolated CPO repair browser fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Cleanup isolated M3 browser UAT fixture",
+      "conclusion": "success"
+    },
+    {
+      "name": "Cleanup isolated M1 browser UAT fixture",
+      "conclusion": "success"
+    }
+  ],
+  "cleanupCleanMarkers": 4,
+  "evidenceFailure": {
+    "message": "M3: implementationSha da24768bb6026ba02774e92232059ae3da06fc92 has source changes relative to HEAD",
+    "exitCode": 1
+  },
+  "limits": [
+    "This is exact-source CI technical execution, not overall CI PASS.",
+    "Native Preview CPO was still running when requested and was not inspected.",
+    "No Production/scanner/cron/human acceptance inferred.",
+    "Raw logs retained privately in memory; receipt contains no credentials or raw logs."
+  ],
+  "browser": {
+    "endToEndPrograms": 6,
+    "allEndToEndProgramsPassed": true,
+    "authInfrastructureFailureRecovery": "PASS",
+    "componentPrograms": 7,
+    "allComponentProgramsPassed": true,
+    "staffRecovery": "PASS_SYNTHETIC_TRANSPORT_MASKED",
+    "primaryFontControls": 3
+  },
+  "encryptedLocalRestore": "PASS_AGGREGATE_COUNTS_AND_SCHEMA_PARITY",
+  "sourceShaPresentInCheckoutLog": true
+}

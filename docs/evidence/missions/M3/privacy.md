@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: legalPrivacy
-preview_url: https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai
-deployment_sha: da24768bb6026ba02774e92232059ae3da06fc92
-implementation_sha: da24768bb6026ba02774e92232059ae3da06fc92
+preview_url: https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_HszboxTiE1dYJu5dgrBUTciaQ126
+deployment_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
+implementation_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,12 +15,12 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-PR39 / base91ae technical candidate. Actual DA Preview journeys passed on 2026-10-19; synthetic access was then revoked. This packet is prepared factual input, NOT a professional verdict. No PR39 Production release occurred. Historical releases and failed attempts remain in their original receipts. Re-admit only scoped synthetic access through an approved reviewed mechanism when a real reviewer is scheduled.
+PR39 / base91ae technical candidate. Actual exact48 Preview journeys passed on 2026-10-23; synthetic access was then revoked. This packet is prepared factual input, NOT a professional verdict. No PR39 Production release occurred. Historical releases and failed attempts remain in their original receipts. Re-admit only scoped synthetic access through an approved reviewed mechanism when a real reviewer is scheduled.
 
 
-- Exact Preview: `https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai`
-- Implementation: `da24768bb6026ba02774e92232059ae3da06fc92`
+- Exact Preview: `https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`
+- Implementation: `48eef7cd34b4cc2f9898dadf4506a32da8699962`
 - Case-party contacts use the existing encrypted adapter and stable role assignments.
 - Document storage is private, server-authorized, audited, and short lived; permanent URLs are absent.
 - Upload is quarantined and is never represented as verified.
