@@ -10,7 +10,8 @@ assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(source.hostname), "Latenc
 const roundTripMs = Number(process.argv[2] ?? 80);
 assert.ok(Number.isInteger(roundTripMs) && roundTripMs >= 80 && roundTripMs <= 200);
 const testFile = process.argv[3] ?? "tests/integration/m3IntakePerformance.itest.ts";
-assert.ok(["tests/integration/m3IntakePerformance.itest.ts", "tests/integration/m3PolicyActivation.itest.ts"].includes(testFile));
+assert.ok(["tests/integration/m3IntakePerformance.itest.ts", "tests/integration/m3PolicyActivation.itest.ts",
+  "tests/integration/commercialPublishPerformance.itest.ts"].includes(testFile));
 const sockets = new Set();
 const eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
 eventLoopDelay.enable();

@@ -493,3 +493,50 @@ test("Week 2 tenant isolation: another agent cannot transition case", opts, asyn
   });
   assert.equal(response.status, 404);
 });
+
+test("publication loader preserves version ownership, tenant scope and republish guards", opts, async () => {
+  const owner = await fixtures.makeAgent("publication-owner");
+  const teammate = await fixtures.makeMember("publication-teammate", { organizationId: owner.organizationId, role: "AGENT" });
+  const foreign = await fixtures.makeAgent("publication-foreign");
+  const record = await fixtures.makeCase(owner, "publication-target");
+  const sibling = await fixtures.makeCase(owner, "publication-sibling");
+  await db.case.update({ where: { id: record.id }, data: { stage: "QUOTING", scenarioId: "CREMATION_V1" } });
+  let meetingNumber = 0;
+  const versionFor = async (caseId: string, leadId: number) => {
+    const meeting = await db.meeting.create({ data: { leadId, agentId: owner.agentId,
+      organizationId: owner.organizationId, caseId, ownerMembershipId: owner.membershipId,
+      idempotencyKey: `${fixtures.runId}:publication:meeting:${++meetingNumber}` } });
+    // Legacy quotes are still related through their meeting, without canonical Quote.caseId.
+    const quote = await db.quote.create({ data: { meetingId: meeting.id } });
+    return db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000 } });
+  };
+  const owned = await versionFor(record.id, record.leadId);
+  const other = await versionFor(sibling.id, sibling.leadId);
+  const ownerCookie = await sessionCookieHeader(owner.userId, owner.agentId);
+  const invoke = (eventType: string, versionId: number, key: string, cookie = ownerCookie) => command({
+    leadId: record.leadId, cookie, eventType, key: `${fixtures.runId}:publication:${key}`, payload: { quoteVersionId: versionId },
+  });
+  const original = await db.case.findUniqueOrThrow({ where: { id: record.id } });
+  assert.equal((await invoke("quote.published.v1", other.id, "foreign-version")).status, 422);
+  for (const actor of [teammate, foreign]) {
+    assert.equal((await invoke("quote.published.v1", owned.id, actor.membershipId,
+      await sessionCookieHeader(actor.userId, actor.agentId))).status, 404);
+  }
+  assert.deepEqual(await db.case.findUniqueOrThrow({ where: { id: record.id } }), original);
+  assert.equal(await db.caseEvent.count({ where: { caseId: record.id } }), 0);
+  assert.equal((await invoke("quote.published.v1", owned.id, "original")).status, 200);
+  const replacement = await versionFor(record.id, record.leadId);
+  assert.equal((await invoke("quote.republished.v1", other.id, "foreign-republish")).status, 422);
+  const first = await invoke("quote.republished.v1", replacement.id, "republish");
+  assert.equal(first.status, 200);
+  const result = await first.json();
+  const replay = await invoke("quote.republished.v1", replacement.id, "republish");
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { ...result, replayed: true });
+  const current = await db.case.findUniqueOrThrow({ where: { id: record.id } });
+  assert.equal(current.stage, "AGREEMENT");
+  assert.equal(current.publishedQuoteVersionId, replacement.id);
+  assert.equal(current.version, original.version + 2);
+  assert.equal(await db.caseEvent.count({ where: { caseId: record.id } }), 2);
+  assert.equal(await db.projectionReceipt.count({ where: { organizationId: owner.organizationId } }), 2);
+});

@@ -322,7 +322,7 @@ export async function transitionCaseInTransaction(
   ) {
     await lockDocumentRequirementPolicyScenario(tx, tenantId, input.payload.scenarioId);
   }
-  const state = await loadTransitionState(tx, input);
+  const state = await loadTransitionState(tx, input, lockedCaseId);
   return applyLockedCaseTransition(tx, input, state);
 }
 
@@ -572,8 +572,28 @@ function intakeTransitionFacts(aggregate: NonNullable<Awaited<ReturnType<typeof 
 async function loadTransitionState(
   tx: Prisma.TransactionClient,
   input: { leadId: number; eventType: CaseTransitionEvent; context: CaseCommandContext },
+  lockedCase: Case,
 ) {
   const { organizationId, agentId } = input.context;
+  // Publication consumes only version ownership; document/ledger guards belong
+  // to later transitions. Reuse the Case already locked by this command.
+  if (input.eventType === "quote.published.v1" || input.eventType === "quote.republished.v1") {
+    const versions = await tx.quoteVersion.findMany({
+      where: { quote: { meeting: { leadId: input.leadId } } },
+      select: { id: true },
+    });
+    const facts: CaseTransitionFacts = {
+      intakeComplete: false,
+      availableQuoteVersionIds: versions.map((version) => version.id),
+      publishedQuoteVersionId: lockedCase.publishedQuoteVersionId,
+      contractSigned: false,
+      paymentSatisfied: false,
+      documentsReadyForExecution: false,
+      documentsReadyForClosure: false,
+      guardState: normalizedGuardState(lockedCase.guardState),
+    };
+    return { aggregate: lockedCase, facts };
+  }
   // Initial stages cannot consume contract, payment or document truth. Do not
   // load those relation trees just to validate name/phone/deceased intake.
   if (input.eventType === "intake.completed.v1" || input.eventType === "scenario.selected.v1") {

@@ -125,6 +125,7 @@ jobs:
             node scripts/test-m3-intake-latency.mjs 80
           done
           node scripts/test-m3-intake-latency.mjs 80 tests/integration/m3PolicyActivation.itest.ts
+          node scripts/test-m3-intake-latency.mjs 80 tests/integration/commercialPublishPerformance.itest.ts
       - name: Integration tests
         run: npm run test:integration
       - name: Repeat M3 concurrency and policy gates five times
@@ -145,6 +146,7 @@ jobs:
               tests/integration/cpoMfaEnrollment.itest.ts \
               tests/integration/cpoSessionRevocation.itest.ts \
               tests/integration/commercialQuotes.itest.ts \
+              tests/integration/commercialPublishIdempotency.itest.ts \
               tests/integration/cpoScenarioCorrection.itest.ts
           done
       - name: Provision isolated M1 browser UAT fixture
