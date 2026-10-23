@@ -381,8 +381,18 @@ async function completeContract(target, caseFixture, leadId) {
   return signed;
 }
 
+let paymentNavigationAttempt = 0;
 async function recordPayment(target, publicRef, rubles, reason, options = {}) {
-  await target.goto(`${baseUrl}/agent/finance`, { waitUntil: "networkidle" });
+  const attempt = ++paymentNavigationAttempt;
+  try {
+    await target.goto(`${baseUrl}/agent/finance`, { waitUntil: "networkidle" });
+  } catch (error) {
+    const message = typeof error?.message === "string" ? error.message : "";
+    process.stderr.write(`${JSON.stringify({ code: "E2E_M3_FINANCE_NAVIGATION_FAILED", attempt,
+      timeout: error?.name === "TimeoutError", aborted: /net::ERR_ABORTED/.test(message),
+      closed: target.isClosed(), atFinance: !target.isClosed() && new URL(target.url()).pathname === "/agent/finance" })}\n`);
+    throw error;
+  }
   const row = obligationRow(target, publicRef);
   const paymentButton = row.getByRole("button", { name: /Оплата|Записать оплату/ });
   await paymentButton.focus();

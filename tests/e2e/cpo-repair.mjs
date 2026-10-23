@@ -377,6 +377,12 @@ async function main() {
 
   const agent = await session();
   await login(agent.page, identities.agent, null, "/agent/cases");
+  assert.ok(Number.isSafeInteger(fixture.publication?.quoteVersionId) && fixture.publication.quoteVersionId > 0);
+  for (const eventType of ["quote.published.v1", "quote.republished.v1"]) {
+    assert.equal((await command(agent.context, `/api/agent/cases/${fixture.cases.published.leadId}/transition`, "POST", {
+      eventType, payload: { quoteVersionId: fixture.publication.quoteVersionId },
+    })).status(), 422, "Publication must use its canonical command, never the generic Case API");
+  }
   assert.equal((await command(agent.context, firstAdminPath, "POST", bootstrapBody)).status(), 403);
   await assertCeremony(agent.page, fixture.cases.safe.leadId, "кремация");
   await assertDocuments(agent.page, false);
@@ -460,7 +466,7 @@ async function main() {
   await observeLegacyPromise(owner.page.waitForURL((url) => url.pathname === "/agent/login"));
   assert.deepEqual(failures, []);
   await asyncScope.settle();
-  process.stdout.write(`${JSON.stringify({ firstAdmin: "PASS", lostResponseReplay: "PASS", invites: 3, scenarioCorrection: "PASS", publicationGuard: "PASS", permissions: "PASS",
+  process.stdout.write(`${JSON.stringify({ firstAdmin: "PASS", lostResponseReplay: "PASS", invites: 3, scenarioCorrection: "PASS", publicationGuard: "PASS", genericCasePublicationDenied: "PASS", permissions: "PASS",
     sessionFailureFeedback: "PASS_MOCKED_UI_ONLY_409_503", logout: "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT", firstAdminUi, skipped: 0 })}\n`);
 }
 

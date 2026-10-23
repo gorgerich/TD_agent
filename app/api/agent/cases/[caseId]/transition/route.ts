@@ -28,6 +28,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cas
   if (!parsed.success) return NextResponse.json({ error: "Неизвестная команда кейса" }, { status: 400 });
 
     assertCapability(session, "work:mutate-own");
+    if (parsed.data.eventType === "quote.published.v1" || parsed.data.eventType === "quote.republished.v1") {
+      return NextResponse.json({
+        error: "Публикуйте смету через проверку состава и цен",
+        code: "CANONICAL_PUBLICATION_REQUIRED",
+      }, { status: 422 });
+    }
     const result = await transitionCase({
       leadId: parseId((await params).caseId, "caseId"),
       eventType: parsed.data.eventType,

@@ -5,7 +5,8 @@ import { POST as leadsPost } from "../../app/api/agent/leads/route";
 import { POST as transitionPost } from "../../app/api/agent/cases/[caseId]/transition/route";
 import { PATCH as intakePatch } from "../../app/api/agent/cases/[caseId]/intake/route";
 import { reconcileCaseState } from "../../lib/caseReconciliation";
-import { SCENARIO_CLOSURE_GUARDS } from "../../lib/caseDomain";
+import { CaseDomainError, SCENARIO_CLOSURE_GUARDS } from "../../lib/caseDomain";
+import { transitionCaseInTransaction } from "../../lib/caseService";
 import { getCanonicalCase, getCanonicalCases } from "../../lib/caseReadModel";
 import { createCaseParty } from "../../lib/casePartyService";
 import {
@@ -325,7 +326,11 @@ test("W2-13/AC-W2-06: full allowed chain persists audit events and reconciles to
   });
   await db.quote.update({ where: { id: quote.id }, data: { latestPublishedVersionId: version.id } });
   await db.quoteClientDecision.create({ data: { quoteVersionId: version.id, type: "ACCEPTED", source: "SYNTHETIC_TEST_ONLY", idempotencyKey: `it:chain:client-accept:${leadId}`, correlationId: `it:chain:client-accept:${leadId}` } });
-  assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.published.v1", key: "it:chain:publish", payload: { quoteVersionId: version.id } })).status, 200);
+  const publication = await db.$transaction(tx => transitionCaseInTransaction(tx, {
+    leadId, eventType: "quote.published.v1", payload: { quoteVersionId: version.id },
+    context: { ...fixture.context, actorId: fixture.agentId, idempotencyKey: "it:chain:publish", correlationId: "it:chain" },
+  }));
+  assert.equal(publication.stage, "AGREEMENT");
   assert.equal((await command({ leadId, cookie: fixture.cookie, eventType: "quote.accepted.v1", key: "it:chain:accept", payload: { quoteVersionId: version.id } })).status, 200);
 
   await materializeCaseRequirements(fixture.context, fixture.lead.caseId, {
@@ -508,35 +513,74 @@ test("publication loader preserves version ownership, tenant scope and republish
       idempotencyKey: `${fixtures.runId}:publication:meeting:${++meetingNumber}` } });
     // Legacy quotes are still related through their meeting, without canonical Quote.caseId.
     const quote = await db.quote.create({ data: { meetingId: meeting.id } });
-    return db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000 } });
+    return db.quoteVersion.create({ data: { quoteId: quote.id, payload: "{}", total: 100_000,
+      state: "PUBLISHED", totalState: "KNOWN", subtotal: 100_000, discountTotal: 0, versionNumber: 1,
+      snapshotChecksum: "b".repeat(64), publishedAt: new Date(), publishedByMembershipId: owner.membershipId,
+      validUntil: new Date(Date.now() + 86_400_000), publishReason: "Synthetic internal publication guard" } });
   };
   const owned = await versionFor(record.id, record.leadId);
   const other = await versionFor(sibling.id, sibling.leadId);
-  const ownerCookie = await sessionCookieHeader(owner.userId, owner.agentId);
-  const invoke = (eventType: string, versionId: number, key: string, cookie = ownerCookie) => command({
-    leadId: record.leadId, cookie, eventType, key: `${fixtures.runId}:publication:${key}`, payload: { quoteVersionId: versionId },
-  });
+  const invoke = (eventType: "quote.published.v1" | "quote.republished.v1", versionId: number, key: string, context = owner.context) => db.$transaction(tx => transitionCaseInTransaction(tx, {
+    leadId: record.leadId, eventType, payload: { quoteVersionId: versionId },
+    context: { ...context, actorId: context.agentId, idempotencyKey: `${fixtures.runId}:publication:${key}`, correlationId: fixtures.runId },
+  }));
   const original = await db.case.findUniqueOrThrow({ where: { id: record.id } });
-  assert.equal((await invoke("quote.published.v1", other.id, "foreign-version")).status, 422);
+  await assert.rejects(invoke("quote.published.v1", other.id, "foreign-version"), error => error instanceof CaseDomainError && error.code === "GUARD_FAILED");
   for (const actor of [teammate, foreign]) {
-    assert.equal((await invoke("quote.published.v1", owned.id, actor.membershipId,
-      await sessionCookieHeader(actor.userId, actor.agentId))).status, 404);
+    await assert.rejects(invoke("quote.published.v1", owned.id, actor.membershipId, actor.context),
+      error => error instanceof CaseDomainError && error.code === "NOT_FOUND");
   }
   assert.deepEqual(await db.case.findUniqueOrThrow({ where: { id: record.id } }), original);
   assert.equal(await db.caseEvent.count({ where: { caseId: record.id } }), 0);
-  assert.equal((await invoke("quote.published.v1", owned.id, "original")).status, 200);
+  assert.equal((await invoke("quote.published.v1", owned.id, "original")).stage, "AGREEMENT");
   const replacement = await versionFor(record.id, record.leadId);
-  assert.equal((await invoke("quote.republished.v1", other.id, "foreign-republish")).status, 422);
+  await assert.rejects(invoke("quote.republished.v1", other.id, "foreign-republish"), error => error instanceof CaseDomainError && error.code === "GUARD_FAILED");
   const first = await invoke("quote.republished.v1", replacement.id, "republish");
-  assert.equal(first.status, 200);
-  const result = await first.json();
+  assert.equal(first.stage, "AGREEMENT");
   const replay = await invoke("quote.republished.v1", replacement.id, "republish");
-  assert.equal(replay.status, 200);
-  assert.deepEqual(await replay.json(), { ...result, replayed: true });
+  assert.deepEqual(replay, { ...first, replayed: true });
   const current = await db.case.findUniqueOrThrow({ where: { id: record.id } });
   assert.equal(current.stage, "AGREEMENT");
   assert.equal(current.publishedQuoteVersionId, replacement.id);
   assert.equal(current.version, original.version + 2);
   assert.equal(await db.caseEvent.count({ where: { caseId: record.id } }), 2);
   assert.equal(await db.projectionReceipt.count({ where: { organizationId: owner.organizationId } }), 2);
+});
+
+test("generic Case API cannot forge publication of draft or incomplete versions", opts, async () => {
+  const owner = await fixtures.makeAgent("publication-boundary");
+  const cookie = await sessionCookieHeader(owner.userId, owner.agentId);
+  for (const state of ["DRAFT", "LEGACY_INCOMPLETE"] as const) {
+    for (const eventType of ["quote.published.v1", "quote.republished.v1"]) {
+      const key = `${fixtures.runId}:${state}:${eventType}`;
+      const record = await fixtures.makeCase(owner, `${state}-${eventType}`);
+      await db.case.update({ where: { id: record.id }, data: {
+        scenarioId: "CREMATION_V1", stage: eventType === "quote.published.v1" ? "QUOTING" : "AGREEMENT",
+      } });
+      const meeting = await db.meeting.create({ data: { leadId: record.leadId, agentId: owner.agentId,
+        organizationId: owner.organizationId, caseId: record.id, ownerMembershipId: owner.membershipId,
+        idempotencyKey: `${key}:meeting` } });
+      const quote = await db.quote.create({ data: { meetingId: meeting.id, organizationId: owner.organizationId,
+        caseId: record.id, ownerMembershipId: owner.membershipId } });
+      const version = await db.quoteVersion.create({ data: { quoteId: quote.id, state, payload: "{}", total: 100_000 } });
+      await db.task.create({ data: { leadId: record.leadId, agentId: owner.agentId,
+        organizationId: owner.organizationId, caseId: record.id, type: "QUOTE_SEND", title: "Synthetic publication boundary",
+        createdByMembershipId: owner.membershipId, assigneeMembershipId: owner.membershipId,
+        idempotencyKey: `${key}:task`, status: "OPEN" } });
+      const snapshot = async () => ({
+        record: await db.case.findUniqueOrThrow({ where: { id: record.id } }),
+        quote: await db.quote.findUniqueOrThrow({ where: { id: quote.id } }),
+        version: await db.quoteVersion.findUniqueOrThrow({ where: { id: version.id } }),
+        tasks: await db.task.findMany({ where: { caseId: record.id } }),
+        events: await db.caseEvent.findMany({ where: { caseId: record.id } }),
+        audits: await db.operationalAuditEvent.findMany({ where: { organizationId: owner.organizationId } }),
+        receipts: await db.projectionReceipt.findMany({ where: { organizationId: owner.organizationId } }),
+      });
+      const before = await snapshot();
+      const response = await command({ leadId: record.leadId, cookie, eventType, key, payload: { quoteVersionId: version.id } });
+      assert.equal(response.status, 422);
+      assert.equal((await response.json()).code, "CANONICAL_PUBLICATION_REQUIRED");
+      assert.deepEqual(await snapshot(), before);
+    }
+  }
 });

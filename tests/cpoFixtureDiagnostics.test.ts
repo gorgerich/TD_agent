@@ -101,3 +101,29 @@ test("first ADMIN forwarding diagnostics never expose request keys, payload or t
     assert.equal(output.includes(secret), false);
   }
 });
+
+test("Finance navigation failure diagnostics preserve rejection without exposing error messages or URLs", async () => {
+  const source = readFileSync("tests/e2e/m3-fulfilment.mjs", "utf8");
+  const start = source.indexOf("  const attempt = ++paymentNavigationAttempt;");
+  const end = source.indexOf("\n  const row = obligationRow", start);
+  assert.ok(start >= 0 && end > start);
+  const secret = "explicit-unit-only-private-navigation";
+  for (const sample of [
+    { error: Object.assign(new Error(secret), { name: "TimeoutError" }), timeout: true, aborted: false, closed: false },
+    { error: new Error(`net::ERR_ABORTED ${secret}`), timeout: false, aborted: true, closed: false },
+    { error: new Error(secret), timeout: false, aborted: false, closed: true },
+    { error: null, timeout: false, aborted: false, closed: false },
+  ]) {
+    let output = "";
+    const execution = runInNewContext(`(async () => {${source.slice(start, end)}\n})()`, {
+      URL, baseUrl: "https://unit.invalid", paymentNavigationAttempt: 0,
+      process: { stderr: { write: (text: string) => { output += text; } } },
+      target: { goto: async () => { throw sample.error; }, isClosed: () => sample.closed,
+        url: () => `https://unit.invalid/agent/finance?token=${secret}` },
+    });
+    await assert.rejects(execution, (error: unknown) => error === sample.error);
+    assert.deepEqual(JSON.parse(output), { code: "E2E_M3_FINANCE_NAVIGATION_FAILED", attempt: 1,
+      timeout: sample.timeout, aborted: sample.aborted, closed: sample.closed, atFinance: !sample.closed });
+    assert.equal(output.includes(secret), false);
+  }
+});
