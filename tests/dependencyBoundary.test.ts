@@ -9,6 +9,21 @@ import { assertProductionTraceBoundary, TOOLING_ONLY_PACKAGES } from "../scripts
 
 const require = createRequire(import.meta.url);
 
+test("Next runtime and lint configuration retain the reviewed security patch", () => {
+  const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+  for (const name of ["next", "eslint-config-next"]) {
+    const version = manifest.dependencies[name] ?? manifest.devDependencies[name];
+    assert.equal(version, "16.4.2", `${name} needs a renewed advisory assessment when changed`);
+    assert.equal(lock.packages[""].dependencies?.[name] ?? lock.packages[""].devDependencies?.[name], version);
+    assert.equal(lock.packages[`node_modules/${name}`].version, version);
+    const installedManifest = JSON.parse(readFileSync(path.join("node_modules", name, "package.json"), "utf8"));
+    assert.equal(installedManifest.version, version);
+  }
+  assert.equal(manifest.optionalDependencies.sharp, "0.35.5");
+  assert.equal(JSON.parse(readFileSync("node_modules/sharp/package.json", "utf8")).version, "0.35.5");
+});
+
 test("screenshot test dependency preserves Sharp runtime-optional native packages", () => {
   const manifest = JSON.parse(readFileSync("package.json", "utf8"));
   const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
