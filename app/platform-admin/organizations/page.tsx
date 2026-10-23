@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformAdmin } from "@/lib/platformAuth";
 import { PageHeader, formatDate } from "../page";
+import { OrganizationOnboardingControl } from "./OrganizationOnboardingControl";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
   return (
     <div className="mx-auto max-w-[1180px]">
       <PageHeader title="Организации" description="Структура агентств, состав ролей и состояние рабочего доступа." />
+      <OrganizationOnboardingControl />
       <form className="mt-6 flex flex-col gap-3 rounded-[12px] bg-white p-3 shadow-[0_1px_2px_rgba(13,47,42,0.08)] sm:flex-row">
         <input name="q" defaultValue={q} placeholder="Название или slug" aria-label="Поиск организаций" className="min-h-11 min-w-0 flex-1 rounded-[9px] bg-[#f3f5f4] px-3 text-[13px] outline-none focus:ring-2 focus:ring-[#176b5d]/25" />
         <select name="status" defaultValue={status} aria-label="Статус организации" className="min-h-11 rounded-[9px] bg-[#f3f5f4] px-3 text-[13px]">

@@ -1,0 +1,40 @@
+{
+  "observedAt": "2026-10-23T16:59:28Z",
+  "baseSha": "24e0e7338156e19afdf16999e000ed13a7a0c606",
+  "classification": "LOCAL_CANDIDATE_NOT_DEPLOYED",
+  "change": {
+    "next": { "before": "16.3.8", "after": "16.4.2" },
+    "eslint-config-next": { "before": "16.3.8", "after": "16.4.2" },
+    "sharp": { "before": "0.35.5", "after": "0.35.5", "runtimeOptionalNativeBoundary": "PRESERVED" },
+    "method": "Normal npm install; no audit fix, force or major downgrade"
+  },
+  "newNextAdvisories": [
+    { "id": "GHSA-2464-fhr4-w9xw", "url": "https://github.com/advisories/GHSA-2464-fhr4-w9xw", "fixedNextVersion": "16.4.1", "condition": "Image optimization on glibc Linux; upstream Sharp workaround already present in the candidate" },
+    { "id": "GHSA-p3m5-59mp-jv5r", "url": "https://github.com/advisories/GHSA-p3m5-59mp-jv5r", "fixedNextVersion": "16.4.1", "condition": "App Router with a Server Action; no use server directive found in app or lib during this assessment" },
+    { "id": "GHSA-673q-mjm6-r5xr", "url": "https://github.com/advisories/GHSA-673q-mjm6-r5xr", "fixedNextVersion": "16.4.1", "condition": "Cache Components use cache function returning multiple typed arrays; no such configured path established in this application" }
+  ],
+  "runtimeAudit": { "info": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0, "total": 0 },
+  "fullAudit": { "info": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0, "total": 0 },
+  "previousToolingAdvisory": {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "installedBraces": "3.0.3",
+    "installedDependencyPath": ["eslint-config-next@16.4.2", "@next/eslint-plugin-next@16.4.2", "fast-glob@3.3.1", "micromatch@4.0.8", "braces@3.0.3"],
+    "withdrawnAt": "2026-10-23T12:53:02Z",
+    "updatedAt": "2026-10-23T12:53:05Z",
+    "upstreamReason": "Not a practically exploitable vulnerability",
+    "resolution": "UPSTREAM_WITHDRAWN_NOT_A_BRACES_PATCH",
+    "existingTraceAndUntrustedGlobGuards": "RETAINED"
+  },
+  "targetedRegression": { "file": "tests/dependencyBoundary.test.ts", "tests": 4, "passed": 4, "failed": 0, "skipped": 0 },
+  "testAuthoringRework": "Two targeted attempts failed on package.json export restrictions, first eslint-config-next then Sharp. Installed manifests are now read with fs; version and native-boundary assertions were retained. No application defect was hidden.",
+  "verificationLimits": [
+    "Full local framework gate, exact-head CI, new authenticated Preview UAT and final independent review remain required on the patched candidate.",
+    "The local gate launched before the test-only metadata-read correction was stopped during lint and cleaned up. It is not a PASS; a fixed-tree full run is required.",
+    "Audit counts describe this observation, not a guarantee against future advisories.",
+    "No reachable Production exploit was demonstrated and no exploit was attempted against Production.",
+    "Historical runtime audit and Preview results remain historical, not certification of this candidate."
+  ],
+  "productionChanged": false,
+  "migrationChanges": "NONE_FOR_THIS_PATCH"
+}

@@ -34,6 +34,7 @@ jobs:
       APP_ENCRYPTION_KEY: ci-only-test-key-not-valid-for-production
       DEMO_MODE: "1"
       E2E_BASE_URL: http://127.0.0.1:3001
+      STAFF_RECOVERY_LOCAL_ORIGIN: http://127.0.0.1:3001
       M3_CPO_REPAIR_FIXTURE: "1"
       M3_CPO_REPAIR_SCHEMA: public
       M3_PRODUCTION_DATABASE_FINGERPRINT: 0257665af2dd90a4
@@ -80,6 +81,13 @@ jobs:
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013183000_cpo_document_review_repair/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261013190000_case_requirement_supersession/migration.sql
           psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-fulfilment-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261018140000_maintenance_job_state/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/maintenance-job-assertions.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-real-production-fixtures.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261020120000_staff_account_recovery/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261020120100_platform_organization_invitation_creator/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f prisma/migrations/20261020120200_m3_production_activation_proof/migration.sql
+          psql "$MIGRATION_URL" -v ON_ERROR_STOP=1 -f tests/migrations/m3-real-production-assertions.sql
       - name: Configure SSI predicate lock granularity
         # Every operational command runs at SERIALIZABLE. With the Postgres default of
         # max_pred_locks_per_page=2, per-tuple predicate locks collapse into a page-level
@@ -116,6 +124,8 @@ jobs:
             echo "M3 intake latency repeat $attempt/5"
             node scripts/test-m3-intake-latency.mjs 80
           done
+          node scripts/test-m3-intake-latency.mjs 80 tests/integration/m3PolicyActivation.itest.ts
+          node scripts/test-m3-intake-latency.mjs 80 tests/integration/commercialPublishPerformance.itest.ts
       - name: Integration tests
         run: npm run test:integration
       - name: Repeat M3 concurrency and policy gates five times
@@ -126,6 +136,9 @@ jobs:
             npm run test:integration -- \
               tests/integration/m3Fulfilment.itest.ts \
               tests/integration/m3PolicyActivation.itest.ts \
+              tests/integration/platformOrganizationOnboarding.itest.ts \
+              tests/integration/invitations.itest.ts \
+              tests/integration/staffAccountRecovery.itest.ts \
               tests/integration/rateLimitRetention.itest.ts \
               tests/integration/cpo02FirstOrganizationAdmin.itest.ts \
               tests/integration/cpoAuditFinance.itest.ts \
@@ -133,6 +146,7 @@ jobs:
               tests/integration/cpoMfaEnrollment.itest.ts \
               tests/integration/cpoSessionRevocation.itest.ts \
               tests/integration/commercialQuotes.itest.ts \
+              tests/integration/commercialPublishIdempotency.itest.ts \
               tests/integration/cpoScenarioCorrection.itest.ts
           done
       - name: Provision isolated M1 browser UAT fixture
@@ -319,6 +333,12 @@ jobs:
       - name: Show server diagnostics after an E2E failure
         if: failure()
         run: test ! -f /tmp/td-agent-next.log || tail -n 200 /tmp/td-agent-next.log
+      - name: Cleanup isolated M1 RBAC Hardening browser UAT fixture
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
+            npx tsx tests/e2e/m2-fixture.ts cleanup
+          fi
       - name: Cleanup isolated CPO repair browser fixture
         if: always()
         run: |
@@ -337,12 +357,6 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/m1-uat-ready" ]; then
             npx tsx tests/e2e/m1-fixture.ts cleanup
-          fi
-      - name: Cleanup isolated M1 RBAC Hardening browser UAT fixture
-        if: always()
-        run: |
-          if [ -f "$RUNNER_TEMP/m2-uat-ready" ]; then
-            npx tsx tests/e2e/m2-fixture.ts cleanup
           fi
       - name: Validate authoritative mission evidence
         run: npm run evidence:validate

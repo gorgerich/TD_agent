@@ -1,0 +1,65 @@
+{
+  "sourceSha": "b001ecaff3a9ab9e256f267776a004a2a808c94e",
+  "deployment": {
+    "id": "dpl_6FkTzhasNcxSTYxXkWCL3RTcbfYZ",
+    "sha": "b001ecaff3a9ab9e256f267776a004a2a808c94e",
+    "base": "https://td-agent-4wv7yqw66-rics-projects-9baa2793.vercel.app",
+    "branch": "fix/m3-cpo-audit-repair"
+  },
+  "databaseFingerprint": "545a187f9e9d66b0",
+  "schema": "m3_cpo_repair_1792749851757_64eef8b1",
+  "status": "FAIL",
+  "preparation": {
+    "commands": [
+      {
+        "action": "draft",
+        "status": 200,
+        "state": "ACKNOWLEDGED"
+      },
+      {
+        "action": "review",
+        "status": 200,
+        "state": "ACKNOWLEDGED"
+      },
+      {
+        "action": "publish",
+        "status": 200,
+        "state": "ACKNOWLEDGED"
+      }
+    ],
+    "state": "PUBLICATION_VERIFIED"
+  },
+  "admin": {
+    "platformSuperAdmin": "PASS",
+    "platformActivation": "PASS",
+    "platformOwnerRecovery": "PASS",
+    "organizationAdmin": "PASS",
+    "managerForbidden": "PASS",
+    "agentForbidden": "PASS",
+    "crossTenant": "PASS",
+    "mobile": "PASS",
+    "skipped": 0
+  },
+  "onboarding": "AUTHENTICATED_ORGANIZATION_ONBOARDING_AND_FINANCE_RECOVERY_PASS",
+  "m3": {
+    "status": "FAIL",
+    "location": "m3-fulfilment.mjs:385:16",
+    "operation": "NAVIGATE_FINANCE",
+    "cause": "UNPROVEN"
+  },
+  "cpo": {
+    "status": "NOT_EXECUTED_AFTER_M3_FAILURE"
+  },
+  "cleanup": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+  "activeAccessAfterContainment": {
+    "users": 0,
+    "memberships": 0,
+    "links": 0,
+    "staffRecovery": 0,
+    "platformInvites": 0,
+    "organizationInvites": 0
+  },
+  "retainedUsers": 18,
+  "credentialsExist": false,
+  "productionChanged": false
+}

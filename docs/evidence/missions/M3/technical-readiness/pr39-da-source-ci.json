@@ -1,0 +1,271 @@
+{
+  "sourceSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "runId": 39303713274,
+  "url": "https://github.com/gorgerich/TD_agent/actions/runs/39303713274",
+  "status": "completed",
+  "conclusion": "failure",
+  "steps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:10Z",
+      "completedAt": "2026-10-19T18:35:11Z"
+    },
+    {
+      "name": "Initialize containers",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:11Z",
+      "completedAt": "2026-10-19T18:35:22Z"
+    },
+    {
+      "name": "Run actions/checkout@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:22Z",
+      "completedAt": "2026-10-19T18:35:30Z"
+    },
+    {
+      "name": "Verify patch formatting",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:30Z",
+      "completedAt": "2026-10-19T18:35:30Z"
+    },
+    {
+      "name": "Run actions/setup-node@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:30Z",
+      "completedAt": "2026-10-19T18:35:32Z"
+    },
+    {
+      "name": "Run npm ci",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:32Z",
+      "completedAt": "2026-10-19T18:35:55Z"
+    },
+    {
+      "name": "Verify Week 2 and M1 legacy backfill fixtures",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:55Z",
+      "completedAt": "2026-10-19T18:35:59Z"
+    },
+    {
+      "name": "Configure SSI predicate lock granularity",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:59Z",
+      "completedAt": "2026-10-19T18:35:59Z"
+    },
+    {
+      "name": "Apply migrations to isolated test database",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:35:59Z",
+      "completedAt": "2026-10-19T18:36:01Z"
+    },
+    {
+      "name": "Verify repeated migration deploy is a no-op",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:01Z",
+      "completedAt": "2026-10-19T18:36:02Z"
+    },
+    {
+      "name": "Verify migration/schema parity",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:02Z",
+      "completedAt": "2026-10-19T18:36:03Z"
+    },
+    {
+      "name": "Lint",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:03Z",
+      "completedAt": "2026-10-19T18:36:18Z"
+    },
+    {
+      "name": "Typecheck",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:18Z",
+      "completedAt": "2026-10-19T18:36:30Z"
+    },
+    {
+      "name": "Unit tests",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:30Z",
+      "completedAt": "2026-10-19T18:36:41Z"
+    },
+    {
+      "name": "M3 intake deadline regression with 80ms network round-trip delay",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:36:41Z",
+      "completedAt": "2026-10-19T18:46:22Z"
+    },
+    {
+      "name": "Integration tests",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:46:22Z",
+      "completedAt": "2026-10-19T18:47:45Z"
+    },
+    {
+      "name": "Repeat M3 concurrency and policy gates five times",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:47:45Z",
+      "completedAt": "2026-10-19T18:50:33Z"
+    },
+    {
+      "name": "Provision isolated M1 browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:33Z",
+      "completedAt": "2026-10-19T18:50:34Z"
+    },
+    {
+      "name": "Provision isolated M1 RBAC Hardening browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:34Z",
+      "completedAt": "2026-10-19T18:50:35Z"
+    },
+    {
+      "name": "Provision isolated M3 browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:35Z",
+      "completedAt": "2026-10-19T18:50:36Z"
+    },
+    {
+      "name": "Provision isolated CPO repair browser fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:36Z",
+      "completedAt": "2026-10-19T18:50:37Z"
+    },
+    {
+      "name": "Verify encrypted production-like backup and real restore",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:37Z",
+      "completedAt": "2026-10-19T18:50:45Z"
+    },
+    {
+      "name": "Production build",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:50:45Z",
+      "completedAt": "2026-10-19T18:51:13Z"
+    },
+    {
+      "name": "Run npx playwright install --with-deps chromium",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:51:13Z",
+      "completedAt": "2026-10-19T18:51:32Z"
+    },
+    {
+      "name": "Start production server",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:51:32Z",
+      "completedAt": "2026-10-19T18:51:32Z"
+    },
+    {
+      "name": "Wait for server",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:51:32Z",
+      "completedAt": "2026-10-19T18:51:34Z"
+    },
+    {
+      "name": "End-to-end tests",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:51:34Z",
+      "completedAt": "2026-10-19T18:54:30Z"
+    },
+    {
+      "name": "Auth infrastructure failure and recovery browser regression",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:30Z",
+      "completedAt": "2026-10-19T18:54:34Z"
+    },
+    {
+      "name": "Document component browser regressions",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:34Z",
+      "completedAt": "2026-10-19T18:54:53Z"
+    },
+    {
+      "name": "Show server diagnostics after an E2E failure",
+      "conclusion": "skipped",
+      "startedAt": "2026-10-19T18:54:53Z",
+      "completedAt": "2026-10-19T18:54:53Z"
+    },
+    {
+      "name": "Cleanup isolated CPO repair browser fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:53Z",
+      "completedAt": "2026-10-19T18:54:53Z"
+    },
+    {
+      "name": "Cleanup isolated M3 browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:53Z",
+      "completedAt": "2026-10-19T18:54:54Z"
+    },
+    {
+      "name": "Cleanup isolated M1 browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:54Z",
+      "completedAt": "2026-10-19T18:54:54Z"
+    },
+    {
+      "name": "Cleanup isolated M1 RBAC Hardening browser UAT fixture",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:54Z",
+      "completedAt": "2026-10-19T18:54:55Z"
+    },
+    {
+      "name": "Validate authoritative mission evidence",
+      "conclusion": "failure",
+      "startedAt": "2026-10-19T18:54:55Z",
+      "completedAt": "2026-10-19T18:54:56Z"
+    },
+    {
+      "name": "Post Run actions/setup-node@v4",
+      "conclusion": "skipped",
+      "startedAt": "2026-10-19T18:54:56Z",
+      "completedAt": "2026-10-19T18:54:56Z"
+    },
+    {
+      "name": "Post Run actions/checkout@v4",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:56Z",
+      "completedAt": "2026-10-19T18:54:56Z"
+    },
+    {
+      "name": "Stop containers",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:56Z",
+      "completedAt": "2026-10-19T18:54:57Z"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success",
+      "startedAt": "2026-10-19T18:54:57Z",
+      "completedAt": "2026-10-19T18:54:57Z"
+    }
+  ],
+  "unit": {
+    "files": 1,
+    "tests": 262,
+    "passed": 262,
+    "skipped": 0
+  },
+  "integration": {
+    "files": 25,
+    "tests": 183,
+    "passed": 183,
+    "skipped": 0
+  },
+  "targeted": {
+    "files": 50,
+    "tests": 465,
+    "passed": 465,
+    "skipped": 0
+  },
+  "latency": {
+    "files": 5,
+    "tests": 110,
+    "passed": 110,
+    "skipped": 0
+  },
+  "testSkipped": 0,
+  "maximumParallelTransactionMs": 4130,
+  "transactionDeadlineMs": 5000,
+  "note": "Technical steps pass; overall failure only stale authoritative evidence. Not final-head CI PASS."
+}

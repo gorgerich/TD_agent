@@ -1,0 +1,14 @@
+{
+  "observedAt": "2026-10-23T10:06:40.820Z",
+  "scope": "canonical-local-postgresql-integration",
+  "exitCode": 0,
+  "files": 29,
+  "tests": 206,
+  "passed": 206,
+  "failed": 0,
+  "skipped": 0,
+  "removedSchemas": 29,
+  "sourceSha": "b001ecaff3a9ab9e256f267776a004a2a808c94e",
+  "status": "PASS",
+  "note": "Actual predecessor run, not successor boundary-repair execution."
+}

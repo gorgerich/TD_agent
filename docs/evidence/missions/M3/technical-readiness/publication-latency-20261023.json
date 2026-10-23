@@ -1,0 +1,1457 @@
+{
+  "observedAt": "2026-10-23T09:56:08.418Z",
+  "scope": "isolated-local-api-postgresql-publication-latency",
+  "injectedRoundTripMs": 80,
+  "unchangedTransactionDeadlineMs": 5000,
+  "requiredHeadroomThresholdMs": 4500,
+  "sourceHashes": {
+    "lib/caseService.ts": "d11bba7e18895851d9200c1b2d88027966a93897570ddf25102b7b1308eba5c5",
+    "tests/integration/commercialPublishPerformance.itest.ts": "676cd2bb1aec96918ed98a03bee9108fa276e52e4c0e1cbc0a6c3c96d0469ee4",
+    "scripts/test-m3-intake-latency.mjs": "3db3ef9a791056ea34fc02dd47acc7eed2fdbb98caf38f31bc66d457462c3988"
+  },
+  "results": [
+    {
+      "run": 1,
+      "exitCode": 0,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "schemaRemoved": true,
+      "diagnostics": [
+        {
+          "scenario": "CREMATION_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 107
+            },
+            {
+              "operation": "SET",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 98
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 91
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 89
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 87
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            }
+          ],
+          "transactionMs": [
+            2343
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        },
+        {
+          "scenario": "FAMILY_PLOT_BURIAL_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 138
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 91
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 89
+            },
+            {
+              "operation": "SET",
+              "durationMs": 112
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 154
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 101
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 89
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 106
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            }
+          ],
+          "transactionMs": [
+            2422
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "exitCode": 0,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "schemaRemoved": true,
+      "diagnostics": [
+        {
+          "scenario": "CREMATION_V1",
+          "httpStatus": 200,
+          "sqlStatements": 32,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 223
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 1673
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 231
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 152
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 377
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 235
+            },
+            {
+              "operation": "SET",
+              "durationMs": 144
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 604
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 318
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 169
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 179
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 117
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 108
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 152
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 231
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 91
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 119
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 111
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 126
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 358
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 205
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 94
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 110
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 185
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 94
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 138
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "COMMIT",
+              "durationMs": 113
+            }
+          ],
+          "transactionMs": [
+            4444
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        },
+        {
+          "scenario": "FAMILY_PLOT_BURIAL_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 130
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 238
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 102
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 107
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 84
+            },
+            {
+              "operation": "SET",
+              "durationMs": 110
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 103
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 139
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 140
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 117
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 144
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 89
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 81
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 132
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 98
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 137
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 89
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 128
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 103
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 118
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            }
+          ],
+          "transactionMs": [
+            2765
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "exitCode": 0,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "schemaRemoved": true,
+      "diagnostics": [
+        {
+          "scenario": "CREMATION_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 103
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 82
+            },
+            {
+              "operation": "SET",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 87
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 89
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 86
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            }
+          ],
+          "transactionMs": [
+            2279
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        },
+        {
+          "scenario": "FAMILY_PLOT_BURIAL_V1",
+          "httpStatus": 200,
+          "sqlStatements": 32,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 83
+            },
+            {
+              "operation": "SET",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 154
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 87
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 244
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 90
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 89
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "COMMIT",
+              "durationMs": 85
+            }
+          ],
+          "transactionMs": [
+            2498
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        }
+      ]
+    },
+    {
+      "run": 4,
+      "exitCode": 0,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "schemaRemoved": true,
+      "diagnostics": [
+        {
+          "scenario": "CREMATION_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 82
+            },
+            {
+              "operation": "SET",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 81
+            }
+          ],
+          "transactionMs": [
+            2243
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        },
+        {
+          "scenario": "FAMILY_PLOT_BURIAL_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 81
+            },
+            {
+              "operation": "SET",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 80
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 87
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 84
+            }
+          ],
+          "transactionMs": [
+            2264
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        }
+      ]
+    },
+    {
+      "run": 5,
+      "exitCode": 0,
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "schemaRemoved": true,
+      "diagnostics": [
+        {
+          "scenario": "CREMATION_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 83
+            },
+            {
+              "operation": "SET",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 102
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 178
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 120
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 109
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 95
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 100
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 97
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 133
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 91
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 93
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 113
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 85
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 82
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 89
+            }
+          ],
+          "transactionMs": [
+            2660
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        },
+        {
+          "scenario": "FAMILY_PLOT_BURIAL_V1",
+          "httpStatus": 200,
+          "sqlStatements": 31,
+          "sql": [
+            {
+              "operation": "SELECT",
+              "durationMs": 84
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "BEGIN",
+              "durationMs": 82
+            },
+            {
+              "operation": "SET",
+              "durationMs": 91
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 85
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 94
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 122
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 81
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 92
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 91
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 86
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 85
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 82
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 83
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 88
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 83
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 92
+            },
+            {
+              "operation": "SELECT",
+              "durationMs": 87
+            },
+            {
+              "operation": "UPDATE",
+              "durationMs": 119
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 103
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 88
+            },
+            {
+              "operation": "INSERT",
+              "durationMs": 88
+            }
+          ],
+          "transactionMs": [
+            2422
+          ],
+          "errorCodes": [],
+          "lockWaitMeasurement": "NOT_MEASURED",
+          "unchangedDeadlineMs": 5000,
+          "requiredHeadroomMs": 4500
+        }
+      ]
+    }
+  ]
+}

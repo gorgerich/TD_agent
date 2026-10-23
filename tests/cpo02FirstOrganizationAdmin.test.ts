@@ -22,7 +22,7 @@ function fixture() {
     actor: { sessionVersion: 0, platformRole: "SUPER_ADMIN", platformMfaEnabledAt: new Date() as Date | null }, actorMissing: false,
     locks: [] as string[],
     member: { id: "member-a", organizationId: "org-a", role: "AGENT", status: "ACTIVE", agentId: 9, agent: { status: "ACTIVE" }, user: { platformRole: "USER" } },
-    existingAdmin: false, pendingAdmin: false, bootstrapped: false,
+    existingAdmin: false, pendingAdmin: false, pendingPlatformAdmin: false, bootstrapped: false,
     audits: [] as { id: string; actorUserId: number; targetId: string; metadata: Record<string, unknown> }[], writes: 0, reads: 0,
   };
   const tx = {
@@ -37,6 +37,7 @@ function fixture() {
       count: async () => state.member.role === "ADMIN" ? 1 : 0,
     },
     organizationInvite: { findFirst: async () => state.pendingAdmin ? { id: "invite" } : null },
+    platformOrganizationInvite: { findFirst: async () => state.pendingPlatformAdmin ? { id: "platform-invite" } : null },
     platformAuditEvent: {
       findUnique: async ({ where }: { where: { id: string } }) => state.audits.find((audit) => audit.id === where.id) ?? null,
       findFirst: async () => state.bootstrapped ? { id: "previous" } : state.audits[0] ?? null,
@@ -115,6 +116,7 @@ test("CPO-02 refuses cross-tenant, suspended/non-operational/platform targets an
     (f: ReturnType<typeof fixture>) => { f.state.organization.status = "SUSPENDED"; },
     (f: ReturnType<typeof fixture>) => { f.state.existingAdmin = true; },
     (f: ReturnType<typeof fixture>) => { f.state.pendingAdmin = true; },
+    (f: ReturnType<typeof fixture>) => { f.state.pendingPlatformAdmin = true; },
     (f: ReturnType<typeof fixture>) => { f.state.bootstrapped = true; },
   ]) {
     const f = fixture(); change(f);

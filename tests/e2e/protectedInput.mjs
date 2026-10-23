@@ -74,7 +74,7 @@ export function sanitizedLegacyFailure(error) {
   try {
     const stack = error instanceof Error && typeof error.stack === "string" ? error.stack : "";
     for (const line of stack.split("\n").slice(1)) {
-      const match = line.match(/(?:\/|\\)(m1-operations\.mjs|m2-admin\.mjs|m2-commercial\.mjs|m3-fulfilment\.mjs|protectedInput\.mjs):(\d{1,7}):(\d{1,7})\)?$/);
+      const match = line.match(/(?:\/|\\)(m1-operations\.mjs|m2-admin\.mjs|m2-commercial\.mjs|m3-fulfilment\.mjs|real-organization\.mjs|protectedInput\.mjs):(\d{1,7}):(\d{1,7})\)?$/);
       if (match) { location = ` ${match[1]}:${match[2]}:${match[3]}`; break; }
     }
   } catch { /* Never expose untrusted diagnostics while reporting a failure. */ }

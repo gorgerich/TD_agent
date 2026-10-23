@@ -1,0 +1,35 @@
+{
+  "sourceSha": "b001ecaff3a9ab9e256f267776a004a2a808c94e",
+  "runId": 39936161026,
+  "url": "https://github.com/gorgerich/TD_agent/actions/runs/39936161026",
+  "overallConclusion": "failure",
+  "failedStep": "Validate authoritative mission evidence",
+  "scope": "Actual predecessor technical execution only; not overall CI PASS or successor certification.",
+  "counts": {
+    "Unit tests": {
+      "tests": 290,
+      "pass": 290,
+      "fail": 0,
+      "skipped": 0
+    },
+    "M3 intake deadline regression with 80ms network round-trip delay": {
+      "tests": 124,
+      "pass": 124,
+      "fail": 0,
+      "skipped": 0
+    },
+    "Integration tests": {
+      "tests": 206,
+      "pass": 206,
+      "fail": 0,
+      "skipped": 0
+    },
+    "Repeat M3 concurrency and policy gates five times": {
+      "tests": 575,
+      "pass": 575,
+      "fail": 0,
+      "skipped": 0
+    }
+  },
+  "completeLog": true
+}

@@ -1,0 +1,587 @@
+{
+  "sourceSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "auditObservedAt": "2026-10-19T18:49:39.634Z",
+  "traceObservedAt": "2026-10-20T08:42:24.326Z",
+  "runtimeAuditTotal": 0,
+  "fullAudit": {
+    "info": 0,
+    "low": 3,
+    "moderate": 4,
+    "high": 14,
+    "critical": 0,
+    "total": 21
+  },
+  "traceFiles": 114,
+  "packages": [
+    {
+      "name": "@babel/core",
+      "severity": "low",
+      "range": "<=7.29.0",
+      "installed": [
+        {
+          "path": "node_modules/@babel/core",
+          "version": "7.29.0"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-4x5r-pxfx-6jf8",
+          "title": "@babel/core: Arbitrary File Read via sourceMappingURL Comment",
+          "range": "<=7.29.0"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "@hono/node-server",
+      "severity": "moderate",
+      "range": "<1.19.15",
+      "installed": [
+        {
+          "path": "node_modules/@hono/node-server",
+          "version": "1.19.14"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-frvp-7c67-39w9",
+          "title": "Node.js Adapter for Hono: Path traversal in `serve-static` on Windows via encoded backslash (`%5C`)",
+          "range": "<1.19.15"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "@modelcontextprotocol/sdk",
+      "severity": "high",
+      "range": "1.12.0 - 1.30.1",
+      "installed": [
+        {
+          "path": "node_modules/@modelcontextprotocol/sdk",
+          "version": "1.29.0"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-6qxp-vccf-f47h",
+          "title": "MCP TypeScript SDK: OAuth client could send credentials to an authorization server chosen by the MCP server",
+          "range": ">=1.12.0 <1.31.0"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "@next/eslint-plugin-next",
+      "severity": "high",
+      "range": ">=14.3.0-canary.0",
+      "installed": [
+        {
+          "path": "node_modules/@next/eslint-plugin-next",
+          "version": "16.3.8"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "@ts-morph/common",
+      "severity": "high",
+      "range": "0.2.0 - 0.24.0 || 0.26.0 - 0.27.0",
+      "installed": [
+        {
+          "path": "node_modules/@ts-morph/common",
+          "version": "0.27.0"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "body-parser",
+      "severity": "low",
+      "range": "2.0.0 - 2.2.2",
+      "installed": [
+        {
+          "path": "node_modules/body-parser",
+          "version": "2.2.2"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-v422-hmwv-36x6",
+          "title": "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement",
+          "range": ">=2.0.0 <2.3.0"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "brace-expansion",
+      "severity": "high",
+      "range": "<=1.1.20 || 3.0.0 - 5.0.11",
+      "installed": [
+        {
+          "path": "node_modules/@ts-morph/common/node_modules/brace-expansion",
+          "version": "5.0.6"
+        },
+        {
+          "path": "node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion",
+          "version": "5.0.6"
+        },
+        {
+          "path": "node_modules/brace-expansion",
+          "version": "1.1.14"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+          "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+          "range": "<1.1.16"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+          "title": "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+          "range": ">=3.0.0 <5.0.7"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+          "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+          "range": "<1.1.17"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-mh99-v99m-4gvg",
+          "title": "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+          "range": ">=4.0.0 <5.0.8"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+          "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+          "range": ">=4.0.0 <5.0.9"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rgw5-rvv9-x895",
+          "title": "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+          "range": "<1.1.18"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+          "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+          "range": "<1.1.21"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr",
+          "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+          "range": ">=4.0.0 <5.0.12"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+          "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+          "range": "<1.1.20"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7",
+          "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+          "range": ">=4.0.0 <5.0.11"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+          "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+          "range": "<1.1.19"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p",
+          "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+          "range": ">=4.0.0 <5.0.10"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "braces",
+      "severity": "high",
+      "range": "*",
+      "installed": [
+        {
+          "path": "node_modules/braces",
+          "version": "3.0.3"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+          "range": "<=3.0.3"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "browserslist",
+      "severity": "high",
+      "range": "<=4.28.6",
+      "installed": [
+        {
+          "path": "node_modules/browserslist",
+          "version": "4.28.2"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-c83g-rgw3-j3cx",
+          "title": "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+          "range": "<=4.28.6"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-73wf-gq98-2v4g",
+          "title": "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)",
+          "range": "<=4.28.6"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "esbuild",
+      "severity": "low",
+      "range": "0.27.3 - 0.28.0",
+      "installed": [
+        {
+          "path": "node_modules/esbuild",
+          "version": "0.28.0"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-g7r4-m6w7-qqqr",
+          "title": "esbuild allows arbitrary file read when running the development server on Windows",
+          "range": ">=0.27.3 <0.28.1"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "eslint-config-next",
+      "severity": "high",
+      "range": ">=14.3.0-canary.0",
+      "installed": [
+        {
+          "path": "node_modules/eslint-config-next",
+          "version": "16.3.8"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "fast-glob",
+      "severity": "high",
+      "range": "*",
+      "installed": [
+        {
+          "path": "node_modules/@ts-morph/common/node_modules/fast-glob",
+          "version": "3.3.3"
+        },
+        {
+          "path": "node_modules/fast-glob",
+          "version": "3.3.1"
+        },
+        {
+          "path": "node_modules/shadcn/node_modules/fast-glob",
+          "version": "3.3.3"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "fast-uri",
+      "severity": "high",
+      "range": "3.0.0 - 3.1.7",
+      "installed": [
+        {
+          "path": "node_modules/fast-uri",
+          "version": "3.1.2"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-v2hh-gcrm-f6hx",
+          "title": "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
+          "range": ">=3.0.0 <=3.1.3"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-7p8r-x3mc-p8w7",
+          "title": "fast-uri vulnerable to host confusion via backslash authority introducer",
+          "range": ">=3.0.0 <3.1.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-f65p-4m7j-42xc",
+          "title": "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
+          "range": ">=3.0.0 <3.1.6"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-fph4-wmhf-6fwf",
+          "title": "fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding",
+          "range": ">=3.1.2 <3.1.6"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-jqff-g426-hqxp",
+          "title": "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
+          "range": ">=3.0.0 <3.1.6"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-4c8g-83qw-93j6",
+          "title": "fast-uri vulnerable to host confusion via failed IDN canonicalization",
+          "range": ">=3.0.0 <3.1.3"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-qw65-cvwx-89v3",
+          "title": "fast-uri vulnerable to authority injection via an unvalidated port in serialize",
+          "range": ">=3.0.0 <3.1.7"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-hrr3-gc8f-f4qj",
+          "title": "fast-uri vulnerable to inconsistent host case normalization via percent-encoded octets",
+          "range": ">=3.0.0 <3.1.8"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "hono",
+      "severity": "moderate",
+      "range": "<=4.13.6",
+      "installed": [
+        {
+          "path": "node_modules/hono",
+          "version": "4.12.25"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-xgm2-5f3f-mvvc",
+          "title": "Hono: API Gateway v1 adapter can drop a distinct repeated request header value during de-duplication",
+          "range": ">=4.3.3 <4.12.27"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-hvrm-45r6-mjfj",
+          "title": "hono/jsx does not isolate context per request, leading to cross-request data disclosure",
+          "range": ">=4.11.8 <4.12.27"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-w62v-xxxg-mg59",
+          "title": "Hono: Server-Side XSS via JSX Escaping Bypass in cx() Utility",
+          "range": ">=4.0.0 <4.12.27"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-8j4g-w8fx-2239",
+          "title": "Hono: ReDoS in CORS middleware via Access-Control-Request-Headers",
+          "range": "<4.12.34"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-f23p-vx2j-j53r",
+          "title": "Hono: `memo()` retains SSR output across requests, leading to cross-user data disclosure",
+          "range": ">=3.8.0 <4.12.34"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-79qm-7rj5-m7r9",
+          "title": "Hono: Proxy Helper does not remove response headers listed in the `Connection` header",
+          "range": ">=4.7.0 <4.12.34"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-54fx-42gc-7vw4",
+          "title": "Hono: Algorithmic Complexity DoS in Language Middleware",
+          "range": ">=4.12.0 <4.12.34"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-gqvv-2mrq-wpjv",
+          "title": "Hono: Incomplete fix for CVE-2026-39408: `toSSG()` still writes files outside the output directory",
+          "range": "<4.13.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-g6gw-c38x-mqfc",
+          "title": "Hono: Unbounded dot-notation nesting in `parseBody()` can cause memory exhaustion",
+          "range": "<4.13.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-crvj-82cr-hjcx",
+          "title": "Hono: Query parser reads parameters after the URL fragment, causing cache-key and proxy interpretation differentials",
+          "range": "<4.13.5"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-hxh3-vqpv-xpqv",
+          "title": "hono/jsx renders plain strings unescaped in boundary components, leading to XSS",
+          "range": "<4.13.7"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "ip-address",
+      "severity": "high",
+      "range": "<=10.7.0",
+      "installed": [
+        {
+          "path": "node_modules/ip-address",
+          "version": "10.2.0"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-mwp4-54f8-5fhr",
+          "title": "ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass",
+          "range": "<=10.3.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-4xrf-jv44-h6hh",
+          "title": "ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks",
+          "range": ">=10.1.1 <=10.2.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-22jq-vg5j-6vgg",
+          "title": "ip-address: misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks",
+          "range": ">=10.1.1 <=10.2.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-rpw4-54j3-4h4q",
+          "title": "ip-address: Address6.isLinkLocal() recognizes fe80::/64 rather than fe80::/10, allowing SSRF and trust-boundary bypass to on-link hosts",
+          "range": "<=10.5.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-2vr4-cq9g-pvrc",
+          "title": "ip-address: no classifier recognizes the NAT64 local-use range 64:ff9b:1::/48, allowing SSRF and trust-boundary bypass",
+          "range": ">=10.2.0 <=10.5.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-j6r3-76f7-8jcv",
+          "title": "ip-address: isInSubnet() and isHostInSubnet() compare addresses of different families as if they shared an address space, allowing an allowlist check to admit an address outside its range",
+          "range": "<=10.7.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-h3mg-xc3c-68pw",
+          "title": "ip-address: Address6 builds a parse diagnostic proportional to the input with no length bound, allowing a single long string to stall or crash the process",
+          "range": "<=10.7.0"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "js-yaml",
+      "severity": "high",
+      "range": "4.0.0 - 4.3.1",
+      "installed": [
+        {
+          "path": "node_modules/js-yaml",
+          "version": "4.1.1"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-h67p-54hq-rp68",
+          "title": "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+          "range": ">=4.0.0 <=4.1.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
+          "title": "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+          "range": ">=4.0.0 <4.3.0"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+          "title": "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported",
+          "range": ">=4.0.0 <4.3.1"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+          "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+          "range": ">=4.0.0 <4.3.2"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "micromatch",
+      "severity": "high",
+      "range": ">=0.2.0",
+      "installed": [
+        {
+          "path": "node_modules/micromatch",
+          "version": "4.0.8"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "postcss-selector-parser",
+      "severity": "moderate",
+      "range": "<7.1.6",
+      "installed": [
+        {
+          "path": "node_modules/postcss-selector-parser",
+          "version": "7.1.4"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-rj75-hqrm-r3gf",
+          "title": "PostCSS: Quadratic complexity in flat selector parsing allows CPU exhaustion",
+          "range": "<7.1.6"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "qs",
+      "severity": "moderate",
+      "range": "2.2.5 - 6.15.3",
+      "installed": [
+        {
+          "path": "node_modules/qs",
+          "version": "6.15.2"
+        }
+      ],
+      "advisories": [
+        {
+          "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx",
+          "title": "qs array-limit bypass via bracket-key comma parsing",
+          "range": ">=6.14.2 <=6.15.3"
+        },
+        {
+          "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g",
+          "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+          "range": ">=2.2.5 <6.16.0"
+        }
+      ],
+      "tracedFiles": 0
+    },
+    {
+      "name": "shadcn",
+      "severity": "high",
+      "range": "<=0.0.0-rc-20261007105214 || >=2.0.0",
+      "installed": [
+        {
+          "path": "node_modules/shadcn",
+          "version": "4.11.0"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    },
+    {
+      "name": "ts-morph",
+      "severity": "high",
+      "range": "6.0.1 - 23.0.0 || 25.0.0 - 26.0.0",
+      "installed": [
+        {
+          "path": "node_modules/ts-morph",
+          "version": "26.0.0"
+        }
+      ],
+      "advisories": [],
+      "tracedFiles": 0
+    }
+  ],
+  "traceMatching": "Each NFT file entry resolved relative to its own manifest; package paths matched exactly",
+  "scope": "Server trace exclusion is not universal build/CLI exploitability proof. Dev tools are repository-controlled and not exposed as application endpoints; CI is read-only without Production secrets. Original runtime dependency fix is candidate-only until release;21 dev advisories remain tracked engineering maintenance, owner gorgerich, due2026-10-24 or before broad rollout."
+}

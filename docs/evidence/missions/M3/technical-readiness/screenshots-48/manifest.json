@@ -1,0 +1,65 @@
+[
+  {
+    "file": "finance-mobile.png",
+    "sha256": "c8122c6e77704bccc9be26323d4f885dae76fb98c14ebbad9c388df83ce489cd",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "finance-zoom200.png",
+    "sha256": "76f3127f59f26dc0df2f3b8087d9f1d390f6c3e0e20e148b89b1e5485fe2e358",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "reviewer-mobile.png",
+    "sha256": "cee6e4ca2734b0f9af31677817c85406f71e567d980d752b12275070b8b6d635",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "reviewer-zoom200.png",
+    "sha256": "97ed5cbd875cb45faded15e93bbb6f1371fffecac88b38a62aede7c7ba39fde5",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "documents-mobile.png",
+    "sha256": "fcda29e89828c2273a2f59497f358220feae4e11db76f82944e7a38acde34818",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "documents-zoom200.png",
+    "sha256": "4537b6a0ec4e85c9a76ba756d775897df3f59b30c6782b383c1a148d3c28fe7e",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-1365.png",
+    "sha256": "d69511679b3aa030756ab2521d3d06fe042b43de1888888e47ef65b0720b1a49",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-390.png",
+    "sha256": "bdb6894726881a9280fef423dcfffaf4b4d4409e4b53f91dbe9fbb2ffef391d7",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-195.png",
+    "sha256": "62ea2d91b6a8864688097da31c4a2300f429d135401b8b71f1bf54c4d67dc95c",
+    "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "syntheticOnly": true
+  }
+]

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
@@ -45,16 +46,7 @@ export async function POST(req: NextRequest) {
   const inviteHash = parsed.data.inviteToken ? hashInvitationToken(parsed.data.inviteToken) : null;
 
   if (inviteHash) {
-    const invite = await prisma.organizationInvite.findUnique({
-      where: { tokenHash: inviteHash },
-      select: {
-        emailNormalized: true,
-        acceptedAt: true,
-        revokedAt: true,
-        expiresAt: true,
-        organization: { select: { status: true } },
-      },
-    });
+    const invite = await readRegistrationInvitation(prisma, inviteHash);
     if (
       !invite
       || invite.organization.status !== "ACTIVE"
@@ -77,12 +69,14 @@ export async function POST(req: NextRequest) {
       });
       if (existing) throw new RegistrationError(409, "Агент с таким email или телефоном уже зарегистрирован");
 
-      const invite = inviteHash
-        ? await tx.organizationInvite.findUnique({
-            where: { tokenHash: inviteHash },
-            include: { organization: { select: { status: true } } },
-          })
+      let invite = inviteHash
+        ? await readRegistrationInvitation(tx, inviteHash)
         : null;
+      if (invite) {
+        // Serialize acceptance with first-ADMIN assignment/reissue and organization suspension.
+        await tx.$queryRaw`SELECT "id" FROM "Organization" WHERE "id" = ${invite.organizationId} FOR UPDATE`;
+        invite = await readRegistrationInvitation(tx, inviteHash!);
+      }
       if (
         inviteHash
         && (
@@ -96,6 +90,9 @@ export async function POST(req: NextRequest) {
       ) {
         throw new RegistrationError(403, "Приглашение недействительно или истекло");
       }
+      if (invite?.kind === "platform" && await tx.membership.findFirst({
+        where: { organizationId: invite.organizationId, role: "ADMIN" }, select: { id: true },
+      })) throw new RegistrationError(403, "Приглашение недействительно или истекло");
       const tier = await tx.agentTier.findFirst({ orderBy: [{ commissionPct: "asc" }, { id: "asc" }] });
       if (!tier) throw new RegistrationError(503, "Тариф агента не настроен");
 
@@ -110,6 +107,9 @@ export async function POST(req: NextRequest) {
       });
 
       if (invite) {
+        const claim = { where: { id: invite.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, data: { acceptedAt: new Date() } };
+        const claimed = invite.kind === "platform" ? await tx.platformOrganizationInvite.updateMany(claim) : await tx.organizationInvite.updateMany(claim);
+        if (claimed.count !== 1) throw new RegistrationError(403, "Приглашение недействительно или истекло");
         const membership = await tx.membership.create({
           data: {
             organizationId: invite.organizationId,
@@ -119,7 +119,6 @@ export async function POST(req: NextRequest) {
             status: "ACTIVE",
           },
         });
-        await tx.organizationInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
         await tx.operationalAuditEvent.create({
           data: {
             organizationId: invite.organizationId,
@@ -166,4 +165,11 @@ class RegistrationError extends Error {
   constructor(public readonly status: 403 | 409 | 503, message: string) {
     super(message);
   }
+}
+
+async function readRegistrationInvitation(client: typeof prisma | Prisma.TransactionClient, tokenHash: string) {
+  const legacy = await client.organizationInvite.findUnique({ where: { tokenHash }, include: { organization: { select: { status: true } } } });
+  if (legacy) return { ...legacy, kind: "membership" as const };
+  const platform = await client.platformOrganizationInvite.findUnique({ where: { tokenHash }, include: { organization: { select: { status: true } } } });
+  return platform ? { ...platform, kind: "platform" as const } : null;
 }

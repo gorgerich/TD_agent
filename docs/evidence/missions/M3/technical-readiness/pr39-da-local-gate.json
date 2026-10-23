@@ -1,0 +1,272 @@
+{
+  "sourceSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "receipt": {
+    "scope": "FULL",
+    "schema": "m3_cpo_repair_85e63ca71d00e365",
+    "fingerprint": "76ecfdc12aece957",
+    "sourceDigest": "257a3a9aa8d93a487e6df953e7aeb72566a73c69038946bfe2b72baf05d5deba",
+    "production": "UNCHANGED",
+    "gates": [
+      {
+        "name": "diff",
+        "exit": 0,
+        "durationMs": 88
+      },
+      {
+        "name": "lint",
+        "exit": 0,
+        "durationMs": 158733
+      },
+      {
+        "name": "typecheck",
+        "exit": 0,
+        "durationMs": 40700
+      },
+      {
+        "name": "unit",
+        "exit": 0,
+        "durationMs": 107383
+      },
+      {
+        "name": "integration",
+        "exit": 0,
+        "durationMs": 350376
+      },
+      {
+        "name": "legacy-create",
+        "exit": 0,
+        "durationMs": 719
+      },
+      {
+        "name": "legacy-0",
+        "exit": 0,
+        "durationMs": 670
+      },
+      {
+        "name": "legacy-1",
+        "exit": 0,
+        "durationMs": 168
+      },
+      {
+        "name": "legacy-2",
+        "exit": 0,
+        "durationMs": 250
+      },
+      {
+        "name": "legacy-3",
+        "exit": 0,
+        "durationMs": 117
+      },
+      {
+        "name": "legacy-4",
+        "exit": 0,
+        "durationMs": 462
+      },
+      {
+        "name": "legacy-5",
+        "exit": 0,
+        "durationMs": 145
+      },
+      {
+        "name": "legacy-6",
+        "exit": 0,
+        "durationMs": 104
+      },
+      {
+        "name": "legacy-7",
+        "exit": 0,
+        "durationMs": 143
+      },
+      {
+        "name": "legacy-8",
+        "exit": 0,
+        "durationMs": 127
+      },
+      {
+        "name": "legacy-9",
+        "exit": 0,
+        "durationMs": 136
+      },
+      {
+        "name": "legacy-10",
+        "exit": 0,
+        "durationMs": 78
+      },
+      {
+        "name": "legacy-11",
+        "exit": 0,
+        "durationMs": 117
+      },
+      {
+        "name": "legacy-12",
+        "exit": 0,
+        "durationMs": 168
+      },
+      {
+        "name": "legacy-13",
+        "exit": 0,
+        "durationMs": 102
+      },
+      {
+        "name": "legacy-14",
+        "exit": 0,
+        "durationMs": 565
+      },
+      {
+        "name": "legacy-15",
+        "exit": 0,
+        "durationMs": 123
+      },
+      {
+        "name": "legacy-16",
+        "exit": 0,
+        "durationMs": 116
+      },
+      {
+        "name": "legacy-17",
+        "exit": 0,
+        "durationMs": 1577
+      },
+      {
+        "name": "legacy-18",
+        "exit": 0,
+        "durationMs": 205
+      },
+      {
+        "name": "legacy-19",
+        "exit": 0,
+        "durationMs": 133
+      },
+      {
+        "name": "legacy-20",
+        "exit": 0,
+        "durationMs": 82
+      },
+      {
+        "name": "legacy-21",
+        "exit": 0,
+        "durationMs": 182
+      },
+      {
+        "name": "legacy-22",
+        "exit": 0,
+        "durationMs": 100
+      },
+      {
+        "name": "legacy-23",
+        "exit": 0,
+        "durationMs": 73
+      },
+      {
+        "name": "migration",
+        "exit": 0,
+        "durationMs": 3538
+      },
+      {
+        "name": "noop",
+        "exit": 0,
+        "durationMs": 2430
+      },
+      {
+        "name": "parity",
+        "exit": 0,
+        "durationMs": 4037
+      },
+      {
+        "name": "build",
+        "exit": 0,
+        "durationMs": 114500
+      },
+      {
+        "name": "m1-fixture",
+        "exit": 0,
+        "durationMs": 5660
+      },
+      {
+        "name": "m2-fixture",
+        "exit": 0,
+        "durationMs": 3213
+      },
+      {
+        "name": "m3-fixture",
+        "exit": 0,
+        "durationMs": 2717
+      },
+      {
+        "name": "cpo-fixture",
+        "exit": 0,
+        "durationMs": 2439
+      },
+      {
+        "name": "restore-table-list",
+        "exit": 0,
+        "durationMs": 228
+      },
+      {
+        "name": "restore-counts-digests",
+        "exit": 0,
+        "durationMs": 440
+      },
+      {
+        "name": "restore-create",
+        "exit": 0,
+        "durationMs": 478
+      },
+      {
+        "name": "restore-table-list",
+        "exit": 0,
+        "durationMs": 116
+      },
+      {
+        "name": "restore-counts-digests",
+        "exit": 0,
+        "durationMs": 164
+      },
+      {
+        "name": "restore-noop",
+        "exit": 0,
+        "durationMs": 2797
+      },
+      {
+        "name": "restore-parity",
+        "exit": 0,
+        "durationMs": 6595
+      },
+      {
+        "name": "e2e",
+        "exit": 0,
+        "durationMs": 489492
+      },
+      {
+        "name": "auth-failure-browser",
+        "exit": 0,
+        "durationMs": 28355
+      },
+      {
+        "name": "component-browser",
+        "exit": 0,
+        "durationMs": 86565
+      }
+    ],
+    "restore": {
+      "status": "PASS",
+      "syntheticOnly": true,
+      "countsAndDigests": "MATCH",
+      "encrypted": "AES256",
+      "plaintextDump": "NONE",
+      "tables": 54
+    },
+    "cleanup": "PASS"
+  },
+  "unit": {
+    "passed": 262,
+    "skipped": 0
+  },
+  "integration": {
+    "files": 25,
+    "passed": 183,
+    "skipped": 0,
+    "residue": 0
+  },
+  "scope": "Full single local candidate gate; synthetic restore only, not fresh Production backup"
+}

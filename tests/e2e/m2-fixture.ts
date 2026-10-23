@@ -212,7 +212,9 @@ async function cleanup() {
     persistentRateLimitKey("platform-owner-recovery-consume", ip),
   ]);
   const organizations = await db.organization.findMany({
-    where: { id: { in: [organizationA, organizationB] } },
+    where: { OR: [{ id: { in: [organizationA, organizationB] } }, {
+      slug: `onboarding-${runId}`, platformInvitations: { some: { createdBy: { email: emails.platform } } },
+    }] },
     select: { id: true, memberships: { select: { id: true, userId: true, agentId: true } } },
   });
   const memberships = organizations.flatMap((organization) => organization.memberships);
@@ -223,6 +225,7 @@ async function cleanup() {
     select: { id: true },
   });
   const platformUserIds = platformUsers.map((user) => user.id);
+  const allUserIds = [...new Set([...userIds, ...platformUserIds])];
   const organizationIds = organizations.map((organization) => organization.id);
   if (!organizationIds.length && !platformUserIds.length) return;
   if (!isLocalTarget(directUrl) && process.env.M2_ALLOW_REMOTE_FIXTURE_CLEANUP !== "YES") {
@@ -233,8 +236,10 @@ async function cleanup() {
     if (organizationIds.length) {
       await tx.operationalAuditEvent.deleteMany({ where: { organizationId: { in: organizationIds } } });
       await tx.organizationInvite.deleteMany({ where: { organizationId: { in: organizationIds } } });
+      await tx.platformOrganizationInvite.deleteMany({ where: { organizationId: { in: organizationIds } } });
+      await tx.staffAccountRecovery.deleteMany({ where: { organizationId: { in: organizationIds } } });
     }
-    if (platformUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: platformUserIds } } });
+    if (allUserIds.length) await tx.platformAuditEvent.deleteMany({ where: { actorUserId: { in: allUserIds } } });
     if (platformUserIds.length) await tx.platformAccountActivation.deleteMany({ where: { userId: { in: platformUserIds } } });
     if (memberships.length) await tx.membership.deleteMany({ where: { id: { in: memberships.map((membership) => membership.id) } } });
     if (agentIds.length) await tx.agent.deleteMany({ where: { id: { in: agentIds } } });
@@ -243,14 +248,21 @@ async function cleanup() {
     await tx.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: rateLimitKeys } } });
   }, { timeout: 120_000, maxWait: 30_000 });
   await db.agentTier.deleteMany({ where: { name: "M2 Synthetic UAT", agents: { none: {} } } });
-  const [organizationResidue, userResidue, activationResidue] = await Promise.all([
-    db.organization.count({ where: { id: { in: [organizationA, organizationB] } } }),
-    db.user.count({ where: { email: { in: Object.values(emails) } } }),
+  const [organizationResidue, userResidue, activationResidue, auditResidue, recoveryResidue, invitationResidue] = await Promise.all([
+    db.organization.count({ where: { id: { in: organizationIds } } }),
+    db.user.count({ where: { id: { in: [...userIds, ...platformUserIds] } } }),
     platformUserIds.length === 0
       ? Promise.resolve(0)
       : db.platformAccountActivation.count({ where: { userId: { in: platformUserIds } } }),
+    db.platformAuditEvent.count({ where: { actorUserId: { in: allUserIds } } }),
+    db.staffAccountRecovery.count({ where: { organizationId: { in: organizationIds } } }),
+    db.platformOrganizationInvite.count({ where: { organizationId: { in: organizationIds } } }),
   ]);
-  if (organizationResidue + userResidue + activationResidue !== 0) {
+  const [orphans] = await db.$queryRaw<Array<{ count: bigint }>>`
+    SELECT count(*) AS count FROM "PlatformAuditEvent" a
+    LEFT JOIN "User" u ON u.id = a."actorUserId" WHERE a."actorUserId" IS NOT NULL AND u.id IS NULL
+  `;
+  if (organizationResidue + userResidue + activationResidue + auditResidue + recoveryResidue + invitationResidue !== 0 || Number(orphans.count) !== 0) {
     throw new Error("M2 UAT fixture residue remains after exact cleanup");
   }
   process.stdout.write(`${JSON.stringify({ status: "CLEAN" })}\n`);

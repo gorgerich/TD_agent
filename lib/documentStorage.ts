@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { del, get, put } from "@vercel/blob";
+import { isDeployedProductionDocumentRuntime } from "./documentAdapterPolicy";
 
 const ISOLATED_STORAGE_ROOT = path.join(process.cwd(), ".m3-private-storage");
 
@@ -22,10 +23,16 @@ export interface DocumentStorage {
 }
 
 const vercelBlobStorage: DocumentStorage = {
-  isConfigured: () => Boolean(
-    process.env.BLOB_READ_WRITE_TOKEN
-      || (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
-  ),
+  isConfigured: () => {
+    const context = (globalThis as typeof globalThis & {
+      [key: symbol]: { get?: () => { headers?: Record<string, unknown> } } | undefined;
+    })[Symbol.for("@vercel/request-context")];
+    const contextToken = context?.get?.()?.headers?.["x-vercel-oidc-token"];
+    const oidc = (typeof contextToken === "string" && contextToken.trim())
+      || process.env.VERCEL_OIDC_TOKEN?.trim();
+    return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim()
+      || (process.env.BLOB_STORE_ID?.trim() && oidc));
+  },
   async putPrivate(storageKey, file) {
     const blob = await put(storageKey, file, {
       access: "private",
@@ -81,19 +88,21 @@ const isolatedFilesystemStorage: DocumentStorage = {
 let testStorage: DocumentStorage | null = null;
 
 export function getDocumentStorage(): DocumentStorage {
-  if (testStorage) return testStorage;
+  if (testStorage && !isDeployedProductionDocumentRuntime()) return testStorage;
   if (process.env.M3_DOCUMENT_STORAGE === "isolated-filesystem") return isolatedFilesystemStorage;
   return vercelBlobStorage;
 }
 
 export function setDocumentStorageForTests(storage: DocumentStorage | null): void {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1") {
+  if (isDeployedProductionDocumentRuntime()
+    || (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1")) {
     throw new Error("Document storage override is forbidden in production");
   }
   testStorage = storage;
 }
 
 function isolatedFilesystemRoot(): string | null {
+  if (isDeployedProductionDocumentRuntime()) return null;
   if (process.env.M3_DOCUMENT_STORAGE !== "isolated-filesystem") return null;
   const isolatedTarget = process.env.PREVIEW_DB_ISOLATION === "PASS";
   const allowedRuntime = process.env.VERCEL_ENV === "preview" || process.env.ALLOW_DB_TESTS === "1";

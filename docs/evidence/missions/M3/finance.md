@@ -1,10 +1,10 @@
 ---
 schema: m3-human-packet-v2
 gate: financeAccounting
-preview_url: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app
-deployment_id: dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg
-deployment_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
-implementation_sha: e9c23c516adf4b136b94a8825ec1cc45626b66a0
+preview_url: https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_HszboxTiE1dYJu5dgrBUTciaQ126
+deployment_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
+implementation_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
 database_fingerprint: 545a187f9e9d66b0
 current_verdict: AWAITING_HUMAN_VERDICT
 reviewer_id: null
@@ -15,12 +15,12 @@ attestation_fingerprint: null
 
 ## Candidate facts
 
-PR37 / base055 technical candidate,2026-10-17. Actual exacte9 Preview journeys passed; this does not approve any human checklist. PR36 release failed and remains recorded in INCIDENT-PR36-20261017.md. Subsequent restricted CPO releaseffc/deployment3qc/freezedisabled is recorded in cpo-post-release-20261018.md; it does not approve this Finance verdict or broad rollout. Protected synthetic material retained; no credentials in this packet.
+PR39 / base91ae technical candidate. Actual exact48 Preview journeys passed on 2026-10-23; synthetic access was then revoked. This packet is prepared factual input, NOT a professional verdict. No PR39 Production release occurred. Historical releases and failed attempts remain in their original receipts. Re-admit only scoped synthetic access through an approved reviewed mechanism when a real reviewer is scheduled.
 
 
-- Exact Preview: `https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app`
-- Deployment: `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`
-- Implementation: `e9c23c516adf4b136b94a8825ec1cc45626b66a0`
+- Exact Preview: `https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`
+- Implementation: `48eef7cd34b4cc2f9898dadf4506a32da8699962`
 - Data is synthetic and isolated from Production.
 - Ledger is append-only; corrections and reversals preserve the original entry.
 - Payment status is derived from obligation and ledger, never manually set.

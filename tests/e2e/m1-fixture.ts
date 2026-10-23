@@ -36,6 +36,23 @@ if (!isLocalTarget(directUrl) && !productionFingerprint) {
 }
 
 const db = new PrismaClient({ datasources: { db: { url: directUrl } } });
+let provisionPhase = "TARGET_PREFLIGHT";
+const identityActions: Array<{ model: string; action: string; durationMs: number }> = [];
+let identityStartedAt: number | undefined;
+let identityCallbackCompleted = false;
+let identityCommitAcknowledged = false;
+db.$use(async (params, next) => {
+  const measure = provisionPhase === "IDENTITY_TRANSACTION" && params.model;
+  const started = performance.now();
+  try { return await next(params); } finally {
+    if (measure) identityActions.push({ model: measure, action: params.action, durationMs: Math.round(performance.now() - started) });
+  }
+});
+
+function identityDiagnostics() {
+  return { phase: provisionPhase, identityActions, identityCallbackCompleted, identityCommitAcknowledged,
+    identityElapsedMs: identityStartedAt === undefined ? null : Math.round(performance.now() - identityStartedAt) };
+}
 
 async function main() {
   try {
@@ -56,7 +73,9 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.message : "M1 UAT fixture failed"}\n`);
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" && /^P\d{4}$/.test(error.code)
+    ? error.code : "FIXTURE_FAILED";
+  process.stderr.write(`${JSON.stringify({ ...identityDiagnostics(), code })}\n`);
   process.exitCode = 1;
 });
 
@@ -94,15 +113,23 @@ async function provision() {
     create: { name: "M1 Synthetic UAT", commissionPct: "0.00" },
   });
 
+  provisionPhase = "IDENTITY_TRANSACTION";
+  identityStartedAt = performance.now();
   const identities = await db.$transaction(async (tx) => {
     const organization = await tx.organization.create({
       data: { id: organizationId, slug: `m1-uat-${runId}`, name: "Синтетическая команда M1", timezone: "Europe/Moscow" },
     });
-    const agent = await createIdentity(tx, tier.id, "agent", "Синтетический агент", agentEmail, "AGENT", passwordHash);
-    const assignedAgent = await createIdentity(tx, tier.id, "assigned", "Синтетический координатор", assignedAgentEmail, "AGENT", passwordHash);
-    const manager = await createIdentity(tx, tier.id, "manager", "Синтетический руководитель", managerEmail, "MANAGER", passwordHash);
+    const [agent, assignedAgent, manager] = await createIdentities(tx, tier.id, passwordHash);
+    identityCallbackCompleted = true;
     return { organization, agent, assignedAgent, manager };
   });
+  identityCommitAcknowledged = true;
+  if (identityActions.length !== 4 || identityActions[0].model !== "Organization" || identityActions[0].action !== "create"
+    || !["User", "Agent", "Membership"].every(model => identityActions.filter(row => row.model === model && row.action === "createManyAndReturn").length === 1)) {
+    throw new Error("M1 UAT identity batch query bound violated");
+  }
+  process.stderr.write(`${JSON.stringify(identityDiagnostics())}\n`);
+  provisionPhase = "SCENARIO_FIXTURES";
 
   const agent = operationalContext(identities.agent, "AGENT", "Синтетический агент");
   const manager = operationalContext(identities.manager, "MANAGER", "Синтетический руководитель");
@@ -206,33 +233,45 @@ async function provision() {
   })}\n`);
 }
 
-async function createIdentity(
+async function createIdentities(
   tx: Prisma.TransactionClient,
   tierId: number,
-  suffix: string,
-  name: string,
-  email: string,
-  role: MembershipRole,
   passwordHash: string,
 ) {
-  const user = await tx.user.create({ data: { email, name, passwordHash } });
-  const agent = await tx.agent.create({
-    data: { userId: user.id, tierId, status: "ACTIVE", selfEmployed: false, onboardingCompleted: true, notifyEnabled: false },
+  const specs = [
+    { suffix: "agent", name: "Синтетический агент", email: agentEmail, role: "AGENT" },
+    { suffix: "assigned", name: "Синтетический координатор", email: assignedAgentEmail, role: "AGENT" },
+    { suffix: "manager", name: "Синтетический руководитель", email: managerEmail, role: "MANAGER" },
+  ] as const;
+  // Batch each dependency layer; retain the same atomic transaction and deadline.
+  const users = await tx.user.createManyAndReturn({
+    data: specs.map(({ email, name }) => ({ email, name, passwordHash })),
+    select: { id: true, email: true },
   });
-  const membership = await tx.membership.create({
-    data: {
-      id: `m1-uat-membership:${runId}:${suffix}`,
-      organizationId,
-      userId: user.id,
-      agentId: agent.id,
-      role,
-      status: "ACTIVE",
-    },
+  const agents = await tx.agent.createManyAndReturn({
+    data: users.map(({ id }) => ({ userId: id, tierId, status: "ACTIVE", selfEmployed: false, onboardingCompleted: true, notifyEnabled: false })),
+    select: { id: true, userId: true },
   });
-  return { user, agent, membership };
+  const memberships = await tx.membership.createManyAndReturn({
+    data: specs.map(({ suffix, email, role }) => {
+      const user = users.find((row) => row.email === email);
+      const agent = agents.find((row) => row.userId === user?.id);
+      if (!user || !agent) throw new Error("M1 UAT identity batch mapping failed");
+      return { id: `m1-uat-membership:${runId}:${suffix}`, organizationId, userId: user.id, agentId: agent.id, role, status: "ACTIVE" };
+    }),
+  });
+  if (users.length !== 3 || agents.length !== 3 || memberships.length !== 3) throw new Error("M1 UAT identity batch count mismatch");
+  return specs.map(({ suffix, email, role }) => {
+    const user = users.find((row) => row.email === email);
+    const agent = agents.find((row) => row.userId === user?.id);
+    const membership = memberships.find((row) => row.id === `m1-uat-membership:${runId}:${suffix}`);
+    if (!user || !agent || !membership || membership.userId !== user.id || membership.agentId !== agent.id
+      || membership.organizationId !== organizationId || membership.role !== role) throw new Error("M1 UAT identity batch relationship mismatch");
+    return { user, agent, membership };
+  });
 }
 
-function operationalContext(identity: Awaited<ReturnType<typeof createIdentity>>, role: MembershipRole, name: string): OperationalContext {
+function operationalContext(identity: Awaited<ReturnType<typeof createIdentities>>[number], role: MembershipRole, name: string): OperationalContext {
   return {
     userId: identity.user.id,
     agentId: identity.agent.id,

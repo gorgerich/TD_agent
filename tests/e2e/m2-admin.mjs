@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHmac } from "node:crypto";
 import { chromium } from "playwright";
 import { fillProtected, sanitizedLegacyFailure, observeLegacyPromise, createLegacyAsyncScope, legacySecretScreenshotOptions } from "./protectedInput.mjs";
+import { verifyRealOrganizationOnboarding } from "./real-organization.mjs";
 
 let browser;
 let context;
@@ -35,12 +36,26 @@ if (!mfaSecret) throw new Error("M2_UAT_MFA_SECRET is required");
 if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 
 browser = await chromium.launch({ headless: true });
-context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+context = await browser.newContext({ viewport: { width: 1365, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow",
+  ...(process.env.E2E_PROTECTION_BYPASS?.trim() ? { extraHTTPHeaders: { "x-vercel-protection-bypass": process.env.E2E_PROTECTION_BYPASS.trim() } } : {}),
+});
 const page = await context.newPage();
 const browserErrors = [];
 let expectedActivationRejection = 0;
 let expectedRecoveryRejection = 0;
+let expectedRetentionDenial = 0;
+let awaitingRetentionDenial = false;
 page.on("console", (message) => {
+  if (
+    awaitingRetentionDenial
+    && message.type() === "error"
+    && message.text().includes("status of 403")
+    && message.location().url === `${baseUrl}/api/platform-admin/rate-limit-retention`
+  ) {
+    expectedRetentionDenial += 1;
+    awaitingRetentionDenial = false;
+    return;
+  }
   if (
     message.type() === "error"
     && message.text().includes("status of 400")
@@ -60,6 +75,8 @@ page.on("console", (message) => {
   if (message.type() === "error") browserErrors.push(`console: ${message.text()}`);
 });
 page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
+
+  assert.equal((await context.request.get(`${baseUrl}/api/platform-admin/rate-limit-retention`)).status(), 401);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await openRecovery(page, recoveryToken);
@@ -109,6 +126,10 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await login(page, emails.platform, "/platform-admin");
   await page.getByRole("heading", { name: "Обзор платформы" }).waitFor();
   await page.getByText("Администрирование платформы", { exact: true }).first().waitFor();
+  const retention = await retentionHealth(page);
+  assert.equal(retention.status, 200, "Authenticated browser must read retention health");
+  assert.equal(retention.cacheControl, "no-store");
+  assert.deepEqual(retention.body, { lastOutcome: "NEVER_OBSERVED", stale: true });
   await screenshot(page, "platform-admin-desktop.png");
   await page.getByRole("link", { name: "Организации" }).click();
   await page.getByRole("heading", { name: "Организации" }).waitFor();
@@ -127,9 +148,13 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   await assertNoOverflow(page, "platform admin mobile");
   await screenshot(page, "platform-admin-mobile.png");
 
+  await verifyRealOrganizationOnboarding({ browser, platformPage: page, baseUrl, runId, password, totp, screenshot: recoveryScreenshot });
+
   await context.clearCookies();
   await page.setViewportSize({ width: 1365, height: 900 });
   await login(page, emails.admin, "/agent/cases");
+  awaitingRetentionDenial = true;
+  assert.equal((await retentionHealth(page)).status, 403);
   await page.goto(`${baseUrl}/agent/settings/team`, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Команда и доступы" }).waitFor();
   await page.getByText(emails.admin, { exact: true }).waitFor();
@@ -181,6 +206,8 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
   assert.deepEqual(browserErrors, [], `Unexpected browser errors:\n${browserErrors.join("\n")}`);
   assert.equal(expectedActivationRejection, 1, "Consumed activation token must be rejected exactly once");
   assert.equal(expectedRecoveryRejection, 1, "Consumed recovery token must be rejected exactly once");
+  assert.equal(expectedRetentionDenial, 1, "Organization ADMIN retention denial must be observed exactly once");
+  assert.equal(awaitingRetentionDenial, false);
   await asyncScope.settle();
   process.stdout.write(`${JSON.stringify({
     platformSuperAdmin: "PASS",
@@ -193,6 +220,14 @@ page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`
     mobile: "PASS",
     skipped: 0,
   })}\n`);
+
+async function retentionHealth(target) {
+  // Use the browser's cookie transport, including secure loopback cookies.
+  return target.evaluate(async () => {
+    const response = await fetch("/api/platform-admin/rate-limit-retention", { cache: "no-store" });
+    return { status: response.status, cacheControl: response.headers.get("cache-control"), body: await response.json() };
+  });
+}
 
 async function login(target, email, expectedPath) {
   await target.goto(`${baseUrl}/agent/login`, { waitUntil: "networkidle" });

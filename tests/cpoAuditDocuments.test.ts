@@ -114,6 +114,10 @@ function harness(serviceCode = compiled) {
       if (capability === "documents:review" && context.role !== "DOCUMENT_REVIEWER") throw new OperationalCommandError(403, "forbidden");
     } },
     "@/lib/operationalTransaction": { OperationalCommandError, runOperationalTransaction: async (work: (tx: typeof db) => Promise<unknown>) => work(db) },
+    "@/lib/m3ProductionActivation": { runM3ProductionTransaction: async (organizationId: string, work: (tx: typeof db) => Promise<unknown>) => {
+      assert.equal(organizationId, "tenant");
+      return work(db);
+    }, verifyM3ProductionDocumentPreflight: async () => {} },
     "@/lib/m3Command": { ...commands, requireTenantCase: async () => ({ id: "case" }) },
     "@/lib/caseFulfilment": { advanceCaseFulfilment: async () => {} },
     "@/lib/documentRequirementService": { refreshCaseRequirementApplicabilityInTransaction: async () => {} },

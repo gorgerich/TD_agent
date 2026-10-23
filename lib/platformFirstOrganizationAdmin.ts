@@ -73,7 +73,10 @@ export async function assignFirstOrganizationAdminInTransaction(
     where: { organizationId, role: "ADMIN", acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
     select: { id: true },
   });
-  if (previousBootstrap || admin || pendingAdmin) {
+  const pendingPlatformAdmin = await tx.platformOrganizationInvite.findFirst({
+    where: { organizationId, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true },
+  });
+  if (previousBootstrap || admin || pendingAdmin || pendingPlatformAdmin) {
     throw new OperationalCommandError(409, "Первый ADMIN уже назначен или приглашён", "FIRST_ADMIN_ALREADY_EXISTS");
   }
   await tx.$queryRaw`SELECT "id" FROM "Membership" WHERE "id" = ${membershipId} AND "organizationId" = ${organizationId} FOR UPDATE`;

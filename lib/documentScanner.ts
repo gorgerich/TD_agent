@@ -1,3 +1,5 @@
+import { isDeployedProductionDocumentRuntime } from "./documentAdapterPolicy";
+
 export type DocumentScanInput = {
   storageKey: string;
   bytes: Uint8Array;
@@ -50,6 +52,7 @@ const syntheticPreviewScanner: DocumentScanner = {
 let testScanner: DocumentScanner | null = null;
 
 export function getDocumentScanner(): DocumentScanner {
+  if (isDeployedProductionDocumentRuntime()) return failClosedScanner;
   if (testScanner) return testScanner;
   const approvedLocal = process.env.NODE_ENV !== "production" && process.env.ALLOW_DB_TESTS === "1";
   const isolatedPreview = process.env.VERCEL_ENV === "preview" && process.env.PREVIEW_DB_ISOLATION === "PASS";
@@ -60,7 +63,8 @@ export function getDocumentScanner(): DocumentScanner {
 }
 
 export function setDocumentScannerForTests(scanner: DocumentScanner | null): void {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1") {
+  if (isDeployedProductionDocumentRuntime()
+    || (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1")) {
     throw new Error("Document scanner override is forbidden in production");
   }
   testScanner = scanner;

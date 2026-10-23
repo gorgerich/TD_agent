@@ -1,0 +1,38 @@
+{
+  "observedDateUtc": "2026-10-23",
+  "projectId": "prj_1lA8bU4JS13sSJYKH22oCWuWkB5g",
+  "teamId": "team_2bCVT1emiAQS4WOT01ndaA7b",
+  "configuration": {
+    "source": "Authenticated read-only Vercel v9 project API via existing CLI principal",
+    "enabledAt": 1779634384656,
+    "disabledAt": null,
+    "updatedAt": 1792316187304,
+    "deploymentId": "dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW",
+    "path": "/api/internal/rate-limit-retention",
+    "schedule": "17 3 * * *",
+    "timezone": "UTC"
+  },
+  "scheduledExecution": {
+    "status": "UNPROVED",
+    "notSubstitutedBy": ["enabled configuration", "manual endpoint invocation", "user-agent", "health row"],
+    "manualCleanupRequests": 0,
+    "morningApplicationOutputQueries": "No matching MCP application output observed; absence does not establish missing HTTP dispatch",
+    "freeRequestLogChannel": "Verified existing CLI logs --json --no-branch returns HTTP request records, including responseStatusCode and request id, unlike application output alone",
+    "monitor": "Existing quiet monitor updated to read this request-log channel during03:00-04:35UTC without changing its schedule"
+  },
+  "previewDiagnosticControl": {
+    "deploymentId": "dpl_6FkTzhasNcxSTYxXkWCL3RTcbfYZ",
+    "sourceSha": "b001ecaff3a9ab9e256f267776a004a2a808c94e",
+    "requestPath": "/agent/finance",
+    "observedServerlessRequests": [
+      { "timestamp": "2026-10-23T10:19:48.382Z", "requestId": "nj8kz-1792750788382-d5dec326080d", "responseStatusCode": 200 },
+      { "timestamp": "2026-10-23T10:13:41.986Z", "requestId": "mmqsr-1792750421986-8c9c84bc3239", "responseStatusCode": 200 },
+      { "timestamp": "2026-10-23T10:13:41.658Z", "requestId": "phpnm-1792750421658-04ab5ce65250", "responseStatusCode": 200 },
+      { "timestamp": "2026-10-23T10:13:18.360Z", "requestId": "qvwp7-1792750398360-3d22d525c352", "responseStatusCode": 200 }
+    ],
+    "scope": "Actual synthetic Preview request metadata only; does not explain the browser navigation failure, prove full-UAT5xx=0, or certify a scheduled Production run"
+  },
+  "productionMutations": "NONE",
+  "paidObservabilityEnabled": false,
+  "nox": "EXCLUDED"
+}

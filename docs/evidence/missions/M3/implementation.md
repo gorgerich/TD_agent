@@ -1,21 +1,22 @@
-# PR37 Initial Intake Reconciliation Repair
+# M3 Real-Production Candidate
 
-Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
-Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
-Restricted CPO recovery is now released at PR37 merge `ffc41e4a7105349e3b4aaa65cef3154eebb2a921`, deployment `dpl_3qc23sNV7v6c68LP8UhiJvtMPk2V`, exact disabled freeze. See the [actual post-release record](cpo-post-release-20261018.md). The failed PR36 release and earlier frozen875 recovery remain historical in the [incident](INCIDENT-PR36-20261017.md). Schema13 was already applied; PR37 introduces no migration. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
+Runtime `48eef7cd34b4cc2f9898dadf4506a32da8699962`, base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`, [PR39](https://github.com/gorgerich/TD_agent/pull/39). [Exact Preview](https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app), deployment `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`, isolated Railway fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792775433611_04dc5b99`, private Blob `store_Ov8erHstuvfJ52Og`.
 
-## Scope
+The owner superseded the synthetic-only goal. This is a verified engineering candidate, not real Production readiness. [DA packet](historical/pr39-da-packet-20261023/README.md) preserves old facts byte-for-byte; intermediate failed/cancelled attempts remain in technical-readiness.
 
-The cumulative37 canonical audit repairs remain in [registry](cpo-registry-current.md), not implemented again. This increment changes only reconciliation plus11 API/PostgreSQL regressions and an incident record. Initial INTAKE/UNSELECTED with no closure, lifecycle history, documents, requirements, Quotes, contracts or financial effects is honest incompleteness, not unsupported-scenario drift. Strict policy parity stays false; policy/contract/payment fulfilment blockers remain. Advanced/lost-materialized/previously progressed states still fail closed. No writes, money, auth, transaction deadline, migration or dependency change.
+## Implemented And Verified
 
-## Actual Execution
+- Indexed bounded retention cleanup, expiry recheck/locking and persistent generation-CAS health; real scheduled dispatch remains unobserved.
+- Supported first ADMIN/invitation, all five roles, MFA and hash-only staff recovery with session/hash CAS; real activation is bound to genuine current policy credentials and immutable proof. Synthetic attestations cannot open real organizations.
+- Intake and canonical publication avoid repeated unused aggregate loads while retaining5000ms deadline, atomic requirements/tasks/projections/audit and truthful command replay. Generic Case publication forgery is denied.
+- Next/eslint16.4.2 with Sharp0.35.5; runtime/full audits0 atOctober23 observation. Braces advisory was withdrawn upstream, not patched.
+- Existing Finance/card/role-summary/real-font/masked-pixel fixes preserved. Finance E2E diagnostic counter initialization is corrected with a red negative control. No assertion, timeout or foreign-data guard weakened.
+- Additive migrations14-17 only; first13 historical migrations unchanged.
 
-[Source CI39043091834](https://github.com/gorgerich/TD_agent/actions/runs/39043091834):258unit,174PG/23files,5x90concurrency,5x22latency at80ms round-trip delay, maximum parallel4052ms against unchanged5000ms deadline. All27 technical steps PASS, including six E2E scripts, auth failure/recovery, document component browser, four fixture cleanups and encrypted synthetic backup/real restore/no-op/parity. Overall CI FAIL only stale b0 evidence, not retroactively green. Subsequent [exact final-head CI39069388095](https://github.com/gorgerich/TD_agent/actions/runs/39069388095) and [merge main CI39072019723](https://github.com/gorgerich/TD_agent/actions/runs/39072019723) PASS. The final-head latency maximum is4064ms; the earlier4052ms is not relabeled.
+## Actual Gates
 
-[New exact-runtime result](pr37-e9-preview-result.json) covers both full M3 journeys, CPO browser and two new partial-intake replay/census journeys. M3 reconciliation0/unexpected5xx0/skip0. New journey census1Case/1Lead/1Party/3roles/2events/2audits, no documents/financial/work rows per ceremony; fulfilment remains blocked. Local narrowed11 and full174 PostgreSQL tests, unit258/typecheck/lint/build passed separately.
+One final full local run: lint/typecheck/build,294unit,207PG/29files, all6E2E, auth-failure/recovery,7components, legacy fixtures,17deploy/no-op/parity and AES256 actual58-table synthetic restore PASS; cleanupPASS. [Local receipt](technical-readiness/pr39-48-local-gate.json). [Source CI](https://github.com/gorgerich/TD_agent/actions/runs/39992539885) repeats all required technical gates,124latency and575 targeted tests PASS, skipped0; overallFAIL solely stale evidence, not a green required check.
 
-## Boundaries
+Fresh native M2-admin, both M3 journeys and CPO repair PASS; reconciliation0/5xx0/skipped0,18synthetic users retained, all six access counts0 and credential copy deleted. [Receipt](technical-readiness/pr39-48-preview.json).
 
-Only this post-recovery technical interval has Production writes/schema/env/deployment NONE. That claim does not erase native PR36 migrations, retained synthetic effects or failed release. Owned Preview schema/history/secrets remain protected for review; local/browser cleanup is not secret destruction. [Historical packet](historical/pre-pr37-e9-packet-20261017/README.md) preserves b0 facts unchanged.
-
-The later owner-native restricted release is a different measured interval. It performed fresh encrypted backup/actual isolated restore, standard redeploy, controlled unfreeze and replay of four already saved commands only. All51 scoped business and31 retained-synthetic table count/digests match. Authentication/rate-limit infrastructure and deployment configuration did change; do not call the whole release write-free. No new business entities, schema changes, provisioning or financial/document effects occurred. Production verification is the narrow retained-command smoke, not a repeat of the full Preview financial/document UAT.
+Production remains91ae on READY dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW. No PR39 Production DB/schema/env/deployment/freeze write, merge, smoke or fresh customer digest is claimed. Human verdicts remain PENDING; real rollout stays closed until all mandatory conditions. NOX excluded, M4 NOT_STARTED.

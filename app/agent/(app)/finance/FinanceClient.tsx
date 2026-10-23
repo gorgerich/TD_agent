@@ -331,9 +331,9 @@ export function FinanceClient({
           <ul className="td-shell divide-y divide-line md:hidden" aria-label="Финансовые обязательства">
             {rows.map((item) => (
               <li key={item.id} className="px-4 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div><strong className="text-[14px] text-ink">{item.case.publicRef}</strong><p className="mt-1 text-[12px] text-ink-3">Договор v{item.contractVersion.versionNumber}</p></div>
-                  <span className="text-right text-[12px] font-semibold text-ink-2">{statusLabel(item.summary.status)}</span>
+                <div className="grid min-w-0 gap-2 [overflow-wrap:anywhere] min-[360px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="min-w-0"><strong className="text-[14px] text-ink">{item.case.publicRef}</strong><p className="mt-1 text-[12px] text-ink-3">Договор v{item.contractVersion.versionNumber}</p></div>
+                  <span className="min-w-0 text-[12px] font-semibold text-ink-2 min-[360px]:text-right">{statusLabel(item.summary.status)}</span>
                 </div>
                 <dl className="mt-3 grid gap-2 text-[12px]">
                   <MobileValue label="Обязательство" value={moneyFromKopecks(item.amountKopecks)} />
@@ -525,7 +525,7 @@ function createCommandEnvelope(scope: string): CommandEnvelope {
 }
 
 function MobileValue({ label, value, emphasize = false }: { label: string; value: string; emphasize?: boolean }) {
-  return <div className="flex justify-between gap-3"><dt className="text-ink-3">{label}</dt><dd className={`tnum text-right ${emphasize ? "font-semibold text-ink" : "text-ink-2"}`}>{value}</dd></div>;
+  return <div className="grid min-w-0 gap-1 [overflow-wrap:anywhere] min-[360px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"><dt className="min-w-0 text-ink-3">{label}</dt><dd className={`tnum min-w-0 min-[360px]:text-right ${emphasize ? "font-semibold text-ink" : "text-ink-2"}`}>{value}</dd></div>;
 }
 
 function formatMaybeMoney(value: number | null | undefined) {

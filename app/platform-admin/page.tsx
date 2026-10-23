@@ -2,6 +2,7 @@ import Link from "next/link";
 import { WarningCircle } from "@phosphor-icons/react/dist/ssr";
 import { prisma } from "@/lib/prisma";
 import { requirePlatformAdmin } from "@/lib/platformAuth";
+import { MembershipRole } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export default async function PlatformAdminDashboard() {
     prisma.organization.count({ where: { status: "ACTIVE" } }),
     prisma.organization.count({ where: { status: "SUSPENDED" } }),
     prisma.membership.count({ where: { status: "ACTIVE", organization: { status: "ACTIVE" } } }),
-    prisma.membership.groupBy({ by: ["role"], where: { status: "ACTIVE" }, _count: { _all: true } }),
+    prisma.membership.groupBy({ by: ["role"], where: { status: "ACTIVE", organization: { status: "ACTIVE" } }, _count: { _all: true } }),
     prisma.platformAuditEvent.findMany({
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -34,7 +35,7 @@ export default async function PlatformAdminDashboard() {
         <Metric label="Организации" value={total} detail={`${active} активных`} />
         <Metric label="Приостановлены" value={suspended} detail="Данные сохранены" tone={suspended ? "warning" : undefined} />
         <Metric label="Активные сотрудники" value={activeMemberships} detail="В активных организациях" />
-        <Metric label="Роли" value={(roles.ADMIN ?? 0) + (roles.MANAGER ?? 0) + (roles.AGENT ?? 0)} detail={`${roles.ADMIN ?? 0} ADMIN · ${roles.MANAGER ?? 0} MANAGER · ${roles.AGENT ?? 0} AGENT`} />
+        <Metric label="Роли" value={roleGroups.reduce((sum, group) => sum + group._count._all, 0)} detail={Object.values(MembershipRole).map((role) => `${roles[role] ?? 0} ${role}`).join(" · ")} />
       </section>
 
       <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -90,7 +91,7 @@ function Metric({ label, value, detail, tone }: { label: string; value: number; 
     <article className="min-h-[132px] bg-white p-5">
       <p className="text-[12px] font-medium text-[#667873]">{label}</p>
       <p className={`mt-3 text-[30px] font-semibold tabular-nums ${tone ? "text-[#8a5d18]" : "text-[#132421]"}`}>{value}</p>
-      <p className="mt-2 text-[11px] text-[#71817d]">{detail}</p>
+      <p className="mt-2 text-[11px] text-[#71817d] [overflow-wrap:anywhere]">{detail}</p>
     </article>
   );
 }

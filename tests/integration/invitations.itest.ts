@@ -148,3 +148,31 @@ function registrationRequest(email: string, inviteToken: string) {
     },
   });
 }
+
+test("invitation retries bind recipient, role and lifetime, including concurrent unique races", opts, async () => {
+  const f = createFixtureContext("invitation-payload-race");
+  try {
+    const admin = await f.makeMember("admin", { role: "ADMIN" });
+    const cookie = await sessionCookieHeader(admin.userId, admin.agentId);
+    const body = { email: `${f.runId}@test.invalid`, role: "AGENT", expiresInHours: 24 };
+    const request = (changes = {}, key = "same") => makeRequest("/api/agent/invitations", {
+      method: "POST", cookie, headers: { "idempotency-key": `${f.runId}:${key}`, "x-correlation-id": f.runId }, body: { ...body, ...changes },
+    });
+    const first = await createInvitation(request());
+    assert.equal(first.status, 201);
+    const created = await first.json();
+    for (const changes of [{ email: `other-${body.email}` }, { role: "MANAGER" }, { expiresInHours: 48 }]) {
+      assert.equal((await createInvitation(request(changes))).status, 409);
+    }
+    const replay = await createInvitation(request());
+    assert.equal(replay.status, 200);
+    assert.deepEqual(await replay.json(), { id: created.id, replayed: true });
+    const race = await Promise.all([
+      createInvitation(request({}, "race")),
+      createInvitation(request({ role: "MANAGER" }, "race")),
+    ]);
+    assert.deepEqual(race.map(response => response.status).sort(), [201, 409]);
+    assert.equal(await db.organizationInvite.count({ where: { organizationId: admin.organizationId } }), 2);
+    assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: admin.organizationId, action: "MEMBER_INVITED" } }), 2);
+  } finally { await f.cleanup(); await f.assertNoResidue(); }
+});

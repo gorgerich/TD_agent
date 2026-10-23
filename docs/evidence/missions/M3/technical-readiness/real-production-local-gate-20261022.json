@@ -1,0 +1,301 @@
+{
+  "scope": "FULL",
+  "schema": "m3_cpo_repair_fba197e28dc4758e",
+  "fingerprint": "76ecfdc12aece957",
+  "sourceDigest": "62b83f484df30d509bdd0ae3f52a5971535b890a49fd9c2ae03ba1c937e219a1",
+  "production": "UNCHANGED",
+  "gates": [
+    {
+      "name": "diff",
+      "exit": 0,
+      "durationMs": 403
+    },
+    {
+      "name": "lint",
+      "exit": 0,
+      "durationMs": 113617
+    },
+    {
+      "name": "typecheck",
+      "exit": 0,
+      "durationMs": 33450
+    },
+    {
+      "name": "unit",
+      "exit": 0,
+      "durationMs": 122602
+    },
+    {
+      "name": "integration",
+      "exit": 0,
+      "durationMs": 434540
+    },
+    {
+      "name": "legacy-create",
+      "exit": 0,
+      "durationMs": 1983
+    },
+    {
+      "name": "legacy-0",
+      "exit": 0,
+      "durationMs": 1031
+    },
+    {
+      "name": "legacy-1",
+      "exit": 0,
+      "durationMs": 217
+    },
+    {
+      "name": "legacy-2",
+      "exit": 0,
+      "durationMs": 241
+    },
+    {
+      "name": "legacy-3",
+      "exit": 0,
+      "durationMs": 149
+    },
+    {
+      "name": "legacy-4",
+      "exit": 0,
+      "durationMs": 550
+    },
+    {
+      "name": "legacy-5",
+      "exit": 0,
+      "durationMs": 177
+    },
+    {
+      "name": "legacy-6",
+      "exit": 0,
+      "durationMs": 111
+    },
+    {
+      "name": "legacy-7",
+      "exit": 0,
+      "durationMs": 185
+    },
+    {
+      "name": "legacy-8",
+      "exit": 0,
+      "durationMs": 172
+    },
+    {
+      "name": "legacy-9",
+      "exit": 0,
+      "durationMs": 131
+    },
+    {
+      "name": "legacy-10",
+      "exit": 0,
+      "durationMs": 96
+    },
+    {
+      "name": "legacy-11",
+      "exit": 0,
+      "durationMs": 161
+    },
+    {
+      "name": "legacy-12",
+      "exit": 0,
+      "durationMs": 242
+    },
+    {
+      "name": "legacy-13",
+      "exit": 0,
+      "durationMs": 163
+    },
+    {
+      "name": "legacy-14",
+      "exit": 0,
+      "durationMs": 671
+    },
+    {
+      "name": "legacy-15",
+      "exit": 0,
+      "durationMs": 147
+    },
+    {
+      "name": "legacy-16",
+      "exit": 0,
+      "durationMs": 351
+    },
+    {
+      "name": "legacy-17",
+      "exit": 0,
+      "durationMs": 1621
+    },
+    {
+      "name": "legacy-18",
+      "exit": 0,
+      "durationMs": 277
+    },
+    {
+      "name": "legacy-19",
+      "exit": 0,
+      "durationMs": 176
+    },
+    {
+      "name": "legacy-20",
+      "exit": 0,
+      "durationMs": 113
+    },
+    {
+      "name": "legacy-21",
+      "exit": 0,
+      "durationMs": 272
+    },
+    {
+      "name": "legacy-22",
+      "exit": 0,
+      "durationMs": 133
+    },
+    {
+      "name": "legacy-23",
+      "exit": 0,
+      "durationMs": 89
+    },
+    {
+      "name": "legacy-24",
+      "exit": 0,
+      "durationMs": 136
+    },
+    {
+      "name": "legacy-25",
+      "exit": 0,
+      "durationMs": 225
+    },
+    {
+      "name": "legacy-26",
+      "exit": 0,
+      "durationMs": 135
+    },
+    {
+      "name": "legacy-27",
+      "exit": 0,
+      "durationMs": 204
+    },
+    {
+      "name": "legacy-28",
+      "exit": 0,
+      "durationMs": 221
+    },
+    {
+      "name": "migration",
+      "exit": 0,
+      "durationMs": 5718
+    },
+    {
+      "name": "noop",
+      "exit": 0,
+      "durationMs": 2962
+    },
+    {
+      "name": "parity",
+      "exit": 0,
+      "durationMs": 3388
+    },
+    {
+      "name": "build",
+      "exit": 0,
+      "durationMs": 98411
+    },
+    {
+      "name": "m1-fixture",
+      "exit": 0,
+      "durationMs": 8455
+    },
+    {
+      "name": "m2-fixture",
+      "exit": 0,
+      "durationMs": 3703
+    },
+    {
+      "name": "m3-fixture",
+      "exit": 0,
+      "durationMs": 4032
+    },
+    {
+      "name": "cpo-fixture",
+      "exit": 0,
+      "durationMs": 3316
+    },
+    {
+      "name": "restore-table-list",
+      "exit": 0,
+      "durationMs": 541
+    },
+    {
+      "name": "restore-counts-digests",
+      "exit": 0,
+      "durationMs": 396
+    },
+    {
+      "name": "restore-create",
+      "exit": 0,
+      "durationMs": 556
+    },
+    {
+      "name": "restore-table-list",
+      "exit": 0,
+      "durationMs": 139
+    },
+    {
+      "name": "restore-counts-digests",
+      "exit": 0,
+      "durationMs": 992
+    },
+    {
+      "name": "restore-noop",
+      "exit": 0,
+      "durationMs": 2785
+    },
+    {
+      "name": "restore-parity",
+      "exit": 0,
+      "durationMs": 3247
+    },
+    {
+      "name": "e2e",
+      "exit": 0,
+      "durationMs": 560348
+    },
+    {
+      "name": "auth-failure-browser",
+      "exit": 0,
+      "durationMs": 18181
+    },
+    {
+      "name": "component-browser",
+      "exit": 0,
+      "durationMs": 98796
+    }
+  ],
+  "restore": {
+    "status": "PASS",
+    "syntheticOnly": true,
+    "countsAndDigests": "MATCH",
+    "encrypted": "AES256",
+    "plaintextDump": "NONE",
+    "tables": 58
+  },
+  "cleanup": "PASS",
+  "receiptPath": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/td-agent-cpo-gate-ghHnge/receipt.json",
+  "classification": "LOCAL_WORKING_TREE_ONLY_BEFORE_HEADING_REFLOW_FIX",
+  "unit": {
+    "tests": 284,
+    "passed": 284,
+    "failed": 0,
+    "skipped": 0
+  },
+  "integration": {
+    "files": 27,
+    "tests": 202,
+    "passed": 202,
+    "failed": 0,
+    "skipped": 0
+  },
+  "nativePreview": "NOT_RUN_ON_THIS_TREE",
+  "productionScanner": "NOT_ESTABLISHED",
+  "actualScheduledRetention": "NOT_ESTABLISHED"
+}
