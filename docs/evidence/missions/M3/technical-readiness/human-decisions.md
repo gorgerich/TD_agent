@@ -9,6 +9,8 @@ Exact runtime48eef7cd34b4cc2f9898dadf4506a32da8699962; deploymentdpl_HszboxTiE1d
 
 All three verdicts and trusted credential registrations remain PENDING/NOT_REGISTERED, attestationsnull. Each must bind actual reviewed policy content and exact candidate with genuine identity/key/signature. Owner may select infrastructure/business scope, not sign as an unqualified professional. Ordinary finalCI/GitHubapproval, observed scheduledcron and fresh native backup/restore/preflight remain separate technical gates. Dependency follow-up is now closed in the candidate by compatible Next patch plus upstream braces withdrawal, NOT a Production deployment.
 
+Fresh October23 read-only infrastructure observations: Vercel team remains Hobby/active; its published terms permit only personal or non-commercial use, not the requested commercial rollout. TD-only Railway metrics read returned reauthorization required; no alternate channel was tried. The October20 resource/billing measurements remain dated facts, not freshly established spare capacity. [Observed scope and required owner action](infrastructure-observation-20261023.json). No paid plan or service has been enabled.
+
 ## Historical Decision Packets
 
 The following dated packets preserve earlier facts and proposals. Their runtime, UAT, migration counts and rejected cost recommendation are not the current candidate or authorization.

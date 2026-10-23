@@ -1,0 +1,36 @@
+{
+  "observedDate": "2026-10-23",
+  "scope": "READ_ONLY_TD_AGENT_ONLY",
+  "vercel": {
+    "teamId": "team_2bCVT1emiAQS4WOT01ndaA7b",
+    "projectId": "prj_1lA8bU4JS13sSJYKH22oCWuWkB5g",
+    "plan": "hobby",
+    "status": "active",
+    "commercialTermsSource": "https://vercel.com/legal/terms",
+    "commercialTermsSection": "4. Hobby Plan",
+    "limitation": "Personal or non-commercial use only. No paid upgrade, commercial exception or approved alternative is established by this read."
+  },
+  "railwayMetrics": {
+    "projectId": "204385e0-1f5d-4711-ac49-74475d0d7093",
+    "environmentId": "3bdb2bf1-62cf-4d92-80d7-ca762c607fbc",
+    "serviceId": "32492019-8037-4443-807b-3919626ccc63",
+    "operation": "get_service_metrics, last24h, hourly samples, memory/CPU usage and limits",
+    "status": "UNAVAILABLE_REAUTHORIZATION_REQUIRED",
+    "secretsRequestedOrPrinted": false,
+    "fallbackAttempted": false,
+    "impact": "No fresh spare-resource or billing proof. October20 measurements remain historical dated observations, not a present zero-cost hosting guarantee.",
+    "ownerAction": "Reconnect the existing Railway connector through its normal authorization UI with scoped read access to this exact TD project/environment/service. Do not supply credentials in chat, alter NOX or authorize SSH."
+  },
+  "scanner": {
+    "productionProvider": "NOT_IMPLEMENTED_OR_CONNECTED",
+    "zeroIncrementalCostCommercialHost": "NOT_ESTABLISHED",
+    "historical55DollarProposal": "REJECTED_NOT_RESUBMITTED",
+    "pricingSource": "https://docs.railway.com/pricing/plans",
+    "billingSource": "https://docs.railway.com/pricing/understanding-your-bill",
+    "pricingObservation": "Memory/CPU consumption remains metered even for free software and idle services; service limits are not prepaid unused capacity.",
+    "nextDecision": "Identify existing authorized commercially permitted unused prepaid capacity, or explicitly revise the zero-incremental-spend constraint. Real provider implementation and full service/application acceptance must follow; no substitute scanner or global impossibility claim."
+  },
+  "productionMutations": "NONE",
+  "nox": "NOT_QUERIED_OR_CHANGED",
+  "humanVerdicts": "PENDING"
+}
