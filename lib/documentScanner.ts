@@ -1,4 +1,5 @@
 import { isDeployedProductionDocumentRuntime } from "./documentAdapterPolicy";
+import { createHttpDocumentScanner } from "./documentScannerHttp";
 
 export type DocumentScanInput = {
   storageKey: string;
@@ -11,10 +12,12 @@ export type DocumentScanResult = {
   status: "CLEAN" | "INFECTED" | "ERROR";
   provider: string;
   resultCode: string;
+  evidence?: { engineVersion: string; signatureVersion: number; definitionsAt: string };
 };
 
 export interface DocumentScanner {
   isOperational(): boolean;
+  checkHealth?(): Promise<boolean>;
   scan(input: DocumentScanInput): Promise<DocumentScanResult>;
 }
 
@@ -52,6 +55,7 @@ const syntheticPreviewScanner: DocumentScanner = {
 let testScanner: DocumentScanner | null = null;
 
 export function getDocumentScanner(): DocumentScanner {
+  if (process.env.M3_DOCUMENT_SCANNER === "clamav-http-v1") return createHttpDocumentScanner();
   if (isDeployedProductionDocumentRuntime()) return failClosedScanner;
   if (testScanner) return testScanner;
   const approvedLocal = process.env.NODE_ENV !== "production" && process.env.ALLOW_DB_TESTS === "1";

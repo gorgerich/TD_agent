@@ -20,6 +20,7 @@ import {
 } from "@/lib/m3Command";
 import { advanceCaseFulfilment } from "@/lib/caseFulfilment";
 import { refreshCaseRequirementApplicabilityInTransaction } from "@/lib/documentRequirementService";
+import { readySnapshot } from "../services/document-scanner/protocol.mjs";
 
 const MAX_ABSOLUTE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
@@ -49,7 +50,6 @@ export async function uploadCaseDocument(
   validateM3CommandMeta(meta);
   validateFile(input.file);
   const scanner = dependencies.scanner ?? getDocumentScanner();
-  assertDocumentScannerOperational(scanner);
   await verifyM3ProductionDocumentPreflight(context.organizationId);
 
   const bytes = new Uint8Array(await input.file.arrayBuffer());
@@ -65,8 +65,11 @@ export async function uploadCaseDocument(
     size: input.file.size,
     mimeType: input.file.type,
   });
+  await requireTenantCase(prisma, context, input.caseId, { requireOwnerForAgent: true });
   const replay = await findReplay(context.organizationId, meta.idempotencyKey, fingerprint);
   if (replay) return { ...replay, replayed: true };
+
+  await assertDocumentScannerReady(scanner);
 
   const prerequisite = await loadUploadPrerequisite(context, input);
   const storage = dependencies.storage ?? getDocumentStorage();
@@ -184,6 +187,9 @@ export async function uploadCaseDocument(
           status,
           scanStatus: scan.status,
           retryOfVersionId: dependencies.retryOfVersionId ?? null,
+          ...(scan.evidence && readySnapshot({ provider: scan.provider, ready: true, ...scan.evidence })
+            ? { scannerEvidence: { engineVersion: scan.evidence.engineVersion, signatureVersion: scan.evidence.signatureVersion, definitionsAt: scan.evidence.definitionsAt } }
+            : {}),
         }),
         correlationId: meta.correlationId,
         causationId: meta.idempotencyKey,
@@ -794,6 +800,13 @@ export function assertDocumentScannerOperational(scanner: DocumentScanner = getD
   }
 }
 
+export async function assertDocumentScannerReady(scanner: DocumentScanner = getDocumentScanner()): Promise<void> {
+  assertDocumentScannerOperational(scanner);
+  let ready = true;
+  try { if (scanner.checkHealth) ready = await scanner.checkHealth() === true; } catch { ready = false; }
+  if (!ready) throw new OperationalCommandError(503, "Проверка безопасности документов недоступна", "DOCUMENT_SCANNER_UNAVAILABLE");
+}
+
 export function assertIndependentDocumentReviewer(reviewerUserId: number, uploaderUserId: number): void {
   if (reviewerUserId === uploaderUserId) {
     throw new OperationalCommandError(403, "Нельзя проверять собственный документ", "DOCUMENT_SELF_REVIEW_FORBIDDEN");
@@ -904,7 +917,7 @@ export async function retryDocumentScan(
   const fingerprint = commandFingerprint({ command: "retry-document-scan", caseId, versionId });
   const replay = await findReplay(context.organizationId, meta.idempotencyKey, fingerprint);
   if (replay) return { ...replay, replayed: true };
-  assertDocumentScannerOperational(dependencies.scanner);
+  await assertDocumentScannerReady(dependencies.scanner);
   const version = await requireRetryableVersion(prisma, context, caseId, versionId);
   const storage = dependencies.storage ?? getDocumentStorage();
   const file = await readVerifiedStorageObject(storage, version);

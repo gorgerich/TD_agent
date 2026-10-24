@@ -1,5 +1,13 @@
 # Current Consolidated Decision Packet: October23
 
+October24 follow-up: normal Railway MCP access has recovered; no repeat OAuth is
+required. Fresh eligible-resource observations and the remaining billing UI gap
+are in infrastructure-20261024.md. Filled proposed rules, alternatives and precise
+current implementation limits for each specialist are in
+[proposed-professional-decisions.md](proposed-professional-decisions.md).
+They are DRAFT_UNAPPROVED, not signatures, an importable approved policy bundle or
+activation permission. All three genuine verdicts remain PENDING.
+
 Exact runtime48eef7cd34b4cc2f9898dadf4506a32da8699962; deploymentdpl_HszboxTiE1dYJu5dgrBUTciaQ126; Previewhttps://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app; isolated fingerprint545a187f9e9d66b0. Native both scenarios plus all affected roles/admin/recovery PASS, skip0/reconciliation0/5xx0. Access has been revoked and credentials deleted; supported protected re-admission is required for a scheduled genuine review. Source review is P0/P1/P2=0, not a professional signature.
 
 - Owner/infrastructure holder: identify existing authorized commercially permitted unused prepaid scanner hosting, or revise the zero-incremental-spend constraint. No such host was established in inspected resources; Railway measured usage already exceeds included credit. Do not infer approval of rejected$55 proposal. Provider implementation plus real clean/EICAR/corrupt/unsupported/unavailable/timeout/retry/unauthorized/load/signature freshness acceptance still required; no customer documents sent to a new processor.

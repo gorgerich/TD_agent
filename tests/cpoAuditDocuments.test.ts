@@ -6,6 +6,7 @@ import * as crypto from "node:crypto";
 import ts from "typescript";
 import * as commands from "../lib/m3Command";
 import * as scannerModule from "../lib/documentScanner";
+import * as scannerProtocol from "../services/document-scanner/protocol.mjs";
 import * as domain from "../lib/m3Domain";
 import * as namespace from "../lib/commandNamespace";
 import { OperationalCommandError } from "../lib/operationalTransaction";
@@ -107,6 +108,7 @@ function harness(serviceCode = compiled) {
   const modules: Record<string, unknown> = {
     "node:crypto": crypto, "@/lib/prisma": { prisma: db }, "@/lib/crypto": { encryptField: (v: string) => v },
     "@/lib/documentScanner": { ...scannerModule, getDocumentScanner: () => scanner },
+    "../services/document-scanner/protocol.mjs": scannerProtocol,
     "@/lib/documentStorage": { getDocumentStorage: () => storage },
     "@/lib/operationalAudit": { appendOperationalAudit: async (_tx: unknown, _ctx: unknown, audit: Audit) => { audits.push(audit); }, findOperationalReplay: async (_tx: unknown, _org: string, key: string) => audits.find((a) => a.idempotencyKey === key) ?? null },
     "@/lib/operationalAuth": { assertCapability: (context: OperationalContext, capability: string) => {
@@ -138,6 +140,37 @@ test("CPO04 unavailable scanner fails before any blob/database write", async () 
     storage: h.storage, scanner: { ...h.scanner, isOperational: () => false },
   }), { status: 503, code: "DOCUMENT_SCANNER_UNAVAILABLE" });
   assert.equal(h.puts, 0); assert.equal(h.writes, 0); assert.equal(h.audits.length, 0);
+});
+
+test("remote scanner health failure stops upload before storage and preserves a VERIFIED version", async () => {
+  for (const failsByThrowing of [false, true]) {
+    const h = harness();
+    h.versions.push(h.base("verified", "VERIFIED"));
+    await assert.rejects(h.service.uploadCaseDocument(agent, { caseId: "case", requirementId: "req", documentTypeCode: "IDENTITY", file: pdf }, meta("remote-unavailable"), {
+      storage: h.storage, scanner: { ...h.scanner, checkHealth: async () => {
+        if (failsByThrowing) throw new Error("Synthetic provider outage");
+        return false;
+      } },
+    }), { status: 503, code: "DOCUMENT_SCANNER_UNAVAILABLE" });
+    assert.equal(h.puts, 0); assert.equal(h.writes, 0); assert.equal(h.audits.length, 0);
+    assert.equal(h.versions[0].status, "VERIFIED");
+  }
+});
+
+test("committed upload replay remains truthful during scanner outage and changed payload still conflicts", async () => {
+  const h = harness();
+  const input = { caseId: "case", requirementId: "req", documentTypeCode: "IDENTITY", file: pdf };
+  const command = meta("remote-lost-response");
+  const first = await h.service.uploadCaseDocument(agent, input, command);
+  const before = { puts: h.puts, writes: h.writes, audits: h.audits.length };
+  const offline: DocumentScanner = { ...h.scanner, isOperational: () => false,
+    checkHealth: async () => { throw new Error("Must not need remote health for committed replay"); } };
+  const replay = await h.service.uploadCaseDocument(agent, input, command, { scanner: offline });
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.versionId, first.versionId);
+  assert.deepEqual({ puts: h.puts, writes: h.writes, audits: h.audits.length }, before);
+  await assert.rejects(h.service.uploadCaseDocument(agent, { ...input, file: new File(["%PDF-1.7\nchanged"], "changed.pdf", { type: "application/pdf" }) }, command, { scanner: offline }), { status: 409 });
+  assert.deepEqual({ puts: h.puts, writes: h.writes, audits: h.audits.length }, before);
 });
 
 test("CPO04 signature validation rejects spoofed body before storage", async () => {
