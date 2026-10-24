@@ -1,5 +1,10 @@
 # Current Consolidated Decision Packet: October23
 
+October25: additional80USD proposal explicitly rejected, spending remains0.
+Measured scanner sizing and a cheaper commercial architecture comparison are in
+scanner-profile-20261025.md and lower-cost-architecture-20261025.md. No new invoice
+login is requested for that comparison; no professional verdict has been received.
+
 October24 follow-up: normal Railway MCP access has recovered; no repeat OAuth is
 required. Fresh eligible-resource observations and the remaining billing UI gap
 are in infrastructure-20261024.md. Filled proposed rules, alternatives and precise

@@ -4,6 +4,8 @@ This service is an authenticated gateway to real ClamAV, not a synthetic scanner
 It has been built and partially accepted in a disposable local Linux container.
 See docs/evidence/missions/M3/technical-readiness/scanner-local-acceptance-20261024.md
 for actual engine phases and the explicitly failing maximum-file/load probes.
+The follow-up scanner-profile-20261025.md reproduces reload/CPU contention and
+records the serial-reload fix, actual2GiB/1CPU scan/reload measurements and limits.
 No paid resource or Production configuration has been created. Actual hosted
 acceptance remains a release condition, not a claim supplied by these local tests.
 
@@ -39,14 +41,22 @@ Do not set any of these Production values before the real provider is accepted.
 An organization still needs genuine approved M3 policy bindings; configuring a
 scanner never activates real organizations or substitutes for professional review.
 
-Proposed one replica, no autoscaling, initial capacity up to4GiB RAM/0.5vCPU,
-1GB definitions volume; actual usage/reload/disk/CPU/throughput acceptance required.
+Proposed one replica, no autoscaling; the successor's smallest locally tested
+contour is2GiB/1vCPU with a1GB definitions-volume allowance. The earlier4GiB/0.5vCPU
+envelope is not measured consumption or accepted sizing. Actual hosted
+usage/reload/disk/CPU/throughput acceptance remains required.
 FreshClam initially verifies/downloads definitions before gateway startup, then
 checks hourly. clamd/refresh/gateway are supervised; one child exit terminates the
 service. The root entrypoint only prepares owned runtime/definitions directories;
 all three processes then run as `clamav`. Do not mount customer documents or DB
 credentials. Restrict egress to the signature/update and platform needs in the
 approved infrastructure; no arbitrary caller URL is fetched.
+
+Serial database reload intentionally blocks new scans/readiness during update,
+instead of competing with a second engine. The local measured update pause was
+49.6seconds; return the existing retryable scanner-unavailable error and recover,
+never widen deadlines, disable TestDatabases or invalidate verified predecessors.
+2GiB/1CPU is the smallest locally tested contour, not a hosted capacity guarantee.
 
 The gateway admits one authenticated active operation, rejects extra work429 rather
 than queuing, caps connections32 and content10MiB, verifies declared length and

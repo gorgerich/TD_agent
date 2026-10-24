@@ -1,5 +1,11 @@
 # M3 Decision Point: One Recommended Arrangement
 
+October25 follow-up: the owner rejected the80USD proposal; extra spend remains0.
+The envelope below is a dated proposal, NOT a minimum resource/bill requirement.
+See scanner-profile-20261025.md for measured serial-reload2GiB/1CPU acceptance
+and lower-cost-architecture-20261025.md for the requested cost-first comparison.
+No resource creation, migration, app move or budget approval follows from either.
+
 Status: PROPOSED_NOT_AUTHORIZED. No paid resource, tariff change, Production
 mutation, migration or real-organization activation has been performed.
 The old all-Railway application-move sketch is an evaluated alternative, not
