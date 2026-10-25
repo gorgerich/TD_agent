@@ -2,15 +2,15 @@ mission: M3-FULFILMENT-MONEY-TRUST
 name: Fulfilment & Money Trust
 state: BLOCKED_HUMAN_JUDGMENT
 base_sha: 91ae4fb23b8f87c0574ccec23708daeabdc50fc9
-implementation_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
+implementation_sha: 87d480daa62330e9ad638f68baf3c761a5f8ff4f
 pull_request: https://github.com/gorgerich/TD_agent/pull/39
-source_ci: https://github.com/gorgerich/TD_agent/actions/runs/39992539885
-preview_deployment_id: dpl_HszboxTiE1dYJu5dgrBUTciaQ126
-preview_deployment_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
-preview_url: https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app
+source_ci: https://github.com/gorgerich/TD_agent/actions/runs/40133907137
+preview_deployment_id: dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6
+preview_deployment_sha: 87d480daa62330e9ad638f68baf3c761a5f8ff4f
+preview_url: https://td-agent-8kw3uo269-rics-projects-9baa2793.vercel.app
 preview_database_fingerprint: 545a187f9e9d66b0
 preview_storage_id: store_Ov8erHstuvfJ52Og
-preview_schema: m3_cpo_repair_1792775433611_04dc5b99
+preview_schema: m3_cpo_repair_1792878815845_0135ef0f
 production_deployment_id: dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW
 production_deployment_sha: 91ae4fb23b8f87c0574ccec23708daeabdc50fc9
 production_runtime_source_sha: 91ae4fb23b8f87c0574ccec23708daeabdc50fc9
@@ -60,11 +60,11 @@ cpo_audit_release_authorized: true
 cpo_audit_release: PR39_NOT_RELEASED
 full_agent_rollout: BLOCKED_HUMAN_JUDGMENT
 freeze_final_state: NOT_FRESHLY_OBSERVED_LAST_VERIFIED_DISABLED_20261020
-validation_scope: PR39 technical candidate interval only; core synthetic test gates do not certify scanner, observed scheduled cron or native Production release
+validation_scope: Exact87 executed core engineering interval; hosted scanner, scheduled cron, professional and Production release gates remain incomplete
 production_release_scope: real M3 conditionally authorized by owner; existing synthetic-only protection remains until all mandatory conditions pass
 full_rollout_production_release_semantics: conditional owner authorization exists; production_release_authorized=false records that mandatory real-rollout prerequisites are unsatisfied, not absence of owner permission
 post_release_record: cpo-post-release-20261018.json
-historical_packet: historical/pr39-da-packet-20261023/README.md
+historical_packet: historical/pr39-48-packet-20261025/README.md
 technical_readiness: BLOCKED_SAFETY
 cpo_final_review_candidate: NOT_READY
 pending_operational_gates:

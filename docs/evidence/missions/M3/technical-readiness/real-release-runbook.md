@@ -1,5 +1,7 @@
 # M3 Real Release And First Organization Runbook
 
+October25 successor context: executable source `87d480daa62330e9ad638f68baf3c761a5f8ff4f`, scoped native Preview `dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6`, isolated schema `m3_cpo_repair_1792878815845_0135ef0f`. See [fresh receipt](pr39-87-preview.json). The October24 observations below remain dated history, not current provider/Production verification. No release step has been executed by this documentation update. Refresh all serving/configuration/backup facts before any future authorized execution; no old runner may be reused blindly.
+
 Status: PREPARED_NOT_EXECUTED, 2026-10-24. This is an operator handoff, not release authorization, a professional verdict, or a new gate. It implements the existing boundaries in [release.md](../release.md), [migration.md](../migration.md) and [human-decisions.md](human-decisions.md). No deployment, database query, backup, restore, onboarding, approval, configuration change or test was performed while preparing it. No additional spending is authorized. NOX and M4 are excluded.
 
 ## Binding And Fresh Observations

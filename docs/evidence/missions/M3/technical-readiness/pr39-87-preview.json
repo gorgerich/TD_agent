@@ -1,0 +1,173 @@
+{
+  "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+  "deployment": {
+    "id": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "sha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "base": "https://td-agent-8kw3uo269-rics-projects-9baa2793.vercel.app",
+    "branch": "fix/m3-cpo-audit-repair"
+  },
+  "fingerprint": "545a187f9e9d66b0",
+  "schema": "m3_cpo_repair_1792878815845_0135ef0f",
+  "privateStorageId": "store_Ov8erHstuvfJ52Og",
+  "privateStorageProof": {
+    "method": "Fresh approved diagnostic route required this private store before prepare and UAT",
+    "helperSha256": "35e1a57a71d7f97e103107c5c958aabf1ed5925b1bf9b3d9ca4a6a7df9209380",
+    "limit": "Response asserted by helper, not independently serialized Blob query"
+  },
+  "startedAt": "2026-10-24T22:00:40.142Z",
+  "finishedAt": "2026-10-24T22:14:08.290Z",
+  "stages": [
+    {
+      "label": "cpo-finalize-publication",
+      "exit": 0
+    },
+    {
+      "label": "m2-admin",
+      "exit": 0
+    },
+    {
+      "label": "m3-fulfilment",
+      "exit": 0
+    },
+    {
+      "label": "cpo-repair",
+      "exit": 0
+    }
+  ],
+  "schemaReadback": {
+    "caseId": "m3-uat-case:readiness-1792878815845:cremation",
+    "status": "MATCH",
+    "reconciliation": 0
+  },
+  "httpPreparation": {
+    "caseId": "m3-cpo-case:readiness-1792878815845:published",
+    "meetingId": 3,
+    "state": "PUBLICATION_VERIFIED",
+    "commands": [
+      {
+        "action": "draft",
+        "idempotencyKey": "cpo:readiness-1792878815845:published:draft",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      },
+      {
+        "action": "review",
+        "idempotencyKey": "cpo:readiness-1792878815845:published:review",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      },
+      {
+        "action": "publish",
+        "idempotencyKey": "cpo:readiness-1792878815845:published:publish",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      }
+    ],
+    "quoteVersionId": 4
+  },
+  "programs": {
+    "admin": {
+      "platformSuperAdmin": "PASS",
+      "platformActivation": "PASS",
+      "platformOwnerRecovery": "PASS",
+      "organizationAdmin": "PASS",
+      "managerForbidden": "PASS",
+      "agentForbidden": "PASS",
+      "crossTenant": "PASS",
+      "mobile": "PASS",
+      "skipped": 0
+    },
+    "m3": {
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "documentQuarantineReviewReplacement": "PASS",
+      "contractObligation": "PASS",
+      "partialFullRefundReversal": "PASS",
+      "executionAfterRefundGuard": "PASS",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "original": 1,
+        "replayed": 4
+      },
+      "financeLostResponseRetry": {
+        "original": false,
+        "replay": true,
+        "sameCommandEnvelope": true,
+        "oneLedgerEntry": true
+      },
+      "financeVisibility": "PASS",
+      "reviewerVisibility": "PASS",
+      "stageGuards": "PASS",
+      "reconciliation": 0,
+      "crossTenant": "PASS",
+      "accessibilityCriticalSerious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "unexpected5xx": 0,
+      "skipped": 0
+    },
+    "cpo": {
+      "firstAdmin": "PASS",
+      "lostResponseReplay": "PASS",
+      "invites": 3,
+      "scenarioCorrection": "PASS",
+      "publicationGuard": "PASS",
+      "genericCasePublicationDenied": "PASS",
+      "permissions": "PASS",
+      "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+      "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+      "firstAdminUi": [
+        {
+          "width": 1365,
+          "criticalSeriousAccessibility": 0,
+          "overflow": false,
+          "navLabelsTruncated": false,
+          "screenshot": "technical-readiness/screenshots-87/first-admin-1365.png"
+        },
+        {
+          "width": 390,
+          "criticalSeriousAccessibility": 0,
+          "overflow": false,
+          "navLabelsTruncated": false,
+          "screenshot": "technical-readiness/screenshots-87/first-admin-390.png"
+        },
+        {
+          "width": 195,
+          "criticalSeriousAccessibility": 0,
+          "overflow": false,
+          "navLabelsTruncated": false,
+          "screenshot": "technical-readiness/screenshots-87/first-admin-195.png"
+        }
+      ],
+      "skipped": 0
+    }
+  },
+  "activeAccessAfterContainment": {
+    "users": 0,
+    "memberships": 0,
+    "links": 0,
+    "staffRecovery": 0,
+    "platformInvites": 0,
+    "organizationInvites": 0
+  },
+  "retained": {
+    "schema": "m3_cpo_repair_1792878815845_0135ef0f",
+    "reason": "synthetic business/audit evidence; no history deletion",
+    "users": 18
+  },
+  "cleanup": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+  "credentials": "OWNED_COPY_DELETED",
+  "preparation": {
+    "migration": "PASS",
+    "repeatedDeploy": "NO_OP",
+    "schemaParity": "PASS",
+    "fixtureScope": "Fresh owned empty schema in existing isolated Preview service; no new cloud service"
+  },
+  "limitations": [
+    "First UAT preflight failed its provider CLI exit check before authority binding; exact original cause unproven; STOP retained and healthy metadata reads preceded same-helper retry",
+    "Synthetic Preview scanner is not hosted Production scanner acceptance",
+    "Native M1/M2 commercial not repeated; exact87 CI ran all six E2E programs",
+    "195 CSS px is equivalent reflow, not native browser zoom",
+    "No Production writes, fresh customer digest, professional verdict or release"
+  ]
+}

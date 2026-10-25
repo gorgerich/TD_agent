@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 2,
+  "candidate": {
+    "previewUrl": "https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app",
+    "deploymentId": "dpl_HszboxTiE1dYJu5dgrBUTciaQ126",
+    "deploymentSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "implementationSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+    "databaseFingerprint": "545a187f9e9d66b0"
+  },
+  "policyContentFingerprint": null,
+  "gates": {
+    "financeAccounting": {
+      "status": "AWAITING_HUMAN_VERDICT",
+      "packet": "finance.md",
+      "attestation": null,
+      "attestationFingerprint": null
+    },
+    "legalPrivacy": {
+      "status": "AWAITING_HUMAN_VERDICT",
+      "packet": "privacy.md",
+      "attestation": null,
+      "attestationFingerprint": null
+    },
+    "ritualOperationsSme": {
+      "status": "AWAITING_HUMAN_VERDICT",
+      "packet": "ritual-rules.md",
+      "attestation": null,
+      "attestationFingerprint": null
+    }
+  }
+}

@@ -6,109 +6,109 @@
       "id": "M3-W7-01",
       "status": "PASS",
       "requirement": "Stable Case parties support multiple effective family roles, consent provenance, encrypted contact data, and tenant ownership.",
-      "evidence": "Exact48 local294 unit/207 PostgreSQL and real Parties browser PASS; stable effective roles/consent/tenant binding. No professional approval."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W7-02",
       "status": "PASS",
       "requirement": "Versioned cremation and relative-burial requirement policies differ and unapproved policy fails closed.",
-      "evidence": "Exact48 native both distinct synthetic scenario policies PASS; correction and unapproved-policy fail-closed guards also exercised in CI."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W7-03",
       "status": "PASS",
       "requirement": "Uploaded, quarantined, reviewed, verified, rejected, expired, and superseded document states preserve immutable version history.",
-      "evidence": "Exact48 documentQuarantineReviewReplacement PASS; rejected/replacement/expiry and preserved applicable verified history covered by actual browser/PG checks."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W7-04",
       "status": "PASS",
       "requirement": "Private document storage has fail-closed scanning, server authorization, checksum/type/size checks, short-lived access, and access audit.",
-      "evidence": "Exact48 isolated private Blob and server tenant/role/private-access boundaries PASS. Actual helper requires store_Ov8erHstuvfJ52Og; synthetic scanning is NOT Production scanner readiness."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Private Preview Blob and synthetic fail-closed scanning only; NOT hosted Production malware acceptance."
     },
     {
       "id": "M3-W7-05",
       "status": "PASS",
       "requirement": "Document Reviewer has an organization-scoped queue and cannot read ledger or unrelated family context.",
-      "evidence": "Exact48 native reviewerVisibility PASS, foreign tenant and purpose-limited API/UI checks preserved."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W6-01",
       "status": "PASS",
       "requirement": "ContractVersion and PaymentObligation immutably bind one accepted QuoteVersion without equating acceptance to signing.",
-      "evidence": "Exact48 immutable accepted-version contract/obligation and signing-evidence boundaries PASS; new drafts cannot rewrite old obligation."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W6-02",
       "status": "PASS",
       "requirement": "Append-only ledger derives truthful unpaid, partial, paid, overpaid, refunded states without manual PAID or destructive edits.",
-      "evidence": "Exact48 partial/full/refund/reversal journey PASS;176000/88000 yieldsPARTIALLY_PAID and88000 balance; originals retained."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W6-03",
       "status": "PASS",
       "requirement": "Manual payment, webhook, retry, refund, correction, and reversal boundaries are idempotent and detect changed-payload conflicts.",
-      "evidence": "Exact48 webhook5 deliveries =1entry/1original/4replays; same-envelope lost-response retry creates1entry. CI5x115 risk tests PASS."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W6-04",
       "status": "PASS",
       "requirement": "Sensitive correction/reversal uses persistent four-eyes approval and preserves original history.",
-      "evidence": "Exact48 four-eyes approval and pending-adjustment/stage guards PASS. Test thresholds are not Finance approval."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-W6-05",
       "status": "PASS",
       "requirement": "Finance workspace exposes only necessary obligation, payer, evidence, reconciliation, and approval data.",
-      "evidence": "Exact48 Finance privacy/mobile/reflow PASS; actual card text/ancestor clipping assertions and fresh screenshots, not whole-app design approval."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-GUARD-01",
       "status": "PASS",
       "requirement": "Case stages use verified requirements, signed contract evidence, ledger truth, and unresolved blockers through the canonical transition service.",
-      "evidence": "Exact48 verified-doc/contract/effective-ledger/pending-adjustment guards PASS. Generic publication events now return422 and preserve all side effects."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-RECON-01",
       "status": "PASS",
       "requirement": "Document, contract, ledger, task, tenant, webhook, and audit reconciliation is deterministic and fail closed.",
-      "evidence": "Exact48 native case readback and lifecycle reconciliation0; deterministic diagnostics never automatically rewrite immutable history."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-SEC-01",
       "status": "PASS",
       "requirement": "Server-side tenant/RBAC, purpose-limited projections, private storage, signatures, and replay protection prevent cross-tenant or role escalation.",
-      "evidence": "Exact48 Agent/Manager/Finance/Reviewer/Admin scope and cross-tenant negatives PASS; real activation proof/current credentials fail closed. No universal scanner/security certification."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-MIG-01",
       "status": "PASS",
       "requirement": "Migration is additive, historical checksums remain unchanged, restore/deploy/no-op/parity pass, and legacy truth is not invented.",
-      "evidence": "All17 migrations deploy/no-op/parity and legacy fixtures PASS; first13 historical bytes unchanged. AES256 actual synthetic58-table restore counts/digestsMATCH. Fresh Production rehearsal remains mandatory."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. 17 migrations/no-op/parity/legacy and encrypted synthetic restore; not fresh Production backup."
     },
     {
       "id": "M3-UX-01",
       "status": "PASS",
       "requirement": "Affected failure, loading, empty, quarantine, review, finance, retry, mobile, keyboard and 200%-equivalent reflow states are honest and accessible.",
-      "evidence": "Exact48 affected1365/390/195 CSSpx keyboard/failure/recovery flows PASS, critical/serious0.195px is equivalent reflow, not native200% zoom or full-app visual certification."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Affected controls/mobile/equivalent195CSSpx reflow; not full-app design or native browser zoom certification."
     },
     {
       "id": "M3-UAT-01",
       "status": "PASS",
       "requirement": "Cremation and relative-burial journeys pass end to end on an exact-SHA isolated Preview with private storage.",
-      "evidence": "Fresh exact48 dpl_HszboxTiE1dYJu5dgrBUTciaQ126/fp545a187f9e9d66b0: M2-admin/M3/CPO PASS; reconciliation0,5xx0,skip0.18 synthetic users retained, six access counts0, credentialcopydeleted. No old UAT relabeled."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     },
     {
       "id": "M3-REVIEW-01",
       "status": "PASS",
       "requirement": "Independent adversarial review of the exact implementation reports P0=0 and P1=0.",
-      "evidence": "Independent cumulative91ae..48 source review PASS P0/P1/P2=0; independent4 dependency and6 diagnostic tests PASS. Not GitHub or professional approval."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Independent cumulative source/complete CI and native-evidence review P0/P1/P2=0; not professional or GitHub approval."
     },
     {
       "id": "M3-GATE-01",
       "status": "PASS",
       "requirement": "Source technical gates, exact Preview UAT, local evidence validation, and independent runtime review pass with skipped=0; final evidence-head CI is a separate pre-merge gate.",
-      "evidence": "Exact48 localfull gate PASS; sourceCI39992539885 technical294unit/207PG/124latency/575repeat/6E2E/7components/cleanup PASS, skip0. OverallCI FAIL onlystaleevidence; final evidence-head overallCI remains separate."
+      "evidence": "Exact87 source CI40133907137 and fresh native deployment dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6; technical-readiness/pr39-87-preview.json and pr39-87-source-ci.json. Executed core synthetic engineering acceptance; no professional or real-release sign-off."
     }
   ],
   "scope": "Core isolated technical acceptance only; incomplete Production scanner/cron/release/human prerequisites are explicit in mission and results"

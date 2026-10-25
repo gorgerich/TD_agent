@@ -1,5 +1,7 @@
 # Proposed Finance, Legal/Privacy And Ritual Decisions
 
+October25 current engineering context: source87 / deployment `dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6`; see [fresh scoped native evidence](pr39-87-preview.json). The48/8a binding below records the original dated draft, not fresh acceptance or a signed policy. Recommendations remain DRAFT_UNAPPROVED; no professional identities, fingerprints or signatures have been registered by this update.
+
 Status: DRAFT_UNAPPROVED. Prepared for qualified review, not a verdict, signature, policy activation or rollout instruction. Every recommendation below remains unapproved. This file changes no policy, application setting, human attestation or gate.
 
 Binding: PR39; executable candidate `48eef7cd34b4cc2f9898dadf4506a32da8699962`; final evidence head `8a7115e1ffe9d06dd14c47d3e52595bd3de7ef78`; base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`. The final evidence head has the same executable tree as candidate48. These recommendations are not the policies used by synthetic fixtures and do not authorize real records.

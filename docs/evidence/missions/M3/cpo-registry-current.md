@@ -1,16 +1,10 @@
-# Current CPO Registry: PR39
+# Current CPO Registry: PR39 Source87
 
-Current source `48eef7cd34b4cc2f9898dadf4506a32da8699962`; base91ae; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Exact actual Preview `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`, isolated fp545a187f9e9d66b0, both M3 journeys and affected admin/CPO flows PASS. [Actual receipt](technical-readiness/pr39-48-preview.json), [source CI](technical-readiness/pr39-48-source-ci.json), [full local gate](technical-readiness/pr39-48-local-gate.json).
+Runtime `87d480daa62330e9ad638f68baf3c761a5f8ff4f`; base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Preview https://td-agent-8kw3uo269-rics-projects-9baa2793.vercel.app, deployment `dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6`, Railway fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792878815845_0135ef0f`, private Blob `store_Ov8erHstuvfJ52Og`.
 
-All original37 canonical findings below preserve their original cross-map, source decisions and historical proofs. Relevant regressions passed exact48 local/CI/UAT; unchanged code was not reimplemented. DA and intermediate candidate facts remain historical, not relabeled. No Production release or professional verdict is claimed.
+Exact87 source CI40133907137:321unit,207PG/29files,124latency and575risk tests PASS, skipped0; lint/typecheck/build/all6E2E/auth/7component programs/legacy17deploy-no-op-parity/encrypted synthetic restore and four cleanup steps PASS. Overall source runFAIL solely stale evidence, not overall green. No new full local suite was rerun or claimed. Actual native M2-admin/M3/CPO programs PASS, both M3 scenarios, reconciliation0/unexpected5xx0/skipped0, six active-access counters0; owned credential copy deleted.
 
-## Historical Original 37-Finding Cross-Map
-
-The37 rows below preserve the cumulative PR36 repair cross-map, including explicitly named historical b0 executions. Those repairs are included in merged055. They are not newly implemented by PR37 and their old receipts are not relabelled. Current PR37 runtime is `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base055; its actual source CI174/23files and exact-runtime UAT are recorded in the current packet. PR36 attempted release failed and was contained by rebuilt875/freeze; it is not a successful closure. Human verdicts remain PENDING.
-
-[Current test results](test-results.json), [review chain](review.md), [actual e9 UAT](pr37-e9-preview-result.json), [e9 source CI](https://github.com/gorgerich/TD_agent/actions/runs/39043091834), [failed PR36 incident and new intake regression](INCIDENT-PR36-20261017.md). Full original HTML cross-map and independent inspection limits remain in the944 receipt. Source-CI technical PASS is not green final-head CI or Production PASS.
-
-Subsequent [restricted post-release record](cpo-post-release-20261018.md) binds successful PR37 mergeffc, final-head/main CI and actual retained-command Production smoke. It does not rename the failed PR36 attempt or any historical b0 UAT. The37 rows below and their original scoped proofs remain unchanged.
+All37 original canonical finding rows below preserve their historical proofs and decisions; the new core verification is separately bound above, not a relabeled prior UAT. Source48 root archive: historical/pr39-48-packet-20261025/README.md. Operational scanner/cron/human/release rows stay incomplete.
 
 | ID | Original HTML | Mechanism | Current outcome | Scoped proof |
 | --- | --- | --- | --- | --- |
@@ -60,7 +54,7 @@ CPO33/34 session/actor CAS and CPO35 namespace regressions are source-reviewed a
 | --- | --- | --- |
 | CPO-38 | Finance195CSSpx status/money clipped inside cards despite bodyoverflow0 | FIXED_SOURCE_DA; actual old-layout red/new-layout green real-component regression; new deployed M3 text/clipping-ancestor assertions and fresh visually inspected captures PASS |
 | CPO-39 | Role metric omitted FINANCE/DOCUMENT_REVIEWER and included suspended organizations | FIXED_SOURCE_DA; common ACTIVE org population/all5 generated roles; actual SSR unit covers excluded memberships/orgs and authorization-first; fresh platform screenshot inspected |
-| OPS-SCANNER | No implemented/connected Production provider or approved zero-incremental-cost host | EXTERNAL_DECISION; real ClamAV feasibility is not service readiness. No extra spending authorized; historical$55 recommendationREJECTED. [Current resource facts](technical-readiness/real-production-scope-20261020.md) |
+| OPS-SCANNER | Gateway/adapter implemented and local real ClamAV acceptance measured; no connected Production provider or approved zero-incremental-cost host | EXTERNAL_DECISION; local acceptance is not hosted service readiness. No extra spending authorized. [Whole-service proposal and measured limits](technical-readiness/scanner-final-proposal-20261025.md); historical$55 recommendationREJECTED. |
 | OPS-CRON | Actual scheduled dispatch/outcome unobserved | AWAITING_OBSERVATION; no manual invocation substituted; read-only monitor active, one-hour provider logs required |
 | OPS-DEPS | Fresh Next advisories and original tooling advisory | CLOSED_CANDIDATE_48; Next/eslint16.4.2, Sharp0.35.5; actual runtime/full audit0. Braces advisory withdrawn upstream2026-10-23, not patched. [Current assessment](technical-readiness/dependency-assessment-20261023.json); historical counts retained in archive; NOT deployed |
 | OPS-PROTECTION | Earlier main enforcement concern | CLOSED_CONFIGURATION; live strict verify app15368/admin enforcement/1 genuine review/last-push approval/stale dismissal/conversation/force+delete disabled confirmed; genuine eligible PR approval still required |
@@ -74,3 +68,7 @@ The original historical final paragraph above records its original interval. Thi
 New source defects from the continuation: publication deadline/P2028 under80ms RTT, generic Case-publication forgery and Finance E2E counter TDZ are FIXED with actual regression/rollback/replay/negative controls. New Next advisories patched in9f70675, counter repair in48eef7c. Exact48 local/CI core tests and native M2/M3/CPO PASS; reconciliation0/5xx0/skip0, independent cumulative P0/P1/P2=0. Final evidence-head overallCI remains separate. No old UAT is relabeled; [DA root archive](historical/pr39-da-packet-20261023/README.md) preserves predecessor facts.
 
 Real-production scope supersedes synthetic-only release. OPS-SCANNER/OPS-CRON/OPS-RELEASE and HUMAN remain explicitly incomplete. Main protection is enforced; ordinary required GitHub approval remains mandatory. No Production merge/write/release, no NOX/M4.
+
+## October25 Exact87 Follow-Up
+
+Actual new sourceCI/nativeUAT and independent review are in pr39-87-* receipts. Scanner implementation/local serial-reload acceptance is prepared, hosted provider remains absent. Collector implemented but no actual scheduled receipt captured in the October25 window; do not infer absent dispatch. No spending/Production changes or real rollout.

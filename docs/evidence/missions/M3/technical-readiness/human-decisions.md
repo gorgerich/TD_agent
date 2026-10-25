@@ -1,4 +1,8 @@
-# Current Consolidated Decision Packet: October23
+# Current Consolidated Decision Packet: October25
+
+Current engineering context: source `87d480daa62330e9ad638f68baf3c761a5f8ff4f`, authenticated Preview `dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6`, isolated DB fingerprint `545a187f9e9d66b0`. The new scoped onboarding/M3/CPO UAT passed and owned temporary access was revoked. See [actual receipt](pr39-87-preview.json) and [independent native review](pr39-87-native-review.md). The48 paragraph below is historical, not the current runtime. No professional verdict or real activation is supplied by this update.
+
+The [final scanner proposal](scanner-final-proposal-20261025.md) preserves the current architecture and includes whole-service variable costs, not RAM alone. No extra spending is authorized. [Cron observation](cron-observation-20261025.md) remains UNPROVED, not a manual-success substitute.
 
 October25: additional80USD proposal explicitly rejected, spending remains0.
 Measured scanner sizing and a cheaper commercial architecture comparison are in
