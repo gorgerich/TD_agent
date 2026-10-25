@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
 import * as protectedInput from "./e2e/protectedInput.mjs";
+import * as realOrganization from "./e2e/real-organization.mjs";
 const { sanitizedLegacyFailure } = protectedInput;
 
 const require = createRequire(import.meta.url);
@@ -73,7 +74,7 @@ test("every legacy route/dialog callback and browser waiter has explicit async o
 });
 
 test("legacy failure formatter emits only static code and allowlisted file/line/column", () => {
-  for (const file of [...files, "protectedInput.mjs"]) {
+  for (const file of [...files, "real-organization.mjs", "protectedInput.mjs"]) {
     const error = new Error(diagnostic);
     error.stack = `${diagnostic}\n    at action (/private/${canaries[1]}/${file}:71:9)`;
     assert.equal(sanitizedLegacyFailure(error), `E2E_LEGACY_FAILED ${file}:71:9\n`);
@@ -146,6 +147,7 @@ test("all four actual legacy scripts sanitize startup, journey and cleanup failu
       const dependencies: Record<string, unknown> = {
         playwright: { chromium: { launch: async () => stage === "launch" ? failure() : browser } },
         "./protectedInput.mjs": protectedInput,
+        "./real-organization.mjs": realOrganization,
         "node:module": { createRequire: () => ({ resolve: () => "synthetic-axe-path" }) },
         "../cpoAuditDocuments.fixture.mjs": { syntheticDocumentPdf: () => new Uint8Array() },
       };
@@ -161,5 +163,21 @@ test("all four actual legacy scripts sanitize startup, journey and cleanup failu
       for (const line of output) assert.match(line, /^E2E_LEGACY_FAILED(?: (?:m1-operations|m2-admin|m2-commercial|m3-fulfilment|protectedInput)\.mjs:\d{1,7}:\d{1,7})?\n$/);
       for (const canary of canaries) assert.equal(output.join("").includes(canary), false, `${file}:${stage}`);
     }
+  }
+});
+
+test("new authenticated onboarding refuses Production and foreign origins before any request", async () => {
+  const previous = process.env.M2_UAT_FIXTURE;
+  process.env.M2_UAT_FIXTURE = "1";
+  try {
+    let requests = 0;
+    for (const baseUrl of ["https://td-agent.vercel.app", "https://example.com", "https://td-agent.invalid", "https://td-agent-x-foreign.vercel.app"]) {
+      await assert.rejects(realOrganization.verifyRealOrganizationOnboarding({ browser: null, totp: () => "", screenshot: null, baseUrl, runId: "synthetic", password: canaries[0],
+        platformPage: { context: () => { requests++; throw new Error(diagnostic); } } }));
+    }
+    assert.equal(requests, 0);
+  } finally {
+    if (previous === undefined) delete process.env.M2_UAT_FIXTURE;
+    else process.env.M2_UAT_FIXTURE = previous;
   }
 });

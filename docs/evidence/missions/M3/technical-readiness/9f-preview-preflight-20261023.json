@@ -1,0 +1,23 @@
+{
+  "sourceSha": "9f70675e2dbef855611050446057fec4d4f38de7",
+  "deploymentId": "dpl_4SpCNUujKAqyBZiF82SF2oGAr3Vk",
+  "url": "https://td-agent-rhtotr7ym-rics-projects-9baa2793.vercel.app",
+  "deploymentState": "READY",
+  "fingerprint": "545a187f9e9d66b0",
+  "productionFingerprint": "0257665af2dd90a4",
+  "isolation": "APPROVED_PREVIEW_ONLY",
+  "runId": "e5f62457f684f951c5009f53",
+  "schema": "m3_cpo_repair_1792775006322_34a5d9e0",
+  "stages": [
+    { "name": "migration", "exit": 0 },
+    { "name": "noop", "exit": 1, "prismaCode": "P1001" }
+  ],
+  "status": "STOP_BEFORE_FIXTURES_OR_UAT",
+  "diagnosis": "Database connection unavailable during repeated migrate deploy. No schema drift, failed migration or application defect is inferred from P1001 alone.",
+  "uat": "NOT_EXECUTED",
+  "cleanup": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+  "activeAccessAfterContainment": { "users": 0, "memberships": 0, "links": 0, "staffRecovery": 0, "platformInvites": 0, "organizationInvites": 0 },
+  "credentials": "OWNED_COPY_DELETED",
+  "retained": { "users": 0, "reason": "Empty synthetic migrated namespace retained; no history deletion" },
+  "productionChanged": false
+}

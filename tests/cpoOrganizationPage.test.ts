@@ -13,7 +13,7 @@ function fixture(existingId: string) {
   const queries: string[] = [];
   let authenticated = false;
   const exports: { default?: (props: { params: Promise<{ organizationId: string }> }) => Promise<unknown> } = {};
-  const helpers = { PageHeader: () => null, Status: () => null, OrganizationStatusControl: () => null, FirstOrganizationAdminControl: () => null, formatDate: () => "synthetic" };
+  const helpers = { PageHeader: () => null, Status: () => null, OrganizationStatusControl: () => null, FirstOrganizationAdminControl: () => null, OrganizationOnboardingControl: () => null, formatDate: () => "synthetic" };
   const organization = { id: existingId, name: "Synthetic organization", slug: "synthetic", timezone: "Europe/Moscow", status: "ACTIVE",
     createdAt: new Date(), memberships: [], auditEvents: [] };
   const mocks: Record<string, unknown> = {
@@ -22,8 +22,8 @@ function fixture(existingId: string) {
     "@/lib/platformAuth": { requirePlatformAdmin: async () => { authenticated = true; } },
     "@/lib/prisma": { prisma: { organization: { findUnique: async ({ where }: { where: { id: string } }) => {
       assert.equal(authenticated, true); queries.push(where.id); return where.id === existingId ? organization : null;
-    } }, platformAuditEvent: { findFirst: async () => null }, organizationInvite: { findFirst: async () => null } } },
-    "../../page": helpers, "../page": helpers, "./OrganizationStatusControl": helpers, "./FirstOrganizationAdminControl": helpers,
+    } }, platformAuditEvent: { findFirst: async () => null }, organizationInvite: { findFirst: async () => null }, platformOrganizationInvite: { findFirst: async () => null } } },
+    "../../page": helpers, "../page": helpers, "./OrganizationStatusControl": helpers, "./FirstOrganizationAdminControl": helpers, "../OrganizationOnboardingControl": helpers,
   };
   vm.runInNewContext(compiled, { exports, module: { exports }, require: (name: string) => {
     assert.ok(Object.hasOwn(mocks, name), "Unexpected page dependency"); return mocks[name];

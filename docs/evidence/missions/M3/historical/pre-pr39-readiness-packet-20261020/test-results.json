@@ -1,0 +1,348 @@
+{
+  "mission": "M3-FULFILMENT-MONEY-TRUST",
+  "state": "BLOCKED_HUMAN_JUDGMENT",
+  "baseSha": "055c8d70da428cf5c2c1328c1a5268f9db241b4e",
+  "pullRequest": 37,
+  "implementationSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39043091834",
+  "previewDeploymentId": "dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg",
+  "previewDeploymentSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+  "previewUrl": "https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app",
+  "previewDatabaseFingerprint": "545a187f9e9d66b0",
+  "checks": {
+    "sourceCi": {
+      "status": "PASS",
+      "runId": 39043091834,
+      "headSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+      "testSkipped": 0,
+      "overallConclusion": "failure",
+      "failedStep": "Validate authoritative mission evidence",
+      "note": "All27 technical source steps passed; overall CI FAIL only stale b0 authoritative evidence. This is not green final evidence-head CI.",
+      "countsReceipt": "pr37-e9-source-ci-counts.json"
+    },
+    "gitDiffCheck": "PASS",
+    "prismaGenerate": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 258,
+      "skipped": 0,
+      "execution": "exact e9 source CI"
+    },
+    "integration": {
+      "status": "PASS",
+      "files": 23,
+      "passed": 174,
+      "skipped": 0,
+      "residue": 0,
+      "parallelism": "ordinary concurrent isolated schemas; no deadline increase",
+      "cleanupEvidence": "successful canonical isolated runner and CI fixture cleanup; not an independent Production census"
+    },
+    "targetedRecovery": {
+      "status": "PASS",
+      "testsPerRun": 90,
+      "consecutiveRuns": 5,
+      "totalPassed": 450,
+      "filesPerRun": 10,
+      "skipped": 0,
+      "execution": "exact e9 source CI"
+    },
+    "targetedIntakeLatency": {
+      "status": "PASS",
+      "testsPerRun": 22,
+      "consecutiveRuns": 5,
+      "skipped": 0,
+      "networkRoundTripDelayMs": 80,
+      "maximumParallelTransactionMs": 4052,
+      "transactionDeadlineMs": 5000,
+      "historicalMaximumParallelTransactionMs": 4164,
+      "note": "Actual e9 CI parallel transaction maximum4052ms; unchanged5000ms deadline. Historical values belong to their own runs."
+    },
+    "e2e": {
+      "status": "PASS",
+      "scripts": 6,
+      "legacySmoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "m2Commercial": "PASS",
+      "m3Fulfilment": "PASS",
+      "cpoRepair": "PASS",
+      "skipped": 0
+    },
+    "authInfrastructure": {
+      "status": "PASS",
+      "execution": "source CI separate actual failure/recovery browser step",
+      "historicalCiFailureCause": "UNPROVEN"
+    },
+    "componentBrowser": {
+      "status": "PASS",
+      "scripts": [
+        "tests/cpoAuditDocuments.e2e.mjs",
+        "tests/e2e/legacy-secret-policy.mjs",
+        "tests/caseParties.e2e.mjs"
+      ],
+      "execution": "source CI after Chromium installation"
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "migrationCount": 13,
+      "historicalMigrationChecksums": "MATCH",
+      "encryptedBackup": "PASS",
+      "realRestore": "PASS",
+      "repeatedDeploy": "NO_OP",
+      "legacyCounts": "MATCH",
+      "orphans": 0,
+      "duplicates": 0,
+      "tenantMismatches": 0,
+      "execution": "isolated source-CI production-like fixture, not fresh Production backup",
+      "delta": {},
+      "note": "PR37 changes no schema/migrations. All13 migration bytes unchanged from merged055; the two October migrations were already applied by native owner during PR36, not reapplied here."
+    },
+    "schemaParity": "PASS",
+    "documentTruth": {
+      "status": "PASS",
+      "uploadedAsVerified": 0,
+      "permanentFileUrls": 0,
+      "crossTenantAccess": 0,
+      "unexplainedReconciliation": 0,
+      "productionScannerReadiness": "UNVERIFIED_EXTERNAL"
+    },
+    "financeTruth": {
+      "status": "PASS",
+      "manualPaidPaths": 0,
+      "destructiveDeletePaths": 0,
+      "duplicateLedgerEntries": 0,
+      "partialPaymentReference": "176000 RUB obligation / 88000 RUB payment = PARTIALLY_PAID / 88000 RUB balance",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "original": 1,
+        "replayed": 4
+      },
+      "financeLostResponseRetry": {
+        "original": false,
+        "replay": true,
+        "sameCommandEnvelope": true,
+        "oneLedgerEntry": true
+      },
+      "executionAfterRefundGuard": "PASS",
+      "unexplainedReconciliation": 0
+    },
+    "stageGuards": "PASS",
+    "tenantRbac": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "zoom200Meaning": "195 CSS-pixel equivalent reflow only, not native browser zoom",
+      "nativeBrowserZoom": "NOT_CERTIFIED",
+      "horizontalOverflow": 0,
+      "affectedScope": "tested operational controls only; not universal app design compliance"
+    },
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg",
+      "deploymentSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+      "previewUrl": "https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app",
+      "databaseFingerprint": "545a187f9e9d66b0",
+      "productionFingerprint": "0257665af2dd90a4",
+      "storageId": "store_Ov8erHstuvfJ52Og",
+      "storageAccess": "private",
+      "syntheticSchema": "m3_cpo_repair_179224926421011217041",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "documentQuarantineReviewReplacement": "PASS",
+      "contractObligation": "PASS",
+      "partialFullRefundReversal": "PASS",
+      "executionAfterRefundGuard": "PASS",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "original": 1,
+        "replayed": 4
+      },
+      "financeLostResponseRetry": {
+        "original": false,
+        "replay": true,
+        "sameCommandEnvelope": true,
+        "oneLedgerEntry": true
+      },
+      "financeVisibility": "PASS",
+      "reviewerVisibility": "PASS",
+      "stageGuards": "PASS",
+      "reconciliation": 0,
+      "crossTenant": "PASS",
+      "accessibilityCriticalSerious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "unexpected5xx": 0,
+      "skipped": 0,
+      "zoom200Meaning": "equivalent narrow viewport reflow, not native browser zoom",
+      "repair": {
+        "firstAdmin": "PASS",
+        "lostResponseReplay": "PASS",
+        "invites": 3,
+        "scenarioCorrection": "PASS",
+        "publicationGuard": "PASS",
+        "permissions": "PASS",
+        "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+        "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+        "firstAdminUi": [
+          {
+            "width": 1365,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-1365.png"
+          },
+          {
+            "width": 390,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-390.png"
+          },
+          {
+            "width": 195,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "/var/folders/qb/b_w5j2x945v3cxsvk0rhrwyw0000gn/T/cpo-first-admin-ui-BZ3hj5/first-admin-195.png"
+          }
+        ],
+        "skipped": 0
+      },
+      "receipt": "pr37-e9-preview-result.json",
+      "cleanup": {
+        "browserContextsAndProcesses": "PASS_FROM_CHILD_EXIT_ZERO_AND_FINALLY",
+        "actualLogout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+        "localRestoreResources": "PASS",
+        "remoteSyntheticSchema": "RETAINED_ISOLATED_FOR_REVIEW",
+        "protectedFixtureSecrets": "RETAINED_OPERATOR_FILES_NOT_DESTROYED",
+        "blobFixtures": "NO_DELETION_CLAIM"
+      },
+      "initialIntake": {
+        "status": "PASS",
+        "scenarios": [
+          {
+            "ceremonyType": "кремация",
+            "leadId": 5,
+            "caseId": "case_345dfcccf8a64b7ba707a751ed42aaa4",
+            "partyId": "cmvcjui4g00bwsfk9j0xvh4h0",
+            "marker": "cpo-repair-179224926421011217041 initial-intake 0 SYNTHETIC",
+            "correlationId": "cpo-repair-179224926421011217041:initial-intake:0",
+            "discrepancyCount": 0,
+            "fulfilmentReady": false,
+            "truthfulReplays": "PASS",
+            "counts": {
+              "cases": 1,
+              "leads": 1,
+              "parties": 1,
+              "roles": 3,
+              "caseEvents": 2,
+              "partyAudits": 2,
+              "quotes": 0,
+              "contracts": 0,
+              "ledger": 0,
+              "documents": 0,
+              "tasks": 0,
+              "meetings": 0
+            }
+          },
+          {
+            "ceremonyType": "погребение",
+            "leadId": 6,
+            "caseId": "case_f2e166a836e9465fb76e07bfdff218fe",
+            "partyId": "cmvcjuzvy00cdsfk9urcj7ass",
+            "marker": "cpo-repair-179224926421011217041 initial-intake 1 SYNTHETIC",
+            "correlationId": "cpo-repair-179224926421011217041:initial-intake:1",
+            "discrepancyCount": 0,
+            "fulfilmentReady": false,
+            "truthfulReplays": "PASS",
+            "counts": {
+              "cases": 1,
+              "leads": 1,
+              "parties": 1,
+              "roles": 3,
+              "caseEvents": 2,
+              "partyAudits": 2,
+              "quotes": 0,
+              "contracts": 0,
+              "ledger": 0,
+              "documents": 0,
+              "tasks": 0,
+              "meetings": 0
+            }
+          }
+        ],
+        "sessionCleanup": "PASS_COOKIE_EXPIRED_NOT_COPIED_TOKEN_REVOCATION",
+        "unexpected5xx": 0,
+        "fixtureRetention": "OWNED_PREVIEW_SCHEMA_ONLY"
+      }
+    },
+    "independentReview": {
+      "status": "PASS",
+      "reviewedSha": "e9c23c516adf4b136b94a8825ec1cc45626b66a0",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "reviewer": "independent cumulative M3 source reviewer (Codex)",
+      "scope": "Historical cumulative repair reviews plus independently inspected exact055..e9 three-path delta, CR-INTAKE-01 closed, no new runtime P0/P1/P2. Dependency risk is separate P2, not an audit-clean claim. Native recovery operator review remains separate.",
+      "receipts": [
+        "historical/review-chain-20261017/independent-source-review-pr37-e9.md"
+      ]
+    },
+    "evidenceSchema": "PASS",
+    "evidenceHeadCi": "PASS",
+    "evidenceHeadCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39069388095",
+    "releaseMergeCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39072019723",
+    "discoveryParity": {
+      "status": "PASS",
+      "localIntegrationFiles": 23,
+      "ciIntegrationFiles": 23,
+      "localIntegrationTests": 174,
+      "ciIntegrationTests": 174,
+      "note": "Same canonical runner; actual final local23-schema run and exacte9 CI174 PASS. No suite-wide serialization."
+    },
+    "skipped": 0,
+    "notRun": 0
+  },
+  "humanGates": {
+    "financeAccounting": "AWAITING_HUMAN_VERDICT",
+    "legalPrivacy": "AWAITING_HUMAN_VERDICT",
+    "ritualOperationsSme": "AWAITING_HUMAN_VERDICT"
+  },
+  "production": {
+    "writes": "NONE",
+    "databaseSchemaChanges": "NONE",
+    "environmentChanges": "NONE",
+    "deployment": "UNCHANGED",
+    "deploymentId": "dpl_8UjuefdHtQWNTu795HgHpKsoN1j9",
+    "databaseFingerprint": "0257665af2dd90a4",
+    "runtimeSha": "87550178d6b4ba60b3f752880fd08674c6fd2835",
+    "freeze": "enabled",
+    "scope": "ONLY post-recovery PR37 technical verification interval. Earlier PR36 migrations, synthetic writes, failed release and875 rebuild are recorded in INCIDENT-PR36-20261017.md; not claimed absent."
+  },
+  "fullRolloutStatus": "BLOCKED_HUMAN_JUDGMENT",
+  "cpoAuditReleaseStatus": "POST_RELEASE_VERIFIED",
+  "ownerRunnerStatus": "CPO_RECOVERY_REPLAY_VERIFIED_HUMANS_PENDING",
+  "postReleaseRecord": "cpo-post-release-20261018.json",
+  "historicalPacket": "historical/pre-pr37-e9-packet-20261017/README.md",
+  "historicalObservedProduction": {
+    "mainSha": "055c8d70da428cf5c2c1328c1a5268f9db241b4e",
+    "servingSha": "87550178d6b4ba60b3f752880fd08674c6fd2835",
+    "deploymentId": "dpl_8UjuefdHtQWNTu795HgHpKsoN1j9",
+    "readyState": "READY",
+    "freeze": "enabled",
+    "runtimeFreezeHeader": "active",
+    "schema": "THIRTEEN_ALREADY_APPLIED_NATIVE_OWNER_PR36",
+    "incident": "INCIDENT-PR36-20261017.md",
+    "customerBaseline": "RECORDED_10_01_TO_10_03_SCOPED_MATCH_ONLY_FRESH_CONTINUATION_REQUIRED"
+  }
+}

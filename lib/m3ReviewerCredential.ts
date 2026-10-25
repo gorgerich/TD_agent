@@ -2,7 +2,7 @@ import { createHash, createPublicKey } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { commandFingerprint } from "@/lib/m3Command";
-import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { isRetryableOperationalRace, OperationalCommandError } from "@/lib/operationalTransaction";
 import { appendPlatformAudit } from "@/lib/platformAudit";
 import { backoffBeforeRetry } from "@/lib/serializationBackoff";
 
@@ -140,7 +140,8 @@ export async function runM3ReviewerCredentialTransaction<T>(
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       });
     } catch (error) {
-      const retryable = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
+      const retryable = error instanceof Prisma.PrismaClientKnownRequestError
+        && ["P2034", "P2010"].includes(error.code) && isRetryableOperationalRace(error);
       if (!retryable || attempt === 3) throw error;
       await backoffBeforeRetry(attempt);
     }
@@ -270,16 +271,55 @@ export async function revokeM3ReviewerCredential(
 
 export async function requireActiveM3ReviewerCredential(
   tx: AuditTx,
-  expected: {
-    reviewerId: string;
-    reviewerName: string;
-    reviewerRole: M3ReviewerRole;
-    publicKeyPem: string;
-    keyFingerprint: string;
-  },
+  expected: ReviewerCredentialExpectation,
 ) {
-  await lockCredential(tx, expected.keyFingerprint);
-  const latest = await latestCredentialEvent(tx, expected.keyFingerprint);
+  return (await requireActiveM3ReviewerCredentials(tx, [expected]))[0]!;
+}
+
+type ReviewerCredentialExpectation = {
+  reviewerId: string;
+  reviewerName: string;
+  reviewerRole: M3ReviewerRole;
+  publicKeyPem: string;
+  keyFingerprint: string;
+};
+
+export async function requireActiveM3ReviewerCredentials(tx: AuditTx, expected: ReviewerCredentialExpectation[]) {
+  const keys = [...new Set(expected.map(item => item.keyFingerprint))].sort();
+  if (!keys.length || keys.length > 3 || keys.length !== expected.length || keys.some(key => !FINGERPRINT.safeParse(key).success)) {
+    throw new OperationalCommandError(403, "Invalid M3 reviewer credential set");
+  }
+  // Read locks share the writer's namespace. Reading events stays in a separate
+  // statement so Read Committed sees a revocation that won the advisory lock.
+  await tx.$executeRaw(Prisma.sql`
+    SELECT pg_advisory_xact_lock_shared(hashtextextended('m3-reviewer-credential:' || key, 0))
+    FROM (SELECT unnest(ARRAY[${Prisma.join(keys)}]::text[]) AS key ORDER BY key) ordered
+  `);
+  const events = await tx.$queryRaw<Array<NonNullable<Awaited<ReturnType<typeof latestCredentialEvent>>> & { keyFingerprint: string }>>(Prisma.sql`
+    SELECT epoch."keyFingerprint", event.id, event.action, event.metadata, event."actorUserId", event."createdAt"
+    FROM "M3ReviewerCredentialEpoch" epoch
+    CROSS JOIN LATERAL (
+      SELECT id, action, metadata, "actorUserId", "createdAt" FROM "PlatformAuditEvent"
+      WHERE "targetType" = 'm3-reviewer-credential' AND "targetId" = epoch."keyFingerprint"
+        AND action IN ('M3_REVIEWER_CREDENTIAL_REGISTERED', 'M3_REVIEWER_CREDENTIAL_REVOKED')
+      ORDER BY "createdAt" DESC, id DESC LIMIT 2
+    ) event
+    WHERE epoch."keyFingerprint" IN (${Prisma.join(keys)})
+    ORDER BY epoch."keyFingerprint", event."createdAt" DESC, event.id DESC
+    FOR SHARE OF epoch
+  `);
+  // The epoch row changes with every registry insert, including older runtimes.
+  // Its lock forces a stale Serializable snapshot to retry instead of trusting it.
+  return expected.map(item => {
+    const matches = events.filter(event => event.keyFingerprint === item.keyFingerprint);
+    if (matches.length > 1 && matches[0].createdAt.getTime() === matches[1].createdAt.getTime()) {
+      throw new OperationalCommandError(409, "M3 reviewer credential registry has ambiguous same-time events");
+    }
+    return validateActiveReviewerCredential(matches[0] ?? null, item);
+  });
+}
+
+function validateActiveReviewerCredential(latest: Awaited<ReturnType<typeof latestCredentialEvent>>, expected: ReviewerCredentialExpectation) {
   if (!latest || latest.action !== "M3_REVIEWER_CREDENTIAL_REGISTERED") {
     throw new OperationalCommandError(403, "M3 reviewer credential is not actively registered");
   }

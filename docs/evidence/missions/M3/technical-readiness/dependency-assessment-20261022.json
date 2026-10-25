@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-10-22T09:58:10.499Z",
+  "sourceSha": "19f094cba2c890c87eff396774d6a666d341f42d",
+  "lockfileChangedAfterSource": false,
+  "runtimeAudit": { "info": 0, "low": 0, "moderate": 0, "high": 0, "critical": 0, "total": 0 },
+  "fullAudit": { "info": 0, "low": 0, "moderate": 0, "high": 5, "critical": 0, "total": 5 },
+  "advisory": {
+    "package": "braces",
+    "installedVersion": "3.0.3",
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "vulnerableRange": "<=3.0.3",
+    "mechanism": "Stack exhaustion through deeply nested glob patterns",
+    "dependencyPath": [
+      "eslint-config-next@16.3.8",
+      "@next/eslint-plugin-next@16.3.8",
+      "fast-glob@3.3.1",
+      "micromatch@4.0.8",
+      "braces@3.0.3"
+    ],
+    "compatiblePatchedVersionEstablished": false,
+    "auditSuggestedDowngrade": "eslint-config-next@14.2.35",
+    "downgradeApplied": false
+  },
+  "mitigation": {
+    "unusedShadcnCliRemoved": true,
+    "compatibleToolingUpdatesApplied": true,
+    "buildEnforcesProductionTraceExclusion": true,
+    "tests": "tests/dependencyBoundary.test.ts",
+    "exposure": "Repository-controlled lint configuration, not an application endpoint; production trace exclusion must pass on the final build."
+  },
+  "classification": "RUNTIME_AUDIT_CLEAR_TOOLING_RISK_MITIGATED_NOT_ELIMINATED",
+  "owner": "gorgerich",
+  "due": "2026-10-24 or before real rollout",
+  "productionChanged": false,
+  "limitations": "No claim of a vulnerability-free full dependency graph or universal build exploitability proof. The historical DA assessment remains historical."
+}

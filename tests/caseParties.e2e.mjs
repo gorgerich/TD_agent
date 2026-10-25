@@ -70,6 +70,7 @@ try {
     let createStatus = 200;
     let releaseRead;
     let delayedRead;
+    let routeFailures = 0;
     await page.route("**/api/agent/cases/*/parties**", async (route) => {
       try {
         const request = route.request();
@@ -89,7 +90,7 @@ try {
           else { status = request.method() === "POST" ? createStatus : 200; body = malformedCommit ? {} : { partyId: row.id, replayed: status === 200 }; }
         }
         await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-      } catch { await route.abort().catch(() => {}); }
+      } catch { routeFailures++; await route.abort().catch(() => {}); }
     });
     await page.goto(`http://127.0.0.1:${server.address().port}`);
     await page.getByRole("button", { name: "Добавить участника", exact: true }).click();
@@ -126,8 +127,19 @@ try {
     form = page.getByRole("form", { name: `Изменить участника ${external.name}`, exact: true });
     await form.getByRole("textbox", { name: "Имя", exact: true }).fill("Submitted update not authoritative");
     writeFailure = true;
+    const beforeUpdateWrites = writes.length;
     await form.getByRole("button", { name: "Сохранить", exact: true }).click();
-    await page.getByRole("alert").filter({ hasText: "Write unavailable" }).waitFor();
+    try { await page.getByRole("alert").filter({ hasText: "Write unavailable" }).waitFor(); }
+    catch (error) {
+      console.error(JSON.stringify({ code: "PARTY_UPDATE_FAILURE_FEEDBACK_MISSING", width,
+        updateDispatched: writes.length > beforeUpdateWrites, routeFailures, reads,
+        pageErrors: errors.length, forms: await form.count(), alerts: await page.getByRole("alert").count(),
+        pendingSynchronization: await page.getByRole("button", { name: "Повторить синхронизацию", exact: true }).count() > 0,
+        formValid: await form.count() === 1 && await form.evaluate(element => element.checkValidity()),
+        invalidFields: await form.locator("input:invalid,select:invalid").count(),
+      }));
+      throw error;
+    }
     assert.equal(await form.count(), 1, "failed update retains editable form and server error");
     writeFailure = false;
     row = canonical("Canonical updated");

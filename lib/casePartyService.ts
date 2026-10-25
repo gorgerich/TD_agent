@@ -11,7 +11,8 @@ import {
   type OperationalContext,
 } from "@/lib/operationalAuth";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
-import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { runM3ProductionTransaction } from "@/lib/m3ProductionActivation";
 import {
   commandFingerprint,
   prismaJson,
@@ -47,7 +48,7 @@ export async function createCaseParty(
   const normalized = validatePartyInput(input);
   const fingerprint = commandFingerprint({ action: "case-party.create.v1", caseId, input: normalized });
 
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
       const stored = readReplayResult<{ partyId: string }>(replay.result, fingerprint);
@@ -119,7 +120,7 @@ export async function updateCaseParty(
   const normalized = validatePartyInput(input);
   const fingerprint = commandFingerprint({ action: "case-party.update.v1", caseId, partyId, input: normalized });
 
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await findOperationalReplay(tx, context.organizationId, meta.idempotencyKey);
     if (replay) {
       const stored = readReplayResult<{ partyId: string }>(replay.result, fingerprint);

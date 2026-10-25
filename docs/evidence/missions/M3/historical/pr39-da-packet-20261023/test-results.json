@@ -1,0 +1,297 @@
+{
+  "mission": "M3-FULFILMENT-MONEY-TRUST",
+  "state": "BLOCKED_HUMAN_JUDGMENT",
+  "baseSha": "91ae4fb23b8f87c0574ccec23708daeabdc50fc9",
+  "pullRequest": 39,
+  "implementationSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "githubCiUrl": "https://github.com/gorgerich/TD_agent/actions/runs/39303713274",
+  "previewDeploymentId": "dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai",
+  "previewDeploymentSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "previewUrl": "https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app",
+  "previewDatabaseFingerprint": "545a187f9e9d66b0",
+  "checks": {
+    "sourceCi": {
+      "status": "PASS",
+      "runId": 39303713274,
+      "headSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+      "testSkipped": 0,
+      "overallConclusion": "failure",
+      "failedStep": "Validate authoritative mission evidence",
+      "countsReceipt": "technical-readiness/pr39-da-source-ci.json",
+      "note": "Actual technical steps PASS; expected stale-evidence-only source failure is permitted by unchanged validator. Overall final-head CI remains separate."
+    },
+    "gitDiffCheck": "PASS",
+    "prismaGenerate": "PASS",
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "build": "PASS",
+    "unit": {
+      "status": "PASS",
+      "passed": 262,
+      "skipped": 0,
+      "execution": "Exact DA local full gate and source CI"
+    },
+    "integration": {
+      "status": "PASS",
+      "files": 25,
+      "passed": 183,
+      "skipped": 0,
+      "residue": 0,
+      "parallelism": "Canonical concurrent per-file isolated schemas; 25 dropped locally; no deadline increase"
+    },
+    "targetedRecovery": {
+      "status": "PASS",
+      "testsPerRun": 93,
+      "consecutiveRuns": 5,
+      "totalPassed": 465,
+      "filesPerRun": 10,
+      "skipped": 0,
+      "execution": "Exact DA source CI"
+    },
+    "targetedIntakeLatency": {
+      "status": "PASS",
+      "testsPerRun": 22,
+      "consecutiveRuns": 5,
+      "skipped": 0,
+      "networkRoundTripDelayMs": 80,
+      "maximumParallelTransactionMs": 4130,
+      "transactionDeadlineMs": 5000,
+      "note": "Actual logged transaction timings, not wrapper test durations"
+    },
+    "e2e": {
+      "status": "PASS",
+      "scripts": 6,
+      "legacySmoke": "PASS",
+      "m1Operations": "PASS",
+      "m2Admin": "PASS",
+      "m2Commercial": "PASS",
+      "m3Fulfilment": "PASS",
+      "cpoRepair": "PASS",
+      "skipped": 0
+    },
+    "authInfrastructure": {
+      "status": "PASS",
+      "execution": "Exact DA separate local and source CI browser failure/recovery step"
+    },
+    "componentBrowser": {
+      "status": "PASS",
+      "scripts": [
+        "tests/cpoAuditDocuments.e2e.mjs",
+        "tests/e2e/legacy-secret-policy.mjs",
+        "tests/caseParties.e2e.mjs",
+        "tests/financeResponsive.e2e.mjs"
+      ],
+      "execution": "Exact DA local full gate and source CI"
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "migrationCount": 14,
+      "historicalMigrationChecksums": "MATCH",
+      "encryptedBackup": "PASS",
+      "realRestore": "PASS",
+      "repeatedDeploy": "NO_OP",
+      "legacyCounts": "MATCH",
+      "orphans": 0,
+      "duplicates": 0,
+      "tenantMismatches": 0,
+      "execution": "DA isolated synthetic local fixture and source CI; NOT fresh Production backup",
+      "delta": {
+        "added": "20261018140000_maintenance_job_state",
+        "sha256": "e9fe7871fbdfaece06745c9a14a3dcc3c96f45a83a799b3ab86993508138a480"
+      },
+      "restoreTables": 54
+    },
+    "schemaParity": "PASS",
+    "documentTruth": {
+      "status": "PASS",
+      "uploadedAsVerified": 0,
+      "permanentFileUrls": 0,
+      "crossTenantAccess": 0,
+      "unexplainedReconciliation": 0,
+      "productionScannerReadiness": "UNVERIFIED_EXTERNAL"
+    },
+    "financeTruth": {
+      "status": "PASS",
+      "manualPaidPaths": 0,
+      "destructiveDeletePaths": 0,
+      "duplicateLedgerEntries": 0,
+      "partialPaymentReference": "176000 RUB obligation / 88000 RUB payment = PARTIALLY_PAID / 88000 RUB balance",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "original": 1,
+        "replayed": 4
+      },
+      "financeLostResponseRetry": {
+        "original": false,
+        "replay": true,
+        "sameCommandEnvelope": true,
+        "oneLedgerEntry": true
+      },
+      "executionAfterRefundGuard": "PASS",
+      "unexplainedReconciliation": 0
+    },
+    "stageGuards": "PASS",
+    "tenantRbac": "PASS",
+    "reconciliation": {
+      "status": "PASS",
+      "discrepancies": 0
+    },
+    "accessibility": {
+      "status": "PASS",
+      "critical": 0,
+      "serious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "zoom200Meaning": "195 CSS-pixel equivalent reflow only, not native browser zoom",
+      "nativeBrowserZoom": "NOT_CERTIFIED",
+      "horizontalOverflow": 0,
+      "affectedScope": "tested operational controls only; not universal app design compliance"
+    },
+    "previewUat": {
+      "status": "PASS",
+      "deploymentId": "dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai",
+      "deploymentSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+      "previewUrl": "https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app",
+      "databaseFingerprint": "545a187f9e9d66b0",
+      "productionFingerprint": "0257665af2dd90a4",
+      "storageId": "store_Ov8erHstuvfJ52Og",
+      "storageAccess": "private",
+      "syntheticSchema": "m3_cpo_repair_1792434976131_9c13601a",
+      "cremation": "PASS",
+      "relativeBurial": "PASS",
+      "documentQuarantineReviewReplacement": "PASS",
+      "contractObligation": "PASS",
+      "partialFullRefundReversal": "PASS",
+      "executionAfterRefundGuard": "PASS",
+      "webhookReplayFive": {
+        "uniqueEntries": 1,
+        "original": 1,
+        "replayed": 4
+      },
+      "financeLostResponseRetry": {
+        "original": false,
+        "replay": true,
+        "sameCommandEnvelope": true,
+        "oneLedgerEntry": true
+      },
+      "financeVisibility": "PASS",
+      "reviewerVisibility": "PASS",
+      "stageGuards": "PASS",
+      "reconciliation": 0,
+      "crossTenant": "PASS",
+      "accessibilityCriticalSerious": 0,
+      "mobile": "PASS",
+      "zoom200": "PASS",
+      "unexpected5xx": 0,
+      "skipped": 0,
+      "repair": {
+        "firstAdmin": "PASS",
+        "lostResponseReplay": "PASS",
+        "invites": 3,
+        "scenarioCorrection": "PASS",
+        "publicationGuard": "PASS",
+        "permissions": "PASS",
+        "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+        "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+        "firstAdminUi": [
+          {
+            "width": 1365,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "technical-readiness/screenshots-da/first-admin-1365.png"
+          },
+          {
+            "width": 390,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "technical-readiness/screenshots-da/first-admin-390.png"
+          },
+          {
+            "width": 195,
+            "criticalSeriousAccessibility": 0,
+            "overflow": false,
+            "navLabelsTruncated": false,
+            "screenshot": "technical-readiness/screenshots-da/first-admin-195.png"
+          }
+        ],
+        "skipped": 0
+      },
+      "admin": {
+        "platformSuperAdmin": "PASS",
+        "platformActivation": "PASS",
+        "platformOwnerRecovery": "PASS",
+        "organizationAdmin": "PASS",
+        "managerForbidden": "PASS",
+        "agentForbidden": "PASS",
+        "crossTenant": "PASS",
+        "mobile": "PASS",
+        "skipped": 0
+      },
+      "receipt": "technical-readiness/pr39-da-preview.json",
+      "cleanup": {
+        "access": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+        "users": 13,
+        "credentialCopy": "DELETED",
+        "businessHistory": "RETAINED_SYNTHETIC_ONLY",
+        "allLinksSessionsTasksDeleted": "NO_UNIVERSAL_CLAIM"
+      },
+      "zoom200Meaning": "195 CSS px equivalent reflow, not native browser zoom"
+    },
+    "independentReview": {
+      "status": "PASS",
+      "reviewedSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+      "p0": 0,
+      "p1": 0,
+      "p2": 0,
+      "reviewer": "Codex independent review sidecar",
+      "scope": "Cumulative 91ae..DA review plus exact six-file UI delta; source approval is not operational readiness, GitHub approval or professional verdict"
+    },
+    "evidenceSchema": "PASS",
+    "evidenceHeadCi": "AWAITING_EXACT_HEAD_RUN",
+    "discoveryParity": {
+      "status": "PASS",
+      "localIntegrationFiles": 25,
+      "ciIntegrationFiles": 25,
+      "localIntegrationTests": 183,
+      "ciIntegrationTests": 183,
+      "localUnitTests": 262,
+      "ciUnitTests": 262,
+      "note": "Same canonical runner and exact candidate; no serialization"
+    },
+    "skipped": 0,
+    "notRun": 0,
+    "evidenceHeadCiNote": "Commit-time awaiting status only. Actual required verify on the evidence commit is authoritative at PR39 checks; no self-referential PASS assertion.",
+    "evidenceHeadChecksUrl": "https://github.com/gorgerich/TD_agent/pull/39/checks"
+  },
+  "humanGates": {
+    "financeAccounting": "AWAITING_HUMAN_VERDICT",
+    "legalPrivacy": "AWAITING_HUMAN_VERDICT",
+    "ritualOperationsSme": "AWAITING_HUMAN_VERDICT"
+  },
+  "production": {
+    "writes": "NONE",
+    "databaseSchemaChanges": "NONE",
+    "environmentChanges": "NONE",
+    "deployment": "UNCHANGED",
+    "deploymentId": "dpl_EUHyDbLQgdVP2fgWubxvZdsdWguW",
+    "databaseFingerprint": "0257665af2dd90a4",
+    "runtimeSha": "91ae4fb23b8f87c0574ccec23708daeabdc50fc9",
+    "freeze": "disabled",
+    "observedAt": "2026-10-20T08:44:43.256Z",
+    "scope": "PR39 technical verification interval only. Historical owner writes/releases remain in preserved post-release receipts. No fresh global customer digest claimed."
+  },
+  "fullRolloutStatus": "BLOCKED_HUMAN_JUDGMENT",
+  "cpoAuditReleaseStatus": "PR39_NOT_RELEASED",
+  "historicalPacket": "historical/pre-pr39-readiness-packet-20261020/README.md",
+  "technicalReadiness": {
+    "status": "BLOCKED_AUTHORITY",
+    "productionScanner": "OWNER_BUDGET_DECISION_REQUIRED",
+    "scheduledRetention": "AWAITING_OBSERVED_SCHEDULED_EXECUTION",
+    "finalHeadCi": "AWAITING_EXACT_HEAD_RUN",
+    "githubApproval": "REVIEW_REQUIRED",
+    "freshNativeSchema14Release": "PREREQUISITES_PENDING",
+    "scope": "Core deterministic testSkipped/notRun counts do not certify these unexecuted external/operational release gates."
+  }
+}

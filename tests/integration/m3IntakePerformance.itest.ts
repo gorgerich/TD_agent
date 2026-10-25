@@ -6,6 +6,7 @@ import { decryptField } from "../../lib/crypto";
 import { serverCommandKey } from "../../lib/commandNamespace";
 import type { CaseCommandResult } from "../../lib/caseService";
 import { installM3OrganizationBaseline } from "./_m3Baseline";
+import { projectNewCaseEventInTransaction, projectCaseEventInTransaction } from "../../lib/operationsProjection";
 import { createFixtureContext, db, makeRequest, sessionCookieHeader, skip } from "./_setup";
 
 const fixtures = createFixtureContext("m3-intake-performance");
@@ -63,6 +64,50 @@ const scenarios = [
   { id: "CREMATION_V1", ceremonyType: "\u043a\u0440\u0435\u043c\u0430\u0446\u0438\u044f", rules: 3, applicable: 3 },
   { id: "FAMILY_PLOT_BURIAL_V1", ceremonyType: "\u043f\u043e\u0433\u0440\u0435\u0431\u0435\u043d\u0438\u0435", rules: 5, applicable: 4 },
 ] as const;
+
+test("new-event projection duplicate aborts tasks, audit, receipt and event atomically", opts, async () => {
+  const owner = await fixtures.makeAgent("projection-duplicate");
+  const record = await fixtures.makeCase(owner, "projection-duplicate");
+  const eventId = `${fixtures.runId}:duplicate-projection`;
+  const context = { organizationId: owner.organizationId, membershipId: owner.membershipId,
+    agentId: owner.agentId, actorId: owner.userId, idempotencyKey: eventId, correlationId: eventId };
+  const input = { eventId, eventType: "scenario.selected.v1", caseId: record.id, leadId: record.leadId };
+  await assert.rejects(db.$transaction(async tx => {
+    await tx.caseEvent.create({ data: { id: eventId, caseId: record.id, tenantId: owner.organizationId,
+      actorId: owner.userId, actorType: "agent", eventType: input.eventType, idempotencyKey: eventId,
+      correlationId: eventId, fromStage: "PLANNING", toStage: "QUOTING", before: {}, after: {}, payload: {}, result: {} } });
+    const created = await projectNewCaseEventInTransaction(tx, context, input);
+    assert.equal(created.affectedCount, 2);
+    const tasks = await tx.task.findMany({ where: { caseId: record.id } });
+    const audits = await tx.operationalAuditEvent.findMany({ where: { organizationId: owner.organizationId } });
+    assert.equal(audits.length, 2);
+    for (const task of tasks) {
+      const audit = audits.find(item => item.entityId === String(task.id));
+      assert.ok(audit);
+      assert.equal(audit.actorMembershipId, owner.membershipId);
+      assert.equal(audit.actorType, "member");
+      assert.equal(audit.entityType, "task");
+      assert.equal(audit.action, "task.created_by_event");
+      assert.equal(audit.correlationId, eventId);
+      assert.equal(audit.causationId, eventId);
+      assert.equal(audit.idempotencyKey, `${task.idempotencyKey}:audit`);
+      assert.deepEqual(audit.before, {});
+      assert.deepEqual(audit.result, { taskId: task.id });
+      assert.deepEqual(audit.after, { status: task.status, type: task.type, priority: task.priority,
+        assigneeMembershipId: task.assigneeMembershipId, dueAt: task.dueAt!.toISOString(),
+        completedAt: null, hasOutcome: false, version: task.version });
+    }
+    assert.deepEqual(await projectCaseEventInTransaction(tx, context, input), created);
+    await projectNewCaseEventInTransaction(tx, context, input);
+  }), (error: unknown) => {
+    const conflict = error as { code?: string; meta?: { code?: string } };
+    return conflict.code === "P2002" || (conflict.code === "P2010" && conflict.meta?.code === "23505");
+  });
+  assert.equal(await db.caseEvent.count({ where: { id: eventId } }), 0);
+  assert.equal(await db.task.count({ where: { organizationId: owner.organizationId } }), 0);
+  assert.equal(await db.operationalAuditEvent.count({ where: { organizationId: owner.organizationId } }), 0);
+  assert.equal(await db.projectionReceipt.count({ where: { organizationId: owner.organizationId } }), 0);
+});
 type Scenario = (typeof scenarios)[number];
 
 async function makeFixture(scenario: Scenario, tag: string) {
@@ -323,8 +368,8 @@ for (const scenario of scenarios) {
       const edit = await submit(fixture, scenario,
         `${fixtures.runId}:${scenario.id}:same-scenario-edit:${stage}`, stage);
       const body = await successful(edit);
-      assert.equal(edit.trace.operations.filter(operation => operation === "raw.queryRaw").length, 3,
-        "Later intake uses the Case lock and two applicability reads, without a policy lock or repeated aggregate load");
+      assert.equal(edit.trace.operations.filter(operation => operation === "raw.queryRaw").length, 2,
+        "Later intake uses the Case lock and one joint facts/requirements read, without a policy lock or repeated aggregate load");
       const state = await snapshot(fixture);
       assert.equal(body.stage, stage);
       assert.equal(body.scenarioId, scenario.id);

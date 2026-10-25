@@ -1,10 +1,11 @@
 import { createHmac } from "node:crypto";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../../lib/password";
 import { encryptPlatformMfaSecret } from "../../lib/platformMfa";
 import { encryptField } from "../../lib/crypto";
 import { assertExpectedMigrationTarget, inspectDirectMigrationUrl } from "../../lib/migrationTarget";
 import { assertOnlyRecognisedSyntheticData, censusOfTarget, m1UatNamespace, m2UatNamespace, m3UatNamespace } from "./uatFixtureGuard";
+import { finalizeCpoPublication, inspectCpoPublication, seedCpoScenarios } from "./cpo-fixture-seed";
 
 // Run after M3 provision. Pass its non-secret JSON output as M3_CPO_REPAIR_FIXTURE_JSON.
 // Run cleanup before M3 cleanup, including on failure; never reprovision M3 in between.
@@ -35,27 +36,36 @@ if (browserUrl.username || browserUrl.password || browserUrl.search || browserUr
 }
 const password = process.env.M3_UAT_PASSWORD;
 const mfa = process.env.M3_UAT_MFA_SECRET;
-if (process.argv[2] === "provision" && (!password || password.length < 32 || !mfa || !/^[A-Z2-7]{32}$/.test(mfa))) throw new Error("Protected M3 password and MFA seed required");
+if (["provision", "provision-base"].includes(process.argv[2]) && (!password || password.length < 32 || !mfa || !/^[A-Z2-7]{32}$/.test(mfa))) throw new Error("Protected M3 password and MFA seed required");
 const ownerEmail = `m3-cpo-owner-${runId}@synthetic.invalid`;
 const ownerMfa = [...createHmac("sha256", mfa ?? "").update(`cpo-repair-owner:${runId}`).digest()]
   .map((byte) => "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"[byte & 31]).join("");
 const [organizationA, organizationB] = m3UatNamespace(runId).organizationIds;
 const caseIds = { safe: `m3-cpo-case:${runId}:safe`, published: `m3-cpo-case:${runId}:published` };
+const publicationInput = { runId, organizationA, cases: caseIds, agentMembershipId: `m3-uat-membership:${runId}:agent` };
 const db = new PrismaClient({ datasources: { db: { url: directUrl } } });
 let stage = "verify";
 
 async function verify() {
+  stage = "verify-target-identity";
   const rows = await db.$queryRaw<Array<{ database: string; schema: string; readOnly: string }>>`
     SELECT current_database() AS database, current_schema() AS schema, current_setting('transaction_read_only') AS "readOnly"
   `;
-  if (rows.length !== 1 || rows[0].database !== target.database || rows[0].schema !== schema || rows[0].readOnly !== "off") throw new Error("Target identity mismatch");
+  if (rows.length !== 1 || rows[0].database !== target.database || rows[0].schema !== schema || rows[0].readOnly !== "off") {
+    process.stderr.write(`${JSON.stringify({ code: "CPO_TARGET_IDENTITY_MISMATCH", rowCount: rows.length,
+      databaseMatches: rows.length === 1 && rows[0].database === target.database,
+      schemaMatches: rows.length === 1 && rows[0].schema === schema,
+      writable: rows.length === 1 && rows[0].readOnly === "off" })}\n`);
+    throw new Error("Target identity mismatch");
+  }
   const namespaces = [m3UatNamespace(runId), { label: "CPO extension", organizationIds: [], userEmails: [ownerEmail] }];
   if (process.env.M1_UAT_RUN_ID) namespaces.push(m1UatNamespace(process.env.M1_UAT_RUN_ID));
   if (process.env.M2_UAT_RUN_ID) namespaces.push(m2UatNamespace(process.env.M2_UAT_RUN_ID));
+  stage = "verify-synthetic-census";
   assertOnlyRecognisedSyntheticData(await censusOfTarget(db), namespaces, "CPO repair extension");
 }
 
-async function manifest() {
+async function manifest(publicationPending = false) {
   const rows = await db.case.findMany({ where: { id: { in: Object.values(caseIds) }, tenantId: organizationA }, select: { id: true, leadId: true, stage: true, scenarioId: true } });
   if (rows.length !== 2) throw new Error("CPO fixture incomplete");
   const owner = await db.user.findUnique({ where: { email: ownerEmail }, select: { platformRole: true, platformMfaEnabledAt: true, agent: { select: { id: true } }, memberships: { select: { id: true } } } });
@@ -64,66 +74,47 @@ async function manifest() {
   const adminCount = await db.membership.count({ where: { organizationId: organizationB, role: "ADMIN" } });
   const pendingAdminCount = await db.organizationInvite.count({ where: { organizationId: organizationB, role: "ADMIN", acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } });
   const previousBootstrapCount = await db.platformAuditEvent.count({ where: { targetId: organizationB, action: "ORGANIZATION_FIRST_ADMIN_ASSIGNED" } });
+  const meeting = await db.meeting.findFirstOrThrow({ where: { caseId: caseIds.published, organizationId: organizationA,
+    ownerMembershipId: publicationInput.agentMembershipId }, select: { id: true } });
+  const publication = publicationPending ? null : await inspectCpoPublication(db, publicationInput);
   return { source: "synthetic-cpo-repair-v1", runId, fingerprint: target.fingerprint, database: target.database, local, schema, origin, organizationA, organizationB,
+    publicationPending, publication, publishedMeetingId: meeting.id,
     bootstrap: { organizationStatus: organization.status, adminCount, pendingAdminCount, previousBootstrapCount },
     candidateMembershipId: `m3-uat-membership:${runId}:foreign`, ownerEmail,
     cases: { safe: rows.find((row) => row.id === caseIds.safe)!, published: rows.find((row) => row.id === caseIds.published)! } };
 }
 
-async function provision() {
+async function provision(baseOnly = false) {
   const passwordHash = hashPassword(password!);
-  await db.$transaction(async (tx) => {
-    const candidate = await tx.membership.findUnique({ where: { id: `m3-uat-membership:${runId}:foreign` }, include: { user: true, agent: true, organization: true } });
-    if (!candidate || candidate.organizationId !== organizationB || candidate.role !== "AGENT" || candidate.status !== "ACTIVE"
-      || candidate.user.email !== `m3-foreign-${runId}@synthetic.invalid` || candidate.user.platformRole !== "USER"
-      || candidate.agent?.status !== "ACTIVE" || candidate.organization.status !== "ACTIVE") throw new Error("Exact untouched M3 foreign AGENT required");
-    const [admins, invites, bootstrap, existingOwner, cases] = await Promise.all([
-      tx.membership.count({ where: { organizationId: organizationB, role: "ADMIN" } }),
-      tx.organizationInvite.count({ where: { organizationId: organizationB, role: "ADMIN", acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } } }),
-      tx.platformAuditEvent.count({ where: { action: "ORGANIZATION_FIRST_ADMIN_ASSIGNED", targetId: organizationB } }),
-      tx.user.count({ where: { email: ownerEmail } }), tx.case.count({ where: { id: { in: Object.values(caseIds) } } }),
-    ]);
-    if (admins || invites || bootstrap || existingOwner || cases) throw new Error("Fixture already present or consumed; refusing reset/overwrite; use status or a fresh M3 run");
-    const agent = await tx.membership.findUnique({ where: { id: `m3-uat-membership:${runId}:agent` }, include: { user: true, agent: true } });
-    if (!agent?.agent || agent.organizationId !== organizationA || agent.status !== "ACTIVE" || agent.role !== "AGENT"
-      || agent.user.email !== `m3-agent-${runId}@synthetic.invalid` || agent.agent.status !== "ACTIVE") throw new Error("Exact active M3 owner required");
-    const policies = await tx.documentRequirementPolicy.findMany({ where: { organizationId: organizationA, status: "APPROVED", retiredAt: null }, include: { rules: true } });
-    const policy = policies.find((row) => row.scenario === "CREMATION_V1");
-    if (!policy || policy.rules.length !== 3 || !policies.some((row) => row.scenario === "FAMILY_PLOT_BURIAL_V1" && row.rules.length === 4)
-      || policies.length !== 2 || policies.some((row) => !row.source.startsWith("SYNTHETIC"))) throw new Error("Exact synthetic M3 policies required");
-    await tx.user.create({ data: { email: ownerEmail, name: "CPO synthetic platform owner", passwordHash, platformRole: "SUPER_ADMIN",
-      platformMfaSecretEncrypted: encryptPlatformMfaSecret(ownerMfa), platformMfaEnabledAt: new Date() } });
-    for (const key of ["safe", "published"] as const) {
-      const lead = await tx.clientLead.create({ data: { agentId: agent.agent.id, name: `CPO ${key} ${runId}`, phone: "+70000000000", source: "synthetic-cpo-repair", ceremonyType: "кремация", deceasedName: encryptField("Synthetic CPO deceased") } });
-      const record = await tx.case.create({ data: { id: caseIds[key], publicRef: `CPO-${runId}-${key}`, tenantId: organizationA,
-        ownerId: agent.agent.id, leadId: lead.id, stage: "QUOTING", scenarioId: "CREMATION_V1" } });
-      await tx.caseDocumentRequirement.createMany({ data: policy.rules.map((rule) => ({ organizationId: organizationA, caseId: record.id,
-        policyId: policy.id, ruleId: rule.id, policyVersion: policy.version, stableKey: rule.stableKey, kind: rule.kind,
-        conditionExplanation: rule.conditionExplanation, dueAt: rule.dueOffsetHours == null ? null : new Date(Date.now() + rule.dueOffsetHours * 3_600_000),
-        ownerRole: rule.ownerRole, blockingStage: rule.blockingStage, sourceRule: rule.source,
-        acceptedDocumentTypeCodes: rule.acceptedDocumentTypeCodes as Prisma.InputJsonValue,
-        acceptedDocumentTypeVersionIds: rule.acceptedDocumentTypeVersionIds as Prisma.InputJsonValue,
-        reviewChecklist: rule.reviewChecklist as Prisma.InputJsonValue, satisfactionStatus: "NOT_SATISFIED" })) });
-      if (key === "published") {
-        const meeting = await tx.meeting.create({ data: { leadId: lead.id, agentId: agent.agent.id, organizationId: organizationA, caseId: record.id,
-          ownerMembershipId: agent.id, status: "SCHEDULED", type: "CONSULTATION", operationalStatus: "CONFIRMED", channel: "IN_PERSON",
-          timezone: "Europe/Moscow", scheduledAt: new Date(Date.now() + 86_400_000), idempotencyKey: `cpo:${runId}:published:meeting` } });
-        if (!meeting.id) throw new Error("Synthetic meeting creation failed");
-      }
-    }
-  });
+  const seed = { runId, organizationA, organizationB, cases: caseIds, ownerEmail, passwordHash,
+    candidateMembershipId: `m3-uat-membership:${runId}:foreign`, agentMembershipId: `m3-uat-membership:${runId}:agent`,
+    encryptedMfa: encryptPlatformMfaSecret(ownerMfa), encryptedDeceasedName: encryptField("Synthetic CPO deceased") };
+  const started = performance.now(), actions: Array<{ label: string; durationMs: number }> = [];
+  let callbackCompleted = false, commitAcknowledged = false;
+  try {
+    await db.$transaction(async tx => {
+      await seedCpoScenarios(tx, seed, async (label, operation) => {
+        const start = performance.now();
+        try { return await operation(); } finally { actions.push({ label, durationMs: Math.round(performance.now() - start) }); }
+      });
+      callbackCompleted = true;
+    });
+    commitAcknowledged = true;
+  } finally {
+    process.stderr.write(`${JSON.stringify({ stage: "CPO_SCENARIO_TRANSACTION", actions, callbackCompleted, commitAcknowledged, durationMs: Math.round(performance.now() - started) })}\n`);
+  }
+  if (baseOnly) return;
   // Bind production services to the verified isolated client, never the ambient DATABASE_URL.
   const globalClient = globalThis as unknown as { prisma?: PrismaClient };
   if (globalClient.prisma && globalClient.prisma !== db) throw new Error("Unexpected ambient Prisma client");
   globalClient.prisma = db;
   const { saveCommercialDraft, markCommercialQuoteInReview, publishCommercialQuote } = await import("../../lib/commercialQuoteService");
-  const { readPublishedQuoteSnapshot } = await import("../../lib/commercialQuote");
   const member = await db.membership.findUniqueOrThrow({ where: { id: `m3-uat-membership:${runId}:agent` } });
   if (!member.agentId) throw new Error("Synthetic agent missing");
   const context = { organizationId: organizationA, membershipId: member.id, agentId: member.agentId, userId: member.userId,
     role: "AGENT" as const, platformRole: "USER" as const, timezone: "Europe/Moscow" };
   const meta = (action: string) => ({ idempotencyKey: `cpo:${runId}:published:${action}`, correlationId: `cpo:${runId}:published`, reason: "Synthetic CPO publication guard" });
-  stage = "canonical-publish";
+  stage = "canonical-draft";
   const meeting = await db.meeting.findFirstOrThrow({ where: { caseId: caseIds.published, organizationId: organizationA } });
   const draft = await saveCommercialDraft({ meetingId: meeting.id, scenario: "CREMATION_V1", context, meta: meta("draft"), lines: [{
     stableKey: `cpo:${runId}:service`, position: 0, type: "SERVICE", serviceCode: "synthetic-cpo", description: "Synthetic CPO service",
@@ -131,13 +122,12 @@ async function provision() {
     discountAmount: 0, included: false, optional: false, relationKind: "STANDALONE", source: "synthetic-cpo-repair", sourceVersion: "1",
     scenarioCompatibility: ["CREMATION_V1", "FAMILY_PLOT_BURIAL_V1"],
   }] });
+  stage = "canonical-review";
   await markCommercialQuoteInReview({ quoteId: draft.quoteId, context, meta: meta("review") });
-  const published = await publishCommercialQuote({ quoteId: draft.quoteId, context, meta: meta("publish"), validUntil: new Date(Date.now() + 86_400_000), channel: "link" });
-  const version = await db.quoteVersion.findUniqueOrThrow({ where: { id: published.quoteVersionId } });
-  const snapshot = readPublishedQuoteSnapshot(version);
-  if (snapshot.caseId !== caseIds.published || snapshot.organizationId !== organizationA || version.state !== "PUBLISHED") throw new Error("Canonical publication provenance mismatch");
-  // Isolate the publication-history guard, matching the existing PostgreSQL regression.
-  await db.case.update({ where: { id: caseIds.published }, data: { stage: "QUOTING" } });
+  stage = "canonical-publish";
+  await publishCommercialQuote({ quoteId: draft.quoteId, context, meta: meta("publish"), validUntil: new Date(Date.now() + 86_400_000), channel: "link" });
+  stage = "finalize-publication";
+  await db.$transaction(tx => finalizeCpoPublication(tx, publicationInput));
 }
 
 async function cleanup() {
@@ -198,15 +188,24 @@ async function cleanup() {
 async function main() {
   try {
     await verify();
-    if (process.argv[2] === "provision") { stage = "provision"; await provision(); }
+    if (["provision", "provision-base"].includes(process.argv[2])) { stage = "provision"; await provision(process.argv[2] === "provision-base"); }
+    else if (process.argv[2] === "finalize-http-publication") {
+      stage = "finalize-http-publication";
+      await db.$transaction(tx => finalizeCpoPublication(tx, publicationInput));
+    }
     else if (process.argv[2] === "cleanup") {
       stage = "cleanup";
       await cleanup();
       process.stdout.write(`${JSON.stringify({ status: "CLEAN", source: "synthetic-cpo-repair-v1", runId })}\n`);
       return;
-    } else if (process.argv[2] !== "status") throw new Error("Use provision, status or cleanup");
+    } else if (process.argv[2] !== "status") throw new Error("Use provision, provision-base, finalize-http-publication, status or cleanup");
     stage = "manifest";
-    process.stdout.write(`${JSON.stringify(await manifest())}\n`);
+    process.stdout.write(`${JSON.stringify(await manifest(process.argv[2] === "provision-base"))}\n`);
   } finally { await db.$disconnect(); }
 }
-main().catch(() => { process.stderr.write(`CPO fixture refused or failed at ${stage}; no connection details emitted\n`); process.exitCode = 1; });
+main().catch((error: unknown) => {
+  const code = typeof error === "object" && error !== null && "code" in error
+    && typeof error.code === "string" && /^P\d{4}$/.test(error.code) ? error.code : "FIXTURE_FAILED";
+  process.stderr.write(`CPO fixture refused or failed at ${stage}; code=${code}; no connection details emitted\n`);
+  process.exitCode = 1;
+});

@@ -10,10 +10,12 @@ import {
   type CaseTransitionFacts,
   type CaseTransitionPayload,
 } from "@/lib/caseDomain";
-import { projectCaseEventInTransaction } from "@/lib/operationsProjection";
+import { projectNewCaseEventInTransaction } from "@/lib/operationsProjection";
 import {
   checkCaseRequirementMaterializationParity,
   lockDocumentRequirementPolicyScenario,
+  lockAndReadDocumentRequirementPolicyScenario,
+  type LockedDocumentRequirementPolicy,
   materializeCaseRequirementsInTransaction,
   refreshCaseRequirementApplicabilityInTransaction,
 } from "@/lib/documentRequirementService";
@@ -21,6 +23,7 @@ import { deriveCaseDocumentTruth, deriveLedgerSummary, paymentAllowsFulfilment }
 import { commandFingerprint, canonicalJson } from "@/lib/m3Command";
 import { decryptFieldStrict } from "@/lib/crypto";
 import { reconcileM3CaseForTransition } from "@/lib/m3Reconciliation";
+import { assertConfiguredM3ProductionActivation, assertM3ProductionActivation } from "@/lib/m3ProductionActivation";
 import { prepareCaseScenarioCorrection } from "@/lib/caseScenarioCorrection";
 import { assertClientCommandKey, serverCommandKey } from "@/lib/commandNamespace";
 
@@ -182,15 +185,17 @@ export async function saveCaseIntake(input: {
 
   try {
     return await runCaseTransaction(async (tx) => {
+      await assertConfiguredM3ProductionActivation(tx, tenantId);
       const lockedCase = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
       if (!lockedCase) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
       const replay = await findCommandReplay(tx, lockedCase.id, tenantId, input.context.idempotencyKey, eventType, intakePayload);
       if (replay) return replayResult(replay.result);
       const requestedScenario = scenarioFromCeremonyType(input.data.ceremonyType);
       const correctingScenario = await prepareCaseScenarioCorrection(tx, lockedCase, requestedScenario, input.context, input.scenarioCorrection);
+      let lockedRequirementPolicy: LockedDocumentRequirementPolicy | null | undefined;
       if ((lockedCase.stage === CaseStage.INTAKE || lockedCase.stage === CaseStage.PLANNING)
         && (requestedScenario === "CREMATION_V1" || requestedScenario === "FAMILY_PLOT_BURIAL_V1")) {
-        await lockDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
+        lockedRequirementPolicy = await lockAndReadDocumentRequirementPolicyScenario(tx, tenantId, requestedScenario);
       }
       const updatedLead = await tx.clientLead.update({ where: { id: input.leadId }, data: input.data });
       let aggregate = { ...lockedCase, lead: updatedLead };
@@ -221,7 +226,7 @@ export async function saveCaseIntake(input: {
       let requirementsRefreshed = false;
       if (aggregate.stage === CaseStage.PLANNING && scenarioId !== CaseScenario.UNSELECTED) {
         if (scenarioId !== requestedScenario) {
-          await lockDocumentRequirementPolicyScenario(tx, tenantId, scenarioId);
+          lockedRequirementPolicy = await lockAndReadDocumentRequirementPolicyScenario(tx, tenantId, scenarioId);
         }
         const transitioned = await applyLockedCaseTransition(tx, {
           leadId: input.leadId,
@@ -230,7 +235,7 @@ export async function saveCaseIntake(input: {
           context: derivedContext(input.context, "scenario-selected"),
         }, { aggregate, facts: intakeTransitionFacts(aggregate) }, {
           idempotencyKey: input.context.idempotencyKey, correlationId: input.context.correlationId,
-        });
+        }, lockedRequirementPolicy);
         aggregate = { ...aggregate, stage: transitioned.stage, scenarioId: transitioned.scenarioId, version: transitioned.version };
         requirementsRefreshed = true;
       }
@@ -291,6 +296,11 @@ export async function transitionCaseInTransaction(
   },
 ): Promise<CaseCommandResult> {
   const tenantId = input.context.organizationId;
+  if (["contract.signed.v1", "payment.requirement_satisfied.v1", "execution.confirmed.v1", "case.closure_requested.v1"].includes(input.eventType)) {
+    await assertM3ProductionActivation(tx, tenantId);
+  } else {
+    await assertConfiguredM3ProductionActivation(tx, tenantId);
+  }
   const lockedCaseId = await lockCaseForCommand(tx, input.leadId, tenantId, input.context.agentId);
   if (!lockedCaseId) throw new CaseDomainError("NOT_FOUND", "Кейс не найден");
   const replay = await findCommandReplay(tx, lockedCaseId.id, tenantId, input.context.idempotencyKey, input.eventType, input.payload);
@@ -312,7 +322,7 @@ export async function transitionCaseInTransaction(
   ) {
     await lockDocumentRequirementPolicyScenario(tx, tenantId, input.payload.scenarioId);
   }
-  const state = await loadTransitionState(tx, input);
+  const state = await loadTransitionState(tx, input, lockedCaseId);
   return applyLockedCaseTransition(tx, input, state);
 }
 
@@ -323,6 +333,7 @@ async function applyLockedCaseTransition(
   input: Parameters<typeof transitionCaseInTransaction>[1],
   state: Awaited<ReturnType<typeof loadTransitionState>>,
   refreshRequirements?: Pick<CaseCommandContext, "idempotencyKey" | "correlationId">,
+  lockedRequirementPolicy?: LockedDocumentRequirementPolicy | null,
 ): Promise<CaseCommandResult> {
   const tenantId = input.context.organizationId;
   const aggregate = state.aggregate;
@@ -396,9 +407,10 @@ async function applyLockedCaseTransition(
       },
       new Date(),
       refreshRequirements,
+      lockedRequirementPolicy,
     );
   }
-  await projectCaseEventInTransaction(tx, input.context, {
+  await projectNewCaseEventInTransaction(tx, input.context, {
     eventId,
     eventType: input.eventType,
     caseId: aggregate.id,
@@ -560,8 +572,28 @@ function intakeTransitionFacts(aggregate: NonNullable<Awaited<ReturnType<typeof 
 async function loadTransitionState(
   tx: Prisma.TransactionClient,
   input: { leadId: number; eventType: CaseTransitionEvent; context: CaseCommandContext },
+  lockedCase: Case,
 ) {
   const { organizationId, agentId } = input.context;
+  // Publication consumes only version ownership; document/ledger guards belong
+  // to later transitions. Reuse the Case already locked by this command.
+  if (input.eventType === "quote.published.v1" || input.eventType === "quote.republished.v1") {
+    const versions = await tx.quoteVersion.findMany({
+      where: { quote: { meeting: { leadId: input.leadId } } },
+      select: { id: true },
+    });
+    const facts: CaseTransitionFacts = {
+      intakeComplete: false,
+      availableQuoteVersionIds: versions.map((version) => version.id),
+      publishedQuoteVersionId: lockedCase.publishedQuoteVersionId,
+      contractSigned: false,
+      paymentSatisfied: false,
+      documentsReadyForExecution: false,
+      documentsReadyForClosure: false,
+      guardState: normalizedGuardState(lockedCase.guardState),
+    };
+    return { aggregate: lockedCase, facts };
+  }
   // Initial stages cannot consume contract, payment or document truth. Do not
   // load those relation trees just to validate name/phone/deceased intake.
   if (input.eventType === "intake.completed.v1" || input.eventType === "scenario.selected.v1") {

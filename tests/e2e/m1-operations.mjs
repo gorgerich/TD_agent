@@ -23,7 +23,9 @@ const password = process.env.M1_UAT_PASSWORD;
 if (!password) throw new Error("M1_UAT_PASSWORD is required for authenticated M1 E2E");
 
 browser = await chromium.launch({ headless: true });
-context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow" });
+context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: "ru-RU", timezoneId: "Europe/Moscow",
+  ...(process.env.E2E_PROTECTION_BYPASS?.trim() ? { extraHTTPHeaders: { "x-vercel-protection-bypass": process.env.E2E_PROTECTION_BYPASS.trim() } } : {}),
+});
 const page = await context.newPage();
 const failures = [];
 let expectedConflictErrors = 0;

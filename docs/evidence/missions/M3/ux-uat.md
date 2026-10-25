@@ -1,21 +1,11 @@
-# Exact e9 Preview UAT
+# Fresh Exact87 Authenticated UAT
 
-Candidate runtime `e9c23c516adf4b136b94a8825ec1cc45626b66a0`, base `055c8d70da428cf5c2c1328c1a5268f9db241b4e`, [PR37](https://github.com/gorgerich/TD_agent/pull/37).
-Exact Preview `dpl_CwUNtEzxsxxsg4xJWfFeiCgFxjBg`: https://td-agent-ixjzuqpub-rics-projects-9baa2793.vercel.app; isolated Railway DB fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_179224926421011217041`, private Blob `store_Ov8erHstuvfJ52Og`.
-The e9 Preview UAT checkpoint predates release and observed rebuilt875/frozen Production. Subsequent [restricted CPO release](cpo-post-release-20261018.md) is mergeffc/deployment3qc with disabled freeze. The full Preview journeys below remain bound to e9, not relabeled to Production's narrower retained-command smoke. Human verdicts PENDING, full rollout CLOSED, NOX excluded, M4 NOT_STARTED.
+Runtime `87d480daa62330e9ad638f68baf3c761a5f8ff4f`; base `91ae4fb23b8f87c0574ccec23708daeabdc50fc9`; [PR39](https://github.com/gorgerich/TD_agent/pull/39). Preview https://td-agent-8kw3uo269-rics-projects-9baa2793.vercel.app, deployment `dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6`, Railway fingerprint `545a187f9e9d66b0`, schema `m3_cpo_repair_1792878815845_0135ef0f`, private Blob `store_Ov8erHstuvfJ52Og`.
 
-[Actual raw receipt](pr37-e9-preview-result.json), not relabelled b0: full cremation/relative burial, quarantine/review/replacement, immutable obligation, partial/full/refund/reversal, execution-after-refund guard, webhook1original/4replays/1entry, same-envelope Finance retry, Finance/Reviewer visibility, stage/tenant guards, M3reconciliation0, unexpected5xx0, skip0.
+Exact87 source CI40133907137:321unit,207PG/29files,124latency and575risk tests PASS, skipped0; lint/typecheck/build/all6E2E/auth/7component programs/legacy17deploy-no-op-parity/encrypted synthetic restore and four cleanup steps PASS. Overall source runFAIL solely stale evidence, not overall green. No new full local suite was rerun or claimed. Actual native M2-admin/M3/CPO programs PASS, both M3 scenarios, reconciliation0/unexpected5xx0/skipped0, six active-access counters0; owned credential copy deleted.
 
-Separate CPO journey covers firstADMIN/lost-response replay/3invites/scenario correction/publication guard/permissions;409/503 session failure feedback is mocked UI only. Real logout asserts cookie expiration/protected redirect, not copied-token revocation. CPO reconciliation is NOT_IN_SCOPE, not reported zero.
+Receipt technical-readiness/pr39-87-preview.json records exact timestamps, owned schema, protected source preparation, authenticated unique-case readback and canonical publication before the three browser programs. Agent/Manager/Finance/Reviewer/Admin, both scenarios, rejection/replacement, immutable contract/partial/full/refund/reversal, replay/privacy/isolation and affected mobile/a11y passed. Equivalent195CSSpx reflow is not native browser zoom. Screenshots: technical-readiness/screenshots-87/manifest.json.
 
-New two-ceremony partial intake uses actual API and read-only complete scoped DB census. Both report discrepancy0, fulfilmentReadyfalse with unchanged three blockers, truthful replays, exactly1lead/1case/1party/3roles/2events/2audits and0quote/contract/ledger/document/task/meeting. Extra identity/correlation effects reject; no primary-key-only duplicate claim. Owned schema/fixtures remain retained.
+First attempt failed its provider CLI exit check before authority binding; exact cause is unproven. Healthy normal metadata reads preceded the same-helper retry; the STOP archive remains local. No failed attempt is converted toPASS. Synthetic scanner outcomes are not hosted scanner acceptance.
 
-## Affected UI
-
-Widths1365/390/195 CSSpx, critical/serious axe0, no horizontal overflow/nav truncation. Parent inspected390/195 captures.195px is200%-EQUIVALENT REFLOW, not native browser zoom certification. Existing operational UI, not a new landing-page design; no universal app-wide anti-slop compliance claimed.
-
-- [Desktop](screenshots/pr37-e9-first-admin-1365.png)
-- [Mobile](screenshots/pr37-e9-first-admin-390.png)
-- [Equivalent reflow](screenshots/pr37-e9-first-admin-195.png)
-
-Fresh synthetic restore, runtime diagnostic545 and authenticated unique-schema sentinel precede UAT; wrapper requires exact clean source and READY sourcee9 before and after execution. Both child exits0 plus final initial-intake result required. Browser/context cleanup PASS; protected fixture secrets/private Blob history retained, no credential destruction/deletion claim. Real Production scanner and human decisions unverified.
+Production remains the historical91ae runtime. No Production DB/env/deployment/freeze write, customer digest MATCH, paid resource, migration of app/storage, professional approval or real rollout is claimed. Budget remains0; human verdicts PENDING; NOX excluded; M4 NOT_STARTED. Actual hosted scanner and scheduled cron remain UNPROVED.

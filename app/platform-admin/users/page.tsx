@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/platformAuth";
 import { PageHeader } from "../page";
 
@@ -28,7 +29,7 @@ export default async function PlatformUsersPage({ searchParams }: { searchParams
       <div className="mt-5 overflow-hidden rounded-[14px] bg-white shadow-[0_1px_2px_rgba(13,47,42,0.08)]">
         {users.length ? users.map((user) => (
           <div key={user.id} className="grid gap-2 border-b border-[#e5e9e7] px-5 py-4 last:border-b-0 lg:grid-cols-[minmax(220px,1fr)_150px_170px_minmax(220px,1fr)] lg:items-center">
-            <span><span className="block text-[13px] font-semibold">{user.name ?? "Без имени"}</span><span className="mt-0.5 block text-[12px] text-[#687974]">{user.email ?? "Email не указан"}</span></span>
+            <span><Link href={`/platform-admin/users/${user.id}`} className="block text-[13px] font-semibold">{user.name ?? "Без имени"}</Link><span className="mt-0.5 block text-[12px] text-[#687974]">{user.email ?? "Email не указан"}</span></span>
             <span className="text-[12px] font-semibold">{user.platformRole}</span>
             <span className="text-[12px] text-[#60716d]">{user.agent?.status ?? "Без Agent"}</span>
             <span className="text-[12px] leading-5 text-[#60716d]">{user.memberships.length ? user.memberships.map((membership) => `${membership.organization.name}: ${membership.role} / ${membership.status}`).join(" · ") : "Нет membership"}</span>

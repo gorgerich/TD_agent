@@ -33,6 +33,11 @@ const targetUrl = new URL(baseUrl);
 assert.ok(!targetUrl.username && !targetUrl.password && !targetUrl.search && !targetUrl.hash && targetUrl.pathname === "/", "Use a bare approved origin");
 assert.ok(["localhost", "127.0.0.1"].includes(targetUrl.hostname) || (targetUrl.protocol === "https:" && targetUrl.hostname.endsWith(".vercel.app")), "Only local or isolated Preview origin allowed");
 assert.equal(fixture?.source, "synthetic-cpo-repair-v1");
+assert.equal(fixture.publicationPending, false, "Base-only fixture must not enter CPO UAT");
+assert.ok(Number.isSafeInteger(fixture.publication?.quoteVersionId) && fixture.publication.quoteVersionId > 0);
+assert.match(fixture.publication.checksum, /^[a-f0-9]{64}$/);
+assert.equal(fixture.publication.total, 100_000);
+assert.equal(fixture.publication.stage, "QUOTING");
 assert.equal(fixture.runId, runId);
 assert.equal(fixture.origin, origin);
 assert.match(fixture.fingerprint, /^[a-f0-9]{16}$/);
@@ -132,9 +137,32 @@ async function intake(page, leadId, confirmed) {
     await page.getByLabel("Подтверждаю исправление сценария").check();
     await page.getByLabel("Причина исправления сценария").fill(correctionBody.scenarioCorrection.reason);
   }
-  const response = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === `/api/agent/cases/${leadId}/intake` && next.request().method() === "PATCH"));
-  await page.getByRole("button", { name: "Сохранить изменения", exact: true }).click();
-  return response;
+  const pathname = `/api/agent/cases/${leadId}/intake`;
+  let requestObserved = false;
+  const onRequest = request => { if (new URL(request.url()).pathname === pathname && request.method() === "PATCH") requestObserved = true; };
+  page.on("request", onRequest);
+  const response = observeLegacyPromise(page.waitForResponse((next) => new URL(next.url()).pathname === pathname && next.request().method() === "PATCH"));
+  const save = page.getByRole("button", { name: "Сохранить изменения", exact: true });
+  try {
+    await save.click();
+    const result = await response;
+    const feedback = save.locator("..");
+    if (result.ok()) await feedback.getByText("Сохранено", { exact: true }).waitFor();
+    else await feedback.getByRole("alert").waitFor();
+    await save.and(page.locator(":enabled")).waitFor();
+    return result;
+  } catch (error) {
+    const diagnostic = { code: "CPO_INTAKE_ACTION_FAILED", confirmed, requestObserved, pageClosed: page.isClosed() };
+    if (!page.isClosed()) {
+      diagnostic.saveCount = await save.count();
+      diagnostic.saveEnabled = diagnostic.saveCount === 1 && await save.isEnabled();
+      diagnostic.scenarioSelected = await page.getByRole("button", { name: "погребение", exact: true }).getAttribute("data-active") === "true";
+      diagnostic.confirmationPresent = await page.getByLabel("Подтверждаю исправление сценария").count() === 1;
+      diagnostic.errorVisible = await page.getByRole("alert").count() > 0;
+    }
+    console.log(JSON.stringify(diagnostic));
+    throw error;
+  } finally { page.off("request", onRequest); }
 }
 
 async function assertCeremony(page, leadId, ceremony) {
@@ -286,16 +314,32 @@ async function main() {
   await assertFirstAdminViewports(owner.page);
   let firstKey;
   let firstPayload;
+  const firstDelivery = { intercepted: false, upstreamStatus: null, aborted: false };
   // Forward the real commit, discard only its response, then exercise the UI's replay.
   await owner.page.route(`${origin}${firstAdminPath}`, asyncScope.guard(async (route) => {
+    firstDelivery.intercepted = true;
     firstKey = route.request().headers()["idempotency-key"];
     firstPayload = route.request().postData();
-    const response = await route.fetch();
+    let response;
+    try { response = await route.fetch(); }
+    catch {
+      process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_FORWARD_FAILED", ...firstDelivery })}\n`);
+      throw new Error("CPO_BOOTSTRAP_FORWARD_FAILED");
+    }
+    firstDelivery.upstreamStatus = response.status();
+    if (response.status() !== 201) {
+      process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_UPSTREAM_STATUS", ...firstDelivery })}\n`);
+    }
     assert.equal(response.status(), 201);
     await route.abort("failed");
+    firstDelivery.aborted = true;
   }), { times: 1 });
   await assign.click();
-  await owner.page.getByRole("status").filter({ hasText: "Нет связи" }).waitFor();
+  try { await owner.page.getByRole("status").filter({ hasText: "Нет связи" }).waitFor(); }
+  catch {
+    process.stderr.write(`${JSON.stringify({ code: "CPO_BOOTSTRAP_LOST_RESPONSE_FEEDBACK_MISSING", ...firstDelivery })}\n`);
+    throw new Error("CPO_BOOTSTRAP_LOST_RESPONSE_FEEDBACK_MISSING");
+  }
   const replayPending = observeLegacyPromise(owner.page.waitForResponse((response) => new URL(response.url()).pathname === firstAdminPath && response.request().method() === "POST"));
   await assign.click();
   const replay = await replayPending;
@@ -333,6 +377,12 @@ async function main() {
 
   const agent = await session();
   await login(agent.page, identities.agent, null, "/agent/cases");
+  assert.ok(Number.isSafeInteger(fixture.publication?.quoteVersionId) && fixture.publication.quoteVersionId > 0);
+  for (const eventType of ["quote.published.v1", "quote.republished.v1"]) {
+    assert.equal((await command(agent.context, `/api/agent/cases/${fixture.cases.published.leadId}/transition`, "POST", {
+      eventType, payload: { quoteVersionId: fixture.publication.quoteVersionId },
+    })).status(), 422, "Publication must use its canonical command, never the generic Case API");
+  }
   assert.equal((await command(agent.context, firstAdminPath, "POST", bootstrapBody)).status(), 403);
   await assertCeremony(agent.page, fixture.cases.safe.leadId, "кремация");
   await assertDocuments(agent.page, false);
@@ -416,7 +466,7 @@ async function main() {
   await observeLegacyPromise(owner.page.waitForURL((url) => url.pathname === "/agent/login"));
   assert.deepEqual(failures, []);
   await asyncScope.settle();
-  process.stdout.write(`${JSON.stringify({ firstAdmin: "PASS", lostResponseReplay: "PASS", invites: 3, scenarioCorrection: "PASS", publicationGuard: "PASS", permissions: "PASS",
+  process.stdout.write(`${JSON.stringify({ firstAdmin: "PASS", lostResponseReplay: "PASS", invites: 3, scenarioCorrection: "PASS", publicationGuard: "PASS", genericCasePublicationDenied: "PASS", permissions: "PASS",
     sessionFailureFeedback: "PASS_MOCKED_UI_ONLY_409_503", logout: "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT", firstAdminUi, skipped: 0 })}\n`);
 }
 

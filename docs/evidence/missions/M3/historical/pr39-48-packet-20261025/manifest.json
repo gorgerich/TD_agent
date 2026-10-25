@@ -1,0 +1,66 @@
+{
+  "classification": "HISTORICAL_NOT_RELABELED",
+  "sourceSha": "48eef7cd34b4cc2f9898dadf4506a32da8699962",
+  "files": [
+    {
+      "file": "mission.yaml",
+      "sha256": "3628b6c3873d679ddb2d077c56b29b75a41ad8f1a72e182c59447b0803fd3a5b"
+    },
+    {
+      "file": "implementation.md",
+      "sha256": "008f6a7eae21ff62380872847db8befcf438285310f124d868406a53a612cf55"
+    },
+    {
+      "file": "test-results.json",
+      "sha256": "e63faf2a4139431e989bcfd5440d41949e3bca7a1b76c68ee5c42eced660919d"
+    },
+    {
+      "file": "acceptance.json",
+      "sha256": "a39c3d061eec47dbca9d1adf58a9d47aa7b6c411e307cba01544d4bab88b3e88"
+    },
+    {
+      "file": "migration.md",
+      "sha256": "dfa480eef07435c81f36a2acc0e4427ef00216d7abd2adb2b05077220637dd62"
+    },
+    {
+      "file": "security.md",
+      "sha256": "93c2bf4ea3fd4844ef25ba8df2d53106d89a0f9fe0a2a513e73e316f789f93e1"
+    },
+    {
+      "file": "ux-uat.md",
+      "sha256": "a66ca7ad7763fa2c85442bb66670f8f044081f40760414686a199f1e56b14957"
+    },
+    {
+      "file": "review.md",
+      "sha256": "1c63bed3f240e0ccb700fcdfd6ac5a87464a3dd3c991a89246c481ff998b028a"
+    },
+    {
+      "file": "release.md",
+      "sha256": "b6043c18fd57b45a0bb5f4175d3ed5615be04e4d7dce27687f3b3647baafd6b9"
+    },
+    {
+      "file": "finance.md",
+      "sha256": "4380693504a892378feef53d3a40bcd30bd6214bc5e9c1430ecb7a8cb3af93ce"
+    },
+    {
+      "file": "privacy.md",
+      "sha256": "a3d4af95d11f1f5421038c31f7958a25cd14195bccb26e6690085977f1c43786"
+    },
+    {
+      "file": "ritual-rules.md",
+      "sha256": "2704b7c4301578d5d41a96ed369d3cc30e6dbf760b41690773468c3612598307"
+    },
+    {
+      "file": "human-signoffs.json",
+      "sha256": "e113fd758005e241983e9049d6fc2ca324d84122d315d10e1942fe1a504d32b5"
+    },
+    {
+      "file": "reviewer-credentials.json",
+      "sha256": "bc63873ff5a021e940fa84b2e249ae71666835a781ca4cec741f679246b9e550"
+    },
+    {
+      "file": "cpo-registry-current.md",
+      "sha256": "c22651967b126fa994476f4906b8a505fed0e858851850214bf9b08b35ec8d78"
+    }
+  ]
+}

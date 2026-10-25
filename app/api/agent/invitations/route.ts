@@ -8,6 +8,7 @@ import { createInvitationToken, hashInvitationToken } from "@/lib/invitations";
 import { normalizeEmail } from "@/lib/agentAuth";
 import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
 import { commandMetaFromHeaders } from "@/lib/m3Api";
+import { commandFingerprint } from "@/lib/m3Command";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest) {
       return jsonError(422, "Для назначения ADMIN введите «НАЗНАЧИТЬ АДМИНИСТРАТОРА»");
     }
     const { idempotencyKey, correlationId } = commandMetaFromHeaders(req);
+    const fingerprint = commandFingerprint({ actorMembershipId: session.membershipId,
+      email: normalizeEmail(parsed.data.email), role: parsed.data.role, expiresInHours: parsed.data.expiresInHours });
 
     const token = createInvitationToken();
     let invite;
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
       });
       if (replay) {
-        assertInvitationReplay(replay);
+        assertInvitationReplay(replay, fingerprint);
         return { id: replay.entityId, replayed: true };
       }
       const created = await tx.organizationInvite.create({
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
           after: { role: created.role, expiresAt: created.expiresAt.toISOString() },
           correlationId,
           idempotencyKey,
-          result: { inviteId: created.id },
+          result: { inviteId: created.id, commandFingerprint: fingerprint },
         },
       });
       return { id: created.id, replayed: false };
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
         where: { organizationId_idempotencyKey: { organizationId: session.organizationId, idempotencyKey } },
       });
       if (!replay) throw error;
-      assertInvitationReplay(replay);
+      assertInvitationReplay(replay, fingerprint);
       invite = { id: replay.entityId, replayed: true };
     }
 
@@ -82,8 +85,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function assertInvitationReplay(replay: { action: string; entityType: string; entityId: string }) {
-  if (replay.action !== "MEMBER_INVITED" || replay.entityType !== "membership") {
+function assertInvitationReplay(replay: { action: string; entityType: string; entityId: string; result: Prisma.JsonValue }, fingerprint: string) {
+  const result = replay.result;
+  if (replay.action !== "MEMBER_INVITED" || replay.entityType !== "membership"
+    || !result || Array.isArray(result) || typeof result !== "object" || result.commandFingerprint !== fingerprint) {
     throw new OperationalCommandError(409, "Idempotency key уже использован другой командой", "IDEMPOTENCY_CONFLICT");
   }
 }

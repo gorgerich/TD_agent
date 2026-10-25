@@ -1,3 +1,6 @@
+import { isDeployedProductionDocumentRuntime } from "./documentAdapterPolicy";
+import { createHttpDocumentScanner } from "./documentScannerHttp";
+
 export type DocumentScanInput = {
   storageKey: string;
   bytes: Uint8Array;
@@ -9,10 +12,12 @@ export type DocumentScanResult = {
   status: "CLEAN" | "INFECTED" | "ERROR";
   provider: string;
   resultCode: string;
+  evidence?: { engineVersion: string; signatureVersion: number; definitionsAt: string };
 };
 
 export interface DocumentScanner {
   isOperational(): boolean;
+  checkHealth?(): Promise<boolean>;
   scan(input: DocumentScanInput): Promise<DocumentScanResult>;
 }
 
@@ -50,6 +55,8 @@ const syntheticPreviewScanner: DocumentScanner = {
 let testScanner: DocumentScanner | null = null;
 
 export function getDocumentScanner(): DocumentScanner {
+  if (process.env.M3_DOCUMENT_SCANNER === "clamav-http-v1") return createHttpDocumentScanner();
+  if (isDeployedProductionDocumentRuntime()) return failClosedScanner;
   if (testScanner) return testScanner;
   const approvedLocal = process.env.NODE_ENV !== "production" && process.env.ALLOW_DB_TESTS === "1";
   const isolatedPreview = process.env.VERCEL_ENV === "preview" && process.env.PREVIEW_DB_ISOLATION === "PASS";
@@ -60,7 +67,8 @@ export function getDocumentScanner(): DocumentScanner {
 }
 
 export function setDocumentScannerForTests(scanner: DocumentScanner | null): void {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1") {
+  if (isDeployedProductionDocumentRuntime()
+    || (process.env.NODE_ENV === "production" && process.env.ALLOW_DB_TESTS !== "1")) {
     throw new Error("Document scanner override is forbidden in production");
   }
   testScanner = scanner;

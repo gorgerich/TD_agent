@@ -1,0 +1,163 @@
+[
+  {
+    "file": "burial-summary-desktop.png",
+    "sha256": "677410a15ef7230cb9d972fea5c612da0af0e952ecaa1f8783dcf6d649fcb700",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "cremation-summary-desktop.png",
+    "sha256": "e8c01a13be1fe5a44e50f64710b784a4658f3cf2c52d90879df8570dbcf02fc8",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "documents-mobile.png",
+    "sha256": "b44445c172df0495f3e6c8fe457670b6f02700bcc9f9b0ed6cb85ede9238baa8",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "documents-zoom200.png",
+    "sha256": "82a838ffe31125bc08361846a1e27bb150d6aad237ad0c6aae6c43f746df2cb3",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "finance-mobile.png",
+    "sha256": "6829601ee4b0e9ecf4705b33992b161595a3c7d7ed9949340a1d2f69527f9e4d",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "finance-zoom200.png",
+    "sha256": "2ab516e95718cab17b156afe597bb9a4aaf22a88b0527dd025149e992ab5e4fd",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "reviewer-mobile.png",
+    "sha256": "cee6e4ca2734b0f9af31677817c85406f71e567d980d752b12275070b8b6d635",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "reviewer-zoom200.png",
+    "sha256": "97ed5cbd875cb45faded15e93bbb6f1371fffecac88b38a62aede7c7ba39fde5",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-onboarding-agent-mobile.png",
+    "sha256": "ad5d0fe3a4f82534923a09a1c44736624cac0903cdc192b9ec832c65f53ba6d1",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-onboarding-document_reviewer-mobile.png",
+    "sha256": "cee6e4ca2734b0f9af31677817c85406f71e567d980d752b12275070b8b6d635",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-onboarding-finance-mobile.png",
+    "sha256": "ec68d24345d3a5d99911a146782c9e722835744b588e4a57d0b57783f4ecdba2",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-onboarding-manager-mobile.png",
+    "sha256": "d685d8f3c98146b28ad650995253bb2eab5706bfb4e0175217a81d845c549b7c",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-organization-admin-desktop.png",
+    "sha256": "997c1ec9ae58cb5091145a65e50633b714eeb15afc1ea4f90e2b2df443045e89",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-organization-admin-mobile.png",
+    "sha256": "d65c44276c3adad22346653019e21df0208ad5223ddd9de7def876f7ffef0a7d",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-platform-activation-mobile.png",
+    "sha256": "4ca6b1f0f321031a16fc70abc39ba800edb86430599ed230b92ef67b3a59bd9f",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-platform-admin-desktop.png",
+    "sha256": "cbb85b766a071f42581daa6823f42f21b8ce29a34ef0beb6531f5041f591ba98",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-platform-admin-mobile.png",
+    "sha256": "e0049b9da967f67a768be5447fc689f068e1e5b0d6c20fe641399920488299ab",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-platform-owner-recovery-mobile.png",
+    "sha256": "61489ec3c423644606c52f15a9d9fb4926b30321a52db10a3c8ea1efb01f8a2f",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-staff-recovery-authenticated-195.png",
+    "sha256": "7abed2bc280490ad6c5ac1774df6a153a153c3c561bb81dc64d9213b46e46ebf",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "platform-staff-recovery-authenticated-mobile.png",
+    "sha256": "4a62ec8b174f8ff9a214e5f21ed8f8e88e5f9d5ec645b5c1905d1603390bcfd2",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-1365.png",
+    "sha256": "f0af8ba1b2d87067942975d93649b7d2c86843ed9cc46965111f83cb65e5ca85",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-390.png",
+    "sha256": "567891c24eaeced4b9ca70c9809ab92aa4496856a9cd8ad3cf99a7188241b077",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  },
+  {
+    "file": "first-admin-195.png",
+    "sha256": "6029d032834e5942a4e2a7551a15dff6a854151333546b973cb80b4010d3d56b",
+    "sourceSha": "87d480daa62330e9ad638f68baf3c761a5f8ff4f",
+    "deploymentId": "dpl_BEWbq9cvrLidRFhdDXKu5gsGNPP6",
+    "syntheticOnly": true
+  }
+]

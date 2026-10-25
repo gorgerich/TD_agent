@@ -6,6 +6,8 @@ import { db, skip } from "./_setup";
 import { claimRateLimitRetentionCadence, cleanupExpiredRateLimitBuckets, drainRateLimitRetention, RATE_LIMIT_RETENTION_BATCH } from "../../lib/rateLimitRetention";
 import { enforcePersistentIdentityRateLimit, persistentRateLimitKey } from "../../lib/persistentRateLimit";
 import { GET } from "../../app/api/internal/rate-limit-retention/route";
+import { getRateLimitRetentionHealth, RETENTION_JOB_KEY, runObservedRateLimitRetention } from "../../lib/rateLimitRetentionHealth";
+import { GET as getHealth } from "../../app/api/platform-admin/rate-limit-retention/route";
 
 const opts = { skip };
 const keys: string[] = [];
@@ -19,6 +21,79 @@ async function bucket(expired: boolean) {
 }
 after(async () => {
   if (!skip) await db.securityRateLimitBucket.deleteMany({ where: { keyHash: { in: keys } } });
+  if (!skip) await db.maintenanceJobState.deleteMany({ where: { key: RETENTION_JOB_KEY } });
+});
+
+test("retention health is private, never-observed is stale, and failures preserve last success", opts, async () => {
+  assert.equal((await getHealth(new Request("https://example.invalid/api/platform-admin/rate-limit-retention"))).status, 401);
+  assert.deepEqual(await getRateLimitRetentionHealth(), { lastOutcome: "NEVER_OBSERVED", stale: true });
+  await bucket(true);
+  assert.notEqual(await runObservedRateLimitRetention(), null);
+  const success = await getRateLimitRetentionHealth();
+  assert.equal(success.lastOutcome, "SUCCEEDED");
+  assert.equal(success.stale, false);
+  assert.ok("lastSuccessAt" in success && success.lastSuccessAt);
+  const transaction = mock.method(db, "$transaction", async () => { throw new Error("Synthetic failure"); });
+  try {
+    assert.equal(await runObservedRateLimitRetention(), null);
+    const failure = await getRateLimitRetentionHealth();
+    assert.equal(failure.lastOutcome, "FAILED");
+    assert.ok("lastSuccessAt" in failure);
+    assert.deepEqual(failure.lastSuccessAt, success.lastSuccessAt);
+    assert.ok("lastFailureAt" in failure && failure.lastFailureAt);
+  } finally { transaction.mock.restore(); }
+  await db.maintenanceJobState.update({ where: { key: RETENTION_JOB_KEY }, data: { lastSuccessAt: new Date(Date.now() - 27 * 60 * 60 * 1000) } });
+  assert.equal((await getRateLimitRetentionHealth()).stale, true);
+});
+
+test("concurrent observed runs retain one bounded job row and no request identities", opts, async () => {
+  const results = await Promise.all(Array.from({ length: 5 }, () => runObservedRateLimitRetention()));
+  assert.ok(results.every((result) => result !== null));
+  assert.equal(await db.maintenanceJobState.count({ where: { key: RETENTION_JOB_KEY } }), 1);
+  assert.equal((await getRateLimitRetentionHealth()).stale, false);
+});
+
+test("an older completion cannot finish a newer retention attempt, in either outcome order", opts, async () => {
+  for (const olderFails of [false, true]) {
+    const first = Promise.withResolvers<number>();
+    const second = Promise.withResolvers<number>();
+    const firstEntered = Promise.withResolvers<void>();
+    const secondEntered = Promise.withResolvers<void>();
+    let calls = 0;
+    const transaction = mock.method(db, "$transaction", () => {
+      calls += 1;
+      if (calls === 1) { firstEntered.resolve(); return first.promise; }
+      secondEntered.resolve(); return second.promise;
+    });
+    const older = runObservedRateLimitRetention();
+    await firstEntered.promise;
+    const newer = runObservedRateLimitRetention();
+    await secondEntered.promise;
+    try {
+      assert.equal((await getRateLimitRetentionHealth()).lastOutcome, "RUNNING");
+      await db.maintenanceJobState.update({ where: { key: RETENTION_JOB_KEY }, data: { lastAttemptAt: new Date(Date.now() - 120_000) } });
+      const held = await getRateLimitRetentionHealth();
+      assert.ok("attemptOverdue" in held && held.attemptOverdue);
+      if (olderFails) {
+        second.resolve(0);
+        await newer;
+        first.reject(new Error("Synthetic older failure"));
+        await older;
+        assert.equal((await getRateLimitRetentionHealth()).lastOutcome, "SUCCEEDED");
+      } else {
+        first.resolve(0);
+        await older;
+        assert.equal((await getRateLimitRetentionHealth()).lastOutcome, "RUNNING");
+        second.reject(new Error("Synthetic newer failure"));
+        await newer;
+        assert.equal((await getRateLimitRetentionHealth()).lastOutcome, "FAILED");
+      }
+    } finally {
+      first.resolve(0); second.resolve(0);
+      await Promise.allSettled([older, newer]);
+      transaction.mock.restore();
+    }
+  }
 });
 
 test("retention removes expired buckets but preserves active counters; replay is safe", opts, async () => {

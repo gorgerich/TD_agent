@@ -1,0 +1,176 @@
+{
+  "sourceSha": "da24768bb6026ba02774e92232059ae3da06fc92",
+  "intendedScope": "ISOLATED_PREVIEW_ONLY",
+  "fingerprint": "545a187f9e9d66b0",
+  "verificationScope": "AFFECTED_M2_ADMIN_M3_CPO",
+  "previewPrograms": [
+    "m2-admin",
+    "m3-fulfilment",
+    "cpo-repair"
+  ],
+  "notRunInScopedPreview": [
+    "m1-operations",
+    "m2-commercial"
+  ],
+  "separateRequiredRegression": "FULL_LOCAL_E2E_AND_FINAL_HEAD_CI_UNCHANGED",
+  "stages": [
+    {
+      "label": "cpo-finalize-publication",
+      "exit": 0
+    },
+    {
+      "label": "m2-admin",
+      "exit": 0
+    },
+    {
+      "label": "m3-fulfilment",
+      "exit": 0
+    },
+    {
+      "label": "cpo-repair",
+      "exit": 0
+    }
+  ],
+  "phase": "cpo-repair",
+  "deployment": {
+    "id": "dpl_F8BNU6rZ1TAq2AUn2DbJvaMQ9pai",
+    "sha": "da24768bb6026ba02774e92232059ae3da06fc92",
+    "base": "https://td-agent-lf6re44au-rics-projects-9baa2793.vercel.app",
+    "branch": "fix/m3-cpo-audit-repair"
+  },
+  "startedAt": "2026-10-19T18:44:35.671Z",
+  "schemaReadback": {
+    "caseId": "m3-uat-case:readiness-1792434976131:cremation",
+    "status": "MATCH",
+    "reconciliation": 0
+  },
+  "httpPreparation": {
+    "caseId": "m3-cpo-case:readiness-1792434976131:published",
+    "meetingId": 3,
+    "state": "PUBLICATION_VERIFIED",
+    "commands": [
+      {
+        "action": "draft",
+        "idempotencyKey": "cpo:readiness-1792434976131:published:draft",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      },
+      {
+        "action": "review",
+        "idempotencyKey": "cpo:readiness-1792434976131:published:review",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      },
+      {
+        "action": "publish",
+        "idempotencyKey": "cpo:readiness-1792434976131:published:publish",
+        "state": "ACKNOWLEDGED",
+        "status": 200
+      }
+    ],
+    "quoteVersionId": 4
+  },
+  "status": "SCOPED_M2_ADMIN_M3_CPO_BROWSER_PROGRAMS_PASS",
+  "finishedAt": "2026-10-19T18:58:36.040Z",
+  "retained": {
+    "schema": "m3_cpo_repair_1792434976131_9c13601a",
+    "reason": "synthetic business/audit evidence; no history deletion",
+    "users": 13
+  },
+  "configuration": "OWNED_ISOLATED_SCHEMA_RETAINED_NO_RESTORE_CLAIM",
+  "configUpdates": {
+    "DATABASE_URL": {
+      "status": "CONFIRMED",
+      "id": "KSC8GGa8DFbfvqsp"
+    },
+    "DATABASE_URL_UNPOOLED": {
+      "status": "CONFIRMED",
+      "id": "8NaHZc11LQTsfjfn"
+    }
+  },
+  "cleanup": "ACCESS_REVOKED_PREVIEW_BINDING_RETAINED",
+  "storageId": "store_Ov8erHstuvfJ52Og",
+  "storageAccess": "private",
+  "productionFingerprint": "0257665af2dd90a4",
+  "m3": {
+    "cremation": "PASS",
+    "relativeBurial": "PASS",
+    "documentQuarantineReviewReplacement": "PASS",
+    "contractObligation": "PASS",
+    "partialFullRefundReversal": "PASS",
+    "executionAfterRefundGuard": "PASS",
+    "webhookReplayFive": {
+      "uniqueEntries": 1,
+      "original": 1,
+      "replayed": 4
+    },
+    "financeLostResponseRetry": {
+      "original": false,
+      "replay": true,
+      "sameCommandEnvelope": true,
+      "oneLedgerEntry": true
+    },
+    "financeVisibility": "PASS",
+    "reviewerVisibility": "PASS",
+    "stageGuards": "PASS",
+    "reconciliation": 0,
+    "crossTenant": "PASS",
+    "accessibilityCriticalSerious": 0,
+    "mobile": "PASS",
+    "zoom200": "PASS",
+    "unexpected5xx": 0,
+    "skipped": 0
+  },
+  "cpo": {
+    "firstAdmin": "PASS",
+    "lostResponseReplay": "PASS",
+    "invites": 3,
+    "scenarioCorrection": "PASS",
+    "publicationGuard": "PASS",
+    "permissions": "PASS",
+    "sessionFailureFeedback": "PASS_MOCKED_UI_ONLY_409_503",
+    "logout": "PASS_REAL_COOKIE_CLEAR_AND_PROTECTED_REDIRECT",
+    "firstAdminUi": [
+      {
+        "width": 1365,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "technical-readiness/screenshots-da/first-admin-1365.png"
+      },
+      {
+        "width": 390,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "technical-readiness/screenshots-da/first-admin-390.png"
+      },
+      {
+        "width": 195,
+        "criticalSeriousAccessibility": 0,
+        "overflow": false,
+        "navLabelsTruncated": false,
+        "screenshot": "technical-readiness/screenshots-da/first-admin-195.png"
+      }
+    ],
+    "skipped": 0
+  },
+  "admin": {
+    "platformSuperAdmin": "PASS",
+    "platformActivation": "PASS",
+    "platformOwnerRecovery": "PASS",
+    "organizationAdmin": "PASS",
+    "managerForbidden": "PASS",
+    "agentForbidden": "PASS",
+    "crossTenant": "PASS",
+    "mobile": "PASS",
+    "skipped": 0
+  },
+  "credentialCopyDeleted": true,
+  "limitations": [
+    "synthetic scanner, not Production scanner readiness",
+    "195 CSS px equivalent reflow, not native browser zoom",
+    "three affected Preview programs; all six E2E ran locally and in source CI",
+    "business and audit history retained; suspended organization prevents access; no all-records-deleted claim"
+  ]
+}

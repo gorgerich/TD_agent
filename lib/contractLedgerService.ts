@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { isM3ProductionWriteAllowed } from "@/lib/m3AuditMode";
 import { appendOperationalAudit, findOperationalReplay } from "@/lib/operationalAudit";
 import { assertCapability, type OperationalContext } from "@/lib/operationalAuth";
-import { OperationalCommandError, runOperationalTransaction } from "@/lib/operationalTransaction";
+import { OperationalCommandError } from "@/lib/operationalTransaction";
+import { runM3ProductionTransaction } from "@/lib/m3ProductionActivation";
 import {
   commandFingerprint,
   prismaJson,
@@ -59,7 +60,7 @@ export async function createContractVersion(
   if (!validPaymentTerms(input.paymentTerms)) throw new OperationalCommandError(400, "Проверьте структуру и размер условий оплаты");
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, validUntil: input.validUntil?.toISOString() ?? null });
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{ contractVersionId: string; versionNumber: number; status: "DRAFT" }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -204,7 +205,7 @@ export async function issueContractVersion(
   assertCapability(context, "contracts:manage");
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ contractVersionId, command: "issue" });
-  return runOperationalTransaction(async (tx) => {
+  return runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{ contractVersionId: string; status: "ISSUED" }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -261,7 +262,7 @@ export async function signContractVersion(
   if (!input.signaturePolicyVersion.trim()) throw new OperationalCommandError(422, "Нужна версия политики подписания");
   const { caseId: expectedCaseId, ...signatureCommand } = input;
   const fingerprint = commandFingerprint(signatureCommand);
-  const result = await runOperationalTransaction(async (tx) => {
+  const result = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     await lockOrganizationPolicyBoundary(tx, context.organizationId);
     const replay = await readAuditReplay<{
       contractVersionId: string; obligationId: string; ledgerEntryId: string; status: "SIGNED";
@@ -509,7 +510,7 @@ export async function recordManualPayment(
   validateLedgerInput(input.amountKopecks, input.currency, input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  const result = await runOperationalTransaction(async (tx) => {
+  const result = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -587,7 +588,7 @@ export async function recordRefund(
   validateLedgerInput(input.amountKopecks, "RUB", input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  const result = await runOperationalTransaction(async (tx) => {
+  const result = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; summary: LedgerSummary }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -684,7 +685,7 @@ export async function requestLedgerAdjustment(
   validateLedgerInput(input.amountKopecks, "RUB", input.evidenceReference, input.reason);
   validateM3CommandMeta(meta);
   const fingerprint = commandFingerprint({ ...input, occurredAt: input.occurredAt.toISOString() });
-  const result = await runOperationalTransaction(async (tx) => {
+  const result = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{ ledgerEntryId: string; approvalRequired: boolean; policyVersion: number }>(
       tx, context.organizationId, meta.idempotencyKey, fingerprint,
     );
@@ -849,7 +850,7 @@ export async function decideLedgerAdjustment(
   validateM3CommandMeta(meta);
   if (input.reason.trim().length < 3) throw new OperationalCommandError(422, "Нужна причина решения");
   const fingerprint = commandFingerprint(input);
-  const result = await runOperationalTransaction(async (tx) => {
+  const result = await runM3ProductionTransaction(context.organizationId, async (tx) => {
     const replay = await readAuditReplay<{
       ledgerEntryId: string; decision: "APPROVED" | "REJECTED"; summary: LedgerSummary;
     }>(tx, context.organizationId, meta.idempotencyKey, fingerprint);
@@ -1059,7 +1060,7 @@ export async function processPaymentWebhook(
   }
   let result: CommandResult<{ receiptId: string; ledgerEntryId: string }>;
   try {
-    result = await runOperationalTransaction(async (tx) => {
+    result = await runM3ProductionTransaction(command.organizationId, async (tx) => {
       const existing = await tx.paymentWebhookReceipt.findUnique({
         where: {
           organizationId_provider_externalEventId: {
@@ -1354,7 +1355,7 @@ async function lockOrganizationPolicyBoundary(
   organizationId: string,
 ): Promise<void> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "Organization" WHERE "id" = ${organizationId} FOR UPDATE
+    SELECT "id" FROM "Organization" WHERE "id" = ${organizationId} FOR SHARE
   `;
   if (rows.length !== 1) throw new OperationalCommandError(404, "Организация не найдена");
 }

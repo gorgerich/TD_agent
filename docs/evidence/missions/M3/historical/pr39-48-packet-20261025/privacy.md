@@ -1,0 +1,49 @@
+---
+schema: m3-human-packet-v2
+gate: legalPrivacy
+preview_url: https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app
+deployment_id: dpl_HszboxTiE1dYJu5dgrBUTciaQ126
+deployment_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
+implementation_sha: 48eef7cd34b4cc2f9898dadf4506a32da8699962
+database_fingerprint: 545a187f9e9d66b0
+current_verdict: AWAITING_HUMAN_VERDICT
+reviewer_id: null
+reviewer_name: null
+attestation_fingerprint: null
+---
+# Legal and Privacy human decision packet
+
+## Candidate facts
+
+PR39 / base91ae technical candidate. Actual exact48 Preview journeys passed on 2026-10-23; synthetic access was then revoked. This packet is prepared factual input, NOT a professional verdict. No PR39 Production release occurred. Historical releases and failed attempts remain in their original receipts. Re-admit only scoped synthetic access through an approved reviewed mechanism when a real reviewer is scheduled.
+
+
+- Exact Preview: `https://td-agent-h162tsojw-rics-projects-9baa2793.vercel.app`
+- Deployment: `dpl_HszboxTiE1dYJu5dgrBUTciaQ126`
+- Implementation: `48eef7cd34b4cc2f9898dadf4506a32da8699962`
+- Case-party contacts use the existing encrypted adapter and stable role assignments.
+- Document storage is private, server-authorized, audited, and short lived; permanent URLs are absent.
+- Upload is quarantined and is never represented as verified.
+- Reviewer and Finance projections are purpose limited.
+- Religion and other special-category fields were not introduced.
+- Contract technical signing evidence is not claimed to be a legally binding electronic signature.
+
+## Human checklist
+
+The Legal/Privacy reviewer must decide:
+
+- [ ] legal-basis-consent: Approve legal basis and consent provenance for each party role and channel.
+- [ ] retention-rights: Define retention, export, rectification, and deletion restrictions.
+- [ ] signing-boundary: Approve ContractVersion signing-evidence boundary and required wording.
+- [ ] access-visibility: Approve role access to document, party, payer, and audit fields.
+- [ ] metadata-minimization: Confirm filenames, rejection reasons, and audit metadata are minimized.
+- [ ] special-category: Confirm fail-closed exclusion of religion and special-category processing.
+- [ ] scenario-cremation: Complete the synthetic cremation privacy and signing journey in this Preview.
+- [ ] scenario-family-plot-burial: Complete the synthetic family-plot burial privacy and signing journey in this Preview.
+
+## Required attestation
+
+Record reviewer name/role, date, exact deployment ID/SHA, each checklist answer, and final
+`PASS` or `FAIL`. A conditional answer must identify the exact policy or UI wording to change.
+
+Current verdict: **AWAITING HUMAN**.

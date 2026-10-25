@@ -9,6 +9,9 @@ const source = new URL(process.env.TEST_DATABASE_URL);
 assert.ok(["127.0.0.1", "localhost", "[::1]"].includes(source.hostname), "Latency harness is local-only");
 const roundTripMs = Number(process.argv[2] ?? 80);
 assert.ok(Number.isInteger(roundTripMs) && roundTripMs >= 80 && roundTripMs <= 200);
+const testFile = process.argv[3] ?? "tests/integration/m3IntakePerformance.itest.ts";
+assert.ok(["tests/integration/m3IntakePerformance.itest.ts", "tests/integration/m3PolicyActivation.itest.ts",
+  "tests/integration/commercialPublishPerformance.itest.ts"].includes(testFile));
 const sockets = new Set();
 const eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
 eventLoopDelay.enable();
@@ -58,7 +61,7 @@ try {
   const target = new URL(source);
   target.hostname = "127.0.0.1";
   target.port = String(proxy.address().port);
-  const child = spawn(process.execPath, ["scripts/run-integration-tests.mjs", "tests/integration/m3IntakePerformance.itest.ts"], {
+  const child = spawn(process.execPath, ["scripts/run-integration-tests.mjs", testFile], {
     stdio: "inherit",
     env: {
       ...process.env,
